@@ -20,6 +20,7 @@
 #include <BWTA.h>
 
 #include <bwem.h>
+#include <BWEB.h>
 
 #include "Config.h"
 #include "Logger.h"

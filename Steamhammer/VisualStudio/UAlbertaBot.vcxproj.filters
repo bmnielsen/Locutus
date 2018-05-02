@@ -37,6 +37,9 @@
     <Filter Include="BWEM">
       <UniqueIdentifier>{f9de7e90-b5f7-4581-8e69-7329000b4e75}</UniqueIdentifier>
     </Filter>
+    <Filter Include="BWEB">
+      <UniqueIdentifier>{2e22c0f4-f676-40e0-888a-24c2ffa39140}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Source\CombatCommander.cpp">
@@ -203,6 +206,24 @@
     </ClCompile>
     <ClCompile Include="..\..\BWEM\src\mapPrinter.cpp">
       <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEB\src\AStar.cpp">
+      <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEB\src\Block.cpp">
+      <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEB\src\BWEB.cpp">
+      <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEB\src\BWEBUtil.cpp">
+      <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEB\src\Station.cpp">
+      <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEB\src\Wall.cpp">
+      <Filter>BWEB</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -374,6 +395,21 @@
     </ClInclude>
     <ClInclude Include="..\..\BWEM\src\mapPrinter.h">
       <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEB\src\AStar.h">
+      <Filter>BWEB</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEB\src\Block.h">
+      <Filter>BWEB</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEB\src\BWEB.h">
+      <Filter>BWEB</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEB\src\Station.h">
+      <Filter>BWEB</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEB\src\Wall.h">
+      <Filter>BWEB</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -86,7 +86,7 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>../BOSS/source;../source;../../BWEM/src;$(BWAPI_DIR)/include;$(BWTA_DIR)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../BOSS/source;../source;../../BWEM/src;../../BWEB/src;$(BWAPI_DIR)/include;$(BWTA_DIR)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;EXAMPLEAIMODULE_EXPORTS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -116,6 +116,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\BWEB\src\AStar.cpp" />
+    <ClCompile Include="..\..\BWEB\src\Block.cpp" />
+    <ClCompile Include="..\..\BWEB\src\BWEB.cpp" />
+    <ClCompile Include="..\..\BWEB\src\BWEBUtil.cpp" />
+    <ClCompile Include="..\..\BWEB\src\Station.cpp" />
+    <ClCompile Include="..\..\BWEB\src\Wall.cpp" />
     <ClCompile Include="..\..\BWEM\src\area.cpp" />
     <ClCompile Include="..\..\BWEM\src\bwapiExt.cpp" />
     <ClCompile Include="..\..\BWEM\src\bwem.cpp" />
@@ -187,6 +193,11 @@
     <ClCompile Include="..\source\WorkerManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\BWEB\src\AStar.h" />
+    <ClInclude Include="..\..\BWEB\src\Block.h" />
+    <ClInclude Include="..\..\BWEB\src\BWEB.h" />
+    <ClInclude Include="..\..\BWEB\src\Station.h" />
+    <ClInclude Include="..\..\BWEB\src\Wall.h" />
     <ClInclude Include="..\..\BWEM\src\area.h" />
     <ClInclude Include="..\..\BWEM\src\base.h" />
     <ClInclude Include="..\..\BWEM\src\bwapiExt.h" />
