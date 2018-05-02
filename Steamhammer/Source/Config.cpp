@@ -12,7 +12,7 @@ namespace Config
     {
         bool ConfigFileFound                = false;
         bool ConfigFileParsed               = false;
-        std::string ConfigFileLocation      = "bwapi-data/AI/Steamhammer_1.4.1.json";
+        std::string ConfigFileLocation      = "bwapi-data/AI/Locutus.json";
     }
 
 	namespace IO
@@ -39,8 +39,8 @@ namespace Config
 
     namespace BotInfo
     {
-        std::string BotName                 = "Steamhammer";
-        std::string Authors                 = "Jay Scott";
+        std::string BotName                 = "Locutus";
+        std::string Authors                 = "Bruce Nielsen";
         bool PrintInfoOnStart               = false;
     }
 
@@ -82,7 +82,7 @@ namespace Config
         bool DrawSquadInfo                  = false;
         bool DrawBOSSStateInfo              = false;
 
-        std::string ErrorLogFilename        = "Steamhammer_ErrorLog.txt";
+        std::string ErrorLogFilename        = "Locutus_ErrorLog.txt";
         bool LogAssertToErrorFile           = false;
 
         BWAPI::Color ColorLineTarget        = BWAPI::Colors::White;
