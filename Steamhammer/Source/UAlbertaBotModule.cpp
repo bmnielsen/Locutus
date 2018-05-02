@@ -16,6 +16,8 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 // This gets called when the bot starts.
 void UAlbertaBotModule::onStart()
 {
@@ -29,6 +31,12 @@ void UAlbertaBotModule::onStart()
 
 	// Our own map analysis.
 	Bases::Instance().onStart();
+
+	// BWEM map init
+	bwemMap.Initialize();
+	bwemMap.EnableAutomaticPathAnalysis();
+	bool startingLocationsOK = bwemMap.FindBasesForStartingLocations();
+	UAB_ASSERT(startingLocationsOK, "BWEM map analysis failed");
 
 	// Parse the bot's configuration file.
 	// Change this file path to point to your config file.
@@ -95,6 +103,11 @@ void UAlbertaBotModule::onFrame()
 
 void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 {
+	if (unit->getType().isMineralField())
+		bwemMap.OnMineralDestroyed(unit);
+	else if (unit->getType().isSpecialBuilding())
+		bwemMap.OnStaticBuildingDestroyed(unit);
+
 	GameCommander::Instance().onUnitDestroy(unit);
 }
 

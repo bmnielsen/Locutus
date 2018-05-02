@@ -19,6 +19,8 @@
 #include <BWAPI.h>
 #include <BWTA.h>
 
+#include <bwem.h>
+
 #include "Config.h"
 #include "Logger.h"
 #include "UABAssert.h"

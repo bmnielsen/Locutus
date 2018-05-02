@@ -34,6 +34,9 @@
     <Filter Include="util">
       <UniqueIdentifier>{59599488-4576-44ab-8522-7d65a6425e15}</UniqueIdentifier>
     </Filter>
+    <Filter Include="BWEM">
+      <UniqueIdentifier>{f9de7e90-b5f7-4581-8e69-7329000b4e75}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Source\CombatCommander.cpp">
@@ -150,6 +153,57 @@
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
     <ClCompile Include="..\Source\DistanceMap.cpp" />
+    <ClCompile Include="..\..\BWEM\src\bwem_base.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\cp.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\examples.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\exampleWall.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\graph.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\gridMap.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\map.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\mapDrawer.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\mapImpl.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\neutral.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\tiles.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\utils.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\winutils.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\area.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\bwapiExt.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\bwem.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\mapPrinter.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -267,5 +321,59 @@
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\Bases.h" />
     <ClInclude Include="..\Source\DistanceMap.h" />
+    <ClInclude Include="..\..\BWEM\src\cp.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\defs.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\examples.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\exampleWall.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\graph.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\gridMap.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\map.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\mapDrawer.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\mapImpl.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\neutral.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\tiles.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\utils.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\winutils.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\area.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\base.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\bwapiExt.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\bwem.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\src\mapPrinter.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
