@@ -1,0 +1,255 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\source\BOSS.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\ActionInProgress.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\BuildingData.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\GameState.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearch.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\UnitData.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\Eval.cpp">
+      <Filter>search\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\ActionType.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\ActionTypeData.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearchResults.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearchParameters.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\PrerequisiteSet.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\ActionSet.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\Tools.cpp">
+      <Filter>search\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\DFBB_BuildOrderSmartSearch.cpp">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\DFBB_BuildOrderSearchParameters.cpp">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\DFBB_BuildOrderSearchResults.cpp">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\DFBB_BuildOrderStackSearch.cpp">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\Constants.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\HatcheryData.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\BOSSLogger.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\JSONTools.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\NaiveBuildOrderSearch.cpp">
+      <Filter>search\NaiveSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\BuildOrderSearchGoal.cpp">
+      <Filter>search\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\BuildOrder.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearch_Integral.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearch_BucketData.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearch_IntegralData.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearch_Bucket.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearch_BestResponse.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\BuildOrderPlot.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\CombatSearch_BestResponseData.cpp">
+      <Filter>search\CombatSearch</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\BOSSAssert.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\BOSSException.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\source\Timer.hpp">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\Common.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BOSS.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\ActionInProgress.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BuildingData.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\GameState.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearch.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\Array.hpp">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\UnitData.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\Eval.h">
+      <Filter>search\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BaseTypes.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\ActionType.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\ActionTypeData.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\GraphViz.hpp">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearchResults.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearchParameters.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\Constants.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\PrerequisiteSet.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\ActionSet.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\Tools.h">
+      <Filter>search\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\DFBB_BuildOrderSmartSearch.h">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\DFBB_BuildOrderSearchParameters.h">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\DFBB_BuildOrderSearchResults.h">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\DFBB_BuildOrderStackSearch.h">
+      <Filter>search\BuildOrderSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\HatcheryData.h">
+      <Filter>engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BOSSLogger.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\JSONTools.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\NaiveBuildOrderSearch.h">
+      <Filter>search\NaiveSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BuildOrderSearchGoal.h">
+      <Filter>search\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BuildOrder.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearch_Integral.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearch_BucketData.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearch_IntegralData.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearch_Bucket.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearch_BestResponse.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BuildOrderPlot.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\CombatSearch_BestResponseData.h">
+      <Filter>search\CombatSearch</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BOSSAssert.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\BOSSException.h">
+      <Filter>common</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="util">
+      <UniqueIdentifier>{c90b8009-1e1e-42e5-a28e-017e8e72cfe1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common">
+      <UniqueIdentifier>{f458ce38-5149-4277-8582-e76bc9eaab52}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="search">
+      <UniqueIdentifier>{0f8d0d91-8735-4269-b306-24e4a55588ad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="search\util">
+      <UniqueIdentifier>{e1d1becf-4265-4c2c-aa97-d66a9a961a6d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="search\CombatSearch">
+      <UniqueIdentifier>{c231a723-7f0a-4414-bbef-4928739d854e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="search\BuildOrderSearch">
+      <UniqueIdentifier>{be1fbb05-de74-477b-9915-4a5ef14b38db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="search\NaiveSearch">
+      <UniqueIdentifier>{533866dc-7d6d-4bc0-a795-ae6e41d9eac0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine">
+      <UniqueIdentifier>{975df5db-5385-4879-9a2a-e0f7d4354574}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ClassDiagram.cd" />
+  </ItemGroup>
+</Project>

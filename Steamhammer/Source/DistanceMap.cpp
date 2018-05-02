@@ -1,0 +1,78 @@
+#include "DistanceMap.h"
+
+#include "MapTools.h"
+#include "UABAssert.h"
+
+using namespace UAlbertaBot;
+
+const size_t LegalActions = 4;
+const int actionX[LegalActions] = {1, -1, 0, 0};
+const int actionY[LegalActions] = {0, 0, 1, -1};
+
+DistanceMap::DistanceMap()
+{
+}
+
+DistanceMap::DistanceMap(const BWAPI::TilePosition & startTile) 
+    : _width    (BWAPI::Broodwar->mapWidth())
+    , _height   (BWAPI::Broodwar->mapHeight())
+    , _startTile(startTile)
+    , _dist     (BWAPI::Broodwar->mapWidth(), std::vector<short>(BWAPI::Broodwar->mapHeight(), -1))
+{
+	computeDistanceMap(_startTile);
+}
+
+int DistanceMap::getDistance(int tileX, int tileY) const
+{ 
+    UAB_ASSERT(tileX >= 0 && tileY >= 0 && tileX < _width && tileY < _height, "Index out of range: %d,%d", tileX, tileY);
+    return _dist[tileX][tileY]; 
+}
+
+int DistanceMap::getDistance(const BWAPI::TilePosition & pos) const
+{
+	return getDistance(pos.x, pos.y);
+}
+
+int DistanceMap::getDistance(const BWAPI::Position & pos) const
+{ 
+    return getDistance(BWAPI::TilePosition(pos)); 
+}
+
+const std::vector<BWAPI::TilePosition> & DistanceMap::getSortedTiles() const
+{
+    return _sortedTilePositions;
+}
+
+// Computes _dist[x][y] = ground distance from (startX, startY) to (x,y)
+// Uses BFS, since the map is quite large and DFS may cause a stack overflow
+void DistanceMap::computeDistanceMap(const BWAPI::TilePosition & startTile)
+{
+	_sortedTilePositions.reserve(_width * _height);
+
+	// the fringe for the BFS we will perform to calculate distances
+    std::vector<BWAPI::TilePosition> fringe;
+    fringe.reserve(_width * _height);
+    fringe.push_back(startTile);
+
+    _dist[startTile.x][startTile.y] = 0;
+	_sortedTilePositions.push_back(startTile);
+
+    for (size_t fringeIndex=0; fringeIndex<fringe.size(); ++fringeIndex)
+    {
+        const BWAPI::TilePosition & tile = fringe[fringeIndex];
+
+        // The legal actions define which tiles are nearest neighbors of this one.
+        for (size_t a=0; a<LegalActions; ++a)
+        {
+            BWAPI::TilePosition nextTile(tile.x + actionX[a], tile.y + actionY[a]);
+
+            // if the new tile is inside the map bounds, has not been visited yet, and is walkable
+			if (nextTile.isValid() && getDistance(nextTile) == -1 && MapTools::Instance().isWalkable(nextTile))
+            {
+				fringe.push_back(nextTile);
+				_dist[nextTile.x][nextTile.y] = _dist[tile.x][tile.y] + 1;
+                _sortedTilePositions.push_back(nextTile);
+            }
+        }
+    }
+}
