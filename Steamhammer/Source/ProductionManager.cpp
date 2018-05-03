@@ -785,6 +785,11 @@ void ProductionManager::executeCommand(MacroCommand command)
 	{
 		StrategyBossZerg::Instance().setNonadaptive(true);
 	}
+	else if (cmd == MacroCommandType::GiveUp)
+	{
+		Log().Get() << "Giving up";
+		GameCommander::Instance().surrender();
+	}
 	else
 	{
 		UAB_ASSERT(false, "unknown MacroCommand");

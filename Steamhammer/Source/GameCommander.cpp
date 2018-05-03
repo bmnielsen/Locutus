@@ -377,6 +377,11 @@ void GameCommander::setCombatUnits()
 	}
 }
 
+void GameCommander::surrender()
+{
+	_surrenderTime = BWAPI::Broodwar->getFrameCount();
+}
+
 void GameCommander::onUnitShow(BWAPI::Unit unit)			
 { 
 	InformationManager::Instance().onUnitShow(unit); 

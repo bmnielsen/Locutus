@@ -24,6 +24,7 @@ enum class MacroCommandType
 	, PullWorkersLeaving
 	, ReleaseWorkers
 	, Nonadaptive
+	, GiveUp
 	};
 
 class MacroCommand
@@ -53,6 +54,7 @@ public:
 			, MacroCommandType::PullWorkersLeaving
 			, MacroCommandType::ReleaseWorkers
 			, MacroCommandType::Nonadaptive
+			, MacroCommandType::GiveUp
 		};
 	}
 
@@ -165,6 +167,10 @@ public:
 		if (t == MacroCommandType::Nonadaptive)
 		{
 			return "go nonadaptive";
+		}
+		if (t == MacroCommandType::GiveUp)
+		{
+			return "go away";
 		}
 		
 		UAB_ASSERT(t == MacroCommandType::None, "unrecognized MacroCommandType");

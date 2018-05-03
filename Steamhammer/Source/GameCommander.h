@@ -64,6 +64,7 @@ public:
 	void setValidUnits();
 	void setScoutUnits();
 	void setCombatUnits();
+	void surrender();
 
 	void goScout();
 	int getScoutTime() const { return _initialScoutTime; };
