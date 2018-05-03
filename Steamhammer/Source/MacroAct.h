@@ -38,7 +38,10 @@ class MacroAct
 	mutable
 	BWAPI::TilePosition _reservedPosition;
 
+	MacroAct*			_then;
+
 	MacroLocation		getMacroLocationFromString(std::string & s);
+	bool				determineType(std::string & name);
 
 public:
 
@@ -59,6 +62,8 @@ public:
 	bool    isRefinery()	const;
 	bool	isSupply()		const;
     
+	bool	hasThen()				const;
+
     const size_t & type() const;
     const BWAPI::Race & getRace() const;
 
@@ -68,10 +73,11 @@ public:
 	const MacroCommand getCommandType() const;
 	const MacroLocation getMacroLocation() const;
 	const BWAPI::TilePosition getReservedPosition() const;
+	const MacroAct & getThen() const;
 
 	int supplyRequired() const;
-	int mineralPrice()   const;
-	int gasPrice()       const;
+	int mineralPrice(bool includeThen = true)   const;
+	int gasPrice(bool includeThen = true)       const;
 
 	BWAPI::UnitType whatBuilds() const;
 	std::string getName() const;

@@ -54,6 +54,7 @@ public:
 
     void	drawQueueInformation(std::map<BWAPI::UnitType,int> & numUnits,int x,int y,int index);
 	void	setBuildOrder(const BuildOrder & buildOrder);
+	void	queueMacroAction(const MacroAct & macroAct);
 	void	update();
 	void	onUnitMorph(BWAPI::Unit unit);
 	void	onUnitDestroy(BWAPI::Unit unit);

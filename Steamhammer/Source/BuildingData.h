@@ -15,6 +15,7 @@ class Building
 {
 public:
     
+	MacroAct				macroAct;
 	MacroLocation			macroLocation;
 	BWAPI::TilePosition     desiredPosition;
 	BWAPI::TilePosition     finalPosition;

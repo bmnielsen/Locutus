@@ -10,6 +10,7 @@ struct BuildOrderItem
 {
     MacroAct macroAct;	   // the thing we want to produce
 	bool     isWorkerScoutBuilding;
+	BuildOrderItem*		thenBuild;
 
 	BuildOrderItem::BuildOrderItem(MacroAct m, bool isWorkerScoutBuilding = false);
 };

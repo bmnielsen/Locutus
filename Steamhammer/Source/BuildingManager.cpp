@@ -189,8 +189,8 @@ void BuildingManager::checkForStartedConstruction()
 				Log().Get() << "Started building " << b.type << " @ " << b.finalPosition;
 
                 // the resources should now be spent, so unreserve them
-                _reservedMinerals -= buildingStarted->getType().mineralPrice();
-                _reservedGas      -= buildingStarted->getType().gasPrice();
+				_reservedMinerals -= b.macroAct.mineralPrice();
+                _reservedGas      -= b.macroAct.gasPrice();
 
                 // flag it as started and set the buildingUnit
                 b.underConstruction = true;
@@ -211,6 +211,9 @@ void BuildingManager::checkForStartedConstruction()
                 {
 					releaseBuilderUnit(b);
 					b.builderUnit = nullptr;
+
+					if (b.macroAct.hasThen())
+						ProductionManager::Instance().queueMacroAction(b.macroAct.getThen());
                 }
 
                 b.status = BuildingStatus::UnderConstruction;
@@ -280,6 +283,8 @@ void BuildingManager::checkForCompletedBuildings()
             if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Terran)
             {
 				releaseBuilderUnit(b);
+				if (b.macroAct.hasThen())
+					ProductionManager::Instance().queueMacroAction(b.macroAct.getThen());
 			}
 
             // And we don't want to keep the building record any more.
@@ -320,8 +325,8 @@ void BuildingManager::checkReservedResources()
 	{
 		if (b.status == BuildingStatus::Assigned || b.status == BuildingStatus::Unassigned)
 		{
-			minerals += b.type.mineralPrice();
-			gas += b.type.gasPrice();
+			minerals += b.macroAct.mineralPrice();
+			gas += b.macroAct.gasPrice();
 		}
 	}
 
@@ -347,10 +352,11 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 
 	BWAPI::UnitType type = act.getUnitType();
 
-	_reservedMinerals += type.mineralPrice();
-	_reservedGas += type.gasPrice();
+	_reservedMinerals += act.mineralPrice();
+	_reservedGas += act.gasPrice();
 
 	Building b(type, desiredLocation);
+	b.macroAct = act;
 	b.macroLocation = act.getMacroLocation();
 	b.isWorkerScoutBuilding = isWorkerScoutBuilding;
 	b.status = BuildingStatus::Unassigned;
@@ -760,8 +766,8 @@ void BuildingManager::undoBuildings(const std::vector<Building> & toRemove)
 		// If the building is not yet under construction, release its resources.
 		if (b.status == BuildingStatus::Unassigned || b.status == BuildingStatus::Assigned)
 		{
-			_reservedMinerals -= b.type.mineralPrice();
-			_reservedGas -= b.type.gasPrice();
+			_reservedMinerals -= b.macroAct.mineralPrice();
+			_reservedGas -= b.macroAct.gasPrice();
 		}
 
 		// Cancel a terran building under construction. Zerg and protoss finish on their own,

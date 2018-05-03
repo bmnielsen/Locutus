@@ -7,6 +7,9 @@ BuildOrderItem::BuildOrderItem(MacroAct m, bool workerScoutBuilding)
 	: macroAct(m)
 	, isWorkerScoutBuilding(workerScoutBuilding)
 {
+	// Recursively handle if the macro act has a "then" clause
+	if (m.hasThen())
+		thenBuild = new BuildOrderItem(m.getThen(), false);
 }
 
 BuildOrderQueue::BuildOrderQueue()

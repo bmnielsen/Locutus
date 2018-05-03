@@ -44,11 +44,63 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 	return MacroLocation::Anywhere;
 }
 
+bool MacroAct::determineType(std::string & name)
+{
+	for (const BWAPI::UnitType & unitType : BWAPI::UnitTypes::allUnitTypes())
+	{
+		// check to see if the names match exactly
+		std::string typeName = unitType.getName();
+		std::replace(typeName.begin(), typeName.end(), '_', ' ');
+		std::transform(typeName.begin(), typeName.end(), typeName.begin(), ::tolower);
+		if (typeName == name)
+		{
+			*this = MacroAct(unitType);
+			return true;
+		}
+
+		// check to see if the names match without the race prefix
+		std::string raceName = unitType.getRace().getName();
+		std::transform(raceName.begin(), raceName.end(), raceName.begin(), ::tolower);
+		if ((typeName.length() > raceName.length()) && (typeName.compare(raceName.length() + 1, typeName.length(), name) == 0))
+		{
+			*this = MacroAct(unitType);
+			return true;
+		}
+	}
+
+	for (const BWAPI::TechType & techType : BWAPI::TechTypes::allTechTypes())
+	{
+		std::string typeName = techType.getName();
+		std::replace(typeName.begin(), typeName.end(), '_', ' ');
+		std::transform(typeName.begin(), typeName.end(), typeName.begin(), ::tolower);
+		if (typeName == name)
+		{
+			*this = MacroAct(techType);
+			return true;
+		}
+	}
+
+	for (const BWAPI::UpgradeType & upgradeType : BWAPI::UpgradeTypes::allUpgradeTypes())
+	{
+		std::string typeName = upgradeType.getName();
+		std::replace(typeName.begin(), typeName.end(), '_', ' ');
+		std::transform(typeName.begin(), typeName.end(), typeName.begin(), ::tolower);
+		if (typeName == name)
+		{
+			*this = MacroAct(upgradeType);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 MacroAct::MacroAct () 
     : _type(MacroActs::Default) 
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
 }
 
@@ -59,10 +111,23 @@ MacroAct::MacroAct(const std::string & name)
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
     std::string inputName(name);
     std::replace(inputName.begin(), inputName.end(), '_', ' ');
 	std::transform(inputName.begin(), inputName.end(), inputName.begin(), ::tolower);
+
+	// Buildings can have another worker command chained after then using "then".
+	// E.g. "pylon then go scout" or "photon cannon then photon cannon"
+	// The second command will be queued after the first is finished, which makes it
+	// likely the command will be given to the same worker.
+	size_t thenPos = inputName.find(" then ");
+	std::string thenClause;
+	if (thenPos != std::string::npos)
+	{
+		thenClause.assign(inputName.substr(thenPos + 6));
+		inputName.erase(thenPos);
+	}
 
 	// Commands like "go gas until 100". 100 is the amount.
 	if (inputName.substr(0, 3) == std::string("go "))
@@ -110,55 +175,15 @@ MacroAct::MacroAct(const std::string & name)
 		inputName = m[1].str();
 	}
 
-    for (const BWAPI::UnitType & unitType : BWAPI::UnitTypes::allUnitTypes())
-    {
-        // check to see if the names match exactly
-        std::string typeName = unitType.getName();
-        std::replace(typeName.begin(), typeName.end(), '_', ' ');
-		std::transform(typeName.begin(), typeName.end(), typeName.begin(), ::tolower);
-		if (typeName == inputName)
-        {
-            *this = MacroAct(unitType);
-			_macroLocation = specifiedMacroLocation;
-            return;
-        }
+	if (!determineType(inputName))
+	{
+		UAB_ASSERT_WARNING(false, "Could not find MacroAct with name: %s", name.c_str());
+		return;
+	}
 
-        // check to see if the names match without the race prefix
-        std::string raceName = unitType.getRace().getName();
-		std::transform(raceName.begin(), raceName.end(), raceName.begin(), ::tolower);
-		if ((typeName.length() > raceName.length()) && (typeName.compare(raceName.length() + 1, typeName.length(), inputName) == 0))
-        {
-            *this = MacroAct(unitType);
-			_macroLocation = specifiedMacroLocation;
-			return;
-        }
-    }
-
-    for (const BWAPI::TechType & techType : BWAPI::TechTypes::allTechTypes())
-    {
-        std::string typeName = techType.getName();
-        std::replace(typeName.begin(), typeName.end(), '_', ' ');
-		std::transform(typeName.begin(), typeName.end(), typeName.begin(), ::tolower);
-		if (typeName == inputName)
-        {
-            *this = MacroAct(techType);
-            return;
-        }
-    }
-
-    for (const BWAPI::UpgradeType & upgradeType : BWAPI::UpgradeTypes::allUpgradeTypes())
-    {
-        std::string typeName = upgradeType.getName();
-        std::replace(typeName.begin(), typeName.end(), '_', ' ');
-		std::transform(typeName.begin(), typeName.end(), typeName.begin(), ::tolower);
-		if (typeName == inputName)
-        {
-            *this = MacroAct(upgradeType);
-            return;
-        }
-    }
-
-    UAB_ASSERT_WARNING(false, "Could not find MacroAct with name: %s", name.c_str());
+	_macroLocation = specifiedMacroLocation;
+	if (isBuilding() && _unitType.isBuilding() && !thenClause.empty())
+		_then = new MacroAct(thenClause);
 }
 
 MacroAct::MacroAct (BWAPI::UnitType t) 
@@ -167,6 +192,7 @@ MacroAct::MacroAct (BWAPI::UnitType t)
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
 }
 
@@ -176,6 +202,7 @@ MacroAct::MacroAct(BWAPI::UnitType t, MacroLocation loc)
 	, _race(t.getRace())
 	, _macroLocation(loc)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
 }
 
@@ -185,6 +212,7 @@ MacroAct::MacroAct(BWAPI::TechType t)
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
 }
 
@@ -194,6 +222,7 @@ MacroAct::MacroAct (BWAPI::UpgradeType t)
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
 }
 
@@ -203,6 +232,7 @@ MacroAct::MacroAct(MacroCommandType t)
 	, _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
 }
 
@@ -212,6 +242,7 @@ MacroAct::MacroAct(MacroCommandType t, int amount)
 	, _race(BWAPI::Races::None)     // irrelevant
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
+	, _then(nullptr)
 {
 }
 
@@ -269,6 +300,11 @@ bool MacroAct::hasReservedPosition() const
 	return _reservedPosition != BWAPI::TilePositions::None;
 }
 
+bool MacroAct::hasThen() const
+{
+	return _then != nullptr;
+}
+
 const BWAPI::UnitType & MacroAct::getUnitType() const
 {
 	UAB_ASSERT(_type == MacroActs::Unit, "getUnitType of non-unit");
@@ -304,6 +340,12 @@ const BWAPI::TilePosition MacroAct::getReservedPosition() const
 	return _reservedPosition;
 }
 
+const MacroAct & MacroAct::getThen() const
+{
+	UAB_ASSERT(_then != nullptr, "getThen without then");
+	return *_then;
+}
+
 // Supply required if this is produced.
 int MacroAct::supplyRequired() const
 {
@@ -330,62 +372,71 @@ int MacroAct::supplyRequired() const
 }
 
 // NOTE Because upgrades vary in price with level, this is context dependent.
-int MacroAct::mineralPrice() const
+int MacroAct::mineralPrice(bool includeThen) const
 {
+	int price = includeThen && hasThen() ? getThen().mineralPrice() : 0;
+
 	if (isCommand()) {
 		if (_macroCommandType.getType() == MacroCommandType::ExtractorTrickDrone ||
 			_macroCommandType.getType() == MacroCommandType::ExtractorTrickZergling) {
 			// 50 for the extractor and 50 for the unit. Never mind that you get some back.
-			return 100;
+			price += 100;
 		}
-		return 0;
 	}
-	if (isUnit())
+	else if (isUnit())
 	{
-		return _unitType.mineralPrice();
+		price += _unitType.mineralPrice();
 	}
-	if (isTech())
+	else if (isTech())
 	{
-		return _techType.mineralPrice();
+		price += _techType.mineralPrice();
 	}
-	if (isUpgrade())
+	else if (isUpgrade())
 	{
 		if (_upgradeType.maxRepeats() > 1 && BWAPI::Broodwar->self()->getUpgradeLevel(_upgradeType) > 0)
 		{
-			return _upgradeType.mineralPrice(1 + BWAPI::Broodwar->self()->getUpgradeLevel(_upgradeType));
+			price += _upgradeType.mineralPrice(1 + BWAPI::Broodwar->self()->getUpgradeLevel(_upgradeType));
 		}
-		return _upgradeType.mineralPrice();
+		else
+		{
+			price += _upgradeType.mineralPrice();
+		}
+	}
+	else
+	{
+		UAB_ASSERT(false, "bad MacroAct");
 	}
 
-	UAB_ASSERT(false, "bad MacroAct");
-	return 0;
+	return price;
 }
 
 // NOTE Because upgrades vary in price with level, this is context dependent.
-int MacroAct::gasPrice() const
+int MacroAct::gasPrice(bool includeThen) const
 {
-	if (isCommand()) {
-		return 0;
-	}
+	int price = includeThen && hasThen() ? getThen().gasPrice() : 0;
+
 	if (isUnit())
 	{
-		return _unitType.gasPrice();
+		price += _unitType.gasPrice();
 	}
-	if (isTech())
+	else if (isTech())
 	{
-		return _techType.gasPrice();
+		price += _techType.gasPrice();
 	}
-	if (isUpgrade())
+	else if (isUpgrade())
 	{
 		if (_upgradeType.maxRepeats() > 1 && BWAPI::Broodwar->self()->getUpgradeLevel(_upgradeType) > 0)
 		{
-			return _upgradeType.gasPrice(1 + BWAPI::Broodwar->self()->getUpgradeLevel(_upgradeType));
+			price += _upgradeType.gasPrice(1 + BWAPI::Broodwar->self()->getUpgradeLevel(_upgradeType));
 		}
-		return _upgradeType.gasPrice();
+		price += _upgradeType.gasPrice();
+	}
+	else if (!isCommand())
+	{
+		UAB_ASSERT(false, "bad MacroAct");
 	}
 
-	UAB_ASSERT(false, "bad MacroAct");
-	return 0;
+	return price;
 }
 
 BWAPI::UnitType MacroAct::whatBuilds() const

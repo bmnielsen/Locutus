@@ -30,6 +30,11 @@ void ProductionManager::setBuildOrder(const BuildOrder & buildOrder)
 	_queue.resetModified();
 }
 
+void ProductionManager::queueMacroAction(const MacroAct & macroAct)
+{
+	_queue.queueAsHighestPriority(macroAct);
+}
+
 void ProductionManager::update() 
 {
 	// TODO move this to worker manager and make it more precise; it often goes a little over
@@ -203,6 +208,7 @@ void ProductionManager::manageBuildOrderQueue()
 		{
 			// construct a temporary building object
 			Building b(currentItem.macroAct.getUnitType(), InformationManager::Instance().getMyMainBaseLocation()->getTilePosition());
+			b.macroAct = currentItem.macroAct;
 			b.macroLocation = currentItem.macroAct.getMacroLocation();
             b.isWorkerScoutBuilding = currentItem.isWorkerScoutBuilding;
 
@@ -736,7 +742,7 @@ void ProductionManager::executeCommand(MacroCommand command)
 // Can we afford it, taking into account reserved resources?
 bool ProductionManager::meetsReservedResources(MacroAct act)
 {
-	return (act.mineralPrice() <= getFreeMinerals()) && (act.gasPrice() <= getFreeGas());
+	return (act.mineralPrice(false) <= getFreeMinerals()) && (act.gasPrice(false) <= getFreeGas());
 }
 
 void ProductionManager::drawProductionInformation(int x, int y)
