@@ -366,17 +366,6 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Photon_Cannon, enemyAirToGround));
 	}
 
-	// Get observers if we have a second base, or if the enemy has cloaked units.
-	if (numNexusCompleted >= 2 || InformationManager::Instance().enemyHasCloakTech())
-	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Robotics_Facility, 1));
-
-		if (numObservers < 3 && self->completedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) > 0)
-		{
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Observer, numObservers + 1));
-		}
-	}
-
 	// If the map has islands, get drop after we have 3 bases.
 	if (Config::Macro::ExpandToIslands && numNexusCompleted >= 3 && MapTools::Instance().hasIslandBases() 
 		&& UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) > 0)
@@ -676,6 +665,54 @@ const MetaPairVector StrategyManager::getZergBuildOrderGoal() const
 	return goal;
 }
 
+void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
+{
+	// Do nothing if we are already building it
+	if (UnitUtil::GetAllUnitCount(type) > 0 || (type.isBuilding() && BuildingManager::Instance().isBeingBuilt(type)))
+		return;
+
+	// If any dependencies are missing, queue them first
+	for (auto const & req : type.requiredUnits())
+		if (UnitUtil::GetCompletedUnitCount(req.first) < req.second)
+		{
+			QueueUrgentItem(req.first, queue);
+			return;
+		}
+
+	// If we have nothing that can build the unit, queue it first
+	if (type.whatBuilds().first.isBuilding()
+		&& UnitUtil::GetCompletedUnitCount(type.whatBuilds().first) < type.whatBuilds().second)
+	{
+		QueueUrgentItem(type.whatBuilds().first, queue);
+		return;
+	}
+
+	// We made it this far, so we know we want to build the unit
+
+	// If it is already queued, move it to the top
+	if (queue.anyInQueue(type))
+	{
+		for (int i = queue.size() - 1; i >= 0; --i)
+			if (queue[i].macroAct.isUnit() && queue[i].macroAct.getUnitType() == type)
+			{
+				// Only pull it up if it isn't already at the top
+				if (i < queue.size() - 1)
+				{
+					Log().Get() << "Pulled " << type << " to top of queue because of urgent issue";
+					queue.pullToTop(i);
+				}
+				return;
+			}
+	}
+
+	// Otherwise push to top of queue
+	else
+	{
+		Log().Get() << "Queued " << type << " because of urgent issue";
+		queue.queueAsHighestPriority(type);
+	}
+}
+
 void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 {
 	// This is the enemy plan that we have seen in action.
@@ -761,17 +798,24 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 		}
 
-		// If they have mobile cloaked units, get some static detection.
+		// If they have mobile cloaked units, get some detection.
 		if (InformationManager::Instance().enemyHasMobileCloakTech())
 		{
 			if (_selfRace == BWAPI::Races::Protoss)
 			{
+				// Get mobile detection
+				if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
+				{
+					QueueUrgentItem(BWAPI::UnitTypes::Protoss_Observer, queue);
+				}
+
+				// Get static detection in the natural
 				if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon) < 2 &&
 					!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Photon_Cannon) &&
 					!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Photon_Cannon))
 				{
-					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon));
-					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon));
+					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon, MacroLocation::Natural));
+					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon, MacroLocation::Natural));
 
 					if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Protoss_Forge) == 0 &&
 						!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge))
