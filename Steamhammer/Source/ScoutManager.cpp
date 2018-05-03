@@ -672,6 +672,8 @@ void ScoutManager::calculateEnemyRegionVertices()
         return;
     }
 
+	const BWAPI::Position enemyCenter = BWAPI::Position(enemyBaseLocation->getTilePosition()) + BWAPI::Position(64, 48);
+
     const BWAPI::Position basePosition = BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation());
     const std::vector<BWAPI::TilePosition> & closestTobase = MapTools::Instance().getClosestTilesTo(basePosition);
 
@@ -710,7 +712,35 @@ void ScoutManager::calculateEnemyRegionVertices()
 				BWAPI::Broodwar->drawBoxMap(x1, y1, x2, y2, BWAPI::Colors::Green, false);
 			}
 
-			unsortedVertices.insert(BWAPI::Position(tp) + BWAPI::Position(16, 16));
+			BWAPI::Position vertex = BWAPI::Position(tp) + BWAPI::Position(16, 16);
+
+			// Pull the vertex towards the enemy base center, unless it is already within 12 tiles
+			double dist = enemyCenter.getDistance(vertex);
+			if (dist > 384.0)
+			{
+				double pullBy = std::min(dist - 384.0, 120.0);
+
+				// Special case where the slope is infinite
+				if (vertex.x == enemyCenter.x)
+				{
+					vertex = vertex + BWAPI::Position(0, vertex.y > enemyCenter.y ? -pullBy : pullBy);
+				}
+				else
+				{
+					// First get the slope, m = (y1 - y0)/(x1 - x0)
+					double m = double(enemyCenter.y - vertex.y) / double(enemyCenter.x - vertex.x);
+
+					// Now the equation for a new x is x0 +- d/sqrt(1 + m^2)
+					double x = vertex.x + (vertex.x > enemyCenter.x ? -1.0 : 1.0) * pullBy / (sqrt(1 + m * m));
+
+					// And y is m(x - x0) + y0
+					double y = m * (x - vertex.x) + vertex.y;
+
+					vertex = BWAPI::Position(x, y);
+				}
+			}
+
+			unsortedVertices.insert(vertex);
 		}
 	}
 
