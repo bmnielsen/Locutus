@@ -1297,6 +1297,7 @@ bool InformationManager::enemyHasMobileCloakTech()
 			ui.type == BWAPI::UnitTypes::Zerg_Lurker_Egg)
 		{
 			_enemyHasMobileCloakTech = true;
+			Log().Get() << "Detected enemy mobile cloak tech";
 			return true;
 		}
 	}

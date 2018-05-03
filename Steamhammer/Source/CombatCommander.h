@@ -5,6 +5,7 @@
 #include "SquadData.h"
 #include "InformationManager.h"
 #include "StrategyManager.h"
+#include "UnitUtil.h"
 
 namespace UAlbertaBot
 {
@@ -69,7 +70,24 @@ public:
 
 	void update(const BWAPI::Unitset & combatUnits);
 
-	void setAggression(bool aggressive) { _goAggressive = aggressive;  }
+	void setAggression(bool aggressive) 
+	{ 
+		if (aggressive && !_goAggressive)
+		{
+			int count = 0;
+			for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+			{
+				if (UnitUtil::IsCombatUnit(unit) && unit->isCompleted())
+				{
+					++count;
+				}
+			}
+
+			Log().Get() << "Went aggressive with " << count << " combat units and " << UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Probe) << " workers";
+		}
+
+		_goAggressive = aggressive;  
+	}
 	bool getAggression() const { return _goAggressive; };
 
 	void pullWorkers(int n);

@@ -43,6 +43,9 @@ class GameCommander
 
 	int						_initialScoutTime; // 0 until a scouting worker is assigned
 
+	std::string				_lastStrategyInfo;
+	std::string				_lastOpponentInfo;
+
     void                    assignUnit(BWAPI::Unit unit, BWAPI::Unitset & set);
 	bool                    isAssigned(BWAPI::Unit unit) const;
 

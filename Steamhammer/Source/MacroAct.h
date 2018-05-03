@@ -70,5 +70,23 @@ public:
 
 	BWAPI::UnitType whatBuilds() const;
 	std::string getName() const;
+
+	friend std::ostream& operator << (std::ostream& out, const MacroAct& m)
+	{
+		if (m.isUnit())
+		{
+			out << m.getUnitType();
+			if (m.isBuilding() && m.hasReservedPosition())
+				out << "@" << m.getReservedPosition();
+		}
+		else if (m.isTech())
+			out << m.getTechType();
+		else if (m.isUpgrade())
+			out << m.getUpgradeType();
+		else if (m.isCommand())
+			out << m.getCommandType().getName();
+
+		return out;
+	};
 };
 }

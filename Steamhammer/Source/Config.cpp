@@ -85,6 +85,8 @@ namespace Config
         std::string ErrorLogFilename        = "Locutus_ErrorLog.txt";
         bool LogAssertToErrorFile           = false;
 
+        bool LogDebug			            = false;
+
         BWAPI::Color ColorLineTarget        = BWAPI::Colors::White;
         BWAPI::Color ColorLineMineral       = BWAPI::Colors::Cyan;
         BWAPI::Color ColorUnitNearEnemy     = BWAPI::Colors::Red;

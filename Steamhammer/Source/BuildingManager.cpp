@@ -98,6 +98,8 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 
         b.status = BuildingStatus::Assigned;
 		// BWAPI::Broodwar->printf("assigned and placed building %s", b.type.getName().c_str());
+
+		Log().Debug() << "Assigned " << b.builderUnit << " to build " << b.type << " @ " << b.finalPosition;
 	}
 }
 
@@ -147,12 +149,14 @@ void BuildingManager::constructAssignedBuildings()
 
 				// Unreserve the building location. The building will mark its own location.
 				BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
+				Log().Debug() << "Failed to build " << b.type << " @ " << b.finalPosition << "; assume something was in the way";
 			}
             else
             {
 				// Issue the build order and record whether it succeeded.
 				// If the builderUnit is zerg, it changes to !exists() when it builds.
 				b.buildCommandGiven = b.builderUnit->build(b.type, b.finalPosition);
+				Log().Debug() << "Gave build command to " << b.builderUnit << " to build " << b.type << " @ " << b.finalPosition << "; result " << b.buildCommandGiven;
            }
         }
     }
@@ -181,6 +185,8 @@ void BuildingManager::checkForStartedConstruction()
             // check if the positions match
             if (b.finalPosition == buildingStarted->getTilePosition())
             {
+				Log().Get() << "Started building " << b.type << " @ " << b.finalPosition;
+
                 // the resources should now be spent, so unreserve them
                 _reservedMinerals -= buildingStarted->getType().mineralPrice();
                 _reservedGas      -= buildingStarted->getType().gasPrice();
@@ -265,6 +271,8 @@ void BuildingManager::checkForCompletedBuildings()
 
         if (b.buildingUnit->isCompleted())
         {
+			Log().Debug() << "Completed building " << b.type << " @ " << b.finalPosition;
+
             // if we are terran, give the worker back to worker manager
 			// Zerg and protoss are handled when the building starts.
             if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Terran)
@@ -318,6 +326,7 @@ void BuildingManager::checkReservedResources()
 	if (minerals != _reservedMinerals || gas != _reservedGas)
 	{
 		BWAPI::Broodwar->printf("reserves wrong: %d %d should be %d %d", _reservedMinerals, _reservedGas, minerals, gas);
+		Log().Get() << "Reserves wrong " << _reservedMinerals << " " << _reservedGas << " should be " << minerals << " " << gas;
 		_reservedMinerals = minerals;
 		_reservedGas = gas;
 	}
@@ -343,6 +352,8 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 	b.macroLocation = act.getMacroLocation();
 	b.isGasSteal = isGasSteal;
 	b.status = BuildingStatus::Unassigned;
+
+	Log().Debug() << "Queued building task for " << type;
 
 	_buildings.push_back(b);      // make a "permanent" copy of the Building object
 	return _buildings.back();     // return a reference to the permanent copy

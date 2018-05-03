@@ -66,3 +66,34 @@ std::string FileUtils::ReadFile(const std::string & filename)
 
     return ss.str();
 }
+
+Log::Log()
+{
+	debug = false;
+}
+
+std::ostringstream& Log::Get()
+{
+	os << BWAPI::Broodwar->getFrameCount() << ": ";
+	return os;
+}
+
+std::ostringstream& Log::Debug()
+{
+	debug = true;
+	auto t = std::time(nullptr);
+	os << t << ": " << BWAPI::Broodwar->getFrameCount() << ": ";
+	return os;
+}
+
+Log::~Log()
+{
+	os << std::endl;
+	if (debug)
+	{
+		if (Config::Debug::LogDebug)
+			Logger::LogAppendToFile("bwapi-data/write/Locutus_log_debug.txt", os.str());
+	}
+	else
+		Logger::LogAppendToFile("bwapi-data/write/Locutus_log.txt", os.str());
+}

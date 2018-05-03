@@ -5,6 +5,8 @@
 
 using namespace UAlbertaBot;
 
+//#define CRASH_DEBUG 1
+
 GameCommander::GameCommander() 
 	: _combatCommander(CombatCommander::Instance())
 	, _initialScoutTime(0)
@@ -16,8 +18,16 @@ void GameCommander::update()
 {
 	_timerManager.startTimer(TimerManager::Total);
 
+#ifdef CRASH_DEBUG
+	Log().Debug() << "handleUnitAssignments";
+#endif
+
 	// populate the unit vectors we will pass into various managers
 	handleUnitAssignments();
+
+#ifdef CRASH_DEBUG
+	Log().Debug() << "surrenderMonkey";
+#endif
 
 	// Decide whether to give up early. Implements config option SurrenderWhenHopeIsLost.
 	if (surrenderMonkey())
@@ -29,49 +39,96 @@ void GameCommander::update()
 	{
 		if (BWAPI::Broodwar->getFrameCount() - _surrenderTime >= 36)  // 36 frames = 1.5 game seconds
 		{
+			Log().Get() << "Surrendering";
 			BWAPI::Broodwar->leaveGame();
 		}
 		return;
 	}
+
+#ifdef CRASH_DEBUG
+	Log().Debug() << "InformationManager";
+#endif
 
 	// utility managers
 	_timerManager.startTimer(TimerManager::InformationManager);
 	InformationManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::InformationManager);
 
+#ifdef CRASH_DEBUG
+	Log().Debug() << "MapGrid";
+#endif
+
 	_timerManager.startTimer(TimerManager::MapGrid);
 	MapGrid::Instance().update();
 	_timerManager.stopTimer(TimerManager::MapGrid);
+
+#ifdef CRASH_DEBUG
+	Log().Debug() << "BOSSManager";
+#endif
 
 	_timerManager.startTimer(TimerManager::Search);
 	BOSSManager::Instance().update(35 - _timerManager.getMilliseconds());
 	_timerManager.stopTimer(TimerManager::Search);
 
+#ifdef CRASH_DEBUG
+	Log().Debug() << "WorkerManager";
+#endif
+
 	_timerManager.startTimer(TimerManager::Worker);
 	WorkerManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::Worker);
+
+#ifdef CRASH_DEBUG
+	Log().Debug() << "ProductionManager";
+#endif
 
 	_timerManager.startTimer(TimerManager::Production);
 	ProductionManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::Production);
 
+#ifdef CRASH_DEBUG
+	Log().Debug() << "BuildingManager";
+#endif
+
 	_timerManager.startTimer(TimerManager::Building);
 	BuildingManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::Building);
+
+#ifdef CRASH_DEBUG
+	Log().Debug() << "_combatCommander";
+#endif
 
 	_timerManager.startTimer(TimerManager::Combat);
 	_combatCommander.update(_combatUnits);
 	_timerManager.stopTimer(TimerManager::Combat);
 
+#ifdef CRASH_DEBUG
+	Log().Debug() << "ScoutManager";
+#endif
+
 	_timerManager.startTimer(TimerManager::Scout);
     ScoutManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::Scout);
+
+#ifdef CRASH_DEBUG
+	Log().Debug() << "OpponentModel";
+#endif
 
 	_timerManager.startTimer(TimerManager::OpponentModel);
 	OpponentModel::Instance().update();
 	_timerManager.stopTimer(TimerManager::OpponentModel);
 
+#ifdef CRASH_DEBUG
+	Log().Debug() << "(done frame)";
+#endif
+
 	_timerManager.stopTimer(TimerManager::Total);
+
+	double time = _timerManager.getMilliseconds();
+	if (time > 85)
+	{
+		Log().Get() << "Frame time: " << time;
+	}
 
 	drawDebugInterface();
 }
@@ -106,6 +163,38 @@ void GameCommander::drawDebugInterface()
 
 void GameCommander::drawGameInformation(int x, int y)
 {
+	const std::string & openingGroup = StrategyManager::Instance().getOpeningGroup();
+	bool gasSteal = OpponentModel::Instance().getRecommendGasSteal() || ScoutManager::Instance().wantGasSteal();
+
+	std::stringstream strategy;
+	strategy << Config::Strategy::StrategyName;
+	if (openingGroup != "") strategy << " (" << openingGroup << ")";
+	if (gasSteal) strategy << " + steal gas";
+	if (Config::Strategy::FoundEnemySpecificStrategy) strategy << " - enemy specific";
+
+	if (strategy.str() != _lastStrategyInfo)
+	{
+		_lastStrategyInfo = strategy.str();
+		Log().Get() << "Strategy: " << _lastStrategyInfo;
+	}
+
+	std::stringstream opponent;
+	if (OpponentModel::Instance().getEnemyPlan() == OpeningPlan::Unknown &&
+		OpponentModel::Instance().getExpectedEnemyPlan() != OpeningPlan::Unknown)
+	{
+		opponent << "expect " << OpponentModel::Instance().getExpectedEnemyPlanString();
+	}
+	else
+	{
+		opponent << OpponentModel::Instance().getEnemyPlanString();
+	}
+
+	if (opponent.str() != _lastOpponentInfo)
+	{
+		_lastOpponentInfo = opponent.str();
+		Log().Get() << "Opponent: " << _lastOpponentInfo;
+	}
+
 	if (!Config::Debug::DrawGameInfo)
 	{
 		return;
@@ -118,8 +207,6 @@ void GameCommander::drawGameInformation(int x, int y)
         BWAPI::Broodwar->enemy()->getTextColor(), BWAPI::Broodwar->enemy()->getName().c_str());
 	y += 12;
 	
-	const std::string & openingGroup = StrategyManager::Instance().getOpeningGroup();
-	bool gasSteal = OpponentModel::Instance().getRecommendGasSteal() || ScoutManager::Instance().wantGasSteal();
     BWAPI::Broodwar->drawTextScreen(x, y, "\x04Strategy:");
 	BWAPI::Broodwar->drawTextScreen(x + 50, y, "\x03%s%s%s%s",
 		Config::Strategy::StrategyName.c_str(),

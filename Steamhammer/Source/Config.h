@@ -79,6 +79,8 @@ namespace Config
         extern std::string ErrorLogFilename;
         extern bool LogAssertToErrorFile;
 
+		extern bool LogDebug;
+
         extern BWAPI::Color ColorLineTarget;
         extern BWAPI::Color ColorLineMineral;
         extern BWAPI::Color ColorUnitNearEnemy;

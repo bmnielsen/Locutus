@@ -68,6 +68,9 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 	{
 		return;
 	}
+
+	if (unit->getType().isBuilding())
+		Log().Get() << "Lost " << unit->getType() << " @ " << unit->getTilePosition();
 	
 	// If we're zerg, we break out of the opening if and only if a key tech building is lost.
 	if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg)
@@ -147,6 +150,7 @@ void ProductionManager::manageBuildOrderQueue()
 	// changed behind our back, release the worker and continue.
 	if (_queue.isModified() && _assignedWorkerForThisBuilding)
 	{
+		Log().Debug() << "Releasing worker as queue was modified";
 		WorkerManager::Instance().finishedWithWorker(_assignedWorkerForThisBuilding);
 		_assignedWorkerForThisBuilding = nullptr;
 	}
@@ -215,6 +219,8 @@ void ProductionManager::manageBuildOrderQueue()
 		// if we can make the current item
 		if (canMake) 
 		{
+			Log().Debug() << "Producing " << currentItem.macroAct;
+
 			// create it
 			create(producer, currentItem);
 			_assignedWorkerForThisBuilding = nullptr;

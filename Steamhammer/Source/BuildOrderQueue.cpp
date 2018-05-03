@@ -12,6 +12,7 @@ void BuildOrderQueue::clearAll()
 {
 	queue.clear();
 	modified = true;
+	Log().Debug() << "Cleared build queue";
 }
 
 // A special purpose queue modification.
@@ -36,18 +37,21 @@ void BuildOrderQueue::queueAsHighestPriority(MacroAct m, bool gasSteal)
 {
 	queue.push_back(BuildOrderItem(m, gasSteal));
 	modified = true;
+	Log().Debug() << "Queued " << m << " at top of queue";
 }
 
 void BuildOrderQueue::queueAsLowestPriority(MacroAct m) 
 {
 	queue.push_front(BuildOrderItem(m));
 	modified = true;
+	Log().Debug() << "Queued " << m << " at bottom of queue";
 }
 
 void BuildOrderQueue::removeHighestPriorityItem() 
 {
 	queue.pop_back();
 	modified = true;
+	Log().Debug() << "Removed highest priority item";
 }
 
 void BuildOrderQueue::doneWithHighestPriorityItem()
