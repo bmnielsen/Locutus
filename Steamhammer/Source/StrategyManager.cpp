@@ -733,6 +733,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 
 			queue.queueAsHighestPriority(MacroAct(BWAPI::Broodwar->self()->getRace().getSupplyProvider()));
+			return;
 		}
 
 		const MacroAct * nextInQueuePtr = queue.isEmpty() ? nullptr : &(queue.getHighestPriorityItem().macroAct);
@@ -896,21 +897,20 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 // Note: This understands zerg supply but is not used when we are zerg.
 bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 {
-	// If the _queue is empty or supply is maxed, there is no block.
-	if (queue.isEmpty() || BWAPI::Broodwar->self()->supplyTotal() >= 400)
+	// Assume all is good if we're still in book
+	if (!ProductionManager::Instance().isOutOfBook()) return false;
+
+	// If supply is maxed, there is no block.
+	if (BWAPI::Broodwar->self()->supplyTotal() >= 400)
 	{
 		return false;
 	}
 
-	// If supply is being built now, there's no block. Return right away.
-	// Terran and protoss calculation:
-	if (BuildingManager::Instance().isBeingBuilt(BWAPI::Broodwar->self()->getRace().getSupplyProvider()))
-	{
-		return false;
-	}
+	// Count supply being built
+	int supplyBeingBuilt = BuildingManager::Instance().numBeingBuilt(BWAPI::Broodwar->self()->getRace().getSupplyProvider()) * 8;
 
 	// Terran and protoss calculation:
-	int supplyAvailable = BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed();
+	int supplyAvailable = BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() + supplyBeingBuilt;
 
 	// Zerg calculation:
 	// Zerg can create an overlord that doesn't count toward supply until the next check.
@@ -938,25 +938,15 @@ bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 		}
 	}
 
-	int supplyCost = queue.getHighestPriorityItem().macroAct.supplyRequired();
-	// Available supply can be negative, which breaks the test below. Fix it.
-	supplyAvailable = std::max(0, supplyAvailable);
+	// Count supply needed by the next 5 items in the queue
+	int supplyNeeded = 0;
+	for (int i = queue.size() - 1; i >= 0 && i >= queue.size() - 5; --i)
+		supplyNeeded += queue[i].macroAct.supplyRequired();
 
-	// if we don't have enough supply, we're supply blocked
-	if (supplyAvailable < supplyCost)
-	{
-		// If we're zerg, check to see if a building is planned to be built.
-		// Only count it as releasing supply very early in the game.
-		if (_selfRace == BWAPI::Races::Zerg
-			&& BuildingManager::Instance().buildingsQueued().size() > 0
-			&& BWAPI::Broodwar->self()->supplyTotal() <= 18)
-		{
-			return false;
-		}
-		return true;
-	}
+	// Keep a buffer of 8 extra supply
+	supplyNeeded += 8;
 
-	return false;
+	return supplyAvailable < supplyNeeded;
 }
 
 // This tries to cope with 1 kind of severe emergency: We have desperately few workers.
