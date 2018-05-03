@@ -287,8 +287,8 @@ void BuildingManager::checkForCompletedBuildings()
 		{
 			// The building, whatever it is, is not completed.
 			// If it is a terran gas steal, stop construction early.
-			if (b.isGasSteal &&
-				BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Terran &&
+			if (b.isWorkerScoutBuilding &&
+				b.type == BWAPI::UnitTypes::Terran_Refinery &&
 				b.builderUnit &&
 				b.builderUnit->canHaltConstruction() &&
 				b.buildingUnit->getRemainingBuildTime() < 24)
@@ -333,12 +333,12 @@ void BuildingManager::checkReservedResources()
 }
 
 // Add a new building to be constructed and return it.
-Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isGasSteal)
+Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isWorkerScoutBuilding)
 {
 	UAB_ASSERT(act.isBuilding(), "trying to build a non-building");
 
 	// TODO debugging
-	if (isGasSteal)
+	if (isWorkerScoutBuilding)
 	{
 		// BWAPI::Broodwar->printf("gas steal into building manager");
 	}
@@ -350,7 +350,7 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 
 	Building b(type, desiredLocation);
 	b.macroLocation = act.getMacroLocation();
-	b.isGasSteal = isGasSteal;
+	b.isWorkerScoutBuilding = isWorkerScoutBuilding;
 	b.status = BuildingStatus::Unassigned;
 
 	Log().Debug() << "Queued building task for " << type;
@@ -360,9 +360,9 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 }
 
 // Add a new building to be constructed.
-void BuildingManager::addBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isGasSteal)
+void BuildingManager::addBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isWorkerScoutBuilding)
 {
-	(void) addTrackedBuildingTask(act, desiredLocation, isGasSteal);
+	(void) addTrackedBuildingTask(act, desiredLocation, isWorkerScoutBuilding);
 }
 
 bool BuildingManager::isBuildingPositionExplored(const Building & b) const
@@ -391,7 +391,7 @@ char BuildingManager::getBuildingWorkerCode(const Building & b) const
 
 void BuildingManager::setBuilderUnit(Building & b)
 {
-	if (b.isGasSteal)
+	if (b.isWorkerScoutBuilding)
 	{
 		// If it's a gas steal, use the scout worker.
 		// Even if other workers are close by, they may have different jobs.
@@ -408,9 +408,9 @@ void BuildingManager::setBuilderUnit(Building & b)
 // but not if the scout manager owns the worker.
 void BuildingManager::releaseBuilderUnit(const Building & b)
 {
-	if (b.isGasSteal)
+	if (b.isWorkerScoutBuilding)
 	{
-		ScoutManager::Instance().gasStealOver();
+		ScoutManager::Instance().workerScoutBuildingCompleted();
 	}
 	else
 	{
@@ -477,17 +477,29 @@ size_t BuildingManager::getNumUnstarted(BWAPI::UnitType type) const
 	return count;
 }
 
-bool BuildingManager::isGasStealInQueue() const
+bool BuildingManager::isWorkerScoutBuildingInQueue() const
 {
 	for (const auto & b : _buildings)
 	{
-		if (b.isGasSteal)
+		if (b.isWorkerScoutBuilding)
 		{
 			return true;
 		}
 	}
 
 	return false;
+}
+
+std::vector<Building *> BuildingManager::workerScoutBuildings()
+{
+	std::vector<Building *> buildings;
+
+	for (auto & b : _buildings)
+	{
+		if (b.isWorkerScoutBuilding) buildings.push_back(&b);
+	}
+
+	return buildings;
 }
 
 void BuildingManager::drawBuildingInformation(int x, int y)
@@ -622,7 +634,8 @@ void BuildingManager::cancelBuildingType(BWAPI::UnitType t)
 // TODO fails in placing a hatchery after all others are destroyed - why?
 BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 {
-	if (b.isGasSteal)
+	// gas steal
+	if (b.isWorkerScoutBuilding && b.type == BWAPI::UnitTypes::Protoss_Assimilator)
     {
         BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
         UAB_ASSERT(enemyBaseLocation,"Should find enemy base before gas steal");

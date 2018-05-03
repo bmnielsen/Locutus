@@ -42,8 +42,8 @@ public:
     void                update();
     void                onUnitMorph(BWAPI::Unit unit);
     void                onUnitDestroy(BWAPI::Unit unit);
-	Building &		    addTrackedBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isGasSteal);
-	void                addBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isGasSteal);
+	Building &		    addTrackedBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isWorkerScoutBuilding);
+	void                addBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isWorkerScoutBuilding);
     void                drawBuildingInformation(int x,int y);
     BWAPI::TilePosition getBuildingLocation(const Building & b);
 
@@ -54,7 +54,9 @@ public:
     bool                isBeingBuilt(BWAPI::UnitType type) const;
 	size_t              getNumUnstarted() const;
 	size_t              getNumUnstarted(BWAPI::UnitType type) const;
-	bool				isGasStealInQueue() const;
+	
+	bool						isWorkerScoutBuildingInQueue() const;
+	std::vector<Building *>		workerScoutBuildings();
 
     std::vector<BWAPI::UnitType> buildingsQueued();
 

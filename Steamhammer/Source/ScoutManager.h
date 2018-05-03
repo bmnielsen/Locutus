@@ -61,7 +61,10 @@ public:
 	bool tryGasSteal() const { return _tryGasSteal; };
 	bool wantGasSteal() const { return _tryGasSteal && !_gasStealOver; };
 	bool gasStealQueued() const { return _queuedGasSteal; };
-	void gasStealOver() { _gasStealOver = true; };    // called by BuildingManager when releasing the worker
+	void workerScoutBuildingCompleted() // called by BuildingManager when releasing the worker
+	{ 
+		if (_queuedGasSteal) _gasStealOver = true; 
+	};
 
 	void setScoutCommand(MacroCommandType cmd);
 };

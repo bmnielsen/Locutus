@@ -22,7 +22,7 @@ public:
 	BWAPI::Unit             buildingUnit;      // building after construction starts
 	BWAPI::Unit             builderUnit;       // unit to create the building
     size_t                  status;
-    bool                    isGasSteal;
+    bool                    isWorkerScoutBuilding;
 	bool                    buildCommandGiven;
 	bool                    underConstruction;
 
@@ -39,7 +39,7 @@ public:
         , status            (BuildingStatus::Unassigned)
         , buildCommandGiven (false)
         , underConstruction (false) 
-        , isGasSteal        (false)
+        , isWorkerScoutBuilding (false)
 		, startFrame		(BWAPI::Broodwar->getFrameCount())
 		, buildersSent		(0)
     {} 
@@ -55,7 +55,7 @@ public:
         , status            (BuildingStatus::Unassigned)
         , buildCommandGiven (false)
         , underConstruction (false) 
-        , isGasSteal        (false)
+        , isWorkerScoutBuilding (false)
 		, startFrame		(BWAPI::Broodwar->getFrameCount())
 		, buildersSent		(0)
 	{}

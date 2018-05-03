@@ -204,7 +204,7 @@ void ProductionManager::manageBuildOrderQueue()
 			// construct a temporary building object
 			Building b(currentItem.macroAct.getUnitType(), InformationManager::Instance().getMyMainBaseLocation()->getTilePosition());
 			b.macroLocation = currentItem.macroAct.getMacroLocation();
-            b.isGasSteal = currentItem.isGasSteal;
+            b.isWorkerScoutBuilding = currentItem.isWorkerScoutBuilding;
 
 			// set the producer as the closest worker, but do not set its job yet
 			producer = WorkerManager::Instance().getBuilder(b, false);
@@ -520,7 +520,7 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 			desiredLocation = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth()/2, BWAPI::Broodwar->mapHeight()/2);
 		}
 		
-		BuildingManager::Instance().addBuildingTask(act, desiredLocation, item.isGasSteal);
+		BuildingManager::Instance().addBuildingTask(act, desiredLocation, item.isWorkerScoutBuilding);
 	}
 	// if we're dealing with a non-building unit, or a morphed zerg building
 	else if (act.isUnit())
@@ -588,7 +588,7 @@ bool ProductionManager::canMakeNow(BWAPI::Unit producer, MacroAct t)
 // This function is here as it needs to access prodction manager's reserved resources info.
 void ProductionManager::predictWorkerMovement(const Building & b)
 {
-    if (b.isGasSteal)
+    if (b.isWorkerScoutBuilding || _assignedWorkerForThisBuilding)
     {
         return;
     }
@@ -958,15 +958,14 @@ void ProductionManager::doExtractorTrick()
 	}
 }
 
-void ProductionManager::queueGasSteal()
+void ProductionManager::queueWorkerScoutBuilding(MacroAct macroAct)
 {
-	_queue.queueAsHighestPriority(MacroAct(BWAPI::Broodwar->self()->getRace().getRefinery()), true);
+	_queue.queueAsHighestPriority(macroAct, true);
 }
 
-// Has a gas steal has been queued?
-bool ProductionManager::isGasStealInQueue() const
+bool ProductionManager::isWorkerScoutBuildingInQueue() const
 {
-	return _queue.isGasStealInQueue() || BuildingManager::Instance().isGasStealInQueue();
+	return _queue.isWorkerScoutBuildingInQueue() || BuildingManager::Instance().isWorkerScoutBuildingInQueue();
 }
 
 // The next item in the queue is a building that requires a worker to construct.

@@ -477,13 +477,13 @@ bool ScoutManager::gasSteal()
 		// We can't rely on _queuedGasSteal to know, because the queue may be cleared
 		// if a surprise occurs.
 		// Therefore _queuedGasSteal affects mainly the debug display for the UI.
-		if (!ProductionManager::Instance().isGasStealInQueue())
+		if (!ProductionManager::Instance().isWorkerScoutBuildingInQueue())
 		{
 			//BWAPI::Broodwar->printf("queueing gas steal");
 			// NOTE Queueing the gas steal orders the building constructed.
 			// Control of the worker passes to the BuildingManager until it releases the
 			// worker with a call to gasStealOver().
-			ProductionManager::Instance().queueGasSteal();
+			ProductionManager::Instance().queueWorkerScoutBuilding(MacroAct(BWAPI::Broodwar->self()->getRace().getRefinery()));
 			_queuedGasSteal = true;
 			// Regardless, make sure we are moving toward the geyser.
 			// It makes life easier on the building manager.

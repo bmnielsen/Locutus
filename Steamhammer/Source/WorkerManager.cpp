@@ -627,7 +627,7 @@ BWAPI::Unit WorkerManager::getBuilder(const Building & b, bool setJobAsBuilder)
         UAB_ASSERT(unit, "Unit was null");
 
         // gas steal building uses scout worker
-        if (b.isGasSteal && (workerData.getWorkerJob(unit) == WorkerData::Scout))
+        if (b.isWorkerScoutBuilding && (workerData.getWorkerJob(unit) == WorkerData::Scout))
         {
             if (setJobAsBuilder)
             {

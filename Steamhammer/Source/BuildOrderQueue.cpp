@@ -3,6 +3,12 @@
 
 using namespace UAlbertaBot;
 
+BuildOrderItem::BuildOrderItem(MacroAct m, bool workerScoutBuilding)
+	: macroAct(m)
+	, isWorkerScoutBuilding(workerScoutBuilding)
+{
+}
+
 BuildOrderQueue::BuildOrderQueue()
 	: modified(false)
 {
@@ -65,7 +71,7 @@ void BuildOrderQueue::pullToTop(size_t i)
 
 	BuildOrderItem item = queue[i];								// copy it
 	queue.erase(queue.begin() + i);
-	queueAsHighestPriority(item.macroAct, item.isGasSteal);		// this sets modified = true
+	queueAsHighestPriority(item.macroAct, item.isWorkerScoutBuilding);		// this sets modified = true
 }
 
 size_t BuildOrderQueue::size() const
@@ -200,11 +206,11 @@ void BuildOrderQueue::totalCosts(int & minerals, int & gas) const
 	}
 }
 
-bool BuildOrderQueue::isGasStealInQueue() const
+bool BuildOrderQueue::isWorkerScoutBuildingInQueue() const
 {
 	for (const auto & item : queue)
 	{
-		if (item.isGasSteal)
+		if (item.isWorkerScoutBuilding)
 		{
 			return true;
 		}

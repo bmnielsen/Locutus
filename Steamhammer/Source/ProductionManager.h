@@ -60,8 +60,8 @@ public:
 	void	drawProductionInformation(int x, int y);
 	void	startExtractorTrick(BWAPI::UnitType type);
 
-	void	queueGasSteal();
-	bool	isGasStealInQueue() const;
+	void	queueWorkerScoutBuilding(MacroAct macroAct);
+	bool	isWorkerScoutBuildingInQueue() const;
 
 	bool	nextIsBuilding() const;
 

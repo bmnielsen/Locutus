@@ -9,13 +9,9 @@ namespace UAlbertaBot
 struct BuildOrderItem
 {
     MacroAct macroAct;	   // the thing we want to produce
-    bool     isGasSteal;
+	bool     isWorkerScoutBuilding;
 
-    BuildOrderItem(MacroAct m, bool gasSteal = false)
-        : macroAct(m)
-        , isGasSteal(gasSteal) 
-    {
-    }
+	BuildOrderItem::BuildOrderItem(MacroAct m, bool isWorkerScoutBuilding = false);
 };
 
 class BuildOrderQueue
@@ -33,8 +29,8 @@ public:
     void clearAll();											// clear the entire build order queue
 	void dropStaticDefenses();									// delete any static defense buildings
 
-    void queueAsHighestPriority(MacroAct m,bool gasSteal = false);		// queue something at the highest priority
     void queueAsLowestPriority(MacroAct m);						// queue something at the lowest priority
+	void queueAsHighestPriority(MacroAct m, bool isWorkerScoutBuilding = false);		// queues something at the highest priority
     void removeHighestPriorityItem();							// remove the highest priority item
 	void doneWithHighestPriorityItem();							// remove highest priority item without setting `modified`
 	void pullToTop(size_t i);									// move item at index i to the highest priority position
@@ -52,7 +48,7 @@ public:
 	size_t numInQueue(BWAPI::UnitType type) const;
 	size_t numInNextN(BWAPI::UnitType type, int n) const;
 	void totalCosts(int & minerals, int & gas) const;
-	bool isGasStealInQueue() const;
+	bool isWorkerScoutBuildingInQueue() const;
 
 	void drawQueueInformation(int x, int y, bool outOfBook);
 
