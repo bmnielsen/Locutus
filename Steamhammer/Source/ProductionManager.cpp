@@ -211,6 +211,8 @@ void ProductionManager::manageBuildOrderQueue()
 			b.macroAct = currentItem.macroAct;
 			b.macroLocation = currentItem.macroAct.getMacroLocation();
             b.isWorkerScoutBuilding = currentItem.isWorkerScoutBuilding;
+			if (currentItem.macroAct.hasReservedPosition())
+				b.finalPosition = currentItem.macroAct.getReservedPosition();
 
 			// set the producer as the closest worker, but do not set its job yet
 			producer = WorkerManager::Instance().getBuilder(b, false);

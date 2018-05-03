@@ -62,6 +62,7 @@ public:
 	bool    isRefinery()	const;
 	bool	isSupply()		const;
     
+	bool    hasReservedPosition()	const;
 	bool	hasThen()				const;
 
     const size_t & type() const;
