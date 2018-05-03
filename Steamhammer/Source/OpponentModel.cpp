@@ -250,12 +250,17 @@ void OpponentModel::write()
 {
 	if (Config::IO::WriteOpponentModel)
 	{
-		std::ofstream outFile(Config::IO::WriteDir + _filename, std::ios::app);
+		std::ofstream outFile(Config::IO::WriteDir + _filename, std::ios::trunc);
 
 		// If it fails, there's not much we can do about it.
 		if (outFile.bad())
 		{
 			return;
+		}
+
+		for (auto record : _pastGameRecords)
+		{
+			record->write(outFile);
 		}
 
 		_gameRecord.write(outFile);
