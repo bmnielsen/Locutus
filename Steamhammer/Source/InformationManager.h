@@ -34,6 +34,7 @@ class InformationManager
 	std::map<BWAPI::Player, std::set<BWTA::Region *> >  _occupiedRegions;        // contains any building
 	std::map<BWTA::BaseLocation *, Base *>				_theBases;
 	BWAPI::Unitset										_staticDefense;
+	const BWEB::Station *								_enemyBaseStation;
 
 	InformationManager();
 
@@ -88,6 +89,7 @@ public:
     BWTA::BaseLocation *    getMainBaseLocation(BWAPI::Player player);
 	BWTA::BaseLocation *	getMyMainBaseLocation();
 	BWTA::BaseLocation *	getEnemyMainBaseLocation();
+	const BWEB::Station *	getEnemyMainBaseStation();
 	BWAPI::Player			getBaseOwner(BWTA::BaseLocation * base);
 	BWAPI::Unit 			getBaseDepot(BWTA::BaseLocation * base);
 	BWTA::BaseLocation *	getMyNaturalLocation();

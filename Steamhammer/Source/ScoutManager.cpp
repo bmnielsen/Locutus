@@ -24,6 +24,7 @@ ScoutManager::ScoutManager()
     , _currentRegionVertexIndex(-1)
     , _previousScoutHP(0)
 	, _enemyBaseLastSeen(0)
+	, _pylonHarassState(PylonHarassStates::Initial)
 {
 	setScoutTargets();
 }
@@ -205,6 +206,12 @@ void ScoutManager::update()
 				_gasStealStatus = "Not planned";
 			}
 		}
+
+		if (pylonHarass())
+		{
+			moveScout = false;
+		}
+
 		if (moveScout)
 		{
 			moveGroundScout(_workerScout);
@@ -826,4 +833,110 @@ void ScoutManager::calculateEnemyRegionVertices()
     }
 
     _enemyRegionVertices = sortedVertices;
+}
+
+bool ScoutManager::pylonHarass()
+{
+	// If we haven't found the enemy base yet, we can't do any pylon harass
+	const BWEB::Station * enemyStation = InformationManager::Instance().getEnemyMainBaseStation();
+	if (!enemyStation)
+	{
+		return false;
+	}
+
+	switch (_pylonHarassState)
+	{
+	case PylonHarassStates::Initial:
+		// Currently hard-coded opponents
+		// In the future, recognize how opponents react to pylon harass and store it in the opponent model
+		if (BWAPI::Broodwar->enemy()->getName() == "Iron bot" || BWAPI::Broodwar->enemy()->getName() == "Ironbot")
+		{
+			_pylonHarassState = PylonHarassStates::Ready;
+		}
+		else
+		{
+			_pylonHarassState = PylonHarassStates::Finished;
+		}
+
+		return false;
+
+	case PylonHarassStates::Ready:
+	{
+		// We want to build a pylon. Do so when:
+		// - We have enough resources
+		// - We are not close to the enemy mineral line
+		// - We are in sight range of an enemy building
+		// - Nothing is in the way
+
+		if (BWAPI::Broodwar->self()->minerals() - BuildingManager::Instance().getReservedMinerals() < 100) return false;
+
+		if (_workerScout->getPosition().getDistance(enemyStation->ResourceCentroid()) < 300) return false;
+
+		BWAPI::TilePosition tile = _workerScout->getTilePosition() - BWAPI::TilePosition(1, 1);
+		if (tile.x < 0) tile = BWAPI::TilePosition(0, tile.y);
+		if (tile.y < 0) tile = BWAPI::TilePosition(tile.x, 0);
+
+		if (!BWEB::Map::Instance().isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, tile)) return false;
+
+		bool inEnemyBuildingSightRange = false;
+		bool enemyUnitClose = false;
+		for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+		{
+			// Check for in building sight range
+			if (kv.second.type.isBuilding() &&
+				_workerScout->getPosition().getDistance(kv.second.lastPosition + BWAPI::Position(kv.second.type.width() / 2, kv.second.type.height() / 2)) <= kv.second.type.sightRange())
+			{
+				inEnemyBuildingSightRange = true;
+			}
+
+			// Now check for any enemy unit within two tiles of the worker scout
+			if (kv.first->isVisible() && _workerScout->getPosition().getDistance(kv.first->getPosition()) < 64)
+			{
+				enemyUnitClose = true;
+			}
+		}
+
+		if (enemyUnitClose || !inEnemyBuildingSightRange) return false;
+
+		// We passed all checks, so build a pylon here
+		MacroAct act(BWAPI::UnitTypes::Protoss_Pylon);
+		act.setReservedPosition(tile);
+		ProductionManager::Instance().queueWorkerScoutBuilding(act);
+
+		_pylonHarassState = PylonHarassStates::Building;
+
+		Log().Get() << "Issued build for harass pylon @ " << tile;
+
+		return true;
+	}
+
+	case PylonHarassStates::Building:
+		// Here we just wait until the building manager releases the worker again
+		return true;
+
+	case PylonHarassStates::Monitoring:
+	{
+		// Build another pylon if we have fewer than 3 and none are less than half finished
+		int pylons = 0;
+		for (const auto & existingPylon : BuildingManager::Instance().workerScoutBuildings())
+		{
+			if (existingPylon->type != BWAPI::UnitTypes::Protoss_Pylon) continue;
+
+			pylons++;
+			if (existingPylon->status == BuildingStatus::UnderConstruction &&
+				existingPylon->buildingUnit->getRemainingBuildTime() > (BWAPI::UnitTypes::Protoss_Pylon.buildTime() / 2)) return false;
+		}
+
+		if (pylons >= 3) return false;
+
+		_pylonHarassState = PylonHarassStates::Ready;
+
+		return false;
+	}
+
+	case PylonHarassStates::Finished:
+		return false;
+	}
+
+	return false;
 }

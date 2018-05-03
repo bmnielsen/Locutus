@@ -23,6 +23,8 @@ InformationManager::InformationManager()
 	, _enemyHasOverlordHunters(false)
 	, _enemyHasStaticDetection(false)
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
+
+	, _enemyBaseStation(nullptr)
 {
 	initializeTheBases();
 	initializeRegionInformation();
@@ -543,6 +545,28 @@ BWTA::BaseLocation * InformationManager::getMyMainBaseLocation()
 BWTA::BaseLocation * InformationManager::getEnemyMainBaseLocation()
 {
 	return _mainBaseLocations[_enemy];
+}
+
+// Null until the enemy base is located.
+const BWEB::Station * InformationManager::getEnemyMainBaseStation()
+{
+	if (_enemyBaseStation) return _enemyBaseStation;
+
+	BWTA::BaseLocation * enemyBaseLocation = getEnemyMainBaseLocation();
+	if (!enemyBaseLocation) return nullptr;
+
+	double best = DBL_MAX;
+	for (const auto& station : BWEB::Map::Instance().Stations())
+	{
+		double dist = enemyBaseLocation->getPosition().getDistance(station.BWEMBase()->Center());
+		if (dist < best)
+		{
+			best = dist;
+			_enemyBaseStation = &station;
+		}
+	}
+
+	return _enemyBaseStation;
 }
 
 // Self, enemy, or neutral.

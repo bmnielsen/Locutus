@@ -180,7 +180,7 @@ namespace BWEB
 		vector<Block> Blocks() const { return blocks; }
 
 		/// <summary> Returns a vector containing every BWEB::Station </summary>
-		vector<Station> Stations() const { return stations; }
+		const vector<Station> & Stations() const { return stations; }
 
 		/// <summary> Returns the closest BWEB::Station to the given TilePosition. </summary>
 		const Station* getClosestStation(TilePosition) const;

@@ -7,6 +7,15 @@
 
 namespace UAlbertaBot
 {
+enum class PylonHarassStates
+{
+	Initial				// Initial state before we've decided what to do
+	, Ready				// We are ready to build the next pylon
+	, Building			// We have queued building the pylon, the worker is "owned" by the BuildingManager
+	, Monitoring		// We have just built a pylon and are monitoring the effects
+	, Finished			// We're completely done doing pylon harass
+};
+
 class ScoutManager 
 {
 	BWAPI::Unit						_overlordScout;
@@ -28,6 +37,8 @@ class ScoutManager
 	std::vector<BWAPI::Position>    _enemyRegionVertices;
 	int								_enemyBaseLastSeen;
 
+	PylonHarassStates				_pylonHarassState;
+
 	ScoutManager();
 
 	void							setScoutTargets();
@@ -44,6 +55,7 @@ class ScoutManager
 	void                            moveAirScout(BWAPI::Unit scout);
 	void                            drawScoutInformation(int x, int y);
     void                            calculateEnemyRegionVertices();
+	bool							pylonHarass();
 
 public:
 
@@ -65,6 +77,7 @@ public:
 	void workerScoutBuildingCompleted() // called by BuildingManager when releasing the worker
 	{ 
 		if (_queuedGasSteal) _gasStealOver = true; 
+		if (_pylonHarassState == PylonHarassStates::Building) _pylonHarassState = PylonHarassStates::Monitoring;
 	};
 
 	void setScoutCommand(MacroCommandType cmd);
