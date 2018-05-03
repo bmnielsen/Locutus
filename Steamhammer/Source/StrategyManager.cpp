@@ -118,7 +118,6 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	int numPylons = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Pylon);
 	int numNexusCompleted = BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
 	int numNexusAll = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
-	int numProbes = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe);
 	int numCannon = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon);
 	int numObservers = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer);
 	int numZealots = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Zealot);
@@ -130,7 +129,6 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 	bool hasStargate = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0;
 
-	int maxProbes = WorkerManager::Instance().getMaxWorkers();
 	// Look up capacity of various producers
 	int idleGateways = 0;
 	int idleRoboFacilities = 0;
@@ -378,9 +376,6 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Observer, numObservers + 1));
 		}
 	}
-
-	// Make more probes, up to a limit.
-	goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Probe, std::min(maxProbes, numProbes + 8)));
 
 	// If the map has islands, get drop after we have 3 bases.
 	if (Config::Macro::ExpandToIslands && numNexusCompleted >= 3 && MapTools::Instance().hasIslandBases() 
@@ -841,6 +836,23 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 			}
 			*/
+		}
+
+		// If we have an idle nexus and are otherwise safe, queue a probe
+		if (ProductionManager::Instance().isOutOfBook() 
+			&& !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Probe)
+			&& UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe) < WorkerManager::Instance().getMaxWorkers())
+		{
+			bool idleNexus = false;
+			int combatUnits = 0;
+			for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+				if (unit->isCompleted() && unit->getType() == BWAPI::UnitTypes::Protoss_Nexus && unit->getRemainingTrainTime() == 0)
+					idleNexus = true;
+				else if (unit->isCompleted() && UnitUtil::IsCombatUnit(unit))
+					combatUnits++;
+
+			if (idleNexus && combatUnits >= 10)
+				queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Probe);
 		}
 
 		if (numDepots > _highWaterBases)
