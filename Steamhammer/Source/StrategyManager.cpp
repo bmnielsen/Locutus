@@ -50,36 +50,20 @@ const bool StrategyManager::shouldExpandNow() const
 		return false;
 	}
 
-	// if we have idle workers then we need a new expansion
-	if (WorkerManager::Instance().getNumIdleWorkers() > 3)
-	{
-		return true;
-	}
-
-    // if we have excess minerals, expand
-	if (BWAPI::Broodwar->self()->minerals() > 600)
-    {
-        return true;
-    }
-
 	size_t numDepots = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Command_Center)
 		+ UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus)
 		+ UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Hatchery)
 		+ UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Lair)
 		+ UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Hive);
-	int frame = BWAPI::Broodwar->getFrameCount();
-	int minute = frame / (24 * 60);
 
-	// we will make expansion N after array[N] minutes have passed
-	std::vector<int> expansionTimes = {5, 9, 13, 17, 21, 25};
+	numDepots += BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus);
 
-    for (size_t i(0); i < expansionTimes.size(); ++i)
-    {
-        if (numDepots < (i+2) && minute > expansionTimes[i])
-        {
-            return true;
-        }
-    }
+	// if we have idle workers then we need a new expansion
+	if (WorkerManager::Instance().getNumIdleWorkers() > 10
+		|| (numDepots * 18) < UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe))
+	{
+		return true;
+	}
 
 	return false;
 }
