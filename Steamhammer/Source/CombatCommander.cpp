@@ -170,9 +170,11 @@ void CombatCommander::updateReconSquad()
 
 	// What is available to put into the squad?
 	int availableWeight = 0;
+	int availableDetectors = 0;
 	for (const auto unit : _combatUnits)
 	{
 		availableWeight += weighReconUnit(unit);
+		if (unit->getType().isDetector()) availableDetectors++;
 	}
 
 	// The allowed weight of the recon squad. It should steal few units.
@@ -223,7 +225,8 @@ void CombatCommander::updateReconSquad()
 				squadWeight += weight;
 			}
 		}
-		else if (!hasDetector && type.isDetector() && _squadData.canAssignUnitToSquad(unit, reconSquad))
+		// Only add a detector if we have more than one, we don't want to deprive the attack squad of detection
+		else if (!hasDetector && availableDetectors > 1 && type.isDetector() && _squadData.canAssignUnitToSquad(unit, reconSquad))
 		{
 			_squadData.assignUnitToSquad(unit, reconSquad);
 			hasDetector = true;
