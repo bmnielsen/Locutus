@@ -18,6 +18,7 @@ ProductionManager::ProductionManager()
 	, _extractorTrickState			     (ExtractorTrick::None)
 	, _extractorTrickUnitType			 (BWAPI::UnitTypes::None)
 	, _extractorTrickBuilding			 (nullptr)
+	, _workersReplacedInOpening			 (0)
 {
     setBuildOrder(StrategyManager::Instance().getOpeningBookBuildOrder());
 }
@@ -79,7 +80,19 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 
 	if (unit->getType().isBuilding())
 		Log().Get() << "Lost " << unit->getType() << " @ " << unit->getTilePosition();
+
+	// If it's a static defense and we're still in our opening book, replace it
+	if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon && !_outOfBook)
+	{
+		MacroAct m(BWAPI::UnitTypes::Protoss_Photon_Cannon);
+		m.setReservedPosition(unit->getTilePosition());
+		_queue.queueAsHighestPriority(m);
+		return;
+	}
 	
+	// Gas steal
+	if (unit->getType() == BWAPI::UnitTypes::Protoss_Assimilator) return;
+
 	// If we're zerg, we break out of the opening if and only if a key tech building is lost.
 	if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg)
 	{
@@ -93,12 +106,13 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 	}
 
 	// If it's a worker or a building, it affects the production plan.
-	if (unit->getType().isWorker() && !_outOfBook)
+	if (unit->getType().isWorker() && !_outOfBook && _workersReplacedInOpening < 2)
 	{
 		// We lost a worker in the opening. Replace it.
-		// This helps if a small number of workers are killed. If many are killed, you're toast anyway.
+		// This helps if a small number of workers are killed. If many are killed, you're toast anyway, so don't bother
 		// Still, it's better than breaking out of the opening altogether.
 		_queue.queueAsHighestPriority(unit->getType());
+		_workersReplacedInOpening++;
 
 		// If we have a gateway and no zealots, or a barracks and no marines,
 		// consider making a military unit first. To, you know, stay alive and stuff.
@@ -138,6 +152,7 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 		unit->getType().supplyProvided() == 0)
 	{
 		// We lost a building other than static defense or supply. It may be serious. Replan from scratch.
+		if (!_outOfBook) Log().Get() << "Lost an important building, going out of book";
 		goOutOfBookAndClearQueue();
 	}
 }
