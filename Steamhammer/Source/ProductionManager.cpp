@@ -23,10 +23,10 @@ void ProductionManager::setBuildOrder(const BuildOrder & buildOrder)
 {
 	_queue.clearAll();
 
-	for (size_t i(0); i<buildOrder.size(); ++i)
-	{
+	BuildingPlacer::Instance().reserveWall(buildOrder);
+
+	for (size_t i(0); i < buildOrder.size(); ++i)
 		_queue.queueAsLowestPriority(buildOrder[i]);
-	}
 	_queue.resetModified();
 }
 
@@ -506,7 +506,8 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 		// Otherwise it will find some spot near desiredLocation.
 		BWAPI::TilePosition desiredLocation = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
 
-		if (act.getMacroLocation() == MacroLocation::Natural)
+		if (act.getMacroLocation() == MacroLocation::Natural ||
+			act.getMacroLocation() == MacroLocation::Wall)
 		{
 			BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
 			if (natural)

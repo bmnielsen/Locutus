@@ -4,6 +4,8 @@
 #include "BuildingData.h"
 //#include "MacroAct.h"
 #include "InformationManager.h"
+#include "BuildOrder.h"
+#include "LocutusWall.h"
 
 namespace UAlbertaBot
 {
@@ -21,6 +23,8 @@ class BuildingPlacer
 
 	// BWEB-related stuff
 	bool			_foundBlocks;
+	LocutusWall		_wall;
+
 public:
 
     static BuildingPlacer & Instance();
@@ -50,5 +54,8 @@ public:
 	// BWEB-related stuff
 	void				initializeBWEB();
 	BWAPI::TilePosition placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo);
+	void				reserveWall(const BuildOrder & buildOrder);
+	LocutusWall&		getWall() {	return _wall; }
+
 };
 }

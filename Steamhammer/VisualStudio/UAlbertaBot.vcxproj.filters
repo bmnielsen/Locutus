@@ -225,6 +225,9 @@
     <ClCompile Include="..\..\BWEB\src\Wall.cpp">
       <Filter>BWEB</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\LocutusWall.cpp">
+      <Filter>BWEB</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -409,6 +412,9 @@
       <Filter>BWEB</Filter>
     </ClInclude>
     <ClInclude Include="..\..\BWEB\src\Wall.h">
+      <Filter>BWEB</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\LocutusWall.h">
       <Filter>BWEB</Filter>
     </ClInclude>
   </ItemGroup>

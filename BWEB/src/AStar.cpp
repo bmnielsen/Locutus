@@ -54,7 +54,7 @@ namespace BWEB
 				// Detection collision or skip tiles already added to closed set
 				if (!tile.isValid() || bweb.overlapGrid[tile.x][tile.y] > 0 || !bweb.isWalkable(tile) || test[tile.x][tile.y] == count) continue;
 				if (bweb.overlapsCurrentWall(tile) != UnitTypes::None) continue;
-				//if (bwem.GetArea(tile) && bwem.GetArea(tile) != bwem.GetArea(source) && bwem.GetArea(tile) != bwem.GetArea(target)) continue;
+				if (bwem.GetNearestArea(tile) != bwem.GetArea(source) && bwem.GetNearestArea(tile) != bwem.GetArea(target)) continue;
 				
 				// Cost function?
 				const auto totalCost = current->G + ((i < 4) ? 10 : 14);

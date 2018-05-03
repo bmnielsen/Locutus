@@ -157,6 +157,7 @@
     <ClCompile Include="..\Source\GameRecord.cpp" />
     <ClCompile Include="..\Source\InformationManager.cpp" />
     <ClCompile Include="..\source\JSONTools.cpp" />
+    <ClCompile Include="..\Source\LocutusWall.cpp" />
     <ClCompile Include="..\Source\Logger.cpp" />
     <ClCompile Include="..\Source\MacroAct.cpp" />
     <ClCompile Include="..\Source\MapGrid.cpp" />
@@ -233,6 +234,7 @@
     <ClInclude Include="..\Source\GameRecord.h" />
     <ClInclude Include="..\Source\InformationManager.h" />
     <ClInclude Include="..\source\JSONTools.h" />
+    <ClInclude Include="..\Source\LocutusWall.h" />
     <ClInclude Include="..\Source\Logger.h" />
     <ClInclude Include="..\Source\MacroAct.h" />
     <ClInclude Include="..\Source\MacroCommand.h" />

@@ -30,6 +30,10 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 	{
 		return MacroLocation::Natural;
 	}
+	if (s == "wall")
+	{
+		return MacroLocation::Wall;
+	}
 	if (s == "center")
 	{
 		return MacroLocation::Center;
@@ -44,6 +48,7 @@ MacroAct::MacroAct ()
     : _type(MacroActs::Default) 
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
 }
 
@@ -53,6 +58,7 @@ MacroAct::MacroAct(const std::string & name)
     : _type(MacroActs::Default) 
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
     std::string inputName(name);
     std::replace(inputName.begin(), inputName.end(), '_', ' ');
@@ -160,6 +166,7 @@ MacroAct::MacroAct (BWAPI::UnitType t)
     , _type(MacroActs::Unit) 
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
 }
 
@@ -168,6 +175,7 @@ MacroAct::MacroAct(BWAPI::UnitType t, MacroLocation loc)
 	, _type(MacroActs::Unit)
 	, _race(t.getRace())
 	, _macroLocation(loc)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
 }
 
@@ -176,6 +184,7 @@ MacroAct::MacroAct(BWAPI::TechType t)
     , _type(MacroActs::Tech) 
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
 }
 
@@ -184,6 +193,7 @@ MacroAct::MacroAct (BWAPI::UpgradeType t)
     , _type(MacroActs::Upgrade) 
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
 }
 
@@ -192,6 +202,7 @@ MacroAct::MacroAct(MacroCommandType t)
 	, _type(MacroActs::Command)
 	, _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
 }
 
@@ -200,6 +211,7 @@ MacroAct::MacroAct(MacroCommandType t, int amount)
 	, _type(MacroActs::Command)
 	, _race(BWAPI::Races::None)     // irrelevant
 	, _macroLocation(MacroLocation::Anywhere)
+	, _reservedPosition(BWAPI::TilePositions::None)
 {
 }
 
@@ -252,6 +264,11 @@ bool MacroAct::isSupply() const
 		|| _unitType == BWAPI::UnitTypes::Zerg_Overlord);
 }
 
+bool MacroAct::hasReservedPosition() const
+{
+	return _reservedPosition != BWAPI::TilePositions::None;
+}
+
 const BWAPI::UnitType & MacroAct::getUnitType() const
 {
 	UAB_ASSERT(_type == MacroActs::Unit, "getUnitType of non-unit");
@@ -279,6 +296,12 @@ const MacroCommand MacroAct::getCommandType() const
 const MacroLocation MacroAct::getMacroLocation() const
 {
 	return _macroLocation;
+}
+
+const BWAPI::TilePosition MacroAct::getReservedPosition() const
+{
+	UAB_ASSERT(_reservedPosition != BWAPI::TilePositions::None, "no reserved position");
+	return _reservedPosition;
 }
 
 // Supply required if this is produced.
@@ -394,4 +417,49 @@ std::string MacroAct::getName() const
 
 	UAB_ASSERT(false, "bad MacroAct");
 	return "error";
+}
+
+bool MacroAct::hasWallBuilding() const
+{
+	if (_macroLocation == MacroLocation::Wall
+		&& isBuilding()
+		&& !hasReservedPosition())
+		return true;
+
+	if (hasThen())
+		return getThen().hasWallBuilding();
+
+	return false;
+}
+
+void MacroAct::setWallBuildingPosition(std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> & wallPositions) const
+{
+	if (_macroLocation != MacroLocation::Wall
+		|| !isBuilding()
+		|| hasReservedPosition())
+	{
+		if (hasThen())
+			getThen().setWallBuildingPosition(wallPositions);
+		return;
+	}
+
+	std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>>::iterator iter = wallPositions.begin();
+	while (iter != wallPositions.end())
+		if (iter->first == getUnitType())
+		{
+			_reservedPosition = iter->second;
+
+			wallPositions.erase(iter);
+
+			if (hasThen())
+				getThen().setWallBuildingPosition(wallPositions);
+			return;
+		}
+		else
+			++iter;
+
+	Log().Get() << "Could not reserve position for wall " << _unitType;
+
+	if (hasThen())
+		getThen().setWallBuildingPosition(wallPositions);
 }

@@ -14,6 +14,7 @@ enum class MacroLocation
 	, Hidden       // gas expansion hatchery far from both main bases
 	, Main         // current main base
 	, Natural      // "natural" first expansion base
+	, Wall         // wall at choke of "natural" first expansion base
 	, Center       // middle of the map
 	};
 
@@ -33,6 +34,9 @@ class MacroAct
 	MacroCommand		_macroCommandType;
 
 	MacroLocation		_macroLocation;
+
+	mutable
+	BWAPI::TilePosition _reservedPosition;
 
 	MacroLocation		getMacroLocationFromString(std::string & s);
 
@@ -63,6 +67,7 @@ public:
     const BWAPI::UpgradeType & getUpgradeType() const;
 	const MacroCommand getCommandType() const;
 	const MacroLocation getMacroLocation() const;
+	const BWAPI::TilePosition getReservedPosition() const;
 
 	int supplyRequired() const;
 	int mineralPrice()   const;
@@ -70,6 +75,10 @@ public:
 
 	BWAPI::UnitType whatBuilds() const;
 	std::string getName() const;
+
+	bool hasWallBuilding() const;
+	void setWallBuildingPosition(std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> & wallPositions) const;
+	void setReservedPosition(BWAPI::TilePosition tile) const { _reservedPosition = tile; }
 
 	friend std::ostream& operator << (std::ostream& out, const MacroAct& m)
 	{

@@ -690,7 +690,12 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	}
 
     int distance = Config::Macro::BuildingSpacing;
-	if (b.type == BWAPI::UnitTypes::Terran_Bunker ||
+	if (b.macroLocation == MacroLocation::Wall)
+	{
+		// Placed by BWEB
+		distance = 0;
+	}
+	else if (b.type == BWAPI::UnitTypes::Terran_Bunker ||
 		b.type == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
 		b.type == BWAPI::UnitTypes::Zerg_Creep_Colony)
 	{
