@@ -761,19 +761,13 @@ void WorkerManager::setMoveWorker(BWAPI::Unit worker, int mineralsNeeded, int ga
 }
 
 // will we have the required resources by the time a worker can travel the given distance
-bool WorkerManager::willHaveResources(int mineralsRequired, int gasRequired, double distance)
+bool WorkerManager::willHaveResources(int mineralsRequired, int gasRequired, double framesToMove)
 {
 	// if we don't require anything, we will have it
 	if (mineralsRequired <= 0 && gasRequired <= 0)
 	{
 		return true;
 	}
-
-	double speed = BWAPI::Broodwar->self()->getRace().getWorker().topSpeed();
-
-	// how many frames it will take us to move to the building location
-	// add a little to account for worker getting stuck. better early than late
-	double framesToMove = (distance / speed) + 24;
 
 	// magic numbers to predict income rates
 	double mineralRate = getNumMineralWorkers() * 0.045;

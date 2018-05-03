@@ -37,5 +37,7 @@ namespace UnitUtil
 	int GetAllUnitCount(BWAPI::UnitType type);
 	int GetCompletedUnitCount(BWAPI::UnitType type);
 	int GetUncompletedUnitCount(BWAPI::UnitType type);
+
+	BWAPI::Unit GetNextCompletedBuildingOfType(BWAPI::UnitType type);
 };
 }

@@ -21,6 +21,7 @@ class ProductionManager
     BWAPI::TilePosition _predictedTilePosition;
     BWAPI::Unit         _assignedWorkerForThisBuilding;
     bool                _haveLocationForThisBuilding;
+	int					_frameWhenDependendenciesMet;
 	int					_delayBuildingPredictionUntilFrame;
 	bool				_outOfBook;                      // production queue is beyond the opening book
 	int					_targetGasAmount;                // for "go gas until <n>"; set to 0 if no target

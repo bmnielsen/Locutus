@@ -79,7 +79,7 @@ public:
 	void        setMoveWorker(BWAPI::Unit worker, int mineralsNeeded, int gasNeeded, BWAPI::Position & p);
     void        setCombatWorker(BWAPI::Unit worker);
 
-    bool        willHaveResources(int mineralsRequired,int gasRequired,double distance);
+    bool        willHaveResources(int mineralsRequired,int gasRequired,double framesToMove);
     void        rebalanceWorkers();
 
 	bool		maybeMineMineralBlocks(BWAPI::Unit worker);

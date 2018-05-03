@@ -523,3 +523,16 @@ int UnitUtil::GetUncompletedUnitCount(BWAPI::UnitType type)
 
 	return count;
 }
+
+BWAPI::Unit UnitUtil::GetNextCompletedBuildingOfType(BWAPI::UnitType type)
+{
+	int bestFrame = INT_MAX;
+	BWAPI::Unit bestUnit = nullptr;
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+	{
+		if (unit->getType() == type && unit->isBeingConstructed() && unit->getRemainingBuildTime() < bestFrame)
+			bestFrame = unit->getRemainingBuildTime(), bestUnit = unit;
+	}
+
+	return bestUnit;
+}

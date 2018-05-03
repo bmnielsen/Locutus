@@ -5,10 +5,13 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 ProductionManager::ProductionManager()
 	: _lastProductionFrame				 (0)
 	, _assignedWorkerForThisBuilding     (nullptr)
 	, _haveLocationForThisBuilding       (false)
+	, _frameWhenDependendenciesMet       (0)
 	, _delayBuildingPredictionUntilFrame (0)
 	, _outOfBook                         (false)
 	, _targetGasAmount                   (0)
@@ -233,6 +236,7 @@ void ProductionManager::manageBuildOrderQueue()
 			create(producer, currentItem);
 			_assignedWorkerForThisBuilding = nullptr;
 			_haveLocationForThisBuilding = false;
+			_frameWhenDependendenciesMet = false;
 			_delayBuildingPredictionUntilFrame = 0;
 
 			// and remove it from the _queue
@@ -620,6 +624,41 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 		_delayBuildingPredictionUntilFrame = 12 + BWAPI::Broodwar->getFrameCount();
 		return;
 	}
+
+	int framesUntilDependenciesMet = 0;
+	if (_frameWhenDependendenciesMet > 0)
+	{
+		framesUntilDependenciesMet = _frameWhenDependendenciesMet - BWAPI::Broodwar->getFrameCount();
+	}
+	else
+	{
+		// Get the set of unbuilt requirements for the building
+		std::set<BWAPI::UnitType> requirements;
+		for (auto req : b.type.requiredUnits())
+			if (BWAPI::Broodwar->self()->completedUnitCount(req.first) == 0)
+				requirements.insert(req.first);
+
+		// If the tile position is unpowered, add a pylon
+		if (!BWAPI::Broodwar->hasPower(_predictedTilePosition, b.type))
+			requirements.insert(BWAPI::UnitTypes::Protoss_Pylon);
+
+		// Check if we have any
+		for (auto req : requirements)
+		{
+			if (BWAPI::Broodwar->self()->completedUnitCount(req) > 0) continue;
+			BWAPI::Unit nextCompletedUnit = UnitUtil::GetNextCompletedBuildingOfType(req);
+			if (!nextCompletedUnit) 
+			{
+				// Prerequisite is queued for build, check again in a bit
+				_delayBuildingPredictionUntilFrame = 20 + BWAPI::Broodwar->getFrameCount();
+				return;
+			}
+
+			framesUntilDependenciesMet = std::max(framesUntilDependenciesMet, nextCompletedUnit->getRemainingBuildTime() + 80);
+		}
+
+		_frameWhenDependendenciesMet = BWAPI::Broodwar->getFrameCount() + framesUntilDependenciesMet;
+	}
 	
 	int x1 = _predictedTilePosition.x * 32;
 	int y1 = _predictedTilePosition.y * 32;
@@ -641,24 +680,35 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 
 	// get a candidate worker to move to this location
 	BWAPI::Unit moveWorker				= WorkerManager::Instance().getMoveWorker(walkToPosition);
+	if (!moveWorker) return;
 
-	// Conditions under which to move the worker: 
-	//		- there's a valid worker to move
-	//		- we haven't yet assigned a worker to move to this location
-	//		- the build position is valid
-	//		- we will have the required resources by the time the worker gets there
-	if (moveWorker &&
-		!_assignedWorkerForThisBuilding &&
-		_haveLocationForThisBuilding &&
-		(_predictedTilePosition != BWAPI::TilePositions::None) &&
-		WorkerManager::Instance().willHaveResources(mineralsRequired, gasRequired, moveWorker->getDistance(walkToPosition)) )
+	// how many frames it will take us to move to the building location
+	// Use bwem pathfinding if direct distance is likely to be wrong
+	// We add some time since the actual pathfinding of the workers is bad
+	int distanceToMove = moveWorker->getDistance(walkToPosition);
+	if (distanceToMove > 200)
+		bwemMap.GetPath(moveWorker->getPosition(), walkToPosition, &distanceToMove);
+	double framesToMove = (distanceToMove / BWAPI::Broodwar->self()->getRace().getWorker().topSpeed()) * 1.4;
+
+	// Don't move if the dependencies won't be done in time
+	if (framesUntilDependenciesMet > framesToMove)
 	{
-		// we have assigned a worker
-		_assignedWorkerForThisBuilding = moveWorker;
-
-		// tell the worker manager to move this worker
-		WorkerManager::Instance().setMoveWorker(moveWorker, mineralsRequired, gasRequired, walkToPosition);
+		// We don't need to recompute for a few frames if it's a long way off
+		if (framesUntilDependenciesMet - framesToMove > 20)
+			_delayBuildingPredictionUntilFrame = BWAPI::Broodwar->getFrameCount() + 10;
+		return;
 	}
+
+	// Determine if we can build at the time when we have all dependencies and the worker has arrived
+	if (!WorkerManager::Instance().willHaveResources(mineralsRequired, gasRequired, framesToMove)) return;
+
+	// we have assigned a worker
+	_assignedWorkerForThisBuilding = moveWorker;
+
+	// tell the worker manager to move this worker
+	WorkerManager::Instance().setMoveWorker(moveWorker, mineralsRequired, gasRequired, walkToPosition);
+
+	Log().Debug() << "Moving worker " << moveWorker << " to build " << b.type << " @ " << _predictedTilePosition;
 }
 
 int ProductionManager::getFreeMinerals() const
