@@ -1,5 +1,6 @@
 #include "MicroMelee.h"
 #include "UnitUtil.h"
+#include "BuildingPlacer.h"
 
 using namespace UAlbertaBot;
 
@@ -7,6 +8,30 @@ using namespace UAlbertaBot;
 
 MicroMelee::MicroMelee() 
 { 
+}
+
+void MicroMelee::getTargets(BWAPI::Unitset & targets) const
+{
+	if (order.getType() != SquadOrderTypes::HoldWall)
+	{
+		MicroManager::getTargets(targets);
+		return;
+	}
+
+	LocutusWall& wall = BuildingPlacer::Instance().getWall();
+
+	for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
+	{
+		if (unit->exists() &&
+			(unit->isCompleted() || unit->getType().isBuilding()) &&
+			unit->getHitPoints() > 0 &&
+			unit->getType() != BWAPI::UnitTypes::Unknown
+			&& (wall.tilesInsideWall.find(unit->getTilePosition()) != wall.tilesInsideWall.end() ||
+				wall.tilesOutsideButCloseToWall.find(unit->getTilePosition()) != wall.tilesOutsideButCloseToWall.end()))
+		{
+			targets.insert(unit);
+		}
+	}
 }
 
 void MicroMelee::executeMicro(const BWAPI::Unitset & targets) 

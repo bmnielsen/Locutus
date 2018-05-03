@@ -1,5 +1,6 @@
 #include "MicroRanged.h"
 #include "UnitUtil.h"
+#include "BuildingPlacer.h"
 
 using namespace UAlbertaBot;
 
@@ -7,9 +8,50 @@ MicroRanged::MicroRanged()
 { 
 }
 
+void MicroRanged::getTargets(BWAPI::Unitset & targets) const
+{
+	if (order.getType() != SquadOrderTypes::HoldWall)
+	{
+		MicroManager::getTargets(targets);
+		return;
+	}
+
+	LocutusWall& wall = BuildingPlacer::Instance().getWall();
+
+	for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
+	{
+		if (unit->exists() &&
+			(unit->isCompleted() || unit->getType().isBuilding()) &&
+			unit->getHitPoints() > 0 &&
+			unit->getType() != BWAPI::UnitTypes::Unknown
+			&& (wall.tilesInsideWall.find(unit->getTilePosition()) != wall.tilesInsideWall.end() 
+				|| wall.tilesOutsideWall.find(unit->getTilePosition()) != wall.tilesOutsideWall.end()))
+		{
+			targets.insert(unit);
+		}
+	}
+}
+
 void MicroRanged::executeMicro(const BWAPI::Unitset & targets) 
 {
 	assignTargets(targets);
+}
+
+struct CompareTiles {
+	bool operator() (const std::pair<BWAPI::TilePosition, double>& lhs, const std::pair<BWAPI::TilePosition, double>& rhs) const {
+		return lhs.second < rhs.second;
+	}
+};
+
+struct CompareUnits {
+	bool operator() (const std::pair<const BWAPI::Unit*, double>& lhs, const std::pair<const BWAPI::Unit*, double>& rhs) const {
+		return lhs.second < rhs.second;
+	}
+};
+
+BWAPI::Position center(BWAPI::TilePosition tile)
+{
+	return BWAPI::Position(tile) + BWAPI::Position(16, 16);
 }
 
 void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
@@ -27,6 +69,107 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 			u->getType() != BWAPI::UnitTypes::Zerg_Egg &&
 			!u->isStasised();
 	});
+
+	// Special case for moving units when we are holding the wall and there are no targets
+	if (order.getType() == SquadOrderTypes::HoldWall && targets.empty())
+	{
+		LocutusWall & wall = BuildingPlacer::Instance().getWall();
+
+		// Populate the set of available tiles inside the wall
+		std::set<std::pair<BWAPI::TilePosition, double>, CompareTiles> availableTilesInside;
+		for (const auto& tile : wall.tilesInsideWall)
+			if (!BWEB::Map::Instance().overlapsAnything(tile))
+			{
+				double dist = center(tile).getDistance(wall.gapCenter);
+				if (dist < 23) continue; // Don't include the door tile itself
+				availableTilesInside.insert(std::make_pair(tile, dist));
+			}
+
+		// Populate the set of available tiles outside the wall
+		std::set<std::pair<BWAPI::TilePosition, double>, CompareTiles> availableTilesOutside;
+		for (const auto& tile : wall.tilesOutsideWall)
+			if (!BWEB::Map::Instance().overlapsAnything(tile))
+			{
+				double dist = center(tile).getDistance(wall.gapCenter);
+				if (dist < 23) continue; // Don't include the door tile itself
+				availableTilesOutside.insert(std::make_pair(tile, dist));
+			}
+
+		// Remove the occupied tiles and populate unit sets
+		std::set<std::pair<BWAPI::Unit, double>> insideUnitsByDistanceToDoor;
+		std::set<std::pair<BWAPI::Unit, double>> outsideUnitsByDistanceToDoor;
+		BWAPI::Position closestTileInside = center(availableTilesInside.begin()->first);
+		BWAPI::Position closestTileOutside = center(availableTilesInside.begin()->first);
+		for (const auto & rangedUnit : rangedUnits)
+		{
+			for (auto it = availableTilesInside.begin(); it != availableTilesInside.end(); )
+				if (it->first == rangedUnit->getTilePosition())
+				{
+					availableTilesInside.erase(it);
+					break;
+				}
+				else
+					it++;
+
+			for (auto it = availableTilesOutside.begin(); it != availableTilesOutside.end(); )
+				if (it->first == rangedUnit->getTilePosition())
+				{
+					availableTilesOutside.erase(it);
+					break;
+				}
+				else
+					it++;
+
+			double dist = rangedUnit->getPosition().getDistance(wall.gapCenter);
+			if (rangedUnit->getPosition().getDistance(closestTileInside) < rangedUnit->getPosition().getDistance(closestTileOutside))
+				insideUnitsByDistanceToDoor.insert(std::make_pair(rangedUnit, dist));
+			else
+				outsideUnitsByDistanceToDoor.insert(std::make_pair(rangedUnit, dist));
+		}
+
+		// Issue orders to units in order of their distance to the door
+		for (const auto & unit : insideUnitsByDistanceToDoor)
+		{
+			// Is the first free tile closer than this one?
+			if (availableTilesInside.begin()->second < (unit.second - 16))
+			{
+				// Move to the free tile
+				Micro::Move(unit.first, center(availableTilesInside.begin()->first));
+
+				// Remove the tile from the available set
+				availableTilesInside.erase(availableTilesInside.begin());
+
+				// Add our former tile to the available set
+				availableTilesInside.insert(std::make_pair(unit.first->getTilePosition(), unit.second));
+			}
+
+			// The tile wasn't closer, so stop
+			else
+				Micro::Stop(unit.first);
+		}
+
+		for (const auto & unit : outsideUnitsByDistanceToDoor)
+		{
+			// Is the first free tile closer than this one?
+			if (availableTilesOutside.begin()->second < (unit.second - 16))
+			{
+				// Move to the free tile
+				Micro::Move(unit.first, center(availableTilesOutside.begin()->first));
+
+				// Remove the tile from the available set
+				availableTilesOutside.erase(availableTilesOutside.begin());
+
+				// Add our former tile to the available set
+				availableTilesOutside.insert(std::make_pair(unit.first->getTilePosition(), unit.second));
+			}
+
+			// The tile wasn't closer, so stop
+			else
+				Micro::Stop(unit.first);
+		}
+
+		return;
+	}
 
     for (const auto rangedUnit : rangedUnits)
 	{

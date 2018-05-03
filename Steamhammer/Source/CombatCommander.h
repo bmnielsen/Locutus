@@ -20,6 +20,8 @@ class CombatCommander
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
 
+	bool			_enemyWorkerHasAttacked;
+
     void            updateScoutDefenseSquad();
 	void            updateBaseDefenseSquads();
 	void			updateReconSquad();

@@ -541,16 +541,20 @@ BWAPI::Position Squad::calcRegroupPosition()
 	if (regroup == BWAPI::Position(0,0))
 	{
 		// Retreat to the main base (guaranteed not null, even if the buildings were destroyed).
-		BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
+		regroup = BWTA::getRegion(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition())->getCenter();
 
 		// If the natural has been taken, retreat there instead.
 		BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
 		if (natural && InformationManager::Instance().getBaseOwner(natural) == BWAPI::Broodwar->self())
 		{
-			base = natural;
+			// If we have a wall, use its door location
+			if (BuildingPlacer::Instance().getWall().isValid())
+				regroup = BuildingPlacer::Instance().getWall().gapCenter;
+			else
+				regroup = BWTA::getRegion(natural->getTilePosition())->getCenter();
 		}
-		return BWTA::getRegion(base->getTilePosition())->getCenter();
 	}
+
 	return regroup;
 }
 

@@ -50,20 +50,23 @@ void MicroManager::execute(const SquadOrder & inputOrder)
 
 	// Discover enemies within the region of interest.
 	BWAPI::Unitset nearbyEnemies;
+	getTargets(nearbyEnemies);
+	executeMicro(nearbyEnemies);
+}
 
+void MicroManager::getTargets(BWAPI::Unitset & targets) const
+{
 	// Always include enemies in the radius of the order.
-	MapGrid::Instance().getUnits(nearbyEnemies, order.getPosition(), order.getRadius(), false, true);
+	MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
 
 	// For some orders, add enemies which are near our units.
 	if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
 	{
-		for (const auto unit : _units) 
+		for (const auto unit : _units)
 		{
-			MapGrid::Instance().getUnits(nearbyEnemies, unit->getPosition(), unit->getType().sightRange(), false, true);
+			MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
 		}
 	}
-
-	executeMicro(nearbyEnemies);
 }
 
 const BWAPI::Unitset & MicroManager::getUnits() const

@@ -14,6 +14,7 @@ public:
 
 	MicroMelee();
 
+	void getTargets(BWAPI::Unitset & targets) const;
 	void executeMicro(const BWAPI::Unitset & targets);
 	void assignTargets(const BWAPI::Unitset & targets);
 

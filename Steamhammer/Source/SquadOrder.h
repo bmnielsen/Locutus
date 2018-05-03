@@ -13,6 +13,7 @@ namespace SquadOrderTypes
 		Attack,    // go attack
 		Defend,    // defend a base (automatically disbanded when enemy is gone)
 		Hold,      // hold ground, stand ready to defend until needed
+		HoldWall,  // defend the wall
 		Load,      // load into a transport (Drop squad)
 		Drop,      // go drop on the enemy (Drop squad)
 	};
@@ -70,6 +71,7 @@ public:
 			case SquadOrderTypes::Attack:  return 'a';
 			case SquadOrderTypes::Defend:  return 'd';
 			case SquadOrderTypes::Hold:    return 'H';
+			case SquadOrderTypes::HoldWall:return 'W';
 			case SquadOrderTypes::Load:    return 'L';
 			case SquadOrderTypes::Drop:    return 'D';
 		}
@@ -83,6 +85,7 @@ public:
 			_type == SquadOrderTypes::Attack ||
 			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::Hold ||
+			_type == SquadOrderTypes::HoldWall ||
 			_type == SquadOrderTypes::Drop;
 	}
 
