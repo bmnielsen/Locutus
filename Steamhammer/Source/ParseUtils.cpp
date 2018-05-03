@@ -194,6 +194,8 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 
 		bool openingStrategyDecided = false;
 
+		auto& strategyWeightFactors = OpponentModel::Instance().getStrategyWeightFactors();
+
 		// 1. Should we use a special strategy against this specific enemy?
 		JSONTools::ReadBool("UseEnemySpecificStrategy", strategy, Config::Strategy::UseEnemySpecificStrategy);
 		if (Config::Strategy::UseEnemySpecificStrategy &&
@@ -209,7 +211,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 				std::string strategyName;
 
 				// if that enemy has a strategy listed for our current race, use it                                              
-				if (_ParseStrategy(specific[enemyName.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+				if (_ParseStrategy(specific[enemyName.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
 				{
 					Config::Strategy::StrategyName = strategyName;
 					Config::Strategy::FoundEnemySpecificStrategy = true;   // defaults to false; see Config.cpp
@@ -232,7 +234,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 			if (counters.HasMember(recommendationVersus.c_str()))
 			{
 				std::string strategyName;
-				if (_ParseStrategy(counters[recommendationVersus.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+				if (_ParseStrategy(counters[recommendationVersus.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
 				{
 					Config::Strategy::StrategyName = strategyName;
 					openingStrategyDecided = true;
@@ -243,7 +245,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 			else if (counters.HasMember(recommendation.c_str()))
 			{
 				std::string strategyName;
-				if (_ParseStrategy(counters[recommendation.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+				if (_ParseStrategy(counters[recommendation.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
 				{
 					Config::Strategy::StrategyName = strategyName;
 					openingStrategyDecided = true;
@@ -257,12 +259,12 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 			std::string strategyName;
 
 			// If we have set a strategy for the current matchup, set it.
-			if (strategy.HasMember(matchup) && _ParseStrategy(strategy[matchup], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+			if (strategy.HasMember(matchup) && _ParseStrategy(strategy[matchup], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
 			{
 				Config::Strategy::StrategyName = strategyName;
 			}
 			// Failing that, look for a strategy for the current race.
-			else if (strategy.HasMember(ourRace) && _ParseStrategy(strategy[ourRace], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+			else if (strategy.HasMember(ourRace) && _ParseStrategy(strategy[ourRace], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
 			{
 				Config::Strategy::StrategyName = strategyName;
 			}
@@ -452,12 +454,13 @@ bool ParseUtils::_ParseStrategy(
 	std::string & stratName,        // updated and returned
 	const std::string & mapWeightString,
 	const std::string & raceString,
-	const rapidjson::Value * strategyCombos)
+	const rapidjson::Value * strategyCombos,
+	std::map<std::string, double> & strategyWeightFactors)
 {
 	if (item.IsString())
 	{
 		stratName = std::string(item.GetString());
-		return _LookUpStrategyCombo(item, stratName, mapWeightString, raceString, strategyCombos);
+		return _LookUpStrategyCombo(item, stratName, mapWeightString, raceString, strategyCombos, strategyWeightFactors);
 	}
 
 	if (item.IsObject() && item.HasMember(raceString.c_str()))
@@ -465,7 +468,7 @@ bool ParseUtils::_ParseStrategy(
 		if (item[raceString.c_str()].IsString())
 		{
 			stratName = std::string(item[raceString.c_str()].GetString());
-			return _LookUpStrategyCombo(item[raceString.c_str()], stratName, mapWeightString, raceString, strategyCombos);
+			return _LookUpStrategyCombo(item[raceString.c_str()], stratName, mapWeightString, raceString, strategyCombos, strategyWeightFactors);
 		}
 		else if (item[raceString.c_str()].IsArray())
 		{
@@ -494,7 +497,12 @@ bool ParseUtils::_ParseStrategy(
 					{
 						continue;
 					}
-					strategies.push_back(mix[i]["Strategy"].GetString());
+
+					std::string strategy = mix[i]["Strategy"].GetString();
+					if (strategyWeightFactors.find(strategy) != strategyWeightFactors.end())
+						weight *= strategyWeightFactors[strategy];
+
+					strategies.push_back(strategy);
 					totalWeight += weight;
 					weights.push_back(totalWeight);
 				}
@@ -511,7 +519,7 @@ bool ParseUtils::_ParseStrategy(
 				if (w < weights[i])
 				{
 					stratName = strategies[i];
-					return _LookUpStrategyCombo(item, stratName, mapWeightString, raceString, strategyCombos);
+					return _LookUpStrategyCombo(item, stratName, mapWeightString, raceString, strategyCombos, strategyWeightFactors);
 				}
 			}
 			UAB_ASSERT(false, "random strategy fell through");
@@ -529,7 +537,8 @@ bool ParseUtils::_LookUpStrategyCombo(
 	std::string & stratName,        // updated and returned
 	const std::string & mapWeightString,
 	const std::string & raceString,
-	const rapidjson::Value * strategyCombos)
+	const rapidjson::Value * strategyCombos,
+	std::map<std::string, double> & strategyWeightFactors)
 {
 	if (strategyCombos && strategyCombos->HasMember(stratName.c_str()))
 	{
@@ -540,7 +549,7 @@ bool ParseUtils::_LookUpStrategyCombo(
 		}
 		if ((*strategyCombos)[stratName.c_str()].IsObject())
 		{
-			return _ParseStrategy((*strategyCombos)[stratName.c_str()], stratName, mapWeightString, raceString, strategyCombos);
+			return _ParseStrategy((*strategyCombos)[stratName.c_str()], stratName, mapWeightString, raceString, strategyCombos, strategyWeightFactors);
 		}
 		// If it's neither of those things, complain.
 		return false;

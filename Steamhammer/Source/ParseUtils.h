@@ -16,7 +16,8 @@ namespace ParseUtils
 		std::string & stratName,
 		const std::string & mapWeightString,
 		const std::string & objectString,
-		const rapidjson::Value * strategyCombos
+		const rapidjson::Value * strategyCombos,
+		std::map<std::string, double> & strategyWeightFactors
 	);
 
 	bool _LookUpStrategyCombo(
@@ -24,7 +25,8 @@ namespace ParseUtils
 		std::string & stratName,
 		const std::string & mapWeightString,
 		const std::string & objectString,
-		const rapidjson::Value * strategyCombos
+		const rapidjson::Value * strategyCombos,
+		std::map<std::string, double> & strategyWeightFactors
 	);
 
     bool GetBoolFromString(const std::string & str);

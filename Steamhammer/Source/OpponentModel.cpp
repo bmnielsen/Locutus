@@ -355,6 +355,45 @@ OpeningPlan OpponentModel::getBestGuessEnemyPlan() const
 	return _expectedEnemyPlan;
 }
 
+// Look through recent games and adjust our strategy weights appropriately
+std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
+{
+	std::map<std::string, double> result;
+	std::map<std::string, int> strategyCount;
+
+	int count = 0;
+
+	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 20; it++)
+	{
+		if (!_gameRecord.sameMatchup(**it)) continue;
+
+		count++;
+
+		auto& strategy = (*it)->getOpeningName();
+
+		if (result.find(strategy) == result.end())
+		{
+			result[strategy] = 1.0;
+			strategyCount[strategy] = 0;
+		}
+
+		double factor = result[strategy];
+		strategyCount[strategy] = strategyCount[strategy] + 1;
+
+		if ((*it)->getWin())
+			factor *= 1.0 + 1.2 / strategyCount[strategy];
+		else
+			factor *= 1.0 - 0.6 / strategyCount[strategy];
+
+		result[strategy] = factor;
+	}
+
+	for (auto& weightChange : result)
+		Log().Get() << "Adjusted weight of " << weightChange.first << " by a factor of " << weightChange.second;
+
+	return result;
+}
+
 OpponentModel & OpponentModel::Instance()
 {
 	static OpponentModel instance;

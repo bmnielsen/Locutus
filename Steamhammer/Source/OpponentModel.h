@@ -55,6 +55,8 @@ namespace UAlbertaBot
 		std::string getExpectedEnemyPlanString() const;
 		OpeningPlan getBestGuessEnemyPlan() const;
 
+		std::map<std::string, double> getStrategyWeightFactors() const;
+
 		bool getRecommendGasSteal() const { return _recommendGasSteal; };
 		const std::string & getRecommendedOpening() const { return _recommendedOpening; };
 
