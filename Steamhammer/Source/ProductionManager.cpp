@@ -178,6 +178,8 @@ void ProductionManager::manageBuildOrderQueue()
 		_assignedWorkerForThisBuilding = nullptr;
 	}
 
+	_queue.resetModified();
+
 	// We do nothing if the queue is empty (obviously).
 	while (!_queue.isEmpty()) 
 	{
