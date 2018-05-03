@@ -256,6 +256,7 @@ void ScoutManager::setScoutCommand(MacroCommandType cmd)
 		cmd == MacroCommandType::Scout ||
 		cmd == MacroCommandType::ScoutIfNeeded ||
 		cmd == MacroCommandType::ScoutLocation ||
+		cmd == MacroCommandType::ScoutWhileSafe ||
 		cmd == MacroCommandType::ScoutOnceOnly,
 		"bad scout command");
 
