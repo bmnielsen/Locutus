@@ -185,15 +185,37 @@ void ProductionManager::manageBuildOrderQueue()
 	{
 		const BuildOrderItem & currentItem = _queue.getHighestPriorityItem();
 
-		// WORKAROUND for BOSS bug of making too many gateways: Limit the count to 10.
+		// WORKAROUND for BOSS bug of making too many gateways: Limit the count to 15.
 		// Idea borrowed from Locutus by Bruce Nielsen.
 		if (currentItem.macroAct.isUnit() &&
 			currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Gateway &&
-			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Gateway) >= 10)
+			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Gateway) >= 15)
 		{
 			_queue.doneWithHighestPriorityItem();
 			_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
 			continue;
+		}
+
+		// More BOSS workarounds:
+		// - only build at most two gates at a time
+		// - cap of 3 gateways per nexus
+		// - cap of one forge per 3 nexus
+		// - cap of one robotics facility per 3 nexus
+		if (_outOfBook)
+		{
+			int gates = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
+			int forges = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
+			int robos = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Robotics_Facility);
+			int nexuses = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
+			if (currentItem.macroAct.isUnit() && (
+				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Gateway && (gates > nexuses * 3 || BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway) >= 2)) ||
+				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Forge && forges * 3 >= nexuses) ||
+				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Robotics_Facility && robos * 3 >= nexuses)))
+			{
+				_queue.doneWithHighestPriorityItem();
+				_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
+				continue;
+			}
 		}
 
 		// If this is a command, execute it and keep going.
@@ -220,8 +242,23 @@ void ProductionManager::manageBuildOrderQueue()
 		// check to see if we can make it right now
 		bool canMake = producer && canMakeNow(producer, currentItem.macroAct);
 
+		// If we are out of book and are blocked on a unit or tech upgrade, skip it
+		// BOSS will queue it again later
+		if (!canMake 
+			&& _outOfBook 
+			&& !currentItem.macroAct.isBuilding() 
+			&& (!currentItem.macroAct.isUnit() || BWAPI::Broodwar->getFrameCount() > (_lastProductionFrame + 48)))
+		{
+			_queue.doneWithHighestPriorityItem();
+			_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
+			continue;
+		}
+
+		// Now consider resources
+		canMake = canMake && meetsReservedResources(currentItem.macroAct);
+
 		// if the next item in the list is a building and we can't yet make it
-        if (currentItem.macroAct.isBuilding() &&
+        if (!_outOfBook && currentItem.macroAct.isBuilding() &&
 			!canMake &&
 			currentItem.macroAct.whatBuilds().isWorker() &&
 			BWAPI::Broodwar->getFrameCount() >= _delayBuildingPredictionUntilFrame)
@@ -267,13 +304,35 @@ void ProductionManager::manageBuildOrderQueue()
 			break;
 		}
 
+		// Might have a production jam
+		int productionJamFrameLimit = Config::Macro::ProductionJamFrameLimit;
+
+		// If we are still in the opening book, give some more leeway
+		if (!_outOfBook) productionJamFrameLimit *= 4;
+
+		// If we are blocked on resources, give some more leeway, we might just not have any money right now
+		else if (!meetsReservedResources(currentItem.macroAct)) productionJamFrameLimit *= 2;
+
+		// Warn once if we are getting close
+		if (BWAPI::Broodwar->getFrameCount() == _lastProductionFrame + (productionJamFrameLimit / 2))
+			Log().Get() << "Warning: Waiting a long time to produce " << currentItem.macroAct.getName();
+
 		// We didn't make anything. Check for a possible production jam.
 		// Jams can happen due to bugs, or due to losing prerequisites for planned items.
-		if (BWAPI::Broodwar->getFrameCount() > _lastProductionFrame + Config::Macro::ProductionJamFrameLimit)
+		if (BWAPI::Broodwar->getFrameCount() > _lastProductionFrame + productionJamFrameLimit)
 		{
 			// Looks very like a jam. Clear the queue and hope for better luck next time.
 			// BWAPI::Broodwar->printf("breaking a production jam");
+			Log().Get() << "Breaking a production jam; current queue item is " << currentItem.macroAct.getName();
 			goOutOfBookAndClearQueue();
+
+			if (_assignedWorkerForThisBuilding)
+				WorkerManager::Instance().finishedWithWorker(_assignedWorkerForThisBuilding);
+
+			_assignedWorkerForThisBuilding = nullptr;
+			_haveLocationForThisBuilding = false;
+			_frameWhenDependendenciesMet = false;
+			_delayBuildingPredictionUntilFrame = 0;
 		}
 
 		// TODO not much of a loop, eh? breaks on all branches
@@ -585,29 +644,26 @@ bool ProductionManager::canMakeNow(BWAPI::Unit producer, MacroAct t)
 {
 	UAB_ASSERT(producer != nullptr, "producer was null");
 
-	bool canMake = meetsReservedResources(t);
-	if (canMake)
+	bool canMake = false;
+	if (t.isUnit())
 	{
-		if (t.isUnit())
-		{
-			canMake = BWAPI::Broodwar->canMake(t.getUnitType(), producer);
-		}
-		else if (t.isTech())
-		{
-			canMake = BWAPI::Broodwar->canResearch(t.getTechType(), producer);
-		}
-		else if (t.isUpgrade())
-		{
-			canMake = BWAPI::Broodwar->canUpgrade(t.getUpgradeType(), producer);
-		}
-		else if (t.isCommand())
-		{
-			canMake = true;     // no-op
-		}
-		else
-		{
-			UAB_ASSERT(false, "Unknown type");
-		}
+		canMake = BWAPI::Broodwar->canMake(t.getUnitType(), producer);
+	}
+	else if (t.isTech())
+	{
+		canMake = BWAPI::Broodwar->canResearch(t.getTechType(), producer);
+	}
+	else if (t.isUpgrade())
+	{
+		canMake = BWAPI::Broodwar->canUpgrade(t.getUpgradeType(), producer);
+	}
+	else if (t.isCommand())
+	{
+		canMake = true;     // no-op
+	}
+	else
+	{
+		UAB_ASSERT(false, "Unknown type");
 	}
 
 	return canMake;
@@ -1073,6 +1129,7 @@ void ProductionManager::goOutOfBookAndClearQueue()
 	_queue.clearAll();
 	_outOfBook = true;
 	CombatCommander::Instance().setAggression(true);
+	_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
 }
 
 // If we're in book, leave it and clear the queue.

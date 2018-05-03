@@ -455,6 +455,21 @@ bool BuildingManager::isBeingBuilt(BWAPI::UnitType type) const
 	return false;
 }
 
+// In the building queue with any status.
+int BuildingManager::numBeingBuilt(BWAPI::UnitType type) const
+{
+	int result = 0;
+	for (const auto & b : _buildings)
+	{
+		if (b.type == type)
+		{
+			result++;
+		}
+	}
+
+	return result;
+}
+
 // Number in the building queue with status other than "under constrution".
 size_t BuildingManager::getNumUnstarted() const
 {
