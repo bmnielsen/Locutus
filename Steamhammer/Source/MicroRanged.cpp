@@ -444,13 +444,13 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		}
 	}
 
-	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar)
+	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
+		targetType == BWAPI::UnitTypes::Protoss_Reaver)
 	{
 		return 12;
 	}
 
-	if (targetType == BWAPI::UnitTypes::Protoss_Reaver ||
-		targetType == BWAPI::UnitTypes::Protoss_Arbiter)
+	if (targetType == BWAPI::UnitTypes::Protoss_Arbiter)
 	{
 		return 11;
 	}
