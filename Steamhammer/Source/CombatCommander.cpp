@@ -128,6 +128,13 @@ void CombatCommander::updateReconSquad()
 	const int maxWeight = 12;
 	Squad & reconSquad = _squadData.getSquad("Recon");
 
+	// Don't do recon while we're defensive
+	if (!_goAggressive)
+	{
+		reconSquad.clear();
+		return;
+	}
+
 	chooseReconTarget();
 
 	// If nowhere needs seeing, disband the squad. We're done.
