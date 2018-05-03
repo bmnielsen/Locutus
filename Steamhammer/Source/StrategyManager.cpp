@@ -876,7 +876,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			// Use _highWaterBases instead of numDepots so we don't try to remake a destroyed natural.
 			if (_highWaterBases == 1 && BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
 			{
-				makeResourceDepot = true;
+				// Disabled for now as it bugged out and made a third once
+				//makeResourceDepot = true;
 			}
 		}
 
