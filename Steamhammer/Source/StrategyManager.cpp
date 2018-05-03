@@ -131,88 +131,221 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	bool hasStargate = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0;
 
 	int maxProbes = WorkerManager::Instance().getMaxWorkers();
+	// Look up capacity of various producers
+	int idleGateways = 0;
+	int idleRoboFacilities = 0;
+	int idleForges = 0;
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+		if (unit->isCompleted()
+			&& (!unit->getType().requiresPsi() || unit->isPowered()))
+		{
+			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway
+				&& unit->getRemainingTrainTime() < 48)
+				idleGateways++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Robotics_Facility
+				&& unit->getRemainingTrainTime() < 48)
+				idleRoboFacilities++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge
+				&& unit->getRemainingUpgradeTime() < 48)
+				idleForges++;
+		}
+
+	// Look up whether we are already building various tech prerequisites
+	bool startedForge = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
+	bool startedCyberCore = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Cybernetics_Core);
+	bool startedCitadel = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Citadel_of_Adun);
+	bool startedTemplarArchives = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Templar_Archives);
+	bool startedObservatory = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observatory) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Observatory);
+	bool startedRoboBay = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Support_Bay) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Robotics_Support_Bay);
 
 	BWAPI::Player self = BWAPI::Broodwar->self();
 
+	bool getGoonRange = false;
+	bool getZealotSpeed = false;
+	bool upgradeGround = false;
+	bool buildDarkTemplar = false;
+	bool buildReaver = false;
+	bool buildObserver = InformationManager::Instance().enemyHasMobileCloakTech(); // Really cloaked combat units
+	double zealotRatio = 0.0;
+	double goonRatio = 0.0;
+
+	// Initial ratios
 	if (_openingGroup == "zealots")
 	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Zealot, numZealots + 6));
-
-		if (numNexusAll >= 3)
-		{
-			// In the end, switch to carriers; no more dragoons.
-			goal.push_back(MetaPair(BWAPI::UpgradeTypes::Carrier_Capacity, 1));
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Carrier, numCarriers + 1));
-		}
-		else if (numNexusAll >= 2)
-		{
-			// Once we have a 2nd nexus, add dragoons.
-			goal.push_back(MetaPair(BWAPI::UpgradeTypes::Singularity_Charge, 1));
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + 4));
-		}
-
-		// Once dragoons are out, get zealot speed.
-		if (numDragoons > 0)
-		{
-			goal.push_back(MetaPair(BWAPI::UpgradeTypes::Leg_Enhancements, 1));
-		}
-
-		// Finally add templar archives.
-		if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0)
-		{
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
-		}
-
-		// If we have templar archives, make
-		// 1. a small fixed number of dark templar to force a reaction, and
-		// 2. an even number of high templar to merge into archons (so the high templar disappear quickly).
-		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) != 0)
-		{
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, std::max(3, numDarkTemplar)));
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_High_Templar, 2));
-		}
+		getZealotSpeed = true;
+		zealotRatio = 1.0;
 	}
 	else if (_openingGroup == "dragoons")
 	{
-		goal.push_back(MetaPair(BWAPI::UpgradeTypes::Singularity_Charge, 1));
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + 6));
-
-		// Once we have a 2nd nexus, add reavers.
-		if (numNexusAll >= 2)
-		{
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Reaver, numReavers + 1));
-		}
-
-		// If we have templar archives, make a small fixed number of DTs to force a reaction.
-		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) != 0)
-		{
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, std::max(3, numDarkTemplar)));
-		}
-
-	}
-	else if (_openingGroup == "dark templar")
-	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, numDarkTemplar + 2));
-
-		// Once we have a 2nd nexus, add dragoons.
-		if (numNexusAll >= 2)
-		{
-			goal.push_back(MetaPair(BWAPI::UpgradeTypes::Singularity_Charge, 1));
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + 4));
-		}
-	}
-	else if (_openingGroup == "drop")
-	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, numDarkTemplar + 2));
-
-		// The drop prep is carried out entirely by the opening book.
-		// Immediately transition into something else.
-		_openingGroup = "dragoons";
+		getGoonRange = true;
+		goonRatio = 1.0;
 	}
 	else
 	{
 		UAB_ASSERT_WARNING(false, "Unknown Opening Group: %s", _openingGroup.c_str());
 		_openingGroup = "dragoons";    // we're misconfigured, but try to do something
+	}
+
+	// Switch to goons if the enemy has air units
+	if (InformationManager::Instance().enemyHasAirCombatUnits())
+	{
+		getGoonRange = true;
+		goonRatio = 1.0;
+		zealotRatio = 0.0;
+	}
+
+	// If we are currently gas blocked, train some zealots
+	if (zealotRatio < 0.5 && idleGateways > 2 && self->gas() < 400 && self->minerals() > 700 && self->minerals() > self->gas() * 3)
+	{
+		// Get zealot speed if we have a lot of zealots
+		if (numZealots > 5) getZealotSpeed = true;
+		zealotRatio = 0.7;
+		goonRatio = 0.3;
+	}
+
+	// After getting third and a large army, build a fixed number of DTs unless many are dying
+	if ((numZealots + numDragoons) > 20
+		&& numNexusAll >= 3
+		&& self->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) < 3
+		&& numDarkTemplar < 3)
+		buildDarkTemplar = true;
+
+	// Upgrade when we have at least two bases and a reasonable army size
+	upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) > 12;
+
+	// Build reavers when we have 2 or more bases
+	// Disabled until we can micro reavers better
+	//if (numNexusAll >= 2) buildReaver = true;
+
+	if (getGoonRange)
+	{
+		if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0)
+			goal.push_back(MetaPair(BWAPI::UpgradeTypes::Singularity_Charge, 1));
+	}
+
+	if (getZealotSpeed)
+	{
+		if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+			&& !startedCitadel)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0)
+			goal.push_back(MetaPair(BWAPI::UpgradeTypes::Leg_Enhancements, 1));
+	}
+
+	if (upgradeGround)
+	{
+		if (!startedForge) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 1));
+
+		// Weapon to 1, armor to 1, weapon to 3, armor to 3
+		int weaponsUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Weapons);
+		int armorUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Armor);
+
+		bool canUpgradeBeyond1 = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0;
+
+		if (idleForges > 0 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons) && (
+			weaponsUps == 0 || (armorUps > 0 && weaponsUps < 3 && canUpgradeBeyond1)))
+		{
+			goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Weapons, weaponsUps + 1));
+			idleForges--;
+		}
+
+		if (idleForges > 0 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor) && (
+			armorUps == 0 || (armorUps < 3 && canUpgradeBeyond1)))
+		{
+			goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Armor, armorUps + 1));
+			idleForges--;
+		}
+
+		// If we have an idle forge and money to burn, get shield upgrades
+		if (idleForges > 0 && self->minerals() > 2000 && self->gas() > 1000 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Plasma_Shields))
+		{
+			int shieldUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Plasma_Shields);
+			if (shieldUps == 0 || (shieldUps < 3 && canUpgradeBeyond1))
+				goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Plasma_Shields, shieldUps + 1));
+		}
+	}
+
+	if (buildDarkTemplar)
+	{
+		if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+			&& !startedCitadel)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
+			&& !startedTemplarArchives)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0
+			&& idleGateways > 2)
+		{
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, numDarkTemplar + 1));
+			idleGateways--;
+		}
+	}
+
+	// Normal gateway units
+	if (idleGateways > 0)
+	{
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) == 0)
+		{
+			zealotRatio = 1.0;
+			goonRatio = 0.0;
+		}
+
+		int zealots = std::round(zealotRatio * idleGateways);
+		int goons = idleGateways - zealots;
+
+		if (zealots > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Zealot, numZealots + zealots));
+		if (goons > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + goons));
+	}
+
+	// Handle units produced by robo bay
+	if (buildReaver || buildObserver)
+	{
+		if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+
+		if (!startedRoboBay 
+			&& UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Robotics_Facility, 1));
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) > 0)
+		{
+			if (buildObserver && !startedObservatory) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Observatory, 1));
+			if (buildReaver && !startedRoboBay) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Robotics_Support_Bay, 1));
+		}
+
+		// Observers have first priority
+		if (buildObserver
+			&& idleRoboFacilities > 0
+			&& numObservers < 3
+			&& self->completedUnitCount(BWAPI::UnitTypes::Protoss_Observatory) > 0)
+		{
+			int observersToBuild = std::min(idleRoboFacilities, 3 - numObservers);
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Observer, numObservers + observersToBuild));
+
+			idleRoboFacilities -= observersToBuild;
+		}
+
+		// Build reavers from the remaining idle robo facilities
+		if (buildReaver
+			&& idleRoboFacilities > 0
+			&& numReavers < 5
+			&& self->completedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Support_Bay) > 0)
+		{
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Reaver, std::max(3, numReavers + idleRoboFacilities)));
+		}
 	}
 
 	// If we're doing a corsair thing and it's still working, slowly add more.
@@ -221,7 +354,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		numCorsairs < 6 &&
 		self->deadUnitCount(BWAPI::UnitTypes::Protoss_Corsair) == 0)
 	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
+		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
 	}
 
 	// Maybe get some static defense against air attack.
@@ -232,7 +365,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Zerg_Mutalisk, BWAPI::Broodwar->enemy()) / 6;
 	if (enemyAirToGround > 0)
 	{
-		goal.push_back(std::pair<MacroAct, int>(BWAPI::UnitTypes::Protoss_Photon_Cannon, enemyAirToGround));
+		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Photon_Cannon, enemyAirToGround));
 	}
 
 	// Get observers if we have a second base, or if the enemy has cloaked units.
@@ -250,9 +383,10 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Probe, std::min(maxProbes, numProbes + 8)));
 
 	// If the map has islands, get drop after we have 3 bases.
-	if (Config::Macro::ExpandToIslands && numNexusCompleted >= 3 && MapTools::Instance().hasIslandBases())
+	if (Config::Macro::ExpandToIslands && numNexusCompleted >= 3 && MapTools::Instance().hasIslandBases() 
+		&& UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) > 0)
 	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Shuttle, 1));
+		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Shuttle, 1));
 	}
 
 	// if we want to expand, insert a nexus into the build order
