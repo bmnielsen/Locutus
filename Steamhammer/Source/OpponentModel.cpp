@@ -100,6 +100,9 @@ void OpponentModel::reconsiderEnemyPlan()
 // so they can take into account what the opponent is doing.
 void OpponentModel::considerGasSteal()
 {
+	// Sometimes it's queuing a gas steal regardless, let's just kill it
+	return;
+
 	// 1. Random gas stealing.
 	// This part really should run only once per game.
 	if (Random::Instance().flag(Config::Strategy::RandomGasStealRate))
