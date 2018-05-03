@@ -177,14 +177,18 @@ void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
         return;
     }
 
-    // get the unit's current command
-    BWAPI::UnitCommand currentCommand(unit->getLastCommand());
+	// Except for minerals, don't click the same target again
+	if (target->getType() != BWAPI::UnitTypes::Resource_Mineral_Field)
+	{
+		// get the unit's current command
+		BWAPI::UnitCommand currentCommand(unit->getLastCommand());
 
-    // if we've already told this unit to right-click this target, ignore this command
-    if ((currentCommand.getType() == BWAPI::UnitCommandTypes::Right_Click_Unit) && (currentCommand.getTargetPosition() == target->getPosition()))
-    {
-        return;
-    }
+		// if we've already told this unit to right-click this target, ignore this command
+		if ((currentCommand.getType() == BWAPI::UnitCommandTypes::Right_Click_Unit) && (currentCommand.getTargetPosition() == target->getPosition()))
+		{
+			return;
+		}
+	}
 
     // if nothing prevents it, attack the target
     unit->rightClick(target);

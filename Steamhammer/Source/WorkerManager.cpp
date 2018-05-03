@@ -28,6 +28,7 @@ void WorkerManager::update()
 	handleReturnCargoWorkers();
 	handleMoveWorkers();
 	handleRepairWorkers();
+	handleMineralLocking(); // Do this last since the workers might get reassigned elsewhere first
 
 	drawResourceDebugInfo();
 	drawWorkerInformation(450,20);
@@ -124,7 +125,15 @@ void WorkerManager::updateWorkerStatus()
 			{
 				// defendSelf() does the work.
 			}
-			else if (worker->getOrder() != BWAPI::Orders::MoveToMinerals &&
+			else if (worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
+				worker->getOrder() == BWAPI::Orders::WaitForMinerals)
+			{
+				BWAPI::Unit patch = workerData.getWorkerResource(worker);
+				if (patch && !patch->exists())
+					workerData.setWorkerJob(worker, WorkerData::Idle, nullptr);
+			}
+			else if (
+				worker->getOrder() != BWAPI::Orders::MoveToMinerals &&
 				worker->getOrder() != BWAPI::Orders::WaitForMinerals &&
 				worker->getOrder() != BWAPI::Orders::MiningMinerals &&
 				worker->getOrder() != BWAPI::Orders::ReturnMinerals &&
@@ -293,6 +302,23 @@ void WorkerManager::handleRepairWorkers()
 			break;
         }
     }
+}
+
+void WorkerManager::handleMineralLocking()
+{
+	for (const auto worker : workerData.getWorkers())
+	{
+		auto job = workerData.getWorkerJob(worker);
+
+		if (job == WorkerData::Minerals && (
+			worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
+			worker->getOrder() == BWAPI::Orders::WaitForMinerals))
+		{
+			BWAPI::Unit patch = workerData.getWorkerResource(worker);
+			if (patch && worker->getOrderTarget() != patch && patch->exists())
+				Micro::RightClick(worker, patch);
+		}
+	}
 }
 
 // Used for worker self-defense.

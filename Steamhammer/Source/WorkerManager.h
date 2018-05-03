@@ -24,6 +24,7 @@ class WorkerManager
 	void		handleReturnCargoWorkers();
 	void        handleRepairWorkers();
     void        handleMoveWorkers();
+	void		handleMineralLocking();
 
 	BWAPI::Unit findEnemyTargetForWorker(BWAPI::Unit worker) const;
 	BWAPI::Unit findEscapeMinerals(BWAPI::Unit worker) const;
