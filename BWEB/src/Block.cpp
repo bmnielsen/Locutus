@@ -31,8 +31,8 @@ namespace BWEB
 					tileBest = tile;
 					distBest = dist;
 
-					if (blockCenter.x < mainPosition.x) h = true;
-					if (blockCenter.y < mainPosition.y) v = true;
+					h = (blockCenter.x < mainPosition.x);
+					v = (blockCenter.y < mainPosition.y);
 				}
 			}
 		}
