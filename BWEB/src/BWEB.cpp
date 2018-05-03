@@ -221,7 +221,7 @@ namespace BWEB
 			for (auto& tile : placements)
 			{
 				const auto dist = tile.getDistance(searchCenter);
-				if (dist < distBest && isPlaceable(type, tile))
+				if (dist < distBest && isPlaceable(type, tile) && (!type.requiresPsi() || Broodwar->hasPower(tile, type)))
 					distBest = dist, tileBest = tile;
 			}
 		}

@@ -1000,6 +1000,7 @@ void CombatCommander::cancelDyingItems()
 			}
 			else if (unit->canCancelConstruction())
 			{
+				BuildingPlacer::Instance().freeTiles(unit->getTilePosition(), unit->getType().width(), unit->getType().height());
 				unit->cancelConstruction();
 			}
 		}

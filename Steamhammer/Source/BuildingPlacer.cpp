@@ -5,6 +5,8 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
+
 BuildingPlacer::BuildingPlacer()
     : _boxTop       (std::numeric_limits<int>::max())
     , _boxBottom    (std::numeric_limits<int>::lowest())
@@ -281,8 +283,12 @@ void BuildingPlacer::reserveTiles(BWAPI::TilePosition position,int width,int hei
     {
         for (int y = position.y; y < position.y + height && y < rheight; y++)
         {
-            _reserveMap[x][y] = true;
-        }
+			BWAPI::TilePosition t(x, y);
+			if (!t.isValid()) continue;
+
+			_reserveMap[x][y] = true;
+			bwebMap.getUsedTiles().insert(t);
+		}
     }
 }
 
@@ -322,8 +328,12 @@ void BuildingPlacer::freeTiles(BWAPI::TilePosition position, int width, int heig
     {
         for (int y = position.y; y < position.y + height && y < rheight; y++)
         {
-            _reserveMap[x][y] = false;
-        }
+			BWAPI::TilePosition t(x, y);
+			if (!t.isValid()) continue;
+			
+			_reserveMap[x][y] = false;
+			bwebMap.getUsedTiles().erase(t);
+		}
     }
 }
 
@@ -374,4 +384,116 @@ bool BuildingPlacer::isReserved(int x, int y) const
     }
 
     return _reserveMap[x][y];
+}
+
+void BuildingPlacer::initializeBWEB()
+{
+	bwebMap.onStart();
+}
+
+BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo)
+{
+	if (type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+	{
+		const BWEB::Station* station = bwebMap.getClosestStation(closeTo);
+		for (auto tile : station->DefenseLocations())
+			if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Photon_Cannon, tile) && BWAPI::Broodwar->hasPower(tile, type))
+				return tile;
+
+		return BWAPI::TilePositions::Invalid;
+	}
+
+	if (type == BWAPI::UnitTypes::Protoss_Pylon)
+	{
+		// Always start with the start block pylon, as it powers the main defenses as well
+		if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, bwebMap.startBlockPylon))
+			return bwebMap.startBlockPylon;
+
+		// Overall closest
+		double distBest = DBL_MAX;
+		BWAPI::TilePosition tileBest = BWAPI::TilePositions::Invalid;
+
+		// Best in blocks that power at least one large tile
+		double distBestPowersLarge = DBL_MAX;
+		BWAPI::TilePosition tileBestPowersLarge = BWAPI::TilePositions::Invalid;
+
+		// Best in blocks that power at least one medium tile
+		double distBestPowersMedium = DBL_MAX;
+		BWAPI::TilePosition tileBestPowersMedium = BWAPI::TilePositions::Invalid;
+
+		// The total number of powered large and medium tiles
+		int poweredLarge = 0;
+		int poweredMedium = 0;
+
+		for (auto &block : bwebMap.Blocks())
+		{
+			bool powersLarge = false;
+			bool powersMedium = false;
+
+			// Count powered large building positions
+			for (auto tile : block.LargeTiles())
+				if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Gateway, tile))
+					if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Gateway))
+						poweredLarge++;
+					else
+						powersLarge = true;
+
+			// Count powered medium building positions
+			for (auto tile : block.MediumTiles())
+				if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Forge, tile))
+					if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Forge))
+						poweredMedium++;
+					else
+						powersMedium = true;
+
+			// Find pylon closest to the center of the block
+			double distBestToBlockCenter = DBL_MAX;
+			BWAPI::TilePosition bestTile = BWAPI::TilePositions::Invalid;
+			BWAPI::TilePosition blockCenter = block.Location() + BWAPI::TilePosition(block.width() / 2, block.height() / 2);
+			for (auto tile : block.SmallTiles())
+			{
+				if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, tile)) continue;
+
+				double distToBlockCenter = tile.getDistance(blockCenter);
+				if (distToBlockCenter < distBestToBlockCenter)
+					distBestToBlockCenter = distToBlockCenter, bestTile = tile;
+			}
+
+			if (!bestTile.isValid()) continue;
+
+			double distToPos = bestTile.getDistance(closeTo);
+
+			if (distToPos < distBest)
+				distBest = distToPos, tileBest = bestTile;
+
+			if (powersLarge && distToPos < distBestPowersLarge)
+				distBestPowersLarge = distToPos, tileBestPowersLarge = bestTile;
+
+			if (powersMedium && distToPos < distBestPowersMedium)
+				distBestPowersMedium = distToPos, tileBestPowersMedium = bestTile;
+		}
+
+		// Short-circuit if there are no valid tiles
+		if (!tileBest.isValid()) return tileBest;
+
+		// If we have no powered medium or large locations, return them no matter how far away they are
+		if (poweredMedium == 0 && tileBestPowersMedium.isValid()) return tileBestPowersMedium;
+		if (poweredLarge == 0 && tileBestPowersLarge.isValid()) return tileBestPowersLarge;
+
+		// Invalidate the medium and large powering tiles if they are in a different area from the best tile
+		if (tileBestPowersMedium.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersMedium)) tileBestPowersMedium = BWAPI::TilePositions::Invalid;
+		if (tileBestPowersLarge.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersLarge)) tileBestPowersLarge = BWAPI::TilePositions::Invalid;
+
+		// Return the medium tile if it is valid and we have more use for it than the large tile
+		if (tileBestPowersMedium.isValid())
+		{
+			if (!tileBestPowersLarge.isValid()) return tileBestPowersMedium;
+			if (poweredMedium == 1 || poweredMedium * 2 <= poweredLarge) return tileBestPowersMedium;
+		}
+
+		if (tileBestPowersLarge.isValid()) return tileBestPowersLarge;
+		return tileBest;
+	}
+
+	return bwebMap.getBuildPosition(type, closeTo);
 }

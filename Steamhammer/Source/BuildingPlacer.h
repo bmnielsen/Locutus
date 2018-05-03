@@ -19,6 +19,8 @@ class BuildingPlacer
     int	    _boxLeft;
     int	    _boxRight;
 
+	// BWEB-related stuff
+	bool			_foundBlocks;
 public:
 
     static BuildingPlacer & Instance();
@@ -45,5 +47,8 @@ public:
 
     BWAPI::TilePosition	getRefineryPosition();
 
+	// BWEB-related stuff
+	void				initializeBWEB();
+	BWAPI::TilePosition placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo);
 };
 }

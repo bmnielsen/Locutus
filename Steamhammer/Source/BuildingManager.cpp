@@ -10,6 +10,7 @@ using namespace UAlbertaBot;
 BuildingManager::BuildingManager()
     : _reservedMinerals(0)
     , _reservedGas(0)
+	, _dontPlaceUntil(0)
 {
 }
 
@@ -214,7 +215,8 @@ void BuildingManager::checkForStartedConstruction()
 
                 b.status = BuildingStatus::UnderConstruction;
 
-                BuildingPlacer::Instance().freeTiles(b.finalPosition,b.type.tileWidth(),b.type.tileHeight());
+				// BuildingPlacer will not update if the building is later destroyed, but BWEB should place it anyway
+                //BuildingPlacer::Instance().freeTiles(b.finalPosition,b.type.tileWidth(),b.type.tileHeight());
 
                 // only one building will match
                 break;
@@ -352,6 +354,8 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 	b.macroLocation = act.getMacroLocation();
 	b.isWorkerScoutBuilding = isWorkerScoutBuilding;
 	b.status = BuildingStatus::Unassigned;
+	if (act.hasReservedPosition())
+		b.finalPosition = act.getReservedPosition();
 
 	Log().Debug() << "Queued building task for " << type;
 
@@ -634,6 +638,12 @@ void BuildingManager::cancelBuildingType(BWAPI::UnitType t)
 // TODO fails in placing a hatchery after all others are destroyed - why?
 BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 {
+	// Short-circuit if the building already has a location
+	if (b.finalPosition != BWAPI::TilePositions::Invalid &&
+	    b.finalPosition != BWAPI::TilePositions::None &&
+	    b.finalPosition.x > 0)
+	    return b.finalPosition;
+
 	// gas steal
 	if (b.isWorkerScoutBuilding && b.type == BWAPI::UnitTypes::Protoss_Assimilator)
     {
@@ -646,12 +656,6 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 			return geyser->getTilePosition();
         }
     }
-
-	int numPylons = BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Protoss_Pylon);
-	if (b.type.requiresPsi() && numPylons == 0)
-	{
-		return BWAPI::TilePositions::None;
-	}
 
 	if (b.type.isRefinery())
 	{
@@ -670,6 +674,19 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 			return MapTools::Instance().getNextExpansion(b.macroLocation == MacroLocation::Hidden, true, b.macroLocation != MacroLocation::MinOnly);
 		}
 		// Else if it's a macro hatchery, treat it like any other building.
+	}
+	
+	BWAPI::TilePosition bwebPosition = BuildingPlacer::Instance().placeBuildingBWEB(b.type, b.desiredPosition);
+	if (bwebPosition != BWAPI::TilePositions::Invalid)
+		return bwebPosition;
+
+	if (_dontPlaceUntil > BWAPI::Broodwar->getFrameCount())
+		return BWAPI::TilePositions::None;
+
+	int numPylons = BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Protoss_Pylon);
+	if (b.type.requiresPsi() && numPylons == 0)
+	{
+		return BWAPI::TilePositions::None;
 	}
 
     int distance = Config::Macro::BuildingSpacing;
@@ -707,7 +724,20 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	}
 
 	// Get a position within our region.
-	return BuildingPlacer::Instance().getBuildLocationNear(b, distance, noVerticalSpacing);
+	BWAPI::TilePosition tile = BuildingPlacer::Instance().getBuildLocationNear(b, distance, noVerticalSpacing);
+
+	if (tile == BWAPI::TilePositions::None)
+	{
+		Log().Get() << "Failed to place " << b.type;
+		_dontPlaceUntil = BWAPI::Broodwar->getFrameCount() + 100;
+	}
+	else
+	{
+		Log().Get() << "Failed to place " << b.type << " with BWEB";
+		_dontPlaceUntil = 0;
+	}
+
+	return tile;
 }
 
 // The building failed or is canceled.

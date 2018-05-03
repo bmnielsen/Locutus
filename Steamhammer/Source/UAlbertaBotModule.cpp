@@ -17,6 +17,7 @@
 using namespace UAlbertaBot;
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 // This gets called when the bot starts.
 void UAlbertaBotModule::onStart()
@@ -37,6 +38,8 @@ void UAlbertaBotModule::onStart()
 	bwemMap.EnableAutomaticPathAnalysis();
 	bool startingLocationsOK = bwemMap.FindBasesForStartingLocations();
 	UAB_ASSERT(startingLocationsOK, "BWEM map analysis failed");
+
+	BuildingPlacer::Instance().initializeBWEB();
 
 	// Parse the bot's configuration file.
 	// Change this file path to point to your config file.
@@ -124,11 +127,15 @@ void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 	else if (unit->getType().isSpecialBuilding())
 		bwemMap.OnStaticBuildingDestroyed(unit);
 
+	bwebMap.onUnitDestroy(unit);
+
 	GameCommander::Instance().onUnitDestroy(unit);
 }
 
 void UAlbertaBotModule::onUnitMorph(BWAPI::Unit unit)
 {
+	bwebMap.onUnitMorph(unit);
+
 	GameCommander::Instance().onUnitMorph(unit);
 }
 
@@ -139,7 +146,14 @@ void UAlbertaBotModule::onSendText(std::string text)
 
 void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 { 
+	bwebMap.onUnitDiscover(unit);
+
 	GameCommander::Instance().onUnitCreate(unit);
+}
+
+void UAlbertaBotModule::onUnitDiscover(BWAPI::Unit unit)
+{ 
+	bwebMap.onUnitDiscover(unit);
 }
 
 void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)

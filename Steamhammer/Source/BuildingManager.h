@@ -16,6 +16,7 @@ class BuildingManager
 
     int             _reservedMinerals;				// minerals reserved for planned buildings
     int             _reservedGas;					// gas reserved for planned buildings
+	int			    _dontPlaceUntil;				// In the case of a building placement error, don't try to place a building until this frame
 
     bool            isBuildingPositionExplored(const Building & b) const;
 	void			undoBuildings(const std::vector<Building> & toRemove);

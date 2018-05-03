@@ -2,6 +2,26 @@
 
 namespace BWEB
 {
+	TilePosition getStartBlockPylon(TilePosition startBlockTile, bool mirrorHorizontal, bool mirrorVertical)
+	{
+		if (mirrorHorizontal && mirrorVertical) return startBlockTile + TilePosition(6, 3);
+		if (mirrorHorizontal) return startBlockTile + TilePosition(6, 0);
+		if (mirrorVertical) return startBlockTile + TilePosition(0, 3);
+		return startBlockTile + TilePosition(0, 0);
+	}
+
+	bool powersCannon(BWAPI::TilePosition pylon, BWAPI::TilePosition cannon)
+	{
+		int offsetY = cannon.y - pylon.y;
+		int offsetX = cannon.x - pylon.x;
+
+		if (offsetY < -4 || offsetY > 4) return false;
+		if (offsetY == 4 && (offsetX < -3 || offsetX > 2)) return false;
+		if ((offsetY == -4 || offsetY == 3) && (offsetX < -6 || offsetX > 5)) return false;
+		if ((offsetY == -3 || offsetY == 2) && (offsetX < -7 || offsetX > 6)) return false;
+		return (offsetX >= -7 && offsetX <= 7);
+	}
+
 	void Map::findStartBlock()
 	{
 		findStartBlock(Broodwar->self());
@@ -15,21 +35,47 @@ namespace BWEB
 		bool v;
 		auto h = (v = false);
 
+		// We prefer blocks that power the station's defense locations
+		const auto & defenseLocations = getClosestStation(mainTile)->DefenseLocations();
+
+		// Temporarily remove the nexus from the overlap grid while we find the start block
+		for (auto x = mainTile.x; x < mainTile.x + 4; x++)
+			for (auto y = mainTile.y; y < mainTile.y + 3; y++)
+				overlapGrid[x][y] = 0;
+
 		TilePosition tileBest;
+		int poweredDefensesBest = 0;
 		auto distBest = DBL_MAX;
 		for (auto x = mainTile.x - 9; x <= mainTile.x + 6; x++) {
 			for (auto y = mainTile.y - 6; y <= mainTile.y + 5; y++) {
+
+				// Overlaps nexus
+				if (x + 8 >= mainTile.x && x < mainTile.x + 4 && y + 5 >= mainTile.y && y < mainTile.y + 3) continue;
+
 				TilePosition tile(x, y);
 
 				if (!tile.isValid())
 					continue;
 
+				if ((race == Races::Protoss && !canAddBlock(tile, 8, 5)) || (race == Races::Terran && !canAddBlock(tile, 6, 5)))
+					continue;
+
 				auto blockCenter = Position(tile) + Position(128, 80);
 				const auto dist = blockCenter.getDistance(mainPosition) + blockCenter.getDistance(Position(mainChoke->Center()));
-				if (dist < distBest && ((race == Races::Protoss && canAddBlock(tile, 8, 5)) || (race == Races::Terran && canAddBlock(tile, 6, 5))))
+
+				int poweredDefenses = 0;
+				if (race == Races::Protoss)
+				{
+					TilePosition pylon = getStartBlockPylon(tile, (blockCenter.x < mainPosition.x), (blockCenter.y < mainPosition.y));
+					for (const auto & cannon : defenseLocations)
+						if (powersCannon(pylon, cannon)) poweredDefenses++;
+				}
+
+				if (poweredDefenses > poweredDefensesBest || (poweredDefenses == poweredDefensesBest && dist < distBest))
 				{
 					tileBest = tile;
 					distBest = dist;
+					poweredDefensesBest = poweredDefenses;
 
 					h = (blockCenter.x < mainPosition.x);
 					v = (blockCenter.y < mainPosition.y);
@@ -37,8 +83,16 @@ namespace BWEB
 			}
 		}
 
+		// Restore the overlap grid for the nexus
+		for (auto x = mainTile.x; x < mainTile.x + 4; x++)
+			for (auto y = mainTile.y; y < mainTile.y + 3; y++)
+				overlapGrid[x][y] = 0;
+		
 		if (tileBest.isValid())
+		{
 			insertStartBlock(race, tileBest, h, v);
+			if (race == Races::Protoss) startBlockPylon = getStartBlockPylon(tileBest, h, v);
+		}
 	}
 
 	void Map::findHiddenTechBlock()
