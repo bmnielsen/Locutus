@@ -1216,22 +1216,72 @@ bool InformationManager::enemyHasAirTech()
 	{
 		const UnitInfo & ui(kv.second);
 
+		bool completed = ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount();
+
 		if ((ui.type.isFlyer() && ui.type != BWAPI::UnitTypes::Zerg_Overlord) ||
-			ui.type == BWAPI::UnitTypes::Terran_Starport ||
+			(completed && ui.type == BWAPI::UnitTypes::Terran_Starport) ||
 			ui.type == BWAPI::UnitTypes::Terran_Control_Tower ||
 			ui.type == BWAPI::UnitTypes::Terran_Science_Facility ||
 			ui.type == BWAPI::UnitTypes::Terran_Covert_Ops ||
 			ui.type == BWAPI::UnitTypes::Terran_Physics_Lab ||
-			ui.type == BWAPI::UnitTypes::Protoss_Stargate ||
+			(completed && ui.type == BWAPI::UnitTypes::Protoss_Stargate) ||
 			ui.type == BWAPI::UnitTypes::Protoss_Arbiter_Tribunal ||
 			ui.type == BWAPI::UnitTypes::Protoss_Fleet_Beacon ||
 			ui.type == BWAPI::UnitTypes::Protoss_Robotics_Facility ||
 			ui.type == BWAPI::UnitTypes::Protoss_Robotics_Support_Bay ||
 			ui.type == BWAPI::UnitTypes::Protoss_Observatory ||
-			ui.type == BWAPI::UnitTypes::Zerg_Spire ||
+			(completed && ui.type == BWAPI::UnitTypes::Zerg_Spire) ||
 			ui.type == BWAPI::UnitTypes::Zerg_Greater_Spire)
 		{
 			_enemyHasAirTech = true;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Similar to enemyHasAirTech, but returns true a bit earlier to give us time to prepare
+bool InformationManager::enemyWillSoonHaveAirTech()
+{
+	if (enemyHasAirTech())
+	{
+		return true;
+	}
+
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		bool willSoonComplete = !ui.completed && ui.estimatedCompletionFrame > 0 
+			&& ui.estimatedCompletionFrame < (BWAPI::Broodwar->getFrameCount() + BWAPI::UnitTypes::Protoss_Photon_Cannon.buildTime());
+
+		if ((willSoonComplete && ui.type == BWAPI::UnitTypes::Terran_Starport) ||
+			(willSoonComplete && ui.type == BWAPI::UnitTypes::Protoss_Stargate) ||
+			(willSoonComplete && ui.type == BWAPI::UnitTypes::Zerg_Spire))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool InformationManager::enemyHasAirCombatUnits()
+{
+	if (_enemyHasAirCombatUnits)
+	{
+		return true;
+	}
+
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (!ui.type.isBuilding() && ui.type.isFlyer() && ui.type != BWAPI::UnitTypes::Zerg_Overlord && ui.type != BWAPI::UnitTypes::Zerg_Scourge)
+		{
+			Log().Get() << "Detected enemy air combat unit";
+			_enemyHasAirCombatUnits = true;
 			return true;
 		}
 	}

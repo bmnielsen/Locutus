@@ -26,6 +26,7 @@ class ScoutManager
     int                             _currentRegionVertexIndex;
     int                             _previousScoutHP;
 	std::vector<BWAPI::Position>    _enemyRegionVertices;
+	int								_enemyBaseLastSeen;
 
 	ScoutManager();
 
@@ -67,5 +68,7 @@ public:
 	};
 
 	void setScoutCommand(MacroCommandType cmd);
+
+	bool eyesOnEnemyBase() { return _enemyBaseLastSeen != 0 && _enemyBaseLastSeen > (BWAPI::Broodwar->getFrameCount() - 250); }
 };
 }

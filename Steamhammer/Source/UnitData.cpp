@@ -58,6 +58,7 @@ void UnitData::updateUnit(BWAPI::Unit unit)
 	ui.unitID       = unit->getID();
 	ui.type         = unit->getType();
     ui.completed    = unit->isCompleted();
+	ui.estimatedCompletionFrame = UnitInfo::ComputeCompletionFrame(unit);
 }
 
 void UnitData::removeUnit(BWAPI::Unit unit)
@@ -137,4 +138,13 @@ int UnitData::getNumDeadUnits(BWAPI::UnitType t) const
 const std::map<BWAPI::Unit,UnitInfo> & UnitData::getUnits() const 
 { 
     return unitMap; 
+}
+
+int UnitInfo::ComputeCompletionFrame(BWAPI::Unit unit)
+{
+	if (!unit->getType().isBuilding() || unit->isCompleted()) return 0;
+
+	int remainingHitPoints = unit->getType().maxHitPoints() - unit->getHitPoints();
+	double hitPointsPerFrame = (unit->getType().maxHitPoints() * 0.9) / unit->getType().buildTime();
+	return BWAPI::Broodwar->getFrameCount() + (int)(remainingHitPoints / hitPointsPerFrame);
 }

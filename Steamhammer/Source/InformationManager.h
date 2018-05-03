@@ -21,6 +21,7 @@ class InformationManager
 	bool			_enemyHasStaticAntiAir;
 	bool			_enemyHasAntiAir;
 	bool			_enemyHasAirTech;
+	bool			_enemyHasAirCombatUnits;
 	bool			_enemyHasCloakTech;
 	bool			_enemyHasMobileCloakTech;
 	bool			_enemyHasOverlordHunters;
@@ -114,6 +115,8 @@ public:
 	bool					enemyHasStaticAntiAir();
 	bool					enemyHasAntiAir();
 	bool					enemyHasAirTech();
+	bool					enemyWillSoonHaveAirTech();
+	bool					enemyHasAirCombatUnits();
 	bool                    enemyHasCloakTech();
 	bool                    enemyHasMobileCloakTech();
 	bool					enemyHasOverlordHunters();

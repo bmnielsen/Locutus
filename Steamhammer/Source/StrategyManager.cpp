@@ -2,6 +2,7 @@
 #include "CombatCommander.h"
 #include "OpponentModel.h"
 #include "ProductionManager.h"
+#include "ScoutManager.h"
 #include "StrategyBossZerg.h"
 #include "UnitUtil.h"
 
@@ -839,6 +840,57 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 					{
 						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Engineering_Bay));
 					}
+				}
+			}
+		}
+
+		// Handle early game anti-air defense
+		if (BWAPI::Broodwar->getFrameCount() < 11000)
+		{
+			// Compute how many cannons worth of defense we want
+			int desiredCannons = 0;
+
+			// We know the enemy is getting or has air tech
+			if (InformationManager::Instance().enemyWillSoonHaveAirTech())
+				desiredCannons = 3;
+
+			// We don't have scouting, but the opponent model tells us the enemy might be getting air tech soon
+			else if (!ScoutManager::Instance().eyesOnEnemyBase() && OpponentModel::Instance().expectAirTechSoon())
+				desiredCannons = 2;
+
+			if (desiredCannons > 0)
+			{
+				// Count cannons we have in the main and any units that can defend against air
+				BWAPI::Position main = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
+				int cannonsInMain = 0;
+				int antiAirUnits = 0;
+				for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+					if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
+						unit->getPosition().getDistance(main) < 500)
+						cannonsInMain++;
+					else if (!unit->getType().isBuilding() && UnitUtil::CanAttackAir(unit))
+						antiAirUnits++;
+
+				// Reduce the number of needed cannons if we have sufficient anti-air units
+				if (antiAirUnits > 3)
+					desiredCannons--;
+				if (antiAirUnits > 0)
+					desiredCannons--;
+
+				// Assume cannons in the queue are for the main
+				cannonsInMain += queue.numInQueue(BWAPI::UnitTypes::Protoss_Photon_Cannon);
+				cannonsInMain += BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Photon_Cannon);
+
+				if (cannonsInMain < desiredCannons)
+				{
+					for (int i = 0; i < (desiredCannons - cannonsInMain); i++)
+						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon));
+
+					Log().Get() << "Queued " << (desiredCannons - cannonsInMain) << " cannon(s) in reaction to enemy air threat";
+
+					if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) == 0
+						&& !BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge))
+						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Forge));
 				}
 			}
 		}

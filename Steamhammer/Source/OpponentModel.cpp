@@ -199,6 +199,7 @@ OpponentModel::OpponentModel()
 	: _bestMatch(nullptr)
 	, _recommendGasSteal(false)
 	, _expectedEnemyPlan(OpeningPlan::Unknown)
+	, _worstCaseExpectedAirTech(INT_MAX)
 {
 	std::string name = BWAPI::Broodwar->enemy()->getName();
 
@@ -243,6 +244,21 @@ void OpponentModel::read()
 	// Make immediate decisions that may take into account the game records.
 	considerOpenings();
 	considerGasSteal();
+
+	// Look at the previous 3 games and store the earliest frame we saw air tech
+	int count = 0;
+	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 3; it++)
+	{
+		if (!_gameRecord.sameMatchup(**it)) continue;
+
+		count++;
+
+		int airTech = (*it)->getAirTechFrame();
+		if (airTech > 0 && airTech < _worstCaseExpectedAirTech)
+			_worstCaseExpectedAirTech = airTech;
+	}
+
+	if (_worstCaseExpectedAirTech != INT_MAX) Log().Get() << "Worst case expected air tech at frame " << _worstCaseExpectedAirTech;
 }
 
 // Write the current game record to the opponent model file.
@@ -397,6 +413,11 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 		Log().Get() << "Adjusted weight of " << weightChange.first << " by a factor of " << weightChange.second;
 
 	return result;
+}
+
+bool OpponentModel::expectAirTechSoon()
+{
+	return _worstCaseExpectedAirTech < (BWAPI::Broodwar->getFrameCount() + BWAPI::UnitTypes::Protoss_Photon_Cannon.buildTime());
 }
 
 OpponentModel & OpponentModel::Instance()

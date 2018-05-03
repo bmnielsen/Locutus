@@ -26,6 +26,8 @@ namespace UAlbertaBot
 		OpeningPlan _expectedEnemyPlan;		    // in-game predicted enemy plan
 		// NOTE There is also an actual recognized enemy plan. It is kept in _planRecognizer.getPlan().
 
+		int _worstCaseExpectedAirTech;
+
 		OpeningPlan findBestEnemyPlan() const;
 
 		void considerOpenings();
@@ -59,6 +61,8 @@ namespace UAlbertaBot
 
 		bool getRecommendGasSteal() const { return _recommendGasSteal; };
 		const std::string & getRecommendedOpening() const { return _recommendedOpening; };
+
+		bool expectAirTechSoon();
 
 		static OpponentModel & Instance();
 	};

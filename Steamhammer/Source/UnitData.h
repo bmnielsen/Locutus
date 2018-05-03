@@ -20,6 +20,7 @@ struct UnitInfo
 	bool			goneFromLastPosition;    // last position was seen, and it wasn't there
     BWAPI::UnitType type;
     bool            completed;
+	int				estimatedCompletionFrame;
 
     UnitInfo()
         : unitID(0)
@@ -32,6 +33,7 @@ struct UnitInfo
 		, goneFromLastPosition(false)
         , type(BWAPI::UnitTypes::None)
         , completed(false)
+		, estimatedCompletionFrame(0)
 	{
     }
 
@@ -46,6 +48,7 @@ struct UnitInfo
 		, goneFromLastPosition(false)
 		, type(unit->getType())
 		, completed(unit->isCompleted())
+		, estimatedCompletionFrame(ComputeCompletionFrame(unit))
 	{
 	}
 
@@ -63,6 +66,8 @@ struct UnitInfo
     {
         return (unitID < rhs.unitID);
     }
+
+	static int ComputeCompletionFrame(BWAPI::Unit unit);
 };
 
 typedef std::vector<UnitInfo> UnitInfoVector;

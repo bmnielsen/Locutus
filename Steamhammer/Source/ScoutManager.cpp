@@ -23,6 +23,7 @@ ScoutManager::ScoutManager()
 	, _gasStealOver(false)
     , _currentRegionVertexIndex(-1)
     , _previousScoutHP(0)
+	, _enemyBaseLastSeen(0)
 {
 	setScoutTargets();
 }
@@ -172,6 +173,13 @@ void ScoutManager::update()
 	setScoutTargets();
 	if (_workerScout)
 	{
+		// Keep track of when we've last scouted the enemy base
+		BWTA::BaseLocation* enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
+		if (enemyBase && BWTA::getRegion(BWAPI::TilePosition(_workerScout->getPosition())) == enemyBase->getRegion())
+		{
+			_enemyBaseLastSeen = BWAPI::Broodwar->getFrameCount();
+		}
+
 		bool moveScout = true;
 		if (wantGasSteal())              // implies !_gasStealOver
 		{

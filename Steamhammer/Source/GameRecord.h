@@ -126,6 +126,7 @@ public:
 	bool getWin() const { return win; };
 	int getFrameScoutSentForGasSteal() const { return frameScoutSentForGasSteal; };
 	bool getGasStealHappened() const { return gasStealHappened; };
+	int getAirTechFrame() const { return frameEnemyGetsAirUnits; };
 
 	void debugLog();
 	static GameRecord & Instance();
