@@ -51,7 +51,7 @@ class GameCommander
 
 	bool					surrenderMonkey();
 
-	BWAPI::Unit getAnyFreeWorker();
+	BWAPI::Unit getScoutWorker();
 
 public:
 

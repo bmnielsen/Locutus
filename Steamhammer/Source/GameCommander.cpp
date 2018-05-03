@@ -352,7 +352,7 @@ void GameCommander::setScoutUnits()
     {
 		if (ScoutManager::Instance().shouldScout())
 		{
-			BWAPI::Unit workerScout = getAnyFreeWorker();
+			BWAPI::Unit workerScout = getScoutWorker();
 
 			// If we find a worker, make it the scout unit.
 			if (workerScout)
@@ -421,9 +421,13 @@ void GameCommander::onUnitMorph(BWAPI::Unit unit)
 	WorkerManager::Instance().onUnitMorph(unit);
 }
 
-// Used only to choose a worker to scout.
-BWAPI::Unit GameCommander::getAnyFreeWorker()
+BWAPI::Unit GameCommander::getScoutWorker()
 {
+	// We get the free worker closest to the natural
+	BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+	BWAPI::Unit bestUnit = nullptr;
+	double best = DBL_MAX;
+
 	for (const auto unit : _validUnits)
 	{
 		if (unit->getType().isWorker() &&
@@ -433,11 +437,19 @@ BWAPI::Unit GameCommander::getAnyFreeWorker()
 			!unit->isCarryingGas() &&
 			unit->getOrder() != BWAPI::Orders::MiningMinerals)
 		{
-			return unit;
+			if (!natural)
+				return unit;
+
+			double dist = unit->getPosition().getDistance(natural->getPosition());
+			if (dist < best)
+			{
+				best = dist;
+				bestUnit = unit;
+			}
 		}
 	}
 
-	return nullptr;
+	return bestUnit;
 }
 
 void GameCommander::assignUnit(BWAPI::Unit unit, BWAPI::Unitset & set)
