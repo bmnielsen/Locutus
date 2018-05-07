@@ -1,0 +1,210 @@
+{
+    "Bot Info" :
+    {
+        "BotName"                   : "Locutus",
+        "Authors"                   : "Bruce Nielsen",
+        "PrintInfoOnStart"          : false
+    },
+    
+    "BWAPI" : 
+    {
+        "SetLocalSpeed"             : 0,
+        "SetFrameSkip"              : 0,
+        "UserInput"                 : true,
+        "CompleteMapInformation"    : false
+    },
+    
+    "Micro" :
+    {
+        "KiteWithRangedUnits"       : true,
+        "KiteLongerRangedUnits"     : ["Mutalisk", "Guardian", "Vulture"],
+        "WorkersDefendRush"         : true,
+        "RetreatMeleeUnitShields"   : 2,
+        "RetreatMeleeUnitHP"        : { "Zerg" : 8, "Protoss" : 18 },
+        "CombatSimRadius"			: 500,
+        "UnitNearEnemyRadius"       : 500,
+		"ScoutDefenseRadius"		: { "Terran" : 500 }
+    },
+    
+    "Macro" :
+    {
+        "BOSSFrameLimit"            : 160,
+		"ProductionJamFrameLimit"	: 600,
+        "WorkersPerRefinery"        : 3,
+		"WorkersPerPatch"			: { "Zerg" : 1.6, "Protoss" : 2.2, "Terran" : 2.4 },
+		"AbsoluteMaxWorkers"		: 75,
+        "BuildingSpacing"           : 1,
+        "PylonSpacing"              : 3
+    },
+
+    "Debug" :
+    {
+        "ErrorLogFilename"          : "bwapi-data/write/Locutus_ErrorLog.txt",
+        "LogAssertToErrorFile"      : true,
+		"LogDebug"					: false,
+		
+        "DrawGameInfo"              : false,   
+        "DrawUnitHealthBars"        : false,
+        "DrawProductionInfo"        : false,
+        "DrawBuildOrderSearchInfo"  : false,
+        "DrawScoutInfo"             : false,
+        "DrawEnemyUnitInfo"         : false,
+        "DrawModuleTimers"          : false,
+        "DrawResourceInfo"          : false,
+        "DrawCombatSimInfo"         : false,
+        "DrawUnitTargetInfo"        : false,
+		"DrawUnitOrders"			: false,
+        "DrawMapInfo"               : false,
+        "DrawMapGrid"               : false,
+		"DrawMapDistances"			: false,
+		"DrawBaseInfo"				: false,
+		"DrawStrategyBossInfo"		: false,
+        "DrawSquadInfo"             : false,
+        "DrawWorkerInfo"            : false,
+        "DrawMouseCursorInfo"       : false,
+        "DrawBuildingInfo"          : false,
+        "DrawReservedBuildingTiles" : false,
+        "DrawBOSSStateInfo"         : false
+    },
+    
+    "Tools" :
+    {
+        "MapGridSize"			: 320
+    },
+    
+    "IO" :
+    {
+        "ReadDirectory"			: "bwapi-data/read/",
+        "WriteDirectory"		: "bwapi-data/write/",
+
+		"ReadOpponentModel"		: true,
+		"WriteOpponentModel"	: true
+    },
+    
+    "Strategy" :
+    {
+        "ScoutHarassEnemy"          : false,
+		"AutoGasSteal"				: false,
+		"RandomGasStealRate"		: 0.0,
+		"SurrenderWhenHopeIsLost"   : true,
+
+		"PvT" :
+			{ "Protoss" : [
+				{ "Weight" : 100, "Strategy" : "ForgeExpand5GateGoon" }
+			]},
+
+		"PvP" :
+			{ "Protoss" : [
+				{ "Weight" : 25, "Strategy" : "ForgeExpand5GateGoon" },
+				{ "Weight" : 25, "Strategy" : "12Nexus5ZealotFECannons" },
+				{ "Weight" : 50, "Strategy" : "12Nexus5ZealotFE" }
+			]},
+			
+		"PvZ" :
+			{ "Protoss" : [
+				{ "Weight" : 40, "Strategy" : "ForgeExpandSpeedlots" },
+				{ "Weight" : 60, "Strategy" : "ForgeExpand5GateGoon" }
+			]},
+
+		"PvU" :
+			{ "Protoss" : [
+				{ "Weight" : 100, "Strategy" : "ForgeExpand5GateGoon" }
+			]},
+
+		"UseEnemySpecificStrategy" : true,
+        "EnemySpecificStrategy" :
+        {
+			"Locutus": "TestWallAndStartBlock",
+			
+			"WuliBot": "SafeForgeExpand5GateGoon",
+			"Flash": "SafeForgeExpand5GateGoon",
+			"AyyyLmao": "SafeForgeExpand5GateGoon",
+		
+			"Chris Coxe": "SafeForgeExpand5GateGoon",
+			"ChrisCoxe": "SafeForgeExpand5GateGoon"
+		},
+
+		"CounterStrategies" :
+		{
+			"Counter Proxy" : "AntiFastCheese",
+			"Counter Worker rush" : "AntiFastCheese",
+			"Counter Fast rush" : "AntiFastCheese",
+			"Counter Fast rush vZ" : "Anti5Pool",
+			"Counter Heavy rush vU" : { "Protoss" : "SafeForgeExpand5GateGoon" },
+			"Counter Heavy rush vT" : "AntiMarine",
+			"Counter Heavy rush vP" : "AntiZealot",
+			"Counter Heavy rush vZ" : {
+				"Protoss" : [
+					{ "Weight" : 50, "Strategy" : "ForgeExpandSpeedlots" },
+					{ "Weight" : 50, "Strategy" : "SafeForgeExpand5GateGoon" }
+				]
+			},
+			"Counter Safe expand" : { "Protoss" : "ForgeExpand5GateGoon" },
+			"Counter Turtle" : { "Protoss" : "ForgeExpand5GateGoon" }
+		},
+
+		"StrategyCombos" :
+		{
+			"Anti5Pool" : {	"Protoss" : "SafeForgeExpand5GateGoon" },
+			"AntiFastCheese" : { "Protoss" : "9-9Gate" },
+			"AntiSlowerCheese" : { "Protoss" : "9-9Gate" },
+			"AntiMarine" : { "Protoss" : "ForgeExpand5GateGoon" },
+			"AntiZealot" : { "-- disabled because we don't handle recognizing heavy rushes well -- Protoss" : "SafeForgeExpand5GateGoon" }
+		},
+
+		"Strategies" :
+		{
+			"ForgeExpandSpeedlots"	: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon @ wall then go scout while safe", "probe", "forge @ wall", "photon cannon @ wall then photon cannon @ wall", "3 x probe", "nexus @ natural", "probe", "gateway @ wall", "2 x probe", "pylon", "assimilator", "go gas until 350", "2 x probe", "zealot", "cybernetics core", "probe", "zealot", "probe", "protoss ground weapons", "probe", "zealot", "citadel of adun", "gateway", "gateway", "zealot", "pylon", "probe", "leg enhancements", "zealot", "2 x probe", "zealot", "pylon", "zealot", "2 x probe", "2 x zealot", "pylon", "probe", "go start gas", "2 x zealot", "2 x probe", "pylon", "zealot", "2 x probe", "2 x zealot", "go aggressive", "pylon", "gateway", "2 x zealot", "2 x probe", "zealot", "pylon", "assimilator", "3 x zealot", "2 x probe", "pylon", "3 x zealot", "2 x probe", "pylon"]},
+			"SafeForgeExpandSpeedlots"	: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon @ wall then go scout while safe", "probe", "forge @ wall", "photon cannon @ wall then photon cannon @ wall then photon cannon @ wall", "3 x probe", "nexus @ natural", "probe", "gateway @ wall", "2 x probe", "pylon", "assimilator", "go gas until 350", "2 x probe", "zealot", "cybernetics core", "probe", "zealot", "probe", "protoss ground weapons", "probe", "zealot", "citadel of adun", "gateway", "gateway", "zealot", "pylon", "probe", "leg enhancements", "zealot", "2 x probe", "zealot", "pylon", "zealot", "2 x probe", "2 x zealot", "pylon", "probe", "go start gas", "2 x zealot", "2 x probe", "pylon", "zealot", "2 x probe", "2 x zealot", "go aggressive", "pylon", "gateway", "2 x zealot", "2 x probe", "zealot", "pylon", "assimilator", "3 x zealot", "2 x probe", "pylon", "3 x zealot", "2 x probe", "pylon"]},
+				
+			"ForgeExpand5GateGoon"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon @ wall then go scout while safe", "probe", "forge @ wall", "photon cannon @ wall then photon cannon @ wall", "4 x probe", "nexus @ natural", "2 x probe", "pylon", "assimilator", "gateway @ wall", "3 x probe", "cybernetics core", "zealot", "protoss ground weapons", "6 x probe", "singularity charge", "dragoon", "2 x probe", "gateway", "pylon", "2 x probe", "photon cannon @ wall", "dragoon", "gateway", "pylon", "2 x probe", "dragoon", "gateway", "2 x probe", "pylon", "dragoon", "gateway", "2 x dragoon", "2 x probe", "pylon", "assimilator", "dragoon", "2 x probe", "2 x dragoon", "pylon", "dragoon", "2 x probe", "2 x dragoon", "pylon", "go aggressive", "dragoon", "2 x probe", "2 x dragoon", "pylon", "dragoon", "2 x dragoon", "pylon"]},
+			"SafeForgeExpand5GateGoon"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon @ wall then go scout while safe", "probe", "forge @ wall", "photon cannon @ wall then photon cannon @ wall then photon cannon @ wall", "4 x probe", "nexus @ natural", "2 x probe", "pylon", "assimilator", "gateway @ wall", "3 x probe", "cybernetics core", "zealot", "protoss ground weapons", "6 x probe", "singularity charge", "dragoon", "2 x probe", "gateway", "pylon", "3 x probe", "dragoon", "gateway", "pylon", "2 x probe", "dragoon", "gateway", "2 x probe", "pylon", "dragoon", "gateway", "2 x dragoon", "2 x probe", "pylon", "assimilator", "dragoon", "2 x probe", "2 x dragoon", "pylon", "dragoon", "2 x probe", "2 x dragoon", "pylon", "go aggressive", "dragoon", "2 x probe", "2 x dragoon", "pylon", "dragoon", "2 x dragoon", "pylon"]},
+				
+			"12Nexus5ZealotFECannons"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon then go scout while safe", "4 x probe", "nexus @ natural", "gateway", "2 x probe", "gateway", "probe", "pylon @ wall", "zealot", "probe", "2 x zealot", "assimilator", "3 x probe", "zealot", "probe", "zealot", "2 x probe", "cybernetics core", "pylon", "2 x probe", "forge @ wall", "go aggressive", "2 x probe", "pylon", "2 x dragoon", "singularity charge", "2 x probe", "photon cannon @ wall", "dragoon", "pylon", "dragoon", "photon cannon @ wall", "gateway @ wall", "2 x probe", "protoss ground weapons", "2 x probe", "dragoon", "pylon", "2 x dragoon"]},
+			"12Nexus5ZealotFE"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon then go scout while safe", "4 x probe", "nexus @ natural", "gateway", "2 x probe", "gateway", "probe", "pylon @ wall", "zealot", "probe", "2 x zealot", "assimilator", "3 x probe", "zealot", "probe", "zealot", "probe", "cybernetics core", "probe", "pylon", "4 x probe", "go aggressive", "2 x dragoon", "singularity charge", "pylon", "2 x probe", "assimilator", "pylon", "2 x probe", "2 x dragoon", "gateway @ wall", "2 x probe", "pylon", "2 x probe", "2 x dragoon", "gateway", "pylon", "2 x probe", "dragoon", "2 x probe", "pylon", "2 x dragoon", "2 x probe", "2 x dragoon", "pylon"]},
+
+				
+			"9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
+				["4 x probe", "pylon then go scout while safe", "probe", "2 x gateway", "2 x probe", "zealot", "pylon", "2 x zealot",  "probe", "2 x zealot", "probe", "pylon", "zealot", "gateway", "probe", "pylon", "probe", "zealot", "probe", "4 x zealot", "pylon", "probe", "3 x zealot" ]},
+            "10-15GateGoon"			: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+                ["4 x probe", "pylon then go scout while safe", "2 x probe", "gateway", "probe", "assimilator", "2 x probe", "cybernetics core", "2 x probe", "gateway", "singularity charge", "dragoon", "pylon"]},
+			"10-12Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
+				["4 x probe", "pylon then go scout while safe", "probe", "probe", "gateway", "2 x probe", "gateway", "probe", "zealot", "pylon", "probe", "2 x probe", "zealot", "pylon", "zealot", "probe", "probe", "gateway", "zealot", "probe", "zealot", "pylon", "probe", "zealot", "probe", "2 x zealot", "pylon", "zealot", "probe"]},
+			"NoZealotCore"			: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+                ["go defensive", "4 x probe", "pylon then go scout while safe", "2 x probe", "gateway", "2 x probe", "assimilator", "probe", "cybernetics core", "probe", "pylon", "2 x probe", "singularity charge", "probe", "dragoon"]},
+			"1ZealotCore"			: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["4 x probe", "pylon then go scout while safe", "2 x probe", "gateway", "2 x probe", "assimilator", "probe", "zealot", "probe", "pylon", "probe", "cybernetics core", "probe", "zealot", "2 x probe", "dragoon", "singularity charge", "pylon"]},
+			"2ZealotCore"			: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+                ["4 x probe", "pylon", "probe", "go scout once around", "probe", "gateway", "2 x probe", "assimilator", "probe", "zealot", "probe", "pylon", "probe", "zealot", "probe", "cybernetics core", "probe", "zealot", "2 x probe", "dragoon", "singularity charge", "pylon"]},
+            "2GatewayGoonExpo"		: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+                ["4 x probe", "pylon", "probe", "probe", "gateway", "2 x probe", "assimilator", "probe", "cybernetics core", "go scout once around", "probe", "probe", "pylon", "probe", "singularity charge", "probe", "gateway", "probe", "probe", "nexus", "dragoon", "probe", "probe", "dragoon", "probe", "probe", "pylon"]},
+			"DTRush"				: { "Race" : "Protoss", "OpeningGroup" : "dark templar", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon", "probe", "go scout once around", "probe", "gateway", "2 x probe", "assimilator", "2 x probe", "cybernetics core", "zealot", "pylon", "2 x probe", "citadel of adun", "dragoon", "3 x probe", "pylon", "probe", "templar archives", "gateway", "probe", "2 x dark templar"]},
+			"CorsairDT"				: { "Race" : "Protoss", "OpeningGroup" : "dark templar", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon", "probe", "go scout once around", "probe", "gateway", "2 x probe", "assimilator", "probe", "zealot", "cybernetics core", "probe", "pylon", "zealot", "probe", "stargate", "probe", "citadel of adun", "probe", "zealot", "corsair", "2 x probe", "templar archives", "gateway"]},
+			"DTDrop"				: { "Race" : "Protoss", "OpeningGroup" : "drop", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon", "2 x probe", "gateway", "go scout once around", "2 x probe", "assimilator", "2 x probe", "cybernetics core", "zealot", "pylon", "2 x probe", "citadel of adun", "dragoon", "2 x probe", "dragoon", "probe", "robotics facility", "probe", "zealot", "templar archives", "gateway", "shuttle", "probe", "pylon", "2 x dark templar", "gateway", "2 x dark templar", "zealot", "dark templar", "nexus", "dark templar"]},
+			"12Nexus"				: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["4 x probe", "pylon", "4 x probe", "nexus", "go scout", "2 x probe", "gateway", "probe", "assimilator", "zealot", "cybernetics core", "gateway"]},
+			"12NexusZealots"		: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
+                ["4 x probe", "pylon", "4 x probe", "nexus", "gateway", "go scout once around", "2 x probe", "gateway", "probe", "pylon @ natural", "zealot"]},    
+			"13Nexus"				: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["4 x probe", "pylon", "5 x probe", "nexus", "go scout", "probe", "gateway", "probe", "assimilator", "2 x probe", "cybernetics core", "gateway", "2 x probe", "2 x dragoon", "singularity charge"]},
+			"ForgeExpand"	        : { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon @ wall then go scout once around", "probe", "forge @ wall", "probe", "photon cannon @ wall then photon cannon @ wall", "nexus", "2 x probe", "gateway @ wall", "probe", "pylon", "probe", "gateway", "photon cannon @ wall"]},
+				
+			"TestWall"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "nexus", "pylon @ wall", "probe", "gateway @ wall", "forge @ wall", "photon cannon @ wall then photon cannon @ wall", "2 x probe", "photon cannon @ wall", "4 x probe", "go away"]},
+			"TestWallAndStartBlock"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon", "4 x probe", "forge", "gateway", "gateway", "2 x probe", "photon cannon", "probe", "photon cannon", "probe", "photon cannon", "probe", "nexus", "pylon @ wall", "probe", "gateway @ wall", "forge @ wall", "cybernetics core", "photon cannon @ wall then photon cannon @ wall", "2 x probe", "photon cannon @ wall", "6 x probe", "go away"]},
+			"TestBuildingPlacement"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon @ wall then go scout while safe", "probe", "forge @ wall", "photon cannon @ wall then photon cannon @ wall", "4 x probe", "nexus", "2 x probe", "pylon", "assimilator", "gateway @ wall", "3 x probe", "cybernetics core", "8 x probe", "gateway", "pylon", "2 x probe", "photon cannon @ wall", "gateway", "pylon", "2 x probe", "gateway", "2 x probe", "pylon", "gateway", "2 x probe", "pylon", "assimilator", "2 x probe", "pylon", "2 x probe", "pylon", "2 x probe", "pylon", "pylon", "robotics facility", "citadel of adun", "nexus", "nexus", "nexus", "24 x probe", "gateway", "gateway", "pylon", "pylon", "observatory", "robotics support bay", "pylon", "pylon", "pylon", "gateway", "gateway", "gateway", "nexus", "templar archives", "forge", "pylon", "pylon", "pylon", "gateway", "gateway", "gateway", "10 x probe", "go away"]}
+		}
+	}
+}
