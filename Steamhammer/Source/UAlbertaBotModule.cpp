@@ -61,7 +61,7 @@ void UAlbertaBotModule::onStart()
         BWAPI::Broodwar->enableFlag(BWAPI::Flag::UserInput);
     }
 
-	Log().Get() << "I am Locutus of Borg, you are " << BWAPI::Broodwar->enemy()->getName() << ", we're in " << BWAPI::Broodwar->mapFileName();
+	Log().Get() << "I am Locutus of Borg, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName();
 
 	StrategyManager::Instance().setOpeningGroup();    // may depend on config and/or opponent model
 

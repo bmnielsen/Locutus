@@ -14,6 +14,8 @@ class InformationManager
 	BWAPI::Player	_self;
     BWAPI::Player	_enemy;
 
+	std::string		_enemyName;
+
 	bool			_enemyProxy;
 
 	bool			_weHaveCombatUnits;
@@ -139,6 +141,8 @@ public:
 	void					drawBaseInformation(int x, int y);
 
     const UnitData &        getUnitData(BWAPI::Player player) const;
+
+    std::string             getEnemyName() const { return _enemyName; }
 
 	// yay for singletons!
 	static InformationManager & Instance();

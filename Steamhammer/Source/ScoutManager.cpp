@@ -849,7 +849,7 @@ bool ScoutManager::pylonHarass()
 	case PylonHarassStates::Initial:
 		// Currently hard-coded opponents
 		// In the future, recognize how opponents react to pylon harass and store it in the opponent model
-		if (BWAPI::Broodwar->enemy()->getName() == "Iron bot" || BWAPI::Broodwar->enemy()->getName() == "Ironbot")
+		if (InformationManager::Instance().getEnemyName() == "ironbot")
 		{
 			_pylonHarassState = PylonHarassStates::Ready;
 		}

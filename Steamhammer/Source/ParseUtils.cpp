@@ -203,7 +203,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 			strategy["EnemySpecificStrategy"].IsObject())
 		{
 			const rapidjson::Value & specific = strategy["EnemySpecificStrategy"];
-			const std::string enemyName = BWAPI::Broodwar->enemy()->getName();
+			const std::string enemyName = InformationManager::Instance().getEnemyName();
 
 			// check to see if our current enemy name is listed in the specific strategies
 			if (specific.HasMember(enemyName.c_str()))

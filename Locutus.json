@@ -114,14 +114,13 @@
 		"UseEnemySpecificStrategy" : true,
         "EnemySpecificStrategy" :
         {
-			"Locutus": "TestWallAndStartBlock",
+			"locutus": "TestWallAndStartBlock",
 			
-			"WuliBot": "SafeForgeExpand5GateGoon",
-			"Flash": "SafeForgeExpand5GateGoon",
-			"AyyyLmao": "SafeForgeExpand5GateGoon",
+			"wulibot": "SafeForgeExpand5GateGoon",
+			"flash": "SafeForgeExpand5GateGoon",
+			"ayyylmao": "SafeForgeExpand5GateGoon",
 		
-			"Chris Coxe": "SafeForgeExpand5GateGoon",
-			"ChrisCoxe": "SafeForgeExpand5GateGoon"
+			"chriscoxe": "SafeForgeExpand5GateGoon"
 		},
 
 		"CounterStrategies" :

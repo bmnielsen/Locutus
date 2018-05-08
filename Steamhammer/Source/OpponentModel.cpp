@@ -1,3 +1,4 @@
+#include "InformationManager.h"
 #include "OpponentModel.h"
 #include "Random.h"
 
@@ -204,13 +205,7 @@ OpponentModel::OpponentModel()
 	, _expectedEnemyPlan(OpeningPlan::Unknown)
 	, _worstCaseExpectedAirTech(INT_MAX)
 {
-	std::string name = BWAPI::Broodwar->enemy()->getName();
-
-	// Replace characters that the filesystem may not like with '_'.
-	// TODO Obviously not a thorough job.
-	std::replace(name.begin(), name.end(), ' ', '_');
-
-	_filename = "om_" + name + ".txt";
+	_filename = "om_" + InformationManager::Instance().getEnemyName() + ".txt";
 }
 
 // Read past game records from the opponent model file.

@@ -29,6 +29,11 @@ InformationManager::InformationManager()
 	initializeTheBases();
 	initializeRegionInformation();
 	initializeNaturalBase();
+
+    // Normalize the enemy name by converting it to lowercase and removing spaces
+    _enemyName = BWAPI::Broodwar->enemy()->getName();
+    std::transform(_enemyName.begin(), _enemyName.end(), _enemyName.begin(), ::tolower);
+    _enemyName.erase(std::remove_if(_enemyName.begin(), _enemyName.end(), ::isspace), _enemyName.end());
 }
 
 // This fills in _theBases with neutral bases. An event will place our resourceDepot.
