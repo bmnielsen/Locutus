@@ -41,15 +41,15 @@ void OpponentPlan::recognize()
 		return;
 	}
 
+    int frame = BWAPI::Broodwar->getFrameCount();
+
 	// Recognize worker rushes.
 	// Unlike other tests, it depends on the location of enemy workers, so break it out.
-	if (recognizeWorkerRush())
+	if (frame < 3000 && recognizeWorkerRush())
 	{
 		_openingPlan = OpeningPlan::WorkerRush;
 		return;
 	}
-
-	int frame = BWAPI::Broodwar->getFrameCount();
 
 	PlayerSnapshot snap;
 	snap.takeEnemy();
