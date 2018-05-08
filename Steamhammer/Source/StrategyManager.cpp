@@ -180,7 +180,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		getZealotSpeed = true;
 		zealotRatio = 1.0;
 	}
-	else if (_openingGroup == "dragoons")
+	else if (_openingGroup == "dragoons" || _openingGroup == "drop")
 	{
 		getGoonRange = true;
 		goonRatio = 1.0;
