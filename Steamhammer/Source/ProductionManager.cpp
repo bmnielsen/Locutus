@@ -106,7 +106,8 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 	}
 
 	// If it's a worker or a building, it affects the production plan.
-	if (unit->getType().isWorker() && !_outOfBook && _workersReplacedInOpening < 2)
+	// TODO: Fix this so it doesn't trigger when the worker scout dies
+	if (false /*unit->getType().isWorker() && !_outOfBook && _workersReplacedInOpening < 2 */)
 	{
 		// We lost a worker in the opening. Replace it.
 		// This helps if a small number of workers are killed. If many are killed, you're toast anyway, so don't bother
