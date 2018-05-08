@@ -625,6 +625,9 @@ void CombatCommander::updateDropSquads()
 
 void CombatCommander::updateScoutDefenseSquad() 
 {
+    // The base defense squad handles defending against worker scouts that are attacking
+    // The logic here is to chase away any scouts in our main once we have a dragoon
+    
 	if (Config::Micro::ScoutDefenseRadius == 0 || _combatUnits.empty())
     { 
         return; 
@@ -640,41 +643,43 @@ void CombatCommander::updateScoutDefenseSquad()
         return;
     }
 
-    // get all of the enemy units in this region
-	BWAPI::Unitset enemyUnitsInRegion;
+    // Chase the scout unless there is an enemy unit in the region that isn't a scout
+    bool chaseScout = true;
     for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
     {
         if (BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) == myRegion)
         {
-            enemyUnitsInRegion.insert(unit);
+            // If an enemy worker has attacked at any point, consider workers to not be scouts
+            if (unit->getType() != BWAPI::UnitTypes::Zerg_Overlord &&
+                (!unit->getType().isWorker() || _enemyWorkerHasAttacked))
+            {
+                chaseScout = false;
+                break;
+            }
         }
     }
 
-    // if there's an enemy worker in our region then assign someone to chase him
-    bool assignScoutDefender = enemyUnitsInRegion.size() == 1 && (*enemyUnitsInRegion.begin())->getType().isWorker();
-
-    // if our current squad is empty and we should assign a worker, do it
-    if (scoutDefenseSquad.isEmpty() && assignScoutDefender)
+    // If we don't want to chase a scout, disband the squad
+    if (!chaseScout)
     {
-        // the enemy worker that is attacking us
-        BWAPI::Unit enemyWorker = *enemyUnitsInRegion.begin();
-
-        // get our worker unit that is mining that is closest to it
-        BWAPI::Unit workerDefender = findClosestWorkerToTarget(_combatUnits, enemyWorker);
-
-		if (enemyWorker && workerDefender)
-		{
-			// grab it from the worker manager and put it in the squad
-            if (_squadData.canAssignUnitToSquad(workerDefender, scoutDefenseSquad))
-            {
-                _squadData.assignUnitToSquad(workerDefender, scoutDefenseSquad);
-            }
-		}
+        if (!scoutDefenseSquad.isEmpty()) scoutDefenseSquad.clear();
+        return;
     }
-    // if our squad is not empty and we shouldn't have a worker chasing then take it out of the squad
-    else if (!scoutDefenseSquad.isEmpty() && !assignScoutDefender)
+
+    // Pull a dragoon that is already in the main
+    // Usually this will end up being the first dragoon we produce
+    if (scoutDefenseSquad.isEmpty())
     {
-        scoutDefenseSquad.clear();     // also releases the worker
+        for (const auto unit : _combatUnits)
+        {
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
+                BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) == myRegion &&
+                _squadData.canAssignUnitToSquad(unit, scoutDefenseSquad))
+            {
+                _squadData.assignUnitToSquad(unit, scoutDefenseSquad);
+                break;
+            }
+        }
     }
 }
 

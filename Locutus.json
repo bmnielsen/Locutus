@@ -23,7 +23,7 @@
         "RetreatMeleeUnitHP"        : { "Zerg" : 8, "Protoss" : 18 },
         "CombatSimRadius"			: 500,
         "UnitNearEnemyRadius"       : 500,
-		"ScoutDefenseRadius"		: { "Terran" : 500 }
+		"ScoutDefenseRadius"		: 500
     },
     
     "Macro" :
