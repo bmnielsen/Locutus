@@ -672,6 +672,14 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
 	if (UnitUtil::GetAllUnitCount(type) > 0 || (type.isBuilding() && BuildingManager::Instance().isBeingBuilt(type)))
 		return;
 
+    // If the unit requires more gas than we have, and we have no assimilator, queue it first
+    if (type.gasPrice() > BWAPI::Broodwar->self()->gas() 
+        && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Assimilator) < 1)
+    {
+        QueueUrgentItem(BWAPI::UnitTypes::Protoss_Assimilator, queue);
+        return;
+    }
+
 	// If any dependencies are missing, queue them first
 	for (auto const & req : type.requiredUnits())
 		if (UnitUtil::GetCompletedUnitCount(req.first) < req.second)
