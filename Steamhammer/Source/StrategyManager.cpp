@@ -185,6 +185,12 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		getGoonRange = true;
 		goonRatio = 1.0;
 	}
+    else if (_openingGroup == "dark templar")
+    {
+        getGoonRange = true;
+        goonRatio = 1.0;
+        buildDarkTemplar = true;
+    }
 	else
 	{
 		UAB_ASSERT_WARNING(false, "Unknown Opening Group: %s", _openingGroup.c_str());
@@ -285,7 +291,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
 
 		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0
-			&& idleGateways > 2)
+			&& idleGateways > 0)
 		{
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, numDarkTemplar + 1));
 			idleGateways--;
