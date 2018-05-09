@@ -40,7 +40,12 @@
 
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
 
+        // State for current game
         private static string currentGameId;
+
+        private static int waitingForPlayersCount;
+
+        private static bool registeredResult;
 
         private static int wins;
 
@@ -79,8 +84,16 @@
 
             if (args.Contains("latest"))
             {
-                File.Copy("C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.dll", true);
-                File.Copy("C:\\Dev\\BW\\Locutus\\Locutus.json", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.json", true);
+                try
+                {
+                    File.Copy("C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.dll", true);
+                    File.Copy("C:\\Dev\\BW\\Locutus\\Locutus.json", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.json", true);
+                }
+                catch (Exception)
+                {
+                    Console.WriteLine("Could not copy latest version, file may be in use");
+                    return;
+                }
             }
 
             if (args.Contains("clean"))
@@ -152,6 +165,8 @@
             var args = $"--bots \"Locutus\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"sscai/{map}\" {timeoutParam} --read_overwrite";
 
             currentGameId = null;
+            waitingForPlayersCount = 0;
+            registeredResult = false;
 
             var process = new Process();
             process.StartInfo.UseShellExecute = false;
@@ -170,17 +185,29 @@
             {   
                 Thread.Sleep(500);
 
-                if (!string.IsNullOrEmpty(currentGameId))
+                if (string.IsNullOrEmpty(currentGameId))
                 {
-                    CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGameId}_0\\Locutus_ErrorLog.txt", "Err: ");
-                    CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGameId}_0\\Locutus_log.txt", "Log: ");
+                    continue;
                 }
 
+                // Output our log to console
+                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGameId}_0\\Locutus_ErrorLog.txt", "Err: ");
+                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGameId}_0\\Locutus_log.txt", "Log: ");
+
+                // Check for crashes
+                if (CheckCrash(currentGameId, opponent))
+                {
+                    Console.WriteLine("Game appears to have crashed, killing it");
+                    process.Kill();
+                }
+
+                // Rename the replay file when it becomes available
                 handledReplay = handledReplay 
                     || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_0.rep", opponent, map, showReplay)
                     || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_1.rep", opponent, map, showReplay);
             }
 
+            // Rename the replay file if it wasn't already done
             handledReplay = handledReplay
                           || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_0.rep", opponent, map, showReplay)
                           || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_1.rep", opponent, map, showReplay);
@@ -212,32 +239,10 @@
 
         private static void CheckLogFile(string path, string prefix)
         {
-            if (!File.Exists(path))
-            {
-                return;
-            }
-
-            string content;
-            using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var textReader = new StreamReader(fileStream))
-            {
-                content = textReader.ReadToEnd();
-            }
-
-            string lastContent;
-            if (LogCache.TryGetValue(path, out lastContent) && lastContent == content)
-            {
-                return;
-            }
-
-            var newContent = content.Substring(lastContent?.Length ?? 0);
-            var newLines = newContent.Split('\n').Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x));
-            foreach (var line in newLines)
+            foreach (var line in GetNewLinesFromFile(path))
             {
                 Console.WriteLine($"{DateTime.Now:HH:mm:ss} {prefix}{line}");
             }
-
-            LogCache[path] = content;
         }
 
         private static void ProcessOutput(object sender, DataReceivedEventArgs e)
@@ -255,15 +260,79 @@
                 Console.WriteLine("Got game ID {0}", currentGameId);
             }
 
-            if (e.Data == "0")
+            if (!registeredResult)
             {
-                wins++;
+                if (e.Data == "0")
+                {
+                    registeredResult = true;
+                    wins++;
+                }
+
+                if (e.Data == "1")
+                {
+                    registeredResult = true;
+                    losses++;
+                }
+            }
+        }
+
+        private static bool CheckCrash(string gameId, string opponent)
+        {
+            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGameId}_0_Locutus_game.log";
+            var opponentLogFilename = $"{BaseDir}\\logs\\GAME_{currentGameId}_0_{opponent.Replace(' ', '_')}_game.log";
+
+            foreach (var line in GetNewLinesFromFile(myLogFilename).Concat(GetNewLinesFromFile(opponentLogFilename)))
+            {
+                if (line == "waiting for players...")
+                {
+                    waitingForPlayersCount++;
+                }
+
+                if (!registeredResult)
+                {
+                    if (line == ":: Locutus was eliminated.")
+                    {
+                        registeredResult = true;
+                        losses++;
+                    }
+
+                    if (line == $":: {opponent} was eliminated.")
+                    {
+                        registeredResult = true;
+                        wins++;
+                    }
+                }
             }
 
-            if (e.Data == "1")
+            return waitingForPlayersCount > 2;
+        }
+
+        private static IEnumerable<string> GetNewLinesFromFile(string path)
+        {
+            if (!File.Exists(path))
             {
-                losses++;
+                return new List<string>();
             }
+
+            string content;
+            using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var textReader = new StreamReader(fileStream))
+            {
+                content = textReader.ReadToEnd();
+            }
+
+            string lastContent;
+            if (LogCache.TryGetValue(path, out lastContent) && lastContent == content)
+            {
+                return new List<string>();
+            }
+
+            var newContent = content.Substring(lastContent?.Length ?? 0);
+            var newLines = newContent.Split('\n').Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x));
+
+            LogCache[path] = content;
+
+            return newLines;
         }
 
         private static List<string> ShuffledMaps()
