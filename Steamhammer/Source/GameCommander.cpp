@@ -481,7 +481,7 @@ bool GameCommander::surrenderMonkey()
 	// Terran does not float buildings, so we check whether the enemy can attack ground.
 
 	// 1. Our cash.
-	if (BWAPI::Broodwar->self()->minerals() >= 50)
+	if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) > 0 && BWAPI::Broodwar->self()->minerals() >= 50)
 	{
 		return false;
 	}
