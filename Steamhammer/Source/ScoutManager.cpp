@@ -873,9 +873,9 @@ bool ScoutManager::pylonHarass()
 
 		if (_workerScout->getPosition().getDistance(enemyStation->ResourceCentroid()) < 300) return false;
 
-		BWAPI::TilePosition tile = _workerScout->getTilePosition() - BWAPI::TilePosition(1, 1);
-		if (tile.x < 0) tile = BWAPI::TilePosition(0, tile.y);
-		if (tile.y < 0) tile = BWAPI::TilePosition(tile.x, 0);
+        // Consider the tile we'll be at in 5 frames
+        BWAPI::Position workerPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(BWAPI::Broodwar->self(), _workerScout, 5);
+        BWAPI::TilePosition tile(workerPositionInFiveFrames);
 
 		if (!BWEB::Map::Instance().isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, tile)) return false;
 
@@ -885,13 +885,13 @@ bool ScoutManager::pylonHarass()
 		{
 			// Check for in building sight range
 			if (kv.second.type.isBuilding() &&
-				_workerScout->getPosition().getDistance(kv.second.lastPosition + BWAPI::Position(kv.second.type.width() / 2, kv.second.type.height() / 2)) <= kv.second.type.sightRange())
+                workerPositionInFiveFrames.getDistance(kv.second.lastPosition + BWAPI::Position(kv.second.type.width() / 2, kv.second.type.height() / 2)) <= kv.second.type.sightRange())
 			{
 				inEnemyBuildingSightRange = true;
 			}
 
-			// Now check for any enemy unit within two tiles of the worker scout
-			if (kv.first->isVisible() && _workerScout->getPosition().getDistance(kv.first->getPosition()) < 64)
+			// Now check for any enemy unit within two and a half tiles of the build position
+			if (kv.first->isVisible() && workerPositionInFiveFrames.getDistance(kv.first->getPosition()) < 80)
 			{
 				enemyUnitClose = true;
 			}

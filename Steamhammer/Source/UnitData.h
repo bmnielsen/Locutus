@@ -22,6 +22,8 @@ struct UnitInfo
     bool            completed;
 	int				estimatedCompletionFrame;
 
+    std::deque<BWAPI::Position> historicPositions;
+
     UnitInfo()
         : unitID(0)
 		, updateFrame(0)

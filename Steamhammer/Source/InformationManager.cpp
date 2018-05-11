@@ -1537,6 +1537,35 @@ int InformationManager::nScourgeNeeded()
 	return count;
 }
 
+BWAPI::Position InformationManager::predictUnitPosition(BWAPI::Player player, BWAPI::Unit unit, int frames) const
+{
+    // Look up the unit in the map, return invalid if it isn't there
+    auto & unitMap = getUnitData(player).getUnits();
+    auto unitAndUnitInfo = unitMap.find(unit);
+    if (unitAndUnitInfo  == unitMap.end()) return BWAPI::Positions::Invalid;
+
+    // Reference the unit info
+    auto const & unitInfo = unitAndUnitInfo->second;
+
+    // Return invalid if we don't have enough data
+    if (unitInfo.updateFrame < BWAPI::Broodwar->getFrameCount() || unitInfo.historicPositions.size() < 3) return BWAPI::Positions::Invalid;
+
+    // Compute the average change in position in the last two frames
+    int count = 0;
+    BWAPI::Position last = BWAPI::Positions::Invalid;
+    BWAPI::Position delta = BWAPI::Position(0, 0);
+    for (auto it = unitInfo.historicPositions.rbegin(); it != unitInfo.historicPositions.rend() && count <= 2; it++)
+    {
+        if (last.isValid()) delta += (*it - last);
+        last = *it;
+        count++;
+    }
+    delta = delta / 2;
+
+    // Extrapolate to the requested number of frames
+    return last + (delta * frames);
+}
+
 InformationManager & InformationManager::Instance()
 {
 	static InformationManager instance;

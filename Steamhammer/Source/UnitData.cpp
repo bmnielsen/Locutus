@@ -48,8 +48,14 @@ void UnitData::updateUnit(BWAPI::Unit unit)
     }
     
 	UnitInfo & ui   = unitMap[unit];
+
+    int thisFrame = BWAPI::Broodwar->getFrameCount();
+
+    // If the last update frame for this unit wasn't last frame, clear the historic position data as it is obsolete
+    if (ui.updateFrame != (thisFrame - 1)) ui.historicPositions.clear();
+
     ui.unit         = unit;
-	ui.updateFrame	= BWAPI::Broodwar->getFrameCount();
+	ui.updateFrame	= thisFrame;
     ui.player       = unit->getPlayer();
 	ui.lastPosition = unit->getPosition();
 	ui.goneFromLastPosition = false;
@@ -59,6 +65,9 @@ void UnitData::updateUnit(BWAPI::Unit unit)
 	ui.type         = unit->getType();
     ui.completed    = unit->isCompleted();
 	ui.estimatedCompletionFrame = UnitInfo::ComputeCompletionFrame(unit);
+
+    ui.historicPositions.push_back(unit->getPosition());
+    if (ui.historicPositions.size() > 3) ui.historicPositions.pop_front();
 }
 
 void UnitData::removeUnit(BWAPI::Unit unit)

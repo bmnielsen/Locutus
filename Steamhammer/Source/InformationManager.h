@@ -144,6 +144,8 @@ public:
 
     std::string             getEnemyName() const { return _enemyName; }
 
+    BWAPI::Position         predictUnitPosition(BWAPI::Player player, BWAPI::Unit unit, int frames) const;
+
 	// yay for singletons!
 	static InformationManager & Instance();
 };
