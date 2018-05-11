@@ -29,6 +29,7 @@ namespace BWEB
 					sCenter = (sCenter + gas->Pos()) / 2;
 					genCenter += gas->Pos();
 					cnt++;
+                    addOverlap(gas->TopLeft(), BWAPI::UnitTypes::Resource_Vespene_Geyser.tileWidth(), BWAPI::UnitTypes::Resource_Vespene_Geyser.tileHeight());
 				}
 
 				if (cnt > 0)
