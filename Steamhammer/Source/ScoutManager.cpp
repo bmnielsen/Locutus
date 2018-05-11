@@ -838,11 +838,9 @@ void ScoutManager::calculateEnemyRegionVertices()
 bool ScoutManager::pylonHarass()
 {
 	// If we haven't found the enemy base yet, we can't do any pylon harass
-	const BWEB::Station * enemyStation = InformationManager::Instance().getEnemyMainBaseStation();
-	if (!enemyStation)
-	{
-		return false;
-	}
+    BWTA::BaseLocation* enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
+    const BWEB::Station * enemyStation = InformationManager::Instance().getEnemyMainBaseStation();
+    if (!enemyBase || !enemyStation) return false;
 
 	switch (_pylonHarassState)
 	{
@@ -863,10 +861,13 @@ bool ScoutManager::pylonHarass()
 	case PylonHarassStates::Ready:
 	{
 		// We want to build a pylon. Do so when:
+        // - We are in the enemy main
 		// - We have enough resources
 		// - We are not close to the enemy mineral line
 		// - We are in sight range of an enemy building
 		// - Nothing is in the way
+
+        if (BWTA::getRegion(BWAPI::TilePosition(_workerScout->getPosition())) != enemyBase->getRegion()) return false;
 
 		if (BWAPI::Broodwar->self()->minerals() - BuildingManager::Instance().getReservedMinerals() < 100) return false;
 
