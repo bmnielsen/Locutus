@@ -860,6 +860,13 @@ bool ScoutManager::pylonHarass()
 
 	case PylonHarassStates::Ready:
 	{
+        // If the enemy has gotten combat units, stop the harass
+        if (InformationManager::Instance().enemyHasCombatUnits())
+        {
+            _pylonHarassState = PylonHarassStates::Finished;
+            return false;
+        }
+
 		// We want to build a pylon. Do so when:
         // - We are in the enemy main
 		// - We have enough resources
