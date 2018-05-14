@@ -22,22 +22,39 @@
 
         private static readonly List<string> Maps = new List<string>
                                                         {
-                                                            "(2)Benzene.scx",
-                                                            "(2)Destination.scx",
-                                                            "(2)Heartbreak Ridge.scx",
-                                                            "(3)Neo Moon Glaive.scx",
-                                                            "(3)Tau Cross.scx",
-                                                            "(4)Andromeda.scx",
-                                                            "(4)Circuit Breaker.scx",
-                                                            "(4)Electric Circuit.scx",
-                                                            "(4)Empire of the Sun.scm",
-                                                            "(4)Fighting Spirit.scx",
-                                                            "(4)Icarus.scm",
-                                                            "(4)Jade.scx",
-                                                            "(4)La Mancha1.1.scx",
-                                                            "(4)Python.scx",
-                                                            "(4)Roadrunner.scx"
+                                                            "sscai/(2)Benzene.scx",
+                                                            "sscai/(2)Destination.scx",
+                                                            "sscai/(2)Heartbreak Ridge.scx",
+                                                            "sscai/(3)Neo Moon Glaive.scx",
+                                                            "sscai/(3)Tau Cross.scx",
+                                                            "sscai/(4)Andromeda.scx",
+                                                            "sscai/(4)Circuit Breaker.scx",
+                                                            "sscai/(4)Electric Circuit.scx",
+                                                            "sscai/(4)Empire of the Sun.scm",
+                                                            "sscai/(4)Fighting Spirit.scx",
+                                                            "sscai/(4)Icarus.scm",
+                                                            "sscai/(4)Jade.scx",
+                                                            "sscai/(4)La Mancha1.1.scx",
+                                                            "sscai/(4)Python.scx",
+                                                            "sscai/(4)Roadrunner.scx"
                                                         };
+
+        private static readonly List<string> CigMaps = new List<string>
+                                                           {
+                                                               "cig/(2)BlueStorm1.2.scx",
+                                                               "cig/(2)Hitchhiker1.1.SCX",
+                                                               "cig/(2)MatchPoint1.3.scx",
+                                                               "cig/(2)NeoChupungRyeong2.1.scx",
+                                                               "cig/(2)RideofValkyries1.0.scx",
+                                                               "cig/(3)Alchemist1.0.scm",
+                                                               "cig/(3)GreatBarrierReef1.0.scx",
+                                                               "cig/(3)NeoAztec2.1.scx",
+                                                               "cig/(3)Pathfinder1.0.scx",
+                                                               "cig/(3)Plasma1.0.scx",
+                                                               "cig/(4)ArcadiaII2.02.scx",
+                                                               "cig/(4)LunaTheFinal2.3.scx",
+                                                               "cig/(4)NeoSniperRidge2.0.scx"
+                                                           };
 
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
 
@@ -103,9 +120,11 @@
                 ClearDirectory($"{BaseDir}\\bots\\{opponent}\\write");
             }
 
-            foreach (var arg in args.Where(x => x != "ui"))
+            var maps = args.Contains("cig") ? CigMaps : Maps;
+
+            foreach (var arg in args.Where(x => x != "ui" && x != "cig"))
             {
-                foreach (var map in Maps)
+                foreach (var map in maps)
                 {
                     if (CultureInfo.InvariantCulture.CompareInfo.IndexOf(map, arg, CompareOptions.IgnoreCase) >= 0)
                     {
@@ -115,7 +134,7 @@
                 }
             }
 
-            var shuffledMaps = ShuffledMaps();
+            var shuffledMaps = Shuffle(maps);
 
             if (args.Contains("trainingrun"))
             {
@@ -220,7 +239,7 @@
 
             var headless = isHeadless ? "--headless" : string.Empty;
             var timeoutParam = timeout > 0 ? "--timeout " + timeout : string.Empty;
-            var args = $"--bots \"Locutus\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"sscai/{map}\" {timeoutParam} --read_overwrite";
+            var args = $"--bots \"Locutus\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} --read_overwrite";
 
             currentGame = new GameData();
 
@@ -324,7 +343,8 @@
             if (File.Exists(file))
             {
                 var fileName = file.Substring(0, file.Length - 4);
-                var mapShortName = map.Substring(3, map.Length - 7);
+                var mapShortName = map.Split('/')[1];
+                mapShortName = mapShortName.Substring(3, mapShortName.Length - 7);
                 var result = currentGame.Won ? "win" : "loss";
                 var newFileName = $"{fileName}-{opponent}-{mapShortName}-{result}.rep";
 
@@ -465,9 +485,9 @@
             return null;
         }
 
-        private static List<string> ShuffledMaps()
+        private static List<string> Shuffle(List<string> maps)
         {
-            var shuffled = new List<string>(Maps);
+            var shuffled = new List<string>(maps);
 
             var n = shuffled.Count;
             while (n > 1)
