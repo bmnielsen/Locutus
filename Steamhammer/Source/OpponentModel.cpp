@@ -400,15 +400,12 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 		strategyCount[strategy] = strategyCount[strategy] + 1;
 
 		if ((*it)->getWin())
-			factor *= 1.0 + 1.2 / strategyCount[strategy];
+			factor *= 1.0 + 2.0 / strategyCount[strategy];
 		else
-			factor *= 1.0 - 0.6 / strategyCount[strategy];
+			factor *= 1.0 - 0.67 / strategyCount[strategy];
 
 		result[strategy] = factor;
 	}
-
-	for (auto& weightChange : result)
-		Log().Get() << "Adjusted weight of " << weightChange.first << " by a factor of " << weightChange.second;
 
 	return result;
 }

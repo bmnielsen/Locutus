@@ -475,8 +475,8 @@ bool ParseUtils::_ParseStrategy(
 			const rapidjson::Value & mix = item[raceString.c_str()];
 
 			std::vector<std::string> strategies;    // strategy name
-			std::vector<int> weights;               // cumulative weight of strategy
-			int totalWeight = 0;                    // cumulative weight of last strategy (so far)
+			std::vector<int> weights;               // weight of strategy
+			int totalWeight = 0;                    // cumulative weight of all strategies
 
 			// 1. Collect the weights and strategies.
 			for (size_t i(0); i < mix.Size(); ++i)
@@ -502,9 +502,11 @@ bool ParseUtils::_ParseStrategy(
 					if (strategyWeightFactors.find(strategy) != strategyWeightFactors.end())
 						weight *= strategyWeightFactors[strategy];
 
+                    weight = std::max(1, weight);
+
 					strategies.push_back(strategy);
 					totalWeight += weight;
-					weights.push_back(totalWeight);
+					weights.push_back(weight);
 				}
 				else
 				{
@@ -512,11 +514,34 @@ bool ParseUtils::_ParseStrategy(
 				}
 			}
 
-			// 2. Choose a strategy at random by weight.
+            // 2. Remove strategies that are below 15% of the total weight
+            int cutoff = totalWeight * 0.15;
+            auto weightsIter = weights.begin();
+            auto stratsIter = strategies.begin();
+            while (weightsIter != weights.end())
+            {
+                if (*weightsIter <= cutoff)
+                {
+                    totalWeight -= *weightsIter;
+                    weightsIter = weights.erase(weightsIter);
+                    stratsIter = strategies.erase(stratsIter);
+                }
+                else
+                {
+                    Log().Get() << "Considering " << *stratsIter << " with weight " << *weightsIter;
+
+                    weightsIter++;
+                    stratsIter++;
+                }
+            }
+
+			// 3. Choose a strategy at random by weight.
+            int accum = 0;
 			int w = Random::Instance().index(totalWeight);
 			for (size_t i = 0; i < weights.size(); ++i)
 			{
-				if (w < weights[i])
+                accum += weights[i];
+				if (w < accum)
 				{
 					stratName = strategies[i];
 					return _LookUpStrategyCombo(item, stratName, mapWeightString, raceString, strategyCombos, strategyWeightFactors);
