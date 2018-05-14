@@ -116,10 +116,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\BWEB\src\AStar.cpp" />
     <ClCompile Include="..\..\BWEB\src\Block.cpp" />
     <ClCompile Include="..\..\BWEB\src\BWEB.cpp" />
     <ClCompile Include="..\..\BWEB\src\BWEBUtil.cpp" />
+    <ClCompile Include="..\..\BWEB\src\PathFind.cpp" />
     <ClCompile Include="..\..\BWEB\src\Station.cpp" />
     <ClCompile Include="..\..\BWEB\src\Wall.cpp" />
     <ClCompile Include="..\..\BWEM\src\area.cpp" />
@@ -194,7 +194,6 @@
     <ClCompile Include="..\source\WorkerManager.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\BWEB\src\AStar.h" />
     <ClInclude Include="..\..\BWEB\src\Block.h" />
     <ClInclude Include="..\..\BWEB\src\BWEB.h" />
     <ClInclude Include="..\..\BWEB\src\Station.h" />

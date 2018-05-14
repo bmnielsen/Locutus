@@ -8,7 +8,7 @@
 // Dynamic block addition (insert UnitTypes, get block) - NEW MEDIUM
 // Improve logic for mirroring blocks - NEW LOW
 // Code cleanup - NEW LOW
-// Limit number of building sizes per area - ONGOING LOW
+// Defense sizes - NEW LOW
 
 namespace BWEB
 {
@@ -169,17 +169,20 @@ namespace BWEB
 			for (auto& tile : wall.getDefenses())
 				Broodwar->drawBoxMap(Position(tile), Position(tile) + Position(65, 65), Broodwar->self()->getColor());
 			Broodwar->drawBoxMap(Position(wall.getDoor()), Position(wall.getDoor()) + Position(33, 33), Broodwar->self()->getColor(), true);
+			Broodwar->drawCircleMap(Position(wall.getCentroid()) + Position(16, 16), 8, Broodwar->self()->getColor(), true);
 		}
 
-		/*for (int x = 0; x < Broodwar->mapWidth(); x++)
+		for (int x = 0; x < Broodwar->mapWidth(); x++)
 		{
 			for (int y = 0; y < Broodwar->mapHeight(); y++)
 			{
 				TilePosition t(x, y);
-				if (!isWalkable(t))
-					Broodwar->drawBoxMap(Position(t), Position(t) + Position(33, 33), Colors::Cyan, false);
+				//if (visited[UnitTypes::Protoss_Gateway].location[t.x][t.y] == 1)
+				//	Broodwar->drawBoxMap(Position(t), Position(t) + Position(33, 33), Colors::Yellow, false);
+				if (reserveGrid[x][y] >= 1)
+					Broodwar->drawBoxMap(Position(t), Position(t) + Position(33, 33), Colors::Black, false);
 			}
-		}*/
+		}
 
 		//Broodwar->drawCircleMap(Position(startTile), 8, Colors::Green, true);
 		//Broodwar->drawCircleMap(Position(endTile), 8, Colors::Orange, true);
@@ -211,15 +214,13 @@ namespace BWEB
 		auto tileBest = TilePositions::Invalid;
 
 		// Search through each block to find the closest block and valid position
-		for (auto& block : blocks)
-		{
+		for (auto& block : blocks) {
 			set<TilePosition> placements;
 			if (type.tileWidth() == 4) placements = block.LargeTiles();
 			else if (type.tileWidth() == 3) placements = block.MediumTiles();
 			else placements = block.SmallTiles();
 
-			for (auto& tile : placements)
-			{
+			for (auto& tile : placements) {
 				const auto dist = tile.getDistance(searchCenter);
 				if (dist < distBest && isPlaceable(type, tile) && (!type.requiresPsi() || Broodwar->hasPower(tile, type)))
 					distBest = dist, tileBest = tile;
@@ -261,11 +262,16 @@ namespace BWEB
 	{
 		// Placeable is valid if buildable and not overlapping neutrals
 		// Note: Must check neutrals due to the terrain below them technically being buildable
-		const auto creepCheck = type.requiresCreep() ? 1 : 0;
-		for (auto x = location.x; x < location.x + type.tileWidth(); x++)
-		{
-			for (auto y = location.y; y < location.y + type.tileHeight() + creepCheck; y++)
-			{
+		const auto creepCheck = type.requiresCreep() ? true : false;	
+		for (auto x = location.x; x < location.x + type.tileWidth(); x++){
+
+			if (creepCheck) {
+				TilePosition tile(x, location.y + 2);
+				if (!Broodwar->isBuildable(tile))
+					return false;
+			}
+
+			for (auto y = location.y; y < location.y + type.tileHeight(); y++)	{
 				TilePosition tile(x, y);
 				if (!tile.isValid() || !Broodwar->isBuildable(tile)) return false;
 				if (usedTiles.find(tile) != usedTiles.end()) return false;
@@ -273,6 +279,7 @@ namespace BWEB
 				if (type.isResourceDepot() && !Broodwar->canBuildHere(tile, type)) return false;
 			}
 		}
+
 		return true;
 	}
 

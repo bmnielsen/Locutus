@@ -1,6 +1,5 @@
 #include "LocutusWall.h"
 
-#include <AStar.h>
 #include <Wall.h>
 
 #include <tuple>
@@ -304,7 +303,7 @@ namespace UAlbertaBot
 	bool checkPath(BWAPI::TilePosition tile, int maxPathLength = 0)
 	{
 		bwebMap.currentWall[tile] = BWAPI::UnitTypes::Protoss_Pylon;
-		std::vector<BWAPI::TilePosition>& path = BWEB::AStar().findPath(BWEM::Map::Instance(), bwebMap, bwebMap.startTile, bwebMap.endTile, true);
+		std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), bwebMap, bwebMap.startTile, bwebMap.endTile);
 		bwebMap.currentWall.clear();
 
 		if (path.empty()) return false;
@@ -804,7 +803,7 @@ namespace UAlbertaBot
 					if (sideOfLine(forgeCenter, gatewayCenter, center(spawn)) == natSideOfForgeGatewayLine)
 					{
 						bwebMap.currentWall[tile] = BWAPI::UnitTypes::Protoss_Pylon;
-						std::vector<BWAPI::TilePosition>& path = BWEB::AStar().findPath(BWEM::Map::Instance(), bwebMap, spawn, bwebMap.endTile, true);
+						std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), bwebMap, spawn, bwebMap.endTile);
 						bwebMap.currentWall.clear();
 
 						if (path.empty()) continue;
@@ -984,7 +983,7 @@ namespace UAlbertaBot
 					if (sideOfLine(forgeCenter, gatewayCenter, center(spawn)) == natSideOfForgeGatewayLine)
 					{
 						bwebMap.currentWall[tile] = BWAPI::UnitTypes::Protoss_Photon_Cannon;
-						std::vector<BWAPI::TilePosition>& path = BWEB::AStar().findPath(BWEM::Map::Instance(), BWEB::Map::Instance(), spawn, bwebMap.endTile, true);
+						std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), BWEB::Map::Instance(), spawn, bwebMap.endTile);
 						bwebMap.currentWall.clear();
 
 						if (path.empty())
@@ -1008,7 +1007,7 @@ namespace UAlbertaBot
 	void registerWallWithBWEB(LocutusWall & wall)
 	{
 		// Reserve the path
-		for (auto& tile : BWEB::AStar().findPath(BWEM::Map::Instance(), bwebMap, bwebMap.startTile, bwebMap.endTile, true))
+		for (auto& tile : BWEB::Map::Instance().findPath(BWEM::Map::Instance(), bwebMap, bwebMap.startTile, bwebMap.endTile))
 			bwebMap.overlapGrid[tile.x][tile.y] = 1;
 
 		// Add the BWEB wall and set the door
@@ -1121,7 +1120,7 @@ namespace UAlbertaBot
 
 		// Initialize pathfinding
 		initializeEndTile();
-		int optimalPathLength = BWEB::AStar().findPath(BWEM::Map::Instance(), BWEB::Map::Instance(), bwebMap.startTile, bwebMap.endTile, true).size();
+		int optimalPathLength = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), BWEB::Map::Instance(), bwebMap.startTile, bwebMap.endTile).size();
 		Log().Debug() << "Pathfinding between " << bwebMap.startTile << " and " << bwebMap.endTile << ", initial length " << optimalPathLength;
 
 		// Step 4: Find initial cannons

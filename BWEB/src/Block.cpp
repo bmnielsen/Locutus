@@ -145,7 +145,7 @@ namespace BWEB
 				TilePosition t(x, y);
 				Position p(t);
 				if (t.isValid() && Broodwar->isBuildable(t)) {
-					double dist = p.getDistance(Position(naturalChoke->Center()));
+					double dist = naturalChoke ? p.getDistance(Position(naturalChoke->Center())) : p.getDistance(mainPosition);						
 					tilesByPathDist.insert(make_pair(dist, t));
 				}
 			}
@@ -153,7 +153,7 @@ namespace BWEB
 
 		if (race == Races::Protoss) {
 			heights.insert(heights.end(), { 2, 4, 5, 6, 8 });
-			widths.insert(widths.end(), { 2, 4, 5, 8, 10 });
+			widths.insert(widths.end(), { 2, 4, 5, 8, 10, 18 });
 		}
 		else if (race == Races::Terran) {
 			heights.insert(heights.end(), { 2, 4, 5, 6 });
@@ -161,8 +161,8 @@ namespace BWEB
 		}
 
 		// Iterate every tile
-		for (int i = 10; i > 0; i--) {
-			for (int j = 10; j > 0; j--) {
+		for (int i = 20; i > 0; i--) {
+			for (int j = 20; j > 0; j--) {
 				for (auto& t : tilesByPathDist) {
 
 					TilePosition tile(t.second);
@@ -192,15 +192,12 @@ namespace BWEB
 		if (!mapBWEM.GetTile(four).Buildable() || overlapsAnything(four)) return false;
 
 		// Check if a block of specified size would overlap any bases, resources or other blocks
-		for (auto x = here.x - 1; x < here.x + width + 1; x++)
-		{
-			for (auto y = here.y - 1; y < here.y + height + 1; y++)
-			{
-				TilePosition tile(x, y);
-				if (tile == one || tile == two || tile == three || tile == four) continue;
-				if (!tile.isValid()) return false;
-				if (!mapBWEM.GetTile(TilePosition(x, y)).Buildable()) return false;
-				if (overlapGrid[x][y] > 0 || overlapsMining(tile)) return false;
+		for (auto x = here.x - 1; x < here.x + width + 1; x++) {
+			for (auto y = here.y - 1; y < here.y + height + 1; y++) {
+
+				TilePosition t(x, y);
+				if (!t.isValid() || !mapBWEM.GetTile(t).Buildable() || overlapGrid[x][y] > 0 || overlapsMining(t))
+					return false;
 			}
 		}
 		return true;
@@ -240,20 +237,17 @@ namespace BWEB
 
 			else if (height == 5) {
 				// Gate and 2 Pylons
-				if (width == 4 && (!a || typePerArea[a] + 1 < 12)) {
+				if (width == 4) {
 					newBlock.insertLarge(here);
 					newBlock.insertSmall(here + TilePosition(0, 3));
 					newBlock.insertSmall(here + TilePosition(2, 3));
-
-					if (a)
-						typePerArea[a]+=1;
 				}
 				else return;
 			}
 
 			else if (height == 6) {
 				// 4 Gates and 3 Pylons
-				if (width == 10 && (!a || typePerArea[a] + 4 < 12)) {
+				if (width == 10) {
 					newBlock.insertSmall(here + TilePosition(4, 0));
 					newBlock.insertSmall(here + TilePosition(4, 2));
 					newBlock.insertSmall(here + TilePosition(4, 4));
@@ -261,16 +255,26 @@ namespace BWEB
 					newBlock.insertLarge(here + TilePosition(0, 3));
 					newBlock.insertLarge(here + TilePosition(6, 0));
 					newBlock.insertLarge(here + TilePosition(6, 3));
-
-					if (a)
-						typePerArea[a]+=4;
+				}
+				else if (width == 18) {
+					//newBlock.insertSmall(here + TilePosition(8, 0));
+					newBlock.insertSmall(here + TilePosition(8, 2));
+					//newBlock.insertSmall(here + TilePosition(8, 4));
+					newBlock.insertLarge(here);
+					newBlock.insertLarge(here + TilePosition(0, 3));
+					newBlock.insertLarge(here + TilePosition(4, 0));
+					newBlock.insertLarge(here + TilePosition(4, 3));
+					newBlock.insertLarge(here + TilePosition(10, 0));
+					newBlock.insertLarge(here + TilePosition(10, 3));
+					newBlock.insertLarge(here + TilePosition(14, 0));
+					newBlock.insertLarge(here + TilePosition(14, 3));
 				}
 				else return;
 			}
 
 			else  if (height == 8) {
 				// 4 Gates and 4 Pylons
-				if (width == 8 && (!a || typePerArea[a] + 4 < 12)) {
+				if (width == 8) {
 					newBlock.insertSmall(here + TilePosition(0, 3));
 					newBlock.insertSmall(here + TilePosition(2, 3));
 					newBlock.insertSmall(here + TilePosition(4, 3));
@@ -279,9 +283,6 @@ namespace BWEB
 					newBlock.insertLarge(here + TilePosition(4, 0));
 					newBlock.insertLarge(here + TilePosition(0, 5));
 					newBlock.insertLarge(here + TilePosition(4, 5));
-
-					if (a)
-						typePerArea[a]+=4;
 				}
 				else return;
 			}
@@ -316,7 +317,7 @@ namespace BWEB
 					newBlock.insertMedium(here + TilePosition(3, 3));
 
 					if (a)
-						typePerArea[a]+=1;
+						typePerArea[a] += 1;
 				}
 				else return;
 			}
@@ -330,7 +331,7 @@ namespace BWEB
 					newBlock.insertSmall(here + TilePosition(8, 4));
 
 					if (a)
-						typePerArea[a]+=4;
+						typePerArea[a] += 4;
 				}
 				else return;
 			}

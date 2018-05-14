@@ -207,9 +207,6 @@
     <ClCompile Include="..\..\BWEM\src\mapPrinter.cpp">
       <Filter>BWEM</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\BWEB\src\AStar.cpp">
-      <Filter>BWEB</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\BWEB\src\Block.cpp">
       <Filter>BWEB</Filter>
     </ClCompile>
@@ -226,6 +223,9 @@
       <Filter>BWEB</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\LocutusWall.cpp">
+      <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEB\src\PathFind.cpp">
       <Filter>BWEB</Filter>
     </ClCompile>
   </ItemGroup>
@@ -398,9 +398,6 @@
     </ClInclude>
     <ClInclude Include="..\..\BWEM\src\mapPrinter.h">
       <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEB\src\AStar.h">
-      <Filter>BWEB</Filter>
     </ClInclude>
     <ClInclude Include="..\..\BWEB\src\Block.h">
       <Filter>BWEB</Filter>

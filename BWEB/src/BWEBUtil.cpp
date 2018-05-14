@@ -80,12 +80,13 @@ namespace BWEB
 
 	bool Map::overlapsAnything(const TilePosition here, const int width, const int height, bool ignoreBlocks)
 	{
-		for (auto i = here.x; i < here.x + width; i++)
-		{
-			for (auto j = here.y; j < here.y + height; j++)
-			{
-				if (!TilePosition(i, j).isValid()) continue;
-				if (overlapGrid[i][j] > 0) return true;
+		for (auto x = here.x; x < here.x + width; x++) {
+			for (auto y = here.y; y < here.y + height; y++) {
+				TilePosition t(x, y);
+				if (!t.isValid())
+					continue;
+				if (overlapGrid[x][y] > 0)
+					return true;
 			}
 		}
 		return false;
@@ -93,16 +94,17 @@ namespace BWEB
 
 	bool Map::isWalkable(const TilePosition here)
 	{
+		int cnt = 0;
 		const auto start = WalkPosition(here);
-		for (auto x = start.x; x < start.x + 4; x++)
-		{
-			for (auto y = start.y; y < start.y + 4; y++)
-			{
-				if (!WalkPosition(x, y).isValid()) return false;
-				if (!Broodwar->isWalkable(WalkPosition(x, y))) return false;
+		for (auto x = start.x; x < start.x + 4; x++) {
+			for (auto y = start.y; y < start.y + 4; y++) {
+				if (!WalkPosition(x, y).isValid())
+					return false;
+				if (!Broodwar->isWalkable(WalkPosition(x, y)))
+					cnt++;
 			}
 		}
-		return true;
+		return cnt <= 1;
 	}
 
 	int Map::tilesWithinArea(BWEM::Area const * area, const TilePosition here, const int width, const int height)

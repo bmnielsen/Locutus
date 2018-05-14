@@ -32,7 +32,7 @@ namespace BWEB
 		vector<Station> stations;
 		vector<Wall> walls;
 		vector<Block> blocks;
-
+		
 		// Blocks
 		// TODO: Add this function. This would be used to create a block that makes room for a specific type (possibly better generation than floodfill)
 		// void createBlock(BWAPI::Race, UnitType, BWEM::Area const *, TilePosition);
@@ -62,9 +62,10 @@ namespace BWEB
 		bool testPiece(TilePosition);
 		bool placePiece(TilePosition);
 		bool identicalPiece(TilePosition, UnitType, TilePosition, UnitType);
-		void findCurrentHole();
+		void findCurrentHole(bool ignoreOverlap = false);
 		void addWallDefenses(const vector<UnitType>& type, Wall& wall);
 		int reserveGrid[256][256] = {};
+		int testGrid[256][256] = {};
 
 		double bestWallScore = 0.0, closest = DBL_MAX;
 		TilePosition currentHole, startTile, endTile;
@@ -84,6 +85,7 @@ namespace BWEB
 		bool reservePath{};
 		bool requireTight;
 		int chokeWidth;
+		TilePosition wallBase;
 
 		// TilePosition grid of what has been visited for wall placement
 		struct VisitGrid
@@ -121,12 +123,11 @@ namespace BWEB
 		void draw(), onStart(), onUnitDiscover(Unit), onUnitDestroy(Unit), onUnitMorph(Unit);
 		static Map &Instance();
 		int overlapGrid[256][256] = {};
-		int testGrid[256][256] = {};
 
 		/// This is just put here so AStar can use it for now
 		UnitType overlapsCurrentWall(TilePosition tile, int width = 1, int height = 1);
 
-		vector<TilePosition> findBuildableBorderTiles(const BWEM::Map &, WalkPosition, const BWEM::Area *);
+		//vector<TilePosition> findBuildableBorderTiles(const BWEM::Map &, WalkPosition, const BWEM::Area *);
 		bool overlapsBlocks(TilePosition);
 		bool overlapsStations(TilePosition);
 		bool overlapsNeutrals(TilePosition);
@@ -226,6 +227,8 @@ namespace BWEB
 		void findBlocks(BWAPI::Player);
 		void findBlocks(BWAPI::Race);
 		void findBlocks();
+
+		vector<TilePosition> findPath(BWEM::Map&, BWEB::Map&, const TilePosition, const TilePosition, bool ignoreOverlap = false, bool ignoreWalls = false, bool diagonal = false);
 	};
 
 	// This namespace contains functions which could be used for backward compatibility

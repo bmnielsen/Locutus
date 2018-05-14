@@ -1,9 +1,9 @@
 # BWEB
-## BWEB is currently v1.03
+## BWEB is currently v1.04
 Broodwar Easy Builder or BWEB for short, is a BWEM based building placement addon. The purpose of this addon is to provide easily accesible building management. BWEB started as a decision to create a standard and simple method for bots to optimize their building space and placement.
 
 ## What's New?
-Block generation has improved drastically in terms of efficiency and speed. It used to take a few seconds to generate the blocks, now only taking a few milliseconds. I would highly suggest using Blocks and being very cautious about using Walls right now if you're playing Terran, they're not pixel perfect yet.
+Wall placement is faster and better, Hannes Bredburg helped me implement his BFS/A* algorithm. Placement of Pylons and defenses is much better and placement of the door is done based on adjacent tiles touching a wall, rather than being a part of the chokepoints geometry. Added a new Block to Protoss that is 8 gates and 1 pylon for the extra greedy production players like myself.
 
 ## What does BWEB do?
 BWEB has 3 classes of information, Walls, Blocks and Stations.
