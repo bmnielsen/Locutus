@@ -881,7 +881,7 @@ bool ScoutManager::pylonHarass()
 		if (_workerScout->getPosition().getDistance(enemyStation->ResourceCentroid()) < 300) return false;
 
         // Consider the tile we'll be at in 5 frames
-        BWAPI::Position workerPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(BWAPI::Broodwar->self(), _workerScout, 5);
+        BWAPI::Position workerPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(_workerScout, 5);
         BWAPI::TilePosition tile(workerPositionInFiveFrames);
 
 		if (!BWEB::Map::Instance().isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, tile)) return false;

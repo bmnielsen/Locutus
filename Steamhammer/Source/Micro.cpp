@@ -444,7 +444,7 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
     // Don't kite if the enemy is moving away from us
     if (kite)
     {
-        BWAPI::Position predictedPosition = InformationManager::Instance().predictUnitPosition(BWAPI::Broodwar->enemy(), target, 1);
+        BWAPI::Position predictedPosition = InformationManager::Instance().predictUnitPosition(target, 1);
         if (predictedPosition.isValid() && rangedUnit->getDistance(predictedPosition) > rangedUnit->getDistance(target->getPosition()))
         {
             kite = false;
