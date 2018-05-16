@@ -118,6 +118,31 @@ namespace BWEB
 			return;
 		}
 
+        // Find the closest choke to the area closest to the center
+        // This logic differs from the default BWEB logic by rejecting blocked and small chokes before picking the area
+        auto areaDistBest = DBL_MAX;
+        auto chokeDistBest = DBL_MAX;
+        for (auto& choke : naturalArea->ChokePoints())
+        {
+            if (choke->Center() == mainChoke->Center()) continue;
+            if (choke->Blocked() || choke->Geometry().size() <= 3) continue;
+
+            auto& area = choke->GetAreas().first == naturalArea ? choke->GetAreas().second : choke->GetAreas().first;
+            if (!area->Top().isValid()) continue;
+
+            const auto areaDist = Position(area->Top()).getDistance(mapBWEM.Center());
+            if (areaDist > areaDistBest) continue;
+
+            const auto chokeDist = Position(choke->Center()).getDistance(Position(Broodwar->self()->getStartLocation()));
+            if (areaDist < areaDistBest || chokeDist < chokeDistBest)
+            {
+                naturalChoke = choke;
+                areaDistBest = areaDist;
+                chokeDistBest = chokeDist;
+            }
+        }
+
+        /*
 		// Find area that shares the choke we need to defend
 		auto distBest = DBL_MAX;
 		const BWEM::Area* second = nullptr;
@@ -140,6 +165,7 @@ namespace BWEB
 			if (dist < distBest)
 				naturalChoke = choke, distBest = dist;
 		}
+        */
 	}
 
 	void Map::draw()
