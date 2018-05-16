@@ -7,28 +7,22 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-
 #include "area.h"
 #include "mapImpl.h"
 #include "graph.h"
 #include "neutral.h"
-#include "winutils.h"
+#include "base.h"
 #include <map>
 
-
 using namespace BWAPI;
-using namespace BWAPI::UnitTypes::Enum;
-namespace { auto & bw = Broodwar; }
+using namespace UnitTypes::Enum;
 
 using namespace std;
-
 
 namespace BWEM {
 
 using namespace detail;
 using namespace BWAPI_ext;
-
-
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //                                                                                          //
@@ -100,7 +94,7 @@ void Area::OnMineralDestroyed(const Mineral * pMineral)
 
 	// let's examine the bases even if pMineral was not found in this Area,
 	// which could arise if Minerals were allowed to be assigned to neighbouring Areas.
-	for (Base & base : Bases())
+	for (Base &base : Bases())
 		base.OnMineralDestroyed(pMineral);
 }
 

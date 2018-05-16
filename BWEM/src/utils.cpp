@@ -7,30 +7,18 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-
-
-
 #include "utils.h"
-#include <assert.h>
 
 using namespace std;
 
 namespace BWEM {
 namespace utils {
 
-
-//ofstream Log("bwapi-data/write/log.txt");
-
-
 bool canWrite(const string & fileName)
 {
 	ofstream out(fileName);
-	out.close();
 	return !out.fail();
 }
-
-
-
 
 // From http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
 

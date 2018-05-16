@@ -86,7 +86,7 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>../BOSS/source;../source;../../BWEM/src;../../BWEB/src;$(BWAPI_DIR)/include;$(BWTA_DIR)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../BOSS/source;../source;../../BWEM/include;../../BWEB/src;$(BWAPI_DIR)/include;$(BWTA_DIR)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;EXAMPLEAIMODULE_EXPORTS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -127,8 +127,6 @@
     <ClCompile Include="..\..\BWEM\src\bwem.cpp" />
     <ClCompile Include="..\..\BWEM\src\bwem_base.cpp" />
     <ClCompile Include="..\..\BWEM\src\cp.cpp" />
-    <ClCompile Include="..\..\BWEM\src\examples.cpp" />
-    <ClCompile Include="..\..\BWEM\src\exampleWall.cpp" />
     <ClCompile Include="..\..\BWEM\src\graph.cpp" />
     <ClCompile Include="..\..\BWEM\src\gridMap.cpp" />
     <ClCompile Include="..\..\BWEM\src\map.cpp" />
@@ -138,7 +136,6 @@
     <ClCompile Include="..\..\BWEM\src\neutral.cpp" />
     <ClCompile Include="..\..\BWEM\src\tiles.cpp" />
     <ClCompile Include="..\..\BWEM\src\utils.cpp" />
-    <ClCompile Include="..\..\BWEM\src\winutils.cpp" />
     <ClCompile Include="..\Source\Base.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
     <ClCompile Include="..\Source\BOSSManager.cpp" />
@@ -202,24 +199,21 @@
     <ClInclude Include="..\..\BWEB\src\BWEB.h" />
     <ClInclude Include="..\..\BWEB\src\Station.h" />
     <ClInclude Include="..\..\BWEB\src\Wall.h" />
-    <ClInclude Include="..\..\BWEM\src\area.h" />
-    <ClInclude Include="..\..\BWEM\src\base.h" />
-    <ClInclude Include="..\..\BWEM\src\bwapiExt.h" />
-    <ClInclude Include="..\..\BWEM\src\bwem.h" />
-    <ClInclude Include="..\..\BWEM\src\cp.h" />
-    <ClInclude Include="..\..\BWEM\src\defs.h" />
-    <ClInclude Include="..\..\BWEM\src\examples.h" />
-    <ClInclude Include="..\..\BWEM\src\exampleWall.h" />
-    <ClInclude Include="..\..\BWEM\src\graph.h" />
-    <ClInclude Include="..\..\BWEM\src\gridMap.h" />
-    <ClInclude Include="..\..\BWEM\src\map.h" />
-    <ClInclude Include="..\..\BWEM\src\mapDrawer.h" />
-    <ClInclude Include="..\..\BWEM\src\mapImpl.h" />
-    <ClInclude Include="..\..\BWEM\src\mapPrinter.h" />
-    <ClInclude Include="..\..\BWEM\src\neutral.h" />
-    <ClInclude Include="..\..\BWEM\src\tiles.h" />
-    <ClInclude Include="..\..\BWEM\src\utils.h" />
-    <ClInclude Include="..\..\BWEM\src\winutils.h" />
+    <ClInclude Include="..\..\BWEM\include\area.h" />
+    <ClInclude Include="..\..\BWEM\include\base.h" />
+    <ClInclude Include="..\..\BWEM\include\bwapiExt.h" />
+    <ClInclude Include="..\..\BWEM\include\bwem.h" />
+    <ClInclude Include="..\..\BWEM\include\cp.h" />
+    <ClInclude Include="..\..\BWEM\include\defs.h" />
+    <ClInclude Include="..\..\BWEM\include\graph.h" />
+    <ClInclude Include="..\..\BWEM\include\gridMap.h" />
+    <ClInclude Include="..\..\BWEM\include\map.h" />
+    <ClInclude Include="..\..\BWEM\include\mapDrawer.h" />
+    <ClInclude Include="..\..\BWEM\include\mapImpl.h" />
+    <ClInclude Include="..\..\BWEM\include\mapPrinter.h" />
+    <ClInclude Include="..\..\BWEM\include\neutral.h" />
+    <ClInclude Include="..\..\BWEM\include\tiles.h" />
+    <ClInclude Include="..\..\BWEM\include\utils.h" />
     <ClInclude Include="..\Source\Base.h" />
     <ClInclude Include="..\Source\Bases.h" />
     <ClInclude Include="..\Source\BOSSManager.h" />

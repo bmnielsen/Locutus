@@ -7,17 +7,14 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-
 #include "base.h"
 #include "graph.h"
 #include "mapImpl.h"
 #include "neutral.h"
 #include "bwapiExt.h"
 
-
 using namespace BWAPI;
-using namespace BWAPI::UnitTypes::Enum;
-namespace { auto & bw = Broodwar; }
+using namespace UnitTypes::Enum;
 
 using namespace std;
 
@@ -80,6 +77,3 @@ void Base::OnMineralDestroyed(const Mineral * pMineral)
 
 	
 } // namespace BWEM
-
-
-

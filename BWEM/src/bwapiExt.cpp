@@ -7,33 +7,12 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-
 #include "bwapiExt.h"
 
-
-using namespace BWAPI;
-using namespace BWAPI::UnitTypes::Enum;
-namespace { auto & bw = Broodwar; }
-
-using namespace std;
-
-
-namespace BWEM {
-
-using namespace utils;
-using namespace detail;
-
-namespace BWAPI_ext {
-
-
-void drawDiagonalCrossMap(BWAPI::Position topLeft, BWAPI::Position bottomRight, BWAPI::Color col)
+void BWEM::BWAPI_ext::drawDiagonalCrossMap(BWAPI::Position topLeft, BWAPI::Position bottomRight, BWAPI::Color col, BWAPI::Game *g)
 {
-	bw->drawLineMap(topLeft, bottomRight, col);
-	bw->drawLineMap(Position(bottomRight.x, topLeft.y), Position(topLeft.x, bottomRight.y), col);
+	g->drawLineMap(topLeft, bottomRight, col);
+  g->drawLineMap(BWAPI::Position{ bottomRight.x, topLeft.y }, BWAPI::Position{ topLeft.x, bottomRight.y }, col);
 }
-
-
-}} // namespace BWEM::BWAPI_ext
-
 
 

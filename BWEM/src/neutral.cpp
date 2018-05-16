@@ -12,8 +12,7 @@
 #include "mapImpl.h"
 
 using namespace BWAPI;
-using namespace BWAPI::UnitTypes::Enum;
-namespace { auto & bw = Broodwar; }
+using namespace UnitTypes::Enum;
 
 using namespace std;
 
@@ -78,8 +77,8 @@ void Neutral::PutOnTiles()
 			bwem_assert(this != tile.GetNeutral());
 			bwem_assert(this != pTop);
 			bwem_assert(!pTop->IsGeyser());
-			bwem_assert_plus(pTop->Type() == Type(), "stacked neutrals have different types: " + pTop->Type().getName() + " / " + Type().getName());
-			bwem_assert_plus(pTop->TopLeft() == TopLeft(), "stacked neutrals not aligned: " + my_to_string(pTop->TopLeft()) + " / " + my_to_string(TopLeft()));
+			bwem_assert_plus(pTop->Type() == Type(), "stacked neutrals have different types: " + pTop->Type().getName() + " / " + Type().getName() + " at position " + my_to_string(pTop->TopLeft()));
+			bwem_assert_plus(pTop->TopLeft() == TopLeft(), "stacked neutrals not aligned: " + my_to_string(pTop->TopLeft()) + " / " + my_to_string(TopLeft()) + ", type is " + pTop->Type().getName());
 			bwem_assert((dx == 0) && (dy == 0));
 
 			pTop->m_pNextStacked = this;
@@ -105,12 +104,20 @@ void Neutral::RemoveFromTiles()
 		else
 		{
 			Neutral * pPrevStacked = tile.GetNeutral();
-			while (pPrevStacked->NextStacked() != this) pPrevStacked = pPrevStacked->NextStacked();
-			bwem_assert(pPrevStacked->Type() == Type());
-			bwem_assert(pPrevStacked->TopLeft() == TopLeft());
+			while (pPrevStacked != nullptr && pPrevStacked->NextStacked() != this)
+			{
+				pPrevStacked = pPrevStacked->NextStacked();
+			}
+			
 			bwem_assert((dx == 0) && (dy == 0));
 
-			pPrevStacked->m_pNextStacked = m_pNextStacked;
+			if (pPrevStacked)
+			{
+				bwem_assert(pPrevStacked->Type() == Type());
+				bwem_assert(pPrevStacked->TopLeft() == TopLeft());
+				pPrevStacked->m_pNextStacked = m_pNextStacked;
+			}
+
 			m_pNextStacked = nullptr;
 			return;
 		}
@@ -123,8 +130,19 @@ void Neutral::RemoveFromTiles()
 vector<const Area *> Neutral::BlockedAreas() const
 {
 	vector<const Area *> Result;
-	for (WalkPosition w : m_blockedAreas)
-		Result.push_back(GetMap()->GetArea(w));
+	for (WalkPosition w : m_blockedAreas) {
+		auto area = GetMap()->GetArea(w);
+
+		// if walk position belongs to any area
+		if (area)
+		{
+			Result.push_back(area);
+		}
+		else
+		{
+			bwem_assert_plus(area, std::string("Walk position(") + my_to_string(w) + ") does not belongs to any area. Either it is non-walkable, or does not belong to any area.");
+		}
+	}
 
 	return Result;
 }

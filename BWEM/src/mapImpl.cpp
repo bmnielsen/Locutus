@@ -7,16 +7,12 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-
 #include "mapImpl.h"
 #include "neutral.h"
 #include "bwapiExt.h"
-#include "winutils.h"
-
 
 using namespace BWAPI;
-using namespace BWAPI::UnitTypes::Enum;
-namespace { auto & bw = Broodwar; }
+using namespace UnitTypes::Enum;
 
 using namespace std;
 
@@ -27,9 +23,9 @@ namespace detail {
 
 static bool adjoins8SomeLakeOrNeutral(WalkPosition p, const MapImpl * pMap)
 {
-	for (WalkPosition delta : { WalkPosition(-1, -1), WalkPosition(0, -1), WalkPosition(+1, -1),
-								WalkPosition(-1,  0),                      WalkPosition(+1,  0),
-								WalkPosition(-1, +1), WalkPosition(0, +1), WalkPosition(+1, +1)})
+  for (WalkPosition delta : { WalkPosition(-1, -1), WalkPosition(0, -1), WalkPosition(+1, -1),
+                              WalkPosition(-1,  0),                      WalkPosition(+1,  0),
+                              WalkPosition(-1, +1), WalkPosition(0, +1), WalkPosition(+1, +1)})
 	{
 		WalkPosition next = p + delta;
 		if (pMap->Valid(next))
@@ -41,10 +37,6 @@ static bool adjoins8SomeLakeOrNeutral(WalkPosition p, const MapImpl * pMap)
 
 	return false;
 }
-
-
-
-
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //                                                                                          //
@@ -58,14 +50,12 @@ MapImpl::MapImpl()
 
 }
 
-
 MapImpl::~MapImpl()
 {
 	m_automaticPathUpdate = false;		// now there is no need to update the paths
 }
 
-
-void MapImpl::Initialize()
+void MapImpl::Initialize(BWAPI::Game *game)
 {
 	this->~MapImpl();
     new (this) MapImpl();
@@ -73,7 +63,7 @@ void MapImpl::Initialize()
 ///	Timer overallTimer;
 ///	Timer timer;
 
-	m_Size = TilePosition(bw->mapWidth(), bw->mapHeight());
+	m_Size = TilePosition(game->mapWidth(), game->mapHeight());
 	m_size = Size().x * Size().y;
 	m_Tiles.resize(m_size);
 
@@ -83,18 +73,18 @@ void MapImpl::Initialize()
 
 	m_center = Position(Size())/2;
 
-	for (TilePosition t : bw->getStartLocations())
+	for (TilePosition t : game->getStartLocations())
 		m_StartingLocations.push_back(t);
 
 ///	bw << "Map::Initialize-resize: " << timer.ElapsedMilliseconds() << " ms" << endl; timer.Reset();
 	
-	LoadData();
+	LoadData(game);
 ///	bw << "Map::LoadData: " << timer.ElapsedMilliseconds() << " ms" << endl; timer.Reset();
 	
 	DecideSeasOrLakes();
 ///	bw << "Map::DecideSeasOrLakes: " << timer.ElapsedMilliseconds() << " ms" << endl; timer.Reset();
 
-	InitializeNeutrals();
+	InitializeNeutrals(game);
 ///	bw << "Map::InitializeNeutrals: " << timer.ElapsedMilliseconds() << " ms" << endl; timer.Reset();
 
 	ComputeAltitude();
@@ -123,12 +113,12 @@ void MapImpl::Initialize()
 
 
 // Computes walkability, buildability and groundHeight and doodad information, using BWAPI corresponding functions
-void MapImpl::LoadData()
+void MapImpl::LoadData(BWAPI::Game *game)
 {
 	// Mark unwalkable minitiles (minitiles are walkable by default)
 	for (int y = 0 ; y < WalkSize().y ; ++y)
 	for (int x = 0 ; x < WalkSize().x ; ++x)
-		if (!bw->isWalkable(x, y))						// For each unwalkable minitile, we also mark its 8 neighbours as not walkable.
+		if (!game->isWalkable(x, y))						// For each unwalkable minitile, we also mark its 8 neighbours as not walkable.
 			for (int dy = -1 ; dy <= +1 ; ++dy)			// According to some tests, this prevents from wrongly pretending one Marine can go by some thin path.
 			for (int dx = -1 ; dx <= +1 ; ++dx)
 			{
@@ -142,7 +132,7 @@ void MapImpl::LoadData()
 	for (int x = 0 ; x < Size().x ; ++x)
 	{
 		TilePosition t(x, y);
-		if (bw->isBuildable(t))
+		if (game->isBuildable(t))
 		{
 			GetTile_(t).SetBuildable();
 
@@ -153,7 +143,7 @@ void MapImpl::LoadData()
 		}
 
 		// Add groundHeight and doodad information:
-		int bwapiGroundHeight = bw->getGroundHeight(t);
+		int bwapiGroundHeight = game->getGroundHeight(t);
 		GetTile_(t).SetGroundHeight(bwapiGroundHeight / 2);
 		if (bwapiGroundHeight % 2)
 			GetTile_(t).SetDoodad();
@@ -211,9 +201,9 @@ void MapImpl::DecideSeasOrLakes()
 }
 
 
-void MapImpl::InitializeNeutrals()
+void MapImpl::InitializeNeutrals(BWAPI::Game *game)
 {
-	for (auto n : bw->getStaticNeutralUnits())
+	for (auto n : game->getStaticNeutralUnits())
 		if (n->getType().isBuilding())
 		{
 			if (n->getType().isMineralField())
@@ -226,7 +216,9 @@ void MapImpl::InitializeNeutrals()
 			}
 			else
 			{
-				bwem_assert_throw(n->getType().isSpecialBuilding());
+				// Let's ignore buildings which are not special buildings.
+				// They should be destroyed as part of regular battle.
+				bwem_assert_plus(n->getType().isSpecialBuilding(), "Building " + n->getType().getName() + " at position " + my_to_string(n->getPosition()) + " is not special");
 				m_StaticBuildings.push_back(make_unique<StaticBuilding>(n, this));
 			}
 		}
@@ -240,7 +232,7 @@ void MapImpl::InitializeNeutrals()
 				bwem_assert_plus(
 					n->getType() == Special_Pit_Door ||
 					n->getType() == Special_Right_Pit_Door ||
-					false, n->getType().getName());
+					false, "Unit " + n->getType().getName() + " at position " + my_to_string(n->getPosition()) + " is not XXX_Pit_Door");
 
 				if (n->getType() == Special_Pit_Door)
 					m_StaticBuildings.push_back(make_unique<StaticBuilding>(n, this));

@@ -159,57 +159,6 @@
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
     <ClCompile Include="..\Source\DistanceMap.cpp" />
-    <ClCompile Include="..\..\BWEM\src\bwem_base.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\cp.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\examples.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\exampleWall.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\graph.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\gridMap.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\map.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\mapDrawer.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\mapImpl.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\neutral.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\tiles.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\utils.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\winutils.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\area.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\bwapiExt.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\bwem.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\BWEM\src\mapPrinter.cpp">
-      <Filter>BWEM</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\BWEB\src\Block.cpp">
       <Filter>BWEB</Filter>
     </ClCompile>
@@ -230,6 +179,48 @@
     </ClCompile>
     <ClCompile Include="..\..\BWEB\src\PathFind.cpp">
       <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\area.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\bwapiExt.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\bwem.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\cp.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\graph.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\gridMap.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\map.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\mapDrawer.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\mapImpl.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\mapPrinter.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\neutral.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\tiles.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\utils.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\BWEM\src\bwem_base.cpp">
+      <Filter>BWEM</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\TechCompleteProductionGoal.cpp">
       <Filter>game\macro\productiongoals</Filter>
@@ -358,60 +349,6 @@
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\Bases.h" />
     <ClInclude Include="..\Source\DistanceMap.h" />
-    <ClInclude Include="..\..\BWEM\src\cp.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\defs.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\examples.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\exampleWall.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\graph.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\gridMap.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\map.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\mapDrawer.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\mapImpl.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\neutral.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\tiles.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\utils.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\winutils.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\area.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\base.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\bwapiExt.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\bwem.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\BWEM\src\mapPrinter.h">
-      <Filter>BWEM</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\BWEB\src\Block.h">
       <Filter>BWEB</Filter>
     </ClInclude>
@@ -426,6 +363,51 @@
     </ClInclude>
     <ClInclude Include="..\Source\LocutusWall.h">
       <Filter>BWEB</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\cp.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\defs.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\graph.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\gridMap.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\map.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\mapDrawer.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\mapImpl.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\mapPrinter.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\neutral.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\tiles.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\utils.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\area.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\base.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\bwapiExt.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\BWEM\include\bwem.h">
+      <Filter>BWEM</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\ProductionGoal.h">
       <Filter>game\macro</Filter>

@@ -7,17 +7,13 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-
 #include "tiles.h"
 #include "neutral.h"
 #include "bwapiExt.h"
-#include "winutils.h"
 #include "map.h"
 
-
 using namespace BWAPI;
-using namespace BWAPI::UnitTypes::Enum;
-namespace { auto & bw = Broodwar; }
+using namespace UnitTypes::Enum;
 
 using namespace std;
 

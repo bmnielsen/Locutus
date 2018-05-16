@@ -37,7 +37,7 @@ void UAlbertaBotModule::onStart()
 	Bases::Instance().initialize();
 
 	// BWEM map init
-	bwemMap.Initialize();
+	bwemMap.Initialize(BWAPI::BroodwarPtr);
 	bwemMap.EnableAutomaticPathAnalysis();
 	bool startingLocationsOK = bwemMap.FindBasesForStartingLocations();
 	UAB_ASSERT(startingLocationsOK, "BWEM map analysis failed");

@@ -10,7 +10,7 @@
 
 #include "mapPrinter.h"
 
-#if BWEM_USE_MAP_PRINTER
+#ifdef BWEM_USE_MAP_PRINTER
 
 #include "map.h"
 #include "../EasyBMP_1.06/EasyBMP.h"
@@ -18,7 +18,6 @@
 
 using namespace BWAPI;
 using namespace BWAPI::UnitTypes::Enum;
-namespace { auto & bw = Broodwar; }
 
 using namespace std;
 
@@ -159,5 +158,5 @@ void MapPrinter::Circle(WalkPosition Center, int radius, Color col, fill_t fillM
 	
 }} // namespace BWEM::utils
 
-#endif // BWEM_USE_MAP_PRINTER
+#endif
 
