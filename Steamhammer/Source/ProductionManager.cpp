@@ -180,6 +180,9 @@ void ProductionManager::dropJammedItemsFromQueue()
 		{
 			BWAPI::Broodwar->printf("queue: drop jammed %s", _queue.getHighestPriorityItem().macroAct.getName().c_str());
 		}
+
+        Log().Get() << "Dropped jammed " << _queue.getHighestPriorityItem().macroAct;
+
 		_queue.removeHighestPriorityItem();
 	}
 }
@@ -451,6 +454,9 @@ void ProductionManager::maybeReorderQueue()
 				{
 					BWAPI::Broodwar->printf("queue: pull to front gas-free %s @ %d", act.getName().c_str(), _queue.size() - i);
 				}
+
+                Log().Get() << "Pulling " << act << " to front of queue";
+
 				_queue.pullToTop(i);
 				return;
 			}
