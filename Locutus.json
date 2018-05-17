@@ -17,7 +17,6 @@
     "Micro" :
     {
         "KiteWithRangedUnits"       : true,
-        "KiteLongerRangedUnits"     : ["Mutalisk", "Guardian", "Vulture"],
         "WorkersDefendRush"         : true,
         "RetreatMeleeUnitShields"   : 2,
         "RetreatMeleeUnitHP"        : { "Zerg" : 8, "Protoss" : 18 },
@@ -47,6 +46,7 @@
         "DrawUnitHealthBars"        : false,
         "DrawProductionInfo"        : false,
         "DrawBuildOrderSearchInfo"  : false,
+        "DrawQueueFixInfo"          : false,
         "DrawScoutInfo"             : false,
         "DrawEnemyUnitInfo"         : false,
         "DrawModuleTimers"          : false,
@@ -77,6 +77,7 @@
         "ReadDirectory"			: "bwapi-data/read/",
         "WriteDirectory"		: "bwapi-data/write/",
 
+		"MaxGameRecords"        : 200,
 		"ReadOpponentModel"		: true,
 		"WriteOpponentModel"	: true
     },
@@ -87,6 +88,7 @@
 		"AutoGasSteal"				: false,
 		"RandomGasStealRate"		: 0.0,
 		"SurrenderWhenHopeIsLost"   : true,
+		"UsePlanRecognizer"         : true,
 
 		"PvT" :
 			{ "Protoss" : [
