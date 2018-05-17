@@ -3,11 +3,23 @@
 
 using namespace UAlbertaBot;
 
+// The unit's ranged ground weapon does splash damage, so it works under dark swarm.
+// Firebats are not here: They are melee units.
+// Tanks and lurkers are not here: They have their own micro managers.
+bool MicroRanged::goodUnderDarkSwarm(BWAPI::UnitType type)
+{
+	return
+		type == BWAPI::UnitTypes::Protoss_Archon ||
+		type == BWAPI::UnitTypes::Protoss_Reaver;
+}
+
+// -----------------------------------------------------------------------------------------
+
 MicroRanged::MicroRanged()
 { 
 }
 
-void MicroRanged::executeMicro(const BWAPI::Unitset & targets) 
+void MicroRanged::executeMicro(const BWAPI::Unitset & targets)
 {
 	assignTargets(targets);
 }
@@ -28,7 +40,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 			!u->isStasised();
 	});
 
-    for (const auto rangedUnit : rangedUnits)
+	for (const auto rangedUnit : rangedUnits)
 	{
 		if (buildScarabOrInterceptor(rangedUnit))
 		{
@@ -39,6 +51,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 		if (rangedUnit->isBurrowed())
 		{
 			// For now, it would burrow only if irradiated. Leave it.
+			// Lurkers are controlled by a different class.
 			continue;
 		}
 
@@ -83,27 +96,19 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				continue;
 			}
 
-			// If a target can be found.
+			// If a target is found,
 			BWAPI::Unit target = getTarget(rangedUnit, rangedUnitTargets);
 			if (target)
 			{
 				if (Config::Debug::DrawUnitTargetInfo)
 				{
-
 					BWAPI::Broodwar->drawLineMap(rangedUnit->getPosition(), rangedUnit->getTargetPosition(), BWAPI::Colors::Purple);
 				}
 
-				// attack it
+				// attack it.
 				if (Config::Micro::KiteWithRangedUnits)
 				{
-					if (rangedUnit->getType() == BWAPI::UnitTypes::Zerg_Mutalisk || rangedUnit->getType() == BWAPI::UnitTypes::Terran_Vulture)
-					{
-						Micro::MutaDanceTarget(rangedUnit, target);
-					}
-					else
-					{
-						Micro::KiteTarget(rangedUnit, target);
-					}
+					Micro::KiteTarget(rangedUnit, target);
 				}
 				else
 				{
@@ -122,7 +127,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 	}
 }
 
-// This could return null if no target is worth attacking, but doesn't happen to.
+// This can return null if no target is worth attacking.
 BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset & targets)
 {
 	int bestScore = -999999;
@@ -131,20 +136,54 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 
 	for (const auto target : targets)
 	{
-		int priority = getAttackPriority(rangedUnit, target);     // 0..12
-		int range    = rangedUnit->getDistance(target);           // 0..map size in pixels
-		int toGoal   = target->getDistance(order.getPosition());  // 0..map size in pixels
+		// Skip targets under dark swarm that we can't hit.
+		if (target->isUnderDarkSwarm() && !goodUnderDarkSwarm(rangedUnit->getType()))
+		{
+			continue;
+		}
+
+		const int priority = getAttackPriority(rangedUnit, target);		// 0..12
+		const int range = rangedUnit->getDistance(target);				// 0..map diameter in pixels
+		const int closerToGoal =										// positive if target is closer than us to the goal
+			rangedUnit->getDistance(order.getPosition()) - target->getDistance(order.getPosition());
 		
+		// Skip targets that are too far away to worry about--outside tank range.
+		if (range >= 13 * 32)
+		{
+			continue;
+		}
+
 		// Let's say that 1 priority step is worth 160 pixels (5 tiles).
 		// We care about unit-target range and target-order position distance.
-		int score = 5 * 32 * priority - range - toGoal/2;
+		int score = 5 * 32 * priority - range;
 
 		// Adjust for special features.
-		// This could adjust for relative speed and direction, so that we don't chase what we can't catch.
-		if (rangedUnit->isInWeaponRange(target))
+		// A bonus for attacking enemies that are "in front".
+		// It helps reduce distractions from moving toward the goal, the order position.
+		if (closerToGoal > 0)
 		{
-			score += 4 * 32;
+			score += 2 * 32;
 		}
+
+		const bool isThreat = UnitUtil::CanAttack(target, rangedUnit);   // may include workers as threats
+		const bool canShootBack = isThreat && target->isInWeaponRange(rangedUnit);
+
+		if (isThreat)
+		{
+			if (canShootBack)
+			{
+				score += 6 * 32;
+			}
+			else if (rangedUnit->isInWeaponRange(target))
+			{
+				score += 4 * 32;
+			}
+			else
+			{
+				score += 3 * 32;
+			}
+		}
+		// This could adjust for relative speed and direction, so that we don't chase what we can't catch.
 		else if (!target->isMoving())
 		{
 			if (target->isSieged() ||
@@ -164,7 +203,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		}
 		else if (target->getType().topSpeed() >= rangedUnit->getType().topSpeed())
 		{
-			score -= 5 * 32;
+			score -= 4 * 32;
 		}
 		
 		// Prefer targets that are already hurt.
@@ -191,6 +230,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 			}
 		}
 
+		// Take the damage type into account.
 		BWAPI::DamageType damage = UnitUtil::GetWeapon(rangedUnit, target).damageType();
 		if (damage == BWAPI::DamageTypes::Explosive)
 		{
@@ -205,6 +245,10 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 			{
 				score += 32;
 			}
+			else if (target->getType().size() == BWAPI::UnitSizeTypes::Large)
+			{
+				score -= 32;
+			}
 		}
 
 		if (score > bestScore)
@@ -216,7 +260,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		}
 	}
 
-	return bestTarget;
+	return bestScore > 0 ? bestTarget : nullptr;
 }
 
 // get the attack priority of a target unit
@@ -253,6 +297,12 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	if (rangedType == BWAPI::UnitTypes::Zerg_Guardian && target->isFlying())
 	{
 		// Can't target it.
+		return 0;
+	}
+
+	// A carrier should not target an enemy interceptor.
+	if (rangedType == BWAPI::UnitTypes::Protoss_Carrier && targetType == BWAPI::UnitTypes::Protoss_Interceptor)
+	{
 		return 0;
 	}
 
@@ -298,6 +348,23 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 			targetType == BWAPI::UnitTypes::Zerg_Infested_Terran)
 		{
 			return 12;
+		}
+	}
+
+	// Wraiths, scouts, and goliaths strongly prefer air targets because they do more damage to air units.
+	if (rangedUnit->getType() == BWAPI::UnitTypes::Terran_Wraith ||
+		rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Scout)
+	{
+		if (target->getType().isFlyer())    // air units, not floating buildings
+		{
+			return 11;
+		}
+	}
+	else if (rangedUnit->getType() == BWAPI::UnitTypes::Terran_Goliath)
+	{
+		if (target->getType().isFlyer())    // air units, not floating buildings
+		{
+			return 10;
 		}
 	}
 
@@ -371,7 +438,7 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	// Nydus canal is the most important building to kill.
 	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
 	{
-		return 9;
+		return 10;
 	}
 	// Spellcasters are as important as key buildings.
 	// Also remember to target other non-threat combat units.

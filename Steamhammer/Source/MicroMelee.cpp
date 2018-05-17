@@ -76,21 +76,18 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 					Micro::Move(meleeUnit, fleeTo);
 				}
             }
-			else if (meleeUnitTargets.empty())
-			{
-				// There are no targets. Move to the order position if not already close.
-				if (meleeUnit->getDistance(order.getPosition()) > 96)
-				{
-					Micro::Move(meleeUnit, order.getPosition());
-				}
-			}
 			else
 			{
-				// There are targets. Pick the best one and attack it.
-				// NOTE We *always* choose a target. We can't decide none are worth it and bypass them.
-				//      This causes a lot of needless distraction. :-(
 				BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets);
-				Micro::AttackUnit(meleeUnit, target);
+				if (target)
+				{
+					Micro::AttackUnit(meleeUnit, target);
+				}
+				else if (meleeUnit->getDistance(order.getPosition()) > 96)
+				{
+					// There are no targets. Move to the order position if not already close.
+					Micro::Move(meleeUnit, order.getPosition());
+				}
 			}
 		}
 
@@ -110,15 +107,41 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 
 	for (const auto target : targets)
 	{
-		int priority = getAttackPriority(meleeUnit, target);    // 0..12
-		int range = meleeUnit->getDistance(target);             // 0..map size in pixels
-		int toGoal = target->getDistance(order.getPosition());  // 0..map size in pixels
+		const int priority = getAttackPriority(meleeUnit, target);		// 0..12
+		const int range = meleeUnit->getDistance(target);				// 0..map size in pixels
+		const int closerToGoal =										// positive if target is closer than us to the goal
+			meleeUnit->getDistance(order.getPosition()) - target->getDistance(order.getPosition());
+
+		// Skip targets that are too far away to worry about.
+		if (range >= 13 * 32)
+		{
+			continue;
+		}
 
 		// Let's say that 1 priority step is worth 64 pixels (2 tiles).
 		// We care about unit-target range and target-order position distance.
-		int score = 2 * 32 * priority - range - toGoal/2;
+		int score = 2 * 32 * priority - range;
 
 		// Adjust for special features.
+
+		// Prefer targets under dark swarm, on the expectation that then we'll be under it too.
+		if (target->isUnderDarkSwarm())
+		{
+			if (meleeUnit->getType().isWorker())
+			{
+				// Workers can't hit under dark swarm. Skip this target.
+				continue;
+			}
+			score += 4 * 32;
+		}
+
+		// A bonus for attacking enemies that are "in front".
+		// It helps reduce distractions from moving toward the goal, the order position.
+		if (closerToGoal > 0)
+		{
+			score += 2 * 32;
+		}
+
 		// This could adjust for relative speed and direction, so that we don't chase what we can't catch.
 		if (meleeUnit->isInWeaponRange(target))
 		{
@@ -128,7 +151,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 			}
 			else
 			{
-				score += 2 * 32;
+				score += 4 * 32;
 			}
 		}
 		else if (!target->isMoving())
@@ -141,7 +164,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 			}
 			else
 			{
-				score += 24;
+				score += 32;
 			}
 		}
 		else if (target->isBraking())
@@ -155,14 +178,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 
 		if (target->isUnderStorm())
 		{
-			score -= 128;
-		}
-
-		// Prefer targets under dark swarm, on the expectation that then we'll be under it too.
-		// Workers are treated as ranged units for purposes of dark swarm, so exclude them.
-		if (target->isUnderDarkSwarm() && !meleeUnit->getType().isWorker())
-		{
-			score += 128;
+			score -= 4 * 32;
 		}
 
 		// Prefer targets that are already hurt.
@@ -246,7 +262,12 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 		return 9;
 	}
     // Buildings come under attack during free time, so they can be split into more levels.
-	if (targetType == BWAPI::UnitTypes::Zerg_Spire || targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+	// Nydus canal is critical.
+	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+	{
+		return 10;
+	}
+	if (targetType == BWAPI::UnitTypes::Zerg_Spire)
 	{
 		return 6;
 	}

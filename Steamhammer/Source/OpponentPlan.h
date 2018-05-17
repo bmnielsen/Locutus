@@ -6,14 +6,15 @@ namespace UAlbertaBot
 {
 
 enum class OpeningPlan
-	{ Unknown        // enemy plan not known yet or not recognized as one of the below
-	, Proxy          // proxy building
-	, WorkerRush     // early like Stone, late like one Tscmoo version
-	, FastRush       // a cheese rush faster than 9 pool/8 rax/9 gate
-	, HeavyRush	     // 2 hatcheries pool only, 2 barracks no gas, 2 gates no gas
-	, SafeExpand     // defended fast expansion, with bunker or cannons
-	, NakedExpand    // undefended fast expansion (usual for zerg, bold for others)
-	, Turtle         // cannons/bunker/sunkens thought to be on 1 base
+	{ Unknown		// enemy plan not known yet or not recognized as one of the below
+	, Proxy			// proxy building
+	, WorkerRush	// early like Stone, late like one Tscmoo version
+	, FastRush		// a cheese rush faster than 9 pool/8 rax/9 gate
+	, HeavyRush		// 2 hatcheries pool only, 2 barracks no gas, 2 gates no gas
+	, Factory		// terran fast factory
+	, SafeExpand	// defended fast expansion, with bunker or cannons
+	, NakedExpand	// undefended fast expansion (usual for zerg, bold for others)
+	, Turtle		// cannons/bunker/sunkens thought to be on 1 base
 	, Size
 	};
 
@@ -24,6 +25,7 @@ const std::vector< std::pair<OpeningPlan, std::string> > PlanNames =
 	std::pair<OpeningPlan, std::string>(OpeningPlan::WorkerRush, "Worker rush"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::FastRush, "Fast rush"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::HeavyRush, "Heavy rush"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::Factory, "Factory"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::SafeExpand, "Safe expand"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::NakedExpand, "Naked expand"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::Turtle, "Turtle")
@@ -61,9 +63,13 @@ class OpponentPlan
 {
 private:
 
-	OpeningPlan _openingPlan;
+	OpeningPlan _openingPlan;		// estimated enemy plan
+	bool _planIsFixed;				// estimate will no longer change
+
+	bool fastPlan(OpeningPlan plan);
 
 	bool recognizeWorkerRush();
+	bool recognizeFactoryTech();
 
 	void recognize();
 

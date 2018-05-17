@@ -134,7 +134,14 @@ void GameCommander::drawGameInformation(int x, int y)
 	if (OpponentModel::Instance().getEnemyPlan() == OpeningPlan::Unknown &&
 		OpponentModel::Instance().getExpectedEnemyPlan() != OpeningPlan::Unknown)
 	{
-		expect = "expect ";
+		if (OpponentModel::Instance().getEnemySingleStrategy())
+		{
+			expect = "surely ";
+		}
+		else
+		{
+			expect = "expect ";
+		}
 		enemyPlanString = OpponentModel::Instance().getExpectedEnemyPlanString();
 	}
 	else

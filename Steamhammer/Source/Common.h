@@ -17,7 +17,6 @@
 #include <array>
 
 #include <BWAPI.h>
-#include <BWTA.h>
 
 #include "Config.h"
 #include "Logger.h"
@@ -62,6 +61,7 @@ struct Rect
 */
 
 double UCB1_bound(int tries, int total);
+double UCB1_bound(double tries, double total);
 
 int GetIntFromString(const std::string & s);
 std::string TrimRaceName(const std::string & s);

@@ -150,6 +150,7 @@
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
     <ClCompile Include="..\Source\DistanceMap.cpp" />
+    <ClCompile Include="..\Source\ProductionGoal.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -267,5 +268,6 @@
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\Bases.h" />
     <ClInclude Include="..\Source\DistanceMap.h" />
+    <ClInclude Include="..\Source\ProductionGoal.h" />
   </ItemGroup>
 </Project>

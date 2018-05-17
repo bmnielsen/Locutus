@@ -1,5 +1,6 @@
 #include "StrategyBossZerg.h"
 
+#include "Bases.h"
 #include "InformationManager.h"
 #include "OpponentModel.h"
 #include "OpponentPlan.h"
@@ -345,7 +346,7 @@ void StrategyBossZerg::cancelForSpawningPool()
 //      The order of events is: this check -> queue filling -> production.
 bool StrategyBossZerg::nextInQueueIsUseless(BuildOrderQueue & queue) const
 {
-	if (queue.isEmpty())
+	if (queue.isEmpty() || queue.getHighestPriorityItem().isGasSteal)
 	{
 		return false;
 	}
@@ -518,7 +519,9 @@ bool StrategyBossZerg::nextInQueueIsUseless(BuildOrderQueue & queue) const
 	if (nextInQueue == BWAPI::UnitTypes::Zerg_Zergling)
 	{
 		// We lost the tech.
-		return !hasPool && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Spawning_Pool) == 0;
+		return !hasPool &&
+			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Spawning_Pool) == 0 &&
+			!isBeingBuilt(BWAPI::UnitTypes::Zerg_Spawning_Pool);		// needed for 4 pool to work
 	}
 	if (nextInQueue == BWAPI::UnitTypes::Zerg_Hydralisk)
 	{
@@ -557,8 +560,8 @@ void StrategyBossZerg::produce(const MacroAct & act)
 {
 	_latestBuildOrder.add(act);
 
-	// To restrict it to cases that use a larva, add
-	//  && !act.isBuilding() && !UnitUtil::IsMorphedUnitType(act.getUnitType())
+	// To restrict economy bookkeeping to cases that use a larva, try
+	//  && act.whatBuilds() == BWAPI::UnitTypes::Zerg_Larva
 	if (act.isUnit())
 	{
 		++_economyTotal;
@@ -733,7 +736,9 @@ bool StrategyBossZerg::takeUrgentAction(BuildOrderQueue & queue)
 	OpeningPlan plan = OpponentModel::Instance().getBestGuessEnemyPlan();
 
 	bool breakOut = false;
-	if (plan == OpeningPlan::WorkerRush || plan == OpeningPlan::Proxy || plan == OpeningPlan::FastRush)
+	if (plan == OpeningPlan::WorkerRush ||
+		plan == OpeningPlan::Proxy ||
+		(plan == OpeningPlan::FastRush && nLings == 0))  // don't react to fast rush if we're doing it too
 	{
 		// Actions, not breakout tests.
 		// Action: If we need money for a spawning pool, cancel any hatchery, extractor, or evo chamber.
@@ -1061,7 +1066,7 @@ void StrategyBossZerg::makeUrgentReaction(BuildOrderQueue & queue)
 		nextInQueue != BWAPI::UnitTypes::Zerg_Overlord &&
 		nextInQueue != BWAPI::UnitTypes::Zerg_Lair &&      // try not to delay critical tech
 		nextInQueue != BWAPI::UnitTypes::Zerg_Spire &&
-		enoughLairTechUnits &&
+		(minerals > 500 || enoughLairTechUnits) &&
 		hatcheriesUnderConstruction <= 3)
 	{
 		MacroLocation loc = MacroLocation::Macro;
@@ -1383,9 +1388,9 @@ void StrategyBossZerg::analyzeExtraDrones()
 
 	// Enemy bases beyond the main.
 	int nBases = 0;
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+	for (const Base * base : Bases::Instance().getBases())
 	{
-		if (InformationManager::Instance().getBaseOwner(base) == _enemy)
+		if (base->getOwner() == _enemy)
 		{
 			++nBases;
 		}
@@ -1404,6 +1409,7 @@ void StrategyBossZerg::analyzeExtraDrones()
 		// A proxy near the main base is not static defense, it is offense.
 		// The main base is guaranteed non-null.
 		if (ui.type.isBuilding() &&
+			!ui.goneFromLastPosition &&		// terran building might float away
 			ui.lastPosition.isValid() &&
 			InformationManager::Instance().getMyMainBaseLocation()->getPosition().getDistance(ui.lastPosition) > 800)
 		{
@@ -2657,7 +2663,15 @@ void StrategyBossZerg::produceOtherStuff(int & mineralsLeft, int & gasLeft, bool
 	{
 		addExtractor = true;
 	}
-	// D. If we're aiming for lair tech, get at least 2 extractors, if available.
+	// D. If we have a big mineral excess and enough drones, get more extractors no matter what.
+	else if (hasPool && nFreeGas > 0 &&
+		nDrones > 3 * InformationManager::Instance().getNumBases(_self) + 3 * nGas + 6 &&
+		(minerals + 50) / (gas + 50) >= 6 &&
+		!isBeingBuilt(BWAPI::UnitTypes::Zerg_Extractor))
+	{
+		addExtractor = true;
+	}
+	// E. If we're aiming for lair tech, get at least 2 extractors, if available.
 	// If for hive tech, get at least 3.
 	// Doesn't break 1-base tech strategies, because then the geyser is not available.
 	else if (hasPool && nFreeGas > 0 &&
@@ -2666,7 +2680,7 @@ void StrategyBossZerg::produceOtherStuff(int & mineralsLeft, int & gasLeft, bool
 	{
 		addExtractor = true;
 	}
-	// E. Or expand if we are out of free geysers.
+	// F. Or expand if we are out of free geysers.
 	else if ((_mineralUnit.gasPrice() > 0 || _gasUnit != BWAPI::UnitTypes::None) &&
 		nFreeGas == 0 && nFreeBases > 0 &&
 		nDrones > 3 * InformationManager::Instance().getNumBases(_self) + 3 * nGas + 5 &&
@@ -2866,7 +2880,10 @@ void StrategyBossZerg::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
 	while (nextInQueueIsUseless(queue))
 	{
-		// BWAPI::Broodwar->printf("removing useless %s", queue.getHighestPriorityItem().macroAct.getName().c_str());
+		if (Config::Debug::DrawQueueFixInfo)
+		{
+			BWAPI::Broodwar->printf("queue: drop useless %s", queue.getHighestPriorityItem().macroAct.getName().c_str());
+		}
 
 		BWAPI::UnitType nextInQueue = BWAPI::UnitTypes::None;
 		if (queue.getHighestPriorityItem().macroAct.isUnit())

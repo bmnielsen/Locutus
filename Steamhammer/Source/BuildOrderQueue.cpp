@@ -59,6 +59,8 @@ void BuildOrderQueue::pullToTop(size_t i)
 {
 	UAB_ASSERT(i >= 0 && i < queue.size()-1, "bad index");
 
+	// BWAPI::Broodwar->printf("pulling %d to top", i);
+
 	BuildOrderItem item = queue[i];								// copy it
 	queue.erase(queue.begin() + i);
 	queueAsHighestPriority(item.macroAct, item.isGasSteal);		// this sets modified = true

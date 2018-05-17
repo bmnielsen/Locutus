@@ -40,7 +40,8 @@ public:
 	BWAPI::Position     calcCenter() const;
 
 	void				setUnits(const BWAPI::Unitset & u);
-	void				execute(const SquadOrder & order);
+	void				setOrder(const SquadOrder & inputOrder);
+	void				execute();
 	void				regroup(const BWAPI::Position & regroupPosition) const;
 
 };

@@ -13,6 +13,16 @@ using namespace UAlbertaBot;
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
+bool OpponentPlan::fastPlan(OpeningPlan plan)
+{
+	return
+		plan == OpeningPlan::Proxy ||
+		plan == OpeningPlan::WorkerRush ||
+		plan == OpeningPlan::FastRush;
+}
+
+// NOTE Incomplete test! We don't measure the distance of enemy units from the enemy base,
+//      so we don't recognize all the rushes that we should.
 bool OpponentPlan::recognizeWorkerRush()
 {
 	BWAPI::Position myOrigin = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
@@ -32,17 +42,73 @@ bool OpponentPlan::recognizeWorkerRush()
 	return enemyWorkerRushCount >= 3;
 }
 
+// Factory, possibly with starport, and no sign of many marines intended.
+bool OpponentPlan::recognizeFactoryTech()
+{
+	if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran)
+	{
+		return false;
+	}
+
+	int nMarines = 0;
+	int nBarracks = 0;
+	int nTechProduction = 0;
+	bool tech = false;
+
+	for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (ui.type == BWAPI::UnitTypes::Terran_Marine)
+		{
+			++nMarines;
+		}
+
+		else if (ui.type.whatBuilds().first == BWAPI::UnitTypes::Terran_Barracks)
+		{
+			return false;			// academy implied, marines seem to be intended
+		}
+
+		else if (ui.type == BWAPI::UnitTypes::Terran_Barracks)
+		{
+			++nBarracks;
+		}
+
+		else if (ui.type == BWAPI::UnitTypes::Terran_Academy)
+		{
+			return false;			// marines seem to be intended
+		}
+
+		else if (ui.type == BWAPI::UnitTypes::Terran_Factory ||
+			ui.type == BWAPI::UnitTypes::Terran_Starport)
+		{
+			++nTechProduction;
+		}
+
+		else if (ui.type.whatBuilds().first == BWAPI::UnitTypes::Terran_Factory ||
+			ui.type.whatBuilds().first == BWAPI::UnitTypes::Terran_Starport ||
+			ui.type == BWAPI::UnitTypes::Terran_Armory)
+		{
+			tech = true;			// indicates intention to rely on tech units
+		}
+	}
+
+	return (nTechProduction >= 2 || tech) && nMarines <= 6 && nBarracks <= 1;
+}
+
 void OpponentPlan::recognize()
 {
+	// Recognize fast plans first, slow plans below.
+
 	// Recognize in-base proxy buildings. Info manager does it for us.
 	if (InformationManager::Instance().getEnemyProxy())
 	{
 		_openingPlan = OpeningPlan::Proxy;
+		_planIsFixed = true;
 		return;
 	}
 
 	// Recognize worker rushes.
-	// Unlike other tests, it depends on the location of enemy workers, so break it out.
 	if (recognizeWorkerRush())
 	{
 		_openingPlan = OpeningPlan::WorkerRush;
@@ -65,6 +131,13 @@ void OpponentPlan::recognize()
 		frame < 3000 && snap.getCount(BWAPI::UnitTypes::Terran_Marine) > 0)
 	{
 		_openingPlan = OpeningPlan::FastRush;
+		_planIsFixed = true;
+		return;
+	}
+
+	// Plans below here are slow plans. Do not overwrite a fast plan with a slow plan.
+	if (fastPlan(_openingPlan))
+	{
 		return;
 	}
 
@@ -84,6 +157,14 @@ void OpponentPlan::recognize()
 		snap.getCount(BWAPI::UnitTypes::Protoss_Nexus) <= 1)
 	{
 		_openingPlan = OpeningPlan::HeavyRush;
+		_planIsFixed = true;
+		return;
+	}
+
+	// Recognize terran factory tech openings.
+	if (recognizeFactoryTech())
+	{
+		_openingPlan = OpeningPlan::Factory;
 		return;
 	}
 
@@ -128,6 +209,7 @@ void OpponentPlan::recognize()
 
 OpponentPlan::OpponentPlan()
 	: _openingPlan(OpeningPlan::Unknown)
+	, _planIsFixed(false)
 {
 }
 
@@ -135,6 +217,17 @@ OpponentPlan::OpponentPlan()
 // Call this every frame. It will take care of throttling itself down to avoid unnecessary work.
 void OpponentPlan::update()
 {
+	if (!Config::Strategy::UsePlanRecognizer)
+	{
+		return;
+	}
+
+	// The plan is decided. Don't change it any more.
+	if (_planIsFixed)
+	{
+		return;
+	}
+
 	int frame = BWAPI::Broodwar->getFrameCount();
 
 	if (frame > 100 && frame < 7200 &&       // only try to recognize openings

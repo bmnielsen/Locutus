@@ -3,6 +3,7 @@
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
+
 MicroManager::MicroManager() 
 {
 }
@@ -31,7 +32,12 @@ BWAPI::Position MicroManager::calcCenter() const
 	return BWAPI::Position(accum.x / _units.size(), accum.y / _units.size());
 }
 
-void MicroManager::execute(const SquadOrder & inputOrder)
+void MicroManager::setOrder(const SquadOrder & inputOrder)
+{
+	order = inputOrder;
+}
+
+void MicroManager::execute()
 {
 	// Nothing to do if we have no units.
 	if (_units.empty())
@@ -39,7 +45,6 @@ void MicroManager::execute(const SquadOrder & inputOrder)
 		return;
 	}
 
-	order = inputOrder;             // remember our order
 	drawOrderText();
 
 	// If we have no combat order (attack or defend), we're done.
@@ -118,10 +123,7 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 		else
 		{
 			// We have retreated to a good position.
-			if (!immobilizeUnit(unit))
-			{
-				Micro::AttackMove(unit, unit->getPosition());
-			}
+			Micro::AttackMove(unit, unit->getPosition());
 		}
 	}
 }
@@ -212,7 +214,7 @@ bool MicroManager::mobilizeUnit(BWAPI::Unit unit) const
 	}
 	if (unit->isBurrowed() && unit->canUnburrow() &&
 		!unit->isIrradiated() &&
-		(double(unit->getType().maxHitPoints()) / double(unit->getHitPoints()) < 6.25))  // very weak units stay burrowed
+		(double(unit->getHitPoints()) / double(unit->getType().maxHitPoints()) > 0.25))  // very weak units stay burrowed
 	{
 		return unit->unburrow();
 	}
@@ -221,6 +223,7 @@ bool MicroManager::mobilizeUnit(BWAPI::Unit unit) const
 
 // Immobilixe the unit: Siege a tank, burrow a lurker. Otherwise do nothing.
 // Return whether any action was taken.
+// NOTE This used to be used, but turned out to be a bad idea in that use.
 bool MicroManager::immobilizeUnit(BWAPI::Unit unit) const
 {
 	if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode && unit->canSiege())

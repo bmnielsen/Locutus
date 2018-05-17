@@ -32,10 +32,10 @@ public:
 
     // determines whether we can build at a given location
     bool				canBuildHere(BWAPI::TilePosition position,const Building & b) const;
-    bool				canBuildHereWithSpace(BWAPI::TilePosition position,const Building & b,int buildDist,bool horizontalOnly = false) const;
+    bool				canBuildHereWithSpace(BWAPI::TilePosition position,const Building & b, int buildDist) const;
 
     // returns a build location near a building's desired location
-    BWAPI::TilePosition	getBuildLocationNear(const Building & b,int buildDist,bool horizontalOnly = false) const;
+    BWAPI::TilePosition	getBuildLocationNear(const Building & b,int buildDist) const;
 
 	void				reserveTiles(BWAPI::TilePosition position, int width, int height);
     void				freeTiles(BWAPI::TilePosition position,int width,int height);

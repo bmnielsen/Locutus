@@ -13,7 +13,6 @@ class game_record_read_error : public std::exception {};
 
 namespace UAlbertaBot
 {
-
 struct GameSnapshot
 {
 	const int frame;
@@ -52,6 +51,9 @@ private:
 
 	// Is this a valid record, or broken in reading?
 	bool valid;
+
+	// Is this the record of the current game, or a saved record?
+	bool savedRecord;
 
 	// About the game.
 	BWAPI::Race ourRace;
@@ -122,6 +124,7 @@ public:
 	bool sameMatchup(const GameRecord & record) const;
 	const std::string & getMapName() const { return mapName; };
 	const std::string & getOpeningName() const { return openingName; };
+	OpeningPlan getExpectedEnemyPlan() const { return expectedEnemyPlan; };
 	OpeningPlan getEnemyPlan() const { return enemyPlan; };
 	bool getWin() const { return win; };
 	int getFrameScoutSentForGasSteal() const { return frameScoutSentForGasSteal; };

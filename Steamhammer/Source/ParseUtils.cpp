@@ -83,28 +83,6 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		Config::Micro::CombatSimRadius = GetIntByRace("CombatSimRadius", micro);
 		Config::Micro::UnitNearEnemyRadius = GetIntByRace("UnitNearEnemyRadius", micro);
 		Config::Micro::ScoutDefenseRadius = GetIntByRace("ScoutDefenseRadius", micro);
-
-        if (micro.HasMember("KiteLongerRangedUnits") && micro["KiteLongerRangedUnits"].IsArray())
-        {
-            const rapidjson::Value & kite = micro["KiteLongerRangedUnits"];
-
-            for (size_t i(0); i < kite.Size(); ++i)
-            {
-                if (kite[i].IsString())
-                {
-					// TODO what a crude way of doing this...
-                    MacroAct type(kite[i].GetString());
-					if (type.isUnit())
-					{
-						Config::Micro::KiteLongerRangedUnits.insert(type.getUnitType());
-					}
-					else
-					{
-						BWAPI::Broodwar->printf("can't KiteLongerRangedUnits '%s'", kite[i].GetString());
-					}
-                }
-            }
-        }
     }
 
     // Parse the Macro Options
@@ -129,7 +107,8 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
         JSONTools::ReadBool("LogAssertToErrorFile", debug, Config::Debug::LogAssertToErrorFile);
         JSONTools::ReadBool("DrawGameInfo", debug, Config::Debug::DrawGameInfo);
 		JSONTools::ReadBool("DrawBuildOrderSearchInfo", debug, Config::Debug::DrawBuildOrderSearchInfo);
-        JSONTools::ReadBool("DrawUnitHealthBars", debug, Config::Debug::DrawUnitHealthBars);
+		JSONTools::ReadBool("DrawQueueFixInfo", debug, Config::Debug::DrawQueueFixInfo);
+		JSONTools::ReadBool("DrawUnitHealthBars", debug, Config::Debug::DrawUnitHealthBars);
         JSONTools::ReadBool("DrawResourceInfo", debug, Config::Debug::DrawResourceInfo);
         JSONTools::ReadBool("DrawWorkerInfo", debug, Config::Debug::DrawWorkerInfo);
         JSONTools::ReadBool("DrawProductionInfo", debug, Config::Debug::DrawProductionInfo);
@@ -167,6 +146,8 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		JSONTools::ReadString("ReadDirectory", io, Config::IO::ReadDir);
 		JSONTools::ReadString("WriteDirectory", io, Config::IO::WriteDir);
 
+		JSONTools::ReadInt("MaxGameRecords", io, Config::IO::MaxGameRecords);
+
 		Config::IO::ReadOpponentModel = GetBoolByRace("ReadOpponentModel", io);
 		Config::IO::WriteOpponentModel = GetBoolByRace("WriteOpponentModel", io);
 	}
@@ -187,11 +168,89 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		}
 
 		Config::Strategy::ScoutHarassEnemy = GetBoolByRace("ScoutHarassEnemy", strategy);
-		Config::Strategy::SurrenderWhenHopeIsLost = GetBoolByRace("SurrenderWhenHopeIsLost", strategy);
 		Config::Strategy::AutoGasSteal = GetBoolByRace("AutoGasSteal", strategy);
 		Config::Strategy::RandomGasStealRate = GetDoubleByRace("RandomGasStealRate", strategy);
+		Config::Strategy::UsePlanRecognizer = GetBoolByRace("UsePlanRecognizer", strategy);
+		Config::Strategy::SurrenderWhenHopeIsLost = GetBoolByRace("SurrenderWhenHopeIsLost", strategy);
 
 		bool openingStrategyDecided = false;
+
+		// 0. Parse all the openings.
+		// Besides making them all available, this checks that they are syntatically valid.
+		std::vector<const std::string> openingNames;		// in case we want to make a random choice
+		if (strategy.HasMember("Strategies") && strategy["Strategies"].IsObject())
+		{
+			const rapidjson::Value & strategies = strategy["Strategies"];
+			for (rapidjson::Value::ConstMemberIterator itr = strategies.MemberBegin(); itr != strategies.MemberEnd(); ++itr)
+			{
+				const std::string &		 name = itr->name.GetString();
+				const rapidjson::Value & val = itr->value;
+
+				BWAPI::Race strategyRace;
+				if (val.HasMember("Race") && val["Race"].IsString())
+				{
+					strategyRace = GetRace(val["Race"].GetString());
+				}
+				else
+				{
+					UAB_ASSERT_WARNING(false, "Strategy must have a Race string. Skipping %s", name.c_str());
+					continue;
+				}
+
+				std::string openingGroup("");
+				if (val.HasMember("OpeningGroup") && val["OpeningGroup"].IsString())
+				{
+					openingGroup = val["OpeningGroup"].GetString();
+				}
+
+				BuildOrder buildOrder(strategyRace);
+				if (val.HasMember("OpeningBuildOrder") && val["OpeningBuildOrder"].IsArray())
+				{
+					const rapidjson::Value & build = val["OpeningBuildOrder"];
+
+					for (size_t b(0); b < build.Size(); ++b)
+					{
+						if (build[b].IsString())
+						{
+							std::string itemName = build[b].GetString();
+
+							int unitCount = 1;    // the default count
+
+							// You can specify a count, like "6 x mutalisk". The spaces are required.
+							// Mostly useful for units, but "2 x creep colony @ natural" also works.
+							std::regex countRegex("([0-9]+)\\s+x\\s+([a-zA-Z_ ]+(\\s+@\\s+[a-zA-Z_ ]+)?)");
+							std::smatch m;
+							if (std::regex_match(itemName, m, countRegex)) {
+								unitCount = GetIntFromString(m[1].str());
+								itemName = m[2].str();
+							}
+
+							MacroAct act(itemName);
+
+							if (act.getRace() != BWAPI::Races::None || act.isCommand())
+							{
+								for (int i = 0; i < unitCount; ++i)
+								{
+									buildOrder.add(act);
+								}
+							}
+						}
+						else
+						{
+							UAB_ASSERT_WARNING(false, "Build order item must be a string %s", name.c_str());
+							continue;
+						}
+					}
+				}
+
+				// Only remember the ones that are for our current race.
+				if (strategyRace == BWAPI::Broodwar->self()->getRace())
+				{
+					StrategyManager::Instance().addStrategy(name, Strategy(name, strategyRace, openingGroup, buildOrder));
+					openingNames.push_back(name);
+				}
+			}
+		}
 
 		// 1. Should we use a special strategy against this specific enemy?
 		JSONTools::ReadBool("UseEnemySpecificStrategy", strategy, Config::Strategy::UseEnemySpecificStrategy);
@@ -218,35 +277,71 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		}
 
 		// 2. Does the opponent model tell us what opening to play?
-		if (!openingStrategyDecided &&
-			OpponentModel::Instance().getRecommendedOpening() != "" &&
-			strategy.HasMember("CounterStrategies") &&
-			strategy["CounterStrategies"].IsObject())
+		if (!openingStrategyDecided && OpponentModel::Instance().getRecommendedOpening() != "")
 		{
-			const rapidjson::Value & counters = strategy["CounterStrategies"];
-			const std::string & recommendation = OpponentModel::Instance().getRecommendedOpening();
+			const std::string & opening = OpponentModel::Instance().getRecommendedOpening();
 
-			// 1. Is there a counter specific to the opponent's race, P T Z U?
-			std::string recommendationVersus = recommendation + " v" + RaceChar(BWAPI::Broodwar->enemy()->getRace());
-			if (counters.HasMember(recommendationVersus.c_str()))
+			if (opening == "matchup")
 			{
 				std::string strategyName;
-				if (_ParseStrategy(counters[recommendationVersus.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+
+				// If we have set a strategy mix for the current matchup, evaluate it.
+				if (strategy.HasMember(matchup) && _ParseStrategy(strategy[matchup], strategyName, mapWeightString, ourRaceStr, strategyCombos))
 				{
 					Config::Strategy::StrategyName = strategyName;
 					openingStrategyDecided = true;
 				}
 			}
-
-			// 2. Is there a general counter?
-			else if (counters.HasMember(recommendation.c_str()))
+			else if (opening == "random")
 			{
-				std::string strategyName;
-				if (_ParseStrategy(counters[recommendation.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+				if (openingNames.size() > 0)
 				{
-					Config::Strategy::StrategyName = strategyName;
+					Config::Strategy::StrategyName = openingNames.at(Random::Instance().index(openingNames.size()));
 					openingStrategyDecided = true;
 				}
+			}
+			else if (opening.substr(0, 7) == "Counter")
+			{
+				if (!openingStrategyDecided &&
+					OpponentModel::Instance().getRecommendedOpening() != "" &&
+					strategy.HasMember("CounterStrategies") &&
+					strategy["CounterStrategies"].IsObject())
+				{
+					const rapidjson::Value & counters = strategy["CounterStrategies"];
+					const std::string & recommendation = OpponentModel::Instance().getRecommendedOpening();
+
+					// 1. Is there a counter specific to the opponent's race, P T Z U?
+					std::string recommendationVersus = recommendation + " v" + RaceChar(BWAPI::Broodwar->enemy()->getRace());
+					if (counters.HasMember(recommendationVersus.c_str()))
+					{
+						std::string strategyName;
+						if (_ParseStrategy(counters[recommendationVersus.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+						{
+							Config::Strategy::StrategyName = strategyName;
+							openingStrategyDecided = true;
+						}
+					}
+
+					// 2. Is there a general counter?
+					else if (counters.HasMember(recommendation.c_str()))
+					{
+						std::string strategyName;
+						if (_ParseStrategy(counters[recommendation.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+						{
+							Config::Strategy::StrategyName = strategyName;
+							openingStrategyDecided = true;
+						}
+					}
+				}
+			}
+			else if (strategy.HasMember("Strategies") &&
+				strategy["Strategies"].IsObject() &&
+				strategy["Strategies"].HasMember(opening.c_str()) &&
+				strategy["Strategies"][opening.c_str()].IsObject())
+			{
+				// NOTE We don't double-check the race or other info about the opening.
+				Config::Strategy::StrategyName = opening;
+				openingStrategyDecided = true;
 			}
 		}
 
@@ -255,7 +350,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		{
 			std::string strategyName;
 
-			// If we have set a strategy for the current matchup, set it.
+			// If we have set a strategy mix for the current matchup, evaluate it.
 			if (strategy.HasMember(matchup) && _ParseStrategy(strategy[matchup], strategyName, mapWeightString, ourRaceStr, strategyCombos))
 			{
 				Config::Strategy::StrategyName = strategyName;
@@ -268,76 +363,6 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		}
 
 		OpponentModel::Instance().setOpening();
-
-        // Parse all the Strategies
-        if (strategy.HasMember("Strategies") && strategy["Strategies"].IsObject())
-        {
-            const rapidjson::Value & strategies = strategy["Strategies"];
-            for (rapidjson::Value::ConstMemberIterator itr = strategies.MemberBegin(); itr != strategies.MemberEnd(); ++itr)
-            {
-                const std::string &         name = itr->name.GetString();
-                const rapidjson::Value &    val  = itr->value;
-
-                BWAPI::Race strategyRace;
-                if (val.HasMember("Race") && val["Race"].IsString())
-                {
-                    strategyRace = GetRace(val["Race"].GetString());
-                }
-                else
-                {
-                    UAB_ASSERT_WARNING(false, "Strategy must have a Race string. Skipping %s", name.c_str());
-                    continue;
-                }
-
-				std::string openingGroup("");
-				if (val.HasMember("OpeningGroup") && val["OpeningGroup"].IsString())
-				{
-					openingGroup = val["OpeningGroup"].GetString();
-				}
-
-                BuildOrder buildOrder(strategyRace);
-                if (val.HasMember("OpeningBuildOrder") && val["OpeningBuildOrder"].IsArray())
-                {
-                    const rapidjson::Value & build = val["OpeningBuildOrder"];
-
-                    for (size_t b(0); b < build.Size(); ++b)
-                    {
-                        if (build[b].IsString())
-                        {
-							std::string itemName = build[b].GetString();
-
-							int unitCount = 1;    // the default count
-
-							// You can specify a count, like "6 x mutalisk". The spaces are required.
-							// Mostly useful for units, but "2 x creep colony @ natural" also works.
-							std::regex countRegex("([0-9]+)\\s+x\\s+([a-zA-Z_ ]+(\\s+@\\s+[a-zA-Z_ ]+)?)");
-							std::smatch m;
-							if (std::regex_match(itemName, m, countRegex)) {
-								unitCount = GetIntFromString(m[1].str());
-								itemName = m[2].str();
-							}
-
-							MacroAct act(itemName);
-
-							if (act.getRace() != BWAPI::Races::None || act.isCommand())
-                            {
-								for (int i = 0; i < unitCount; ++i)
-								{
-									buildOrder.add(act);
-								}
-                            }
-                        }
-                        else
-                        {
-                            UAB_ASSERT_WARNING(false, "Build order item must be a string %s", name.c_str());
-                            continue;
-                        }
-                    }
-                }
-
-				StrategyManager::Instance().addStrategy(name, Strategy(name, strategyRace, openingGroup, buildOrder));
-            }
-        }
     }
 
     Config::ConfigFile::ConfigFileParsed = true;

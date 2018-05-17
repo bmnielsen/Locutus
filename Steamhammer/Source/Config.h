@@ -23,6 +23,7 @@ namespace Config
 	{
 		extern std::string ReadDir;
 		extern std::string WriteDir;
+		extern int MaxGameRecords;
 		extern bool ReadOpponentModel;
 		extern bool WriteOpponentModel;
 	}
@@ -33,6 +34,7 @@ namespace Config
         extern bool ScoutHarassEnemy;
 		extern bool AutoGasSteal;
 		extern double RandomGasStealRate;
+		extern bool UsePlanRecognizer;
 		extern bool SurrenderWhenHopeIsLost;
         extern bool UseEnemySpecificStrategy;
         extern bool FoundEnemySpecificStrategy;
@@ -57,6 +59,7 @@ namespace Config
         extern bool DrawUnitHealthBars;
 		extern bool DrawProductionInfo;
 		extern bool DrawBuildOrderSearchInfo;
+		extern bool DrawQueueFixInfo;
 		extern bool DrawScoutInfo;
 		extern bool DrawEnemyUnitInfo;
         extern bool DrawModuleTimers;
@@ -88,7 +91,6 @@ namespace Config
     namespace Micro
     {
         extern bool KiteWithRangedUnits;
-        extern std::set<BWAPI::UnitType> KiteLongerRangedUnits;
         extern bool WorkersDefendRush;
         extern int RetreatMeleeUnitShields;
         extern int RetreatMeleeUnitHP;

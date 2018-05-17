@@ -48,10 +48,12 @@ public:
 	MacroAct(MacroCommandType t, int amount);
 
 	bool    isUnit()		const;
+	bool	isWorker()		const;
 	bool    isTech()		const;
 	bool    isUpgrade()	    const;
 	bool    isCommand()	    const;
 	bool    isBuilding()	const;
+	bool	isAddon()		const;
 	bool    isRefinery()	const;
 	bool	isSupply()		const;
     
@@ -70,5 +72,10 @@ public:
 
 	BWAPI::UnitType whatBuilds() const;
 	std::string getName() const;
+
+	void getCandidateProducers(std::vector<BWAPI::Unit> & candidates) const;
+	bool hasPotentialProducer() const;
+	bool hasTech() const;
+
 };
 }

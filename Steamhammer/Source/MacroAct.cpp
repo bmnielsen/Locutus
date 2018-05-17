@@ -213,7 +213,12 @@ bool MacroAct::isUnit() const
     return _type == MacroActs::Unit; 
 }
 
-bool MacroAct::isTech() const 
+bool MacroAct::isWorker() const
+{
+	return _type == MacroActs::Unit && _unitType.isWorker();
+}
+
+bool MacroAct::isTech() const
 { 
     return _type == MacroActs::Tech; 
 }
@@ -238,12 +243,17 @@ bool MacroAct::isBuilding()	const
     return _type == MacroActs::Unit && _unitType.isBuilding(); 
 }
 
-bool MacroAct::isRefinery()	const 
+bool MacroAct::isAddon()	const
+{
+	return _type == MacroActs::Unit && _unitType.isAddon();
+}
+
+bool MacroAct::isRefinery()	const
 { 
 	return _type == MacroActs::Unit && _unitType.isRefinery();
 }
 
-// The standard supply unit, ignoring the hatchery (which provides 1 supply).
+// The standard supply unit, ignoring the hatchery (which provides 1 supply) and nexus/CC.
 bool MacroAct::isSupply() const
 {
 	return isUnit() &&
@@ -394,4 +404,161 @@ std::string MacroAct::getName() const
 
 	UAB_ASSERT(false, "bad MacroAct");
 	return "error";
+}
+
+// Record the units which are currently able to carry out this macro act.
+// For example, the idle barracks which can produce a marine.
+// It gives a warning if you call it for a command, which has no producer.
+void MacroAct::getCandidateProducers(std::vector<BWAPI::Unit> & candidates) const
+{
+	if (isCommand())
+	{
+		UAB_ASSERT(false, "no producer of a command");
+		return;
+	}
+
+	BWAPI::UnitType producerType = whatBuilds();
+
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+	{
+		// Reasons that a unit cannot produce the desired type:
+
+		if (producerType != unit->getType()) { continue; }
+
+		// TODO Due to a BWAPI 4.1.2 bug, lair research can't be done in a hive.
+		//      Also spire upgrades can't be done in a greater spire.
+		//      The bug is fixed in the next version, 4.2.0.
+		//      When switching to a fixed version, change the above line to the following:
+		// If the producerType is a lair, a hive will do as well.
+		// Note: Burrow research in a hatchery can also be done in a lair or hive, but we rarely want to.
+		// Ignore the possibility so that we don't accidentally waste lair time.
+		//if (!(
+		//	producerType == unit->getType() ||
+		//	producerType == BWAPI::UnitTypes::Zerg_Lair && unit->getType() == BWAPI::UnitTypes::Zerg_Hive ||
+		//  producerType == BWAPI::UnitTypes::Zerg_Spire && unit->getType() == BWAPI::UnitTypes::Zerg_Greater_Spire
+		//	))
+		//{
+		//	continue;
+		//}
+
+		if (!unit->isCompleted())  { continue; }
+		if (unit->isTraining())    { continue; }
+		if (unit->isLifted())      { continue; }
+		if (!unit->isPowered())    { continue; }
+		if (unit->isUpgrading())   { continue; }
+		if (unit->isResearching()) { continue; }
+
+		// if the type is an addon, some special cases
+		if (isAddon())
+		{
+			// Already has an addon, or is otherwise unable to make one.
+			if (!unit->canBuildAddon())
+			{
+				continue;
+			}
+
+			// if we just told this unit to build an addon, then it will not be building another one
+			// this deals with the frame-delay of telling a unit to build an addon and it actually starting to build
+			if (unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Build_Addon)
+				//			if (unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Build_Addon &&
+				//                (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame() < 10)) 
+			{
+				continue;
+			}
+		}
+
+		// if a unit requires an addon and the producer doesn't have one
+		// TODO Addons seem a bit erratic. Bugs are likely.
+		// TODO What exactly is requiredUnits()? On the face of it, the story is that
+		//      this code is for e.g. making tanks, built in a factory which has a machine shop.
+		//      Research that requires an addon is done in the addon, a different case.
+		//      Apparently wrong for e.g. ghosts, which require an addon not on the producer.
+		if (isUnit())
+		{
+			bool reject = false;   // innocent until proven guilty
+			typedef std::pair<BWAPI::UnitType, int> ReqPair;
+			for (const ReqPair & pair : getUnitType().requiredUnits())
+			{
+				BWAPI::UnitType requiredType = pair.first;
+				if (requiredType.isAddon())
+				{
+					if (!unit->getAddon() || (unit->getAddon()->getType() != requiredType))
+					{
+						reject = true;
+						break;     // out of inner loop
+					}
+				}
+			}
+			if (reject)
+			{
+				continue;
+			}
+		}
+
+		// If we haven't rejected it, add it to the list of candidates.
+		candidates.push_back(unit);
+	}
+}
+
+// The item can potentially be produced soon-ish; the producer is on hand and not too busy.
+// If there is any acceptable producer, we're good.
+bool MacroAct::hasPotentialProducer() const
+{
+	BWAPI::UnitType producerType = whatBuilds();
+
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+	{
+		// A producer is good if it is the right type and doesn't suffer from
+		// any condition that makes it unable to produce for a long time.
+		// Producing something else only makes it busy for a short time,
+		// but research takes a long time.
+		if (unit->getType() == producerType &&
+			unit->isPowered() &&     // replacing a pylon is a separate queue item
+			!unit->isLifted() &&     // lifting/landing a building will be a separate queue item when implemented
+			!unit->isUpgrading() &&
+			!unit->isResearching())
+		{
+			return true;
+		}
+
+		// NOTE An addon may be required on the producer. This doesn't check.
+	}
+
+	// BWAPI::Broodwar->printf("missing producer for %s", getName().c_str());
+
+	// We didn't find a producer. We can't make it.
+	return false;
+}
+
+// Check the units needed for producing a unit type, beyond its producer.
+bool MacroAct::hasTech() const
+{
+	// If it's not a unit, let's assume we're good.
+	if (!isUnit())
+	{
+		return true;
+	}
+
+	// What we have.
+	std::set<BWAPI::UnitType> ourUnitTypes;
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+	{
+		ourUnitTypes.insert(unit->getType());
+	}
+
+	// What we need. We only pay attention to the unit type, not the count,
+	// which is needed only for merging archons and dark archons (which is not done via MacroAct).
+	for (const std::pair<BWAPI::UnitType, int> & typeAndCount : getUnitType().requiredUnits())
+	{
+		BWAPI::UnitType requiredType = typeAndCount.first;
+		if (ourUnitTypes.find(requiredType) == ourUnitTypes.end())
+		{
+			// BWAPI::Broodwar->printf("missing tech: %s requires %s", getName().c_str(), requiredType.getName().c_str());
+			// We don't have a type we need. We don't have the tech.
+			return false;
+		}
+	}
+
+	// We have the technology.
+	return true;
 }

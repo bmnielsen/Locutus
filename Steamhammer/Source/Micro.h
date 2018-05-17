@@ -7,6 +7,8 @@ namespace UAlbertaBot
 {
 namespace Micro
 {
+	bool AlwaysKite(BWAPI::UnitType type);
+
 	void Stop(BWAPI::Unit unit);
 	void AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target);
     void AttackMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosition);

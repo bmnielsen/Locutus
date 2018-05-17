@@ -24,6 +24,7 @@ enum class MacroCommandType
 	, PullWorkersLeaving
 	, ReleaseWorkers
 	, Nonadaptive
+	, QueueBarrier
 	};
 
 class MacroCommand
@@ -53,6 +54,7 @@ public:
 			, MacroCommandType::PullWorkersLeaving
 			, MacroCommandType::ReleaseWorkers
 			, MacroCommandType::Nonadaptive
+			, MacroCommandType::QueueBarrier
 		};
 	}
 
@@ -67,7 +69,7 @@ public:
 		: _type(type)
         , _amount(0)
 	{
-		UAB_ASSERT(!hasArgument(type),"missing MacroCommand argument");
+		UAB_ASSERT(!hasArgument(type), "missing MacroCommand argument");
 	}
 
 	MacroCommand(MacroCommandType type, int amount)
@@ -166,7 +168,11 @@ public:
 		{
 			return "go nonadaptive";
 		}
-		
+		if (t == MacroCommandType::QueueBarrier)
+		{
+			return "go queue barrier";
+		}
+
 		UAB_ASSERT(t == MacroCommandType::None, "unrecognized MacroCommandType");
 		return "go none";
 	}
@@ -175,12 +181,12 @@ public:
 	{
 		if (hasArgument(_type))
 		{
-			// Include the amount.
 			std::stringstream name;
 			name << getName(_type) << " " << _amount;
 			return name.str();
 		}
-		else {
+		else
+		{
 			return getName(_type);
 		}
 	}

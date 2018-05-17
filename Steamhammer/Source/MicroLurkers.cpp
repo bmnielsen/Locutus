@@ -200,7 +200,12 @@ int MicroLurkers::getAttackPriority(BWAPI::Unit target) const
 		return 10;
 	}
 
-	// highest priority is something that can attack us or aid in combat
+	// Nydus canal is critical.
+	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+	{
+		return 10;
+	}
+	// Something that can attack us or aid in combat
 	if (UnitUtil::CanAttackGround(target) && !target->getType().isWorker())
 	{
 		return 9;

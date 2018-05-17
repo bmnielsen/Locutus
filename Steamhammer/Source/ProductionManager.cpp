@@ -32,7 +32,7 @@ void ProductionManager::setBuildOrder(const BuildOrder & buildOrder)
 
 void ProductionManager::update() 
 {
-	// TODO move this to worker manager and make it more precise; it often goes a little over
+	// TODO move this to worker manager and make it more precise; it normally goes a little over
 	// If we have reached a target amount of gas, take workers off gas.
 	if (_targetGasAmount && BWAPI::Broodwar->self()->gatheredGas() >= _targetGasAmount)  // tends to go over
 	{
@@ -43,6 +43,17 @@ void ProductionManager::update()
 	// If we're in trouble, adjust the production queue to help.
 	// Includes scheduling supply as needed.
 	StrategyManager::Instance().handleUrgentProductionIssues(_queue);
+
+	// Drop any initial queue items which can't be produced next because they are missing
+	// prerequisites. This prevents some queue deadlocks.
+	// Zerg does this separately (and more elaborately) in handleUrgentProductionIssues() above.
+	if (BWAPI::Broodwar->self()->getRace() != BWAPI::Races::Zerg)
+	{
+		dropJammedItemsFromQueue();
+	}
+
+	// Carry out production goals, plus any other needed goal housekeeping.
+	updateGoals();
 
 	// if nothing is currently building, get a new goal from the strategy manager
 	if (_queue.isEmpty())
@@ -131,7 +142,36 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 	}
 }
 
-void ProductionManager::manageBuildOrderQueue() 
+// Drop any initial items from the queue that will demonstrably cause a production jam.
+void ProductionManager::dropJammedItemsFromQueue()
+{
+	while (!_queue.isEmpty() &&
+		!_queue.getHighestPriorityItem().isGasSteal &&
+		!itemCanBeProduced(_queue.getHighestPriorityItem().macroAct))
+	{
+		if (Config::Debug::DrawQueueFixInfo)
+		{
+			BWAPI::Broodwar->printf("queue: drop jammed %s", _queue.getHighestPriorityItem().macroAct.getName().c_str());
+		}
+		_queue.removeHighestPriorityItem();
+	}
+}
+
+// Return false if the item definitely can't be made next.
+// This doesn't yet try to handle all cases, so it can return false when it shouldn't.
+bool ProductionManager::itemCanBeProduced(const MacroAct & act) const
+{
+	// A command can always be executed.
+	// An addon is a goal that can always be posted (though it may fail).
+	if (act.isCommand() || act.isAddon())
+	{
+		return true;
+	}
+
+	return act.hasPotentialProducer() && act.hasTech();
+}
+
+void ProductionManager::manageBuildOrderQueue()
 {
 	// If the extractor trick is in progress, do that.
 	if (_extractorTrickState != ExtractorTrick::None)
@@ -139,9 +179,6 @@ void ProductionManager::manageBuildOrderQueue()
 		doExtractorTrick();
 		return;
 	}
-
-	// We may be able to produce faster if we pull a later item to the front.
-	maybePermuteQueue();
 
 	// If we were planning to build and assigned a worker, but the queue was then
 	// changed behind our back, release the worker and continue.
@@ -151,9 +188,14 @@ void ProductionManager::manageBuildOrderQueue()
 		_assignedWorkerForThisBuilding = nullptr;
 	}
 
+	updateGoals();
+
 	// We do nothing if the queue is empty (obviously).
 	while (!_queue.isEmpty()) 
 	{
+		// We may be able to produce faster if we pull a later item to the front.
+		maybeReorderQueue();
+
 		const BuildOrderItem & currentItem = _queue.getHighestPriorityItem();
 
 		// WORKAROUND for BOSS bug of making too many gateways: Limit the count to 10.
@@ -176,26 +218,30 @@ void ProductionManager::manageBuildOrderQueue()
 			continue;
 		}
 
-		// The unit which can produce the currentItem. May be null.
-        BWAPI::Unit producer = getProducer(currentItem.macroAct);
-
-		// Work around a bug: If you say you want 2 comsats total, BOSS may order up 2 comsats more
-		// than you already have. So we drop any extra comsat.
-		if (!producer && currentItem.macroAct.isUnit() && currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Terran_Comsat_Station)
+		// If this is an addon, turn it into a production goal.
+		if (currentItem.macroAct.isAddon())
 		{
+			_goals.push_front(ProductionGoal(currentItem.macroAct));
 			_queue.doneWithHighestPriorityItem();
-			_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
 			continue;
 		}
+
+		// The unit which can produce the currentItem. May be null.
+        BWAPI::Unit producer = getProducer(currentItem.macroAct);
 
 		// check to see if we can make it right now
 		bool canMake = producer && canMakeNow(producer, currentItem.macroAct);
 
+		// TODO A bug in getProducer() and/or canMakeNow() can cause addons to fail to build
+		//      if ordered immediately after the building finishes, causing production to break.
+		//      Openings try to work around by delaying addons later than should be necessary.
+
 		// if the next item in the list is a building and we can't yet make it
         if (currentItem.macroAct.isBuilding() &&
 			!canMake &&
-			currentItem.macroAct.whatBuilds().isWorker() &&
-			BWAPI::Broodwar->getFrameCount() >= _delayBuildingPredictionUntilFrame)
+			currentItem.macroAct.whatBuilds().isWorker() &&			// not a zerg lair, etc.
+			BWAPI::Broodwar->getFrameCount() >= _delayBuildingPredictionUntilFrame &&
+			!BuildingManager::Instance().typeIsStalled(currentItem.macroAct.getUnitType()))
 		{
 			// construct a temporary building object
 			Building b(currentItem.macroAct.getUnitType(), InformationManager::Instance().getMyMainBaseLocation()->getTilePosition());
@@ -213,7 +259,7 @@ void ProductionManager::manageBuildOrderQueue()
 		}
 
 		// if we can make the current item
-		if (canMake) 
+		if (canMake)
 		{
 			// create it
 			create(producer, currentItem);
@@ -249,31 +295,103 @@ void ProductionManager::manageBuildOrderQueue()
 
 // If we can't immediately produce the top item in the queue but we can produce a
 // later item, we may want to move the later item to the front.
-// For now, this happens under very limited conditions.
-void ProductionManager::maybePermuteQueue()
+void ProductionManager::maybeReorderQueue()
 {
 	if (_queue.size() < 2)
 	{
 		return;
 	}
 
-	// We can reorder the queue if:
-	// We are waiting for gas and have excess minerals,
-	// and we can move a later no-dependency no-gas item to the front,
-	// and we have the minerals to cover both.
-	MacroAct top = _queue.getHighestPriorityItem().macroAct;
-	int minerals = getFreeMinerals();
-	if (top.gasPrice() > 0 && top.gasPrice() > getFreeGas() && top.mineralPrice() < minerals)
+	// If we're in a severe emergency situation, don't try to reorder the queue.
+	// We need a resource depot and a few workers.
+	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->self()) == 0 ||
+		WorkerManager::Instance().getNumMineralWorkers() <= 3)
 	{
-		for (int i = _queue.size() - 2; i >= std::max(0, int(_queue.size()) - 4); --i)
+		return;
+	}
+
+	MacroAct top = _queue.getHighestPriorityItem().macroAct;
+
+	// Don't move anything in front of a command.
+	if (top.isCommand())
+	{
+		return;
+	}
+
+	// If next up is supply, don't reorder it.
+	// Supply is usually made automatically. If we move something above supply, code below
+	// will sometimes have to check whether we have supply to make a unit.
+	if (top.isUnit() && top.getUnitType() == BWAPI::Broodwar->self()->getRace().getSupplyProvider())
+	{
+		return;
+	}
+
+	int minerals = getFreeMinerals();
+	int gas = getFreeGas();
+
+	// We can reorder the queue if: Case 1:
+	// We are waiting for gas and have excess minerals,
+	// and we can move a later no-gas item to the front,
+	// and we have the minerals to cover both
+	// and the moved item doesn't require more supply.
+	if (top.gasPrice() > 0 && top.gasPrice() > gas && top.mineralPrice() < minerals)
+	{
+		for (int i = _queue.size() - 2; i >= std::max(0, int(_queue.size()) - 5); --i)
 		{
 			const MacroAct & act = _queue[i].macroAct;
+			// Don't reorder a command or anything after it.
+			if (act.isCommand())
+			{
+				break;
+			}
+			BWAPI::Unit producer;
 			if (act.isUnit() &&
 				act.gasPrice() == 0 &&
 				act.mineralPrice() + top.mineralPrice() <= minerals &&
-				independentUnitType(act.getUnitType()))
+				act.supplyRequired() <= top.supplyRequired() &&
+				(producer = getProducer(act)) &&
+				canMakeNow(producer, act))
 			{
-				// BWAPI::Broodwar->printf("permute %d and %d", _queue.size() - 1, i);
+				if (Config::Debug::DrawQueueFixInfo)
+				{
+					BWAPI::Broodwar->printf("queue: pull to front gas-free %s @ %d", act.getName().c_str(), _queue.size() - i);
+				}
+				_queue.pullToTop(i);
+				return;
+			}
+		}
+	}
+
+	// We can reorder the queue if: Case 2:
+	// We can't produce the next item
+	// and a later item can be produced
+	// and it does not require more supply than this item
+	// and we have the resources for both.
+	// This is where it starts to make a difference.
+	BWAPI::Unit topProducer = getProducer(top);
+	if (top.gasPrice() < gas &&
+		top.mineralPrice() < minerals &&
+		(!topProducer || !canMakeNow(topProducer,top)))
+	{
+		for (int i = _queue.size() - 2; i >= std::max(0, int(_queue.size()) - 5); --i)
+		{
+			const MacroAct & act = _queue[i].macroAct;
+			// Don't reorder a command or anything after it.
+			if (act.isCommand())
+			{
+				break;
+			}
+			BWAPI::Unit producer;
+			if (act.supplyRequired() <= top.supplyRequired() &&
+				act.gasPrice() + top.gasPrice() <= gas &&
+				act.mineralPrice() + top.mineralPrice() <= minerals &&
+				(producer = getProducer(act)) &&
+				canMakeNow(producer, act))
+			{
+				if (Config::Debug::DrawQueueFixInfo)
+				{
+					BWAPI::Broodwar->printf("queue: pull to front %s @ %d", act.getName().c_str(), _queue.size() - i);
+				}
 				_queue.pullToTop(i);
 				return;
 			}
@@ -281,109 +399,18 @@ void ProductionManager::maybePermuteQueue()
 	}
 }
 
-// The unit type has no dependencies: We can always make it if we have the minerals and a worker.
-bool ProductionManager::independentUnitType(BWAPI::UnitType type) const
-{
-	return
-		type.supplyProvided() > 0 ||    // includes resource depot and supply unit
-		type.isRefinery() ||
-		type == BWAPI::UnitTypes::Zerg_Creep_Colony;
-}
-
-// May return null if no producer is found.
+// Return null if no producer is found.
 // NOTE closestTo defaults to BWAPI::Positions::None, meaning we don't care.
-BWAPI::Unit ProductionManager::getProducer(MacroAct t, BWAPI::Position closestTo)
+BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closestTo) const
 {
-	UAB_ASSERT(!t.isCommand(), "no producer of a command");
+	std::vector<BWAPI::Unit> candidateProducers;
 
-    // get the type of unit that builds this
-    BWAPI::UnitType producerType = t.whatBuilds();
-
-    // make a set of all candidate producers
-    BWAPI::Unitset candidateProducers;
-    for (const auto unit : BWAPI::Broodwar->self()->getUnits())
-    {
-        // Reasons that a unit cannot produce the desired type:
-
-		if (producerType != unit->getType()) { continue; }
-
-		// TODO Due to a BWAPI 4.1.2 bug, lair research can't be done in a hive.
-		//      Also spire upgrades can't be done in a greater spire.
-		//      The bug is fixed in the next version, 4.2.0.
-		//      When switching to a fixed version, change the above line to the following:
-		// If the producerType is a lair, a hive will do as well.
-		// Note: Burrow research in a hatchery can also be done in a lair or hive, but we rarely want to.
-		// Ignore the possibility so that we don't accidentally waste lair time.
-		//if (!(
-		//	producerType == unit->getType() ||
-		//	producerType == BWAPI::UnitTypes::Zerg_Lair && unit->getType() == BWAPI::UnitTypes::Zerg_Hive ||
-		//  producerType == BWAPI::UnitTypes::Zerg_Spire && unit->getType() == BWAPI::UnitTypes::Zerg_Greater_Spire
-		//	))
-		//{
-		//	continue;
-		//}
-
-        if (!unit->isCompleted())  { continue; }
-        if (unit->isTraining())    { continue; }
-        if (unit->isLifted())      { continue; }
-        if (!unit->isPowered())    { continue; }
-		if (unit->isUpgrading())   { continue; }
-		if (unit->isResearching()) { continue; }
-
-        // if the type is an addon, some special cases
-        if (t.isUnit() && t.getUnitType().isAddon())
-        {
-            // Already has an addon, or is otherwise unable to make one.
-			if (!unit->canBuildAddon())
-            {
-                continue;
-            }
-
-            // if we just told this unit to build an addon, then it will not be building another one
-            // this deals with the frame-delay of telling a unit to build an addon and it actually starting to build
-            if (unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Build_Addon &&
-                (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame() < 10)) 
-            { 
-                continue; 
-            }
-        }
-        
-        // if a unit requires an addon and the producer doesn't have one
-		// TODO Addons seem a bit erratic. Bugs are likely.
-		// TODO What exactly is requiredUnits()? On the face of it, the story is that
-		//      this code is for e.g. making tanks, built in a factory which has a machine shop.
-		//      Research that requires an addon is done in the addon, a different case.
-		//      Apparently wrong for e.g. ghosts, which require an addon not on the producer.
-		if (t.isUnit())
-		{
-			bool reject = false;   // innocent until proven guilty
-			typedef std::pair<BWAPI::UnitType, int> ReqPair;
-			for (const ReqPair & pair : t.getUnitType().requiredUnits())
-			{
-				BWAPI::UnitType requiredType = pair.first;
-				if (requiredType.isAddon())
-				{
-					if (!unit->getAddon() || (unit->getAddon()->getType() != requiredType))
-					{
-						reject = true;
-						break;     // out of inner loop
-					}
-				}
-			}
-			if (reject)
-			{
-				continue;
-			}
-		}
-
-        // if we haven't rejected it, add it to the set of candidates
-        candidateProducers.insert(unit);
-    }
+	act.getCandidateProducers(candidateProducers);
 
 	// Trick: If we're producing a worker, choose the producer (command center, nexus,
 	// or larva) which is farthest from the main base. That way expansions are preferentially
 	// populated with less need to transfer workers.
-	if (t.isUnit() && t.getUnitType().isWorker())
+	if (act.isWorker())
 	{
 		return getFarthestUnitFromPosition(candidateProducers,
 			InformationManager::Instance().getMyMainBaseLocation()->getPosition());
@@ -394,7 +421,7 @@ BWAPI::Unit ProductionManager::getProducer(MacroAct t, BWAPI::Position closestTo
 	}
 }
 
-BWAPI::Unit ProductionManager::getClosestUnitToPosition(const BWAPI::Unitset & units, BWAPI::Position closestTo)
+BWAPI::Unit ProductionManager::getClosestUnitToPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position closestTo) const
 {
     if (units.size() == 0)
     {
@@ -425,7 +452,7 @@ BWAPI::Unit ProductionManager::getClosestUnitToPosition(const BWAPI::Unitset & u
     return closestUnit;
 }
 
-BWAPI::Unit ProductionManager::getFarthestUnitFromPosition(const BWAPI::Unitset & units, BWAPI::Position farthest)
+BWAPI::Unit ProductionManager::getFarthestUnitFromPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position farthest) const
 {
 	if (units.size() == 0)
 	{
@@ -456,14 +483,14 @@ BWAPI::Unit ProductionManager::getFarthestUnitFromPosition(const BWAPI::Unitset 
 	return farthestUnit;
 }
 
-BWAPI::Unit ProductionManager::getClosestLarvaToPosition(BWAPI::Position closestTo)
+BWAPI::Unit ProductionManager::getClosestLarvaToPosition(BWAPI::Position closestTo) const
 {
-	BWAPI::Unitset larvas;
+	std::vector<BWAPI::Unit> larvas;
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
 		if (unit->getType() == BWAPI::UnitTypes::Zerg_Larva)
 		{
-			larvas.insert(unit);
+			larvas.push_back(unit);
 		}
 	}
 
@@ -481,7 +508,7 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
     MacroAct act = item.macroAct;
 
 	// If it's a terran add-on.
-	if (act.isUnit() && act.getUnitType().isAddon())
+	if (act.isAddon())
 	{
 		producer->buildAddon(act.getUnitType());
 	}
@@ -720,9 +747,25 @@ void ProductionManager::executeCommand(MacroCommand command)
 	{
 		StrategyBossZerg::Instance().setNonadaptive(true);
 	}
+	else if (cmd == MacroCommandType::QueueBarrier)
+	{
+		// It does nothing! Every command is a queue barrier.
+	}
 	else
 	{
 		UAB_ASSERT(false, "unknown MacroCommand");
+	}
+}
+
+void ProductionManager::updateGoals()
+{
+	// 1. Drop any goals which have been achieved.
+	_goals.remove_if([](ProductionGoal & g) { return g.done(); });
+
+	// 2. Attempt to carry out goals.
+	for (ProductionGoal & goal : _goals)
+	{
+		goal.update();
 	}
 }
 
@@ -774,7 +817,7 @@ void ProductionManager::drawProductionInformation(int x, int y)
 
 	// fill prod with each unit which is under construction
 	std::vector<BWAPI::Unit> prod;
-	for (auto & unit : BWAPI::Broodwar->self()->getUnits())
+	for (const auto & unit : BWAPI::Broodwar->self()->getUnits())
 	{
         UAB_ASSERT(unit != nullptr, "Unit was null");
 
@@ -787,7 +830,13 @@ void ProductionManager::drawProductionInformation(int x, int y)
 	// sort it based on the time it was started
 	std::sort(prod.begin(), prod.end(), CompareWhenStarted());
 
-	for (auto & unit : prod) 
+	for (const ProductionGoal & goal : _goals)
+	{
+		y += 10;
+		BWAPI::Broodwar->drawTextScreen(x, y, " %cgoal %c%s", white, orange, NiceMacroActName(goal.act.getName()).c_str());
+	}
+
+	for (const auto & unit : prod)
     {
 		y += 10;
 
@@ -800,7 +849,7 @@ void ProductionManager::drawProductionInformation(int x, int y)
 		BWAPI::Broodwar->drawTextScreen(x, y, " %c%s", green, NiceMacroActName(t.getName()).c_str());
 		BWAPI::Broodwar->drawTextScreen(x - 35, y, "%c%6d", green, unit->getRemainingBuildTime());
 	}
-
+	
 	_queue.drawQueueInformation(x, y+10, _outOfBook);
 }
 

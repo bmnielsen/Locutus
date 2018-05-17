@@ -20,20 +20,22 @@ namespace UAlbertaBot
 		GameRecord * _bestMatch;
 
 		// Advice for the rest of the bot.
-		bool _recommendGasSteal;
-		std::string _recommendedOpening;
+		bool _singleStrategy;					// enemy seems to always do the same thing, false until proven true
 		OpeningPlan _initialExpectedEnemyPlan;  // first predicted enemy plan, before play starts
 		OpeningPlan _expectedEnemyPlan;		    // in-game predicted enemy plan
 		// NOTE There is also an actual recognized enemy plan. It is kept in _planRecognizer.getPlan().
+		bool _recommendGasSteal;
+		std::string _recommendedOpening;
 
-		OpeningPlan findBestEnemyPlan() const;
+		OpeningPlan predictEnemyPlan() const;
 
+		void considerSingleStrategy();
 		void considerOpenings();
 		void reconsiderEnemyPlan();
 		void considerGasSteal();
 		void setBestMatch();
 
-		void setRecommendedOpening(OpeningPlan enemyPlan);
+		std::string getOpeningForEnemyPlan(OpeningPlan enemyPlan);
 
 	public:
 		OpponentModel();
@@ -48,6 +50,7 @@ namespace UAlbertaBot
 
 		void predictEnemy(int lookaheadFrames, PlayerSnapshot & snap) const;
 
+		bool		getEnemySingleStrategy() const { return _singleStrategy; };
 		OpeningPlan getEnemyPlan() const;
 		std::string getEnemyPlanString() const;
 		OpeningPlan getInitialExpectedEnemyPlan() const { return _initialExpectedEnemyPlan; };

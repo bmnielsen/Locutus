@@ -34,7 +34,15 @@ void InformationManager::initializeTheBases()
 {
 	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 	{
-		_theBases[base] = new Base(base->getTilePosition());
+		Base * knownBase = Bases::Instance().getBaseAtTilePosition(base->getTilePosition());
+		if (knownBase)
+		{
+			_theBases[base] = knownBase;
+		}
+		else
+		{
+			_theBases[base] = new Base(base->getTilePosition());
+		}
 	}
 }
 
@@ -251,18 +259,43 @@ void InformationManager::update()
 
 void InformationManager::updateUnitInfo() 
 {
+	_unitData[_enemy].removeBadUnits();
+	_unitData[_self].removeBadUnits();
+
 	for (const auto unit : _enemy->getUnits())
 	{
 		updateUnit(unit);
 	}
 
+	// Remove destroyed pylons from _ourPylons.
+	for (auto pylon = _ourPylons.begin(); pylon != _ourPylons.end(); ++pylon)
+	{
+		if (!(*pylon)->exists())
+		{
+			pylon = _ourPylons.erase(pylon);
+		}
+	}
+
+	bool anyNewPylons = false;
+
 	for (const auto unit : _self->getUnits())
 	{
 		updateUnit(unit);
+
+		// Add newly-ccompleted pylons to _ourPylons, and notify BuildingManager.
+		if (unit->getType() == BWAPI::UnitTypes::Protoss_Pylon &&
+			unit->isCompleted() &&
+			!_ourPylons.contains(unit))
+		{
+			_ourPylons.insert(unit);
+			anyNewPylons = true;
+		}
 	}
 
-	_unitData[_enemy].removeBadUnits();
-	_unitData[_self].removeBadUnits();
+	if (anyNewPylons)
+	{
+		BuildingManager::Instance().unstall();
+	}
 }
 
 void InformationManager::updateBaseLocationInfo() 
@@ -900,7 +933,10 @@ void InformationManager::drawUnitInformation(int x, int y)
 
 void InformationManager::drawMapInformation()
 {
-	Bases::Instance().drawBaseInfo();
+	if (Config::Debug::DrawMapInfo)
+	{
+		Bases::Instance().drawBaseInfo();
+	}
 }
 
 void InformationManager::drawBaseInformation(int x, int y)

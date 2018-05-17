@@ -113,7 +113,7 @@ bool BuildingPlacer::tileBlocksAddon(BWAPI::TilePosition position) const
 
 // Can we build this building here with the specified amount of space around it?
 // Space value is buildDist. horizontalOnly means only horizontal spacing.
-bool BuildingPlacer::canBuildHereWithSpace(BWAPI::TilePosition position,const Building & b,int buildDist,bool horizontalOnly) const
+bool BuildingPlacer::canBuildHereWithSpace(BWAPI::TilePosition position,const Building & b,int buildDist) const
 {
     //if we can't build here, we of course can't build here with space
     if (!canBuildHere(position,b))
@@ -151,13 +151,7 @@ bool BuildingPlacer::canBuildHereWithSpace(BWAPI::TilePosition position,const Bu
         endx = position.x + width + buildDist;
         endy = position.y + height + buildDist;
     }
-
-    if (horizontalOnly)
-    {
-        starty += buildDist;
-        endy -= buildDist;
-    }
-
+\
     // if this rectangle doesn't fit on the map we can't build here
     if (startx < 0 || starty < 0 || endx > BWAPI::Broodwar->mapWidth() || endy > BWAPI::Broodwar->mapHeight())
     {
@@ -184,7 +178,7 @@ bool BuildingPlacer::canBuildHereWithSpace(BWAPI::TilePosition position,const Bu
     return true;
 }
 
-BWAPI::TilePosition BuildingPlacer::getBuildLocationNear(const Building & b,int buildDist,bool horizontalOnly) const
+BWAPI::TilePosition BuildingPlacer::getBuildLocationNear(const Building & b, int buildDist) const
 {
 	// BWAPI::Broodwar->printf("Building Placer seeks position near %d, %d", b.desiredPosition.x, b.desiredPosition.y);
 
@@ -194,7 +188,7 @@ BWAPI::TilePosition BuildingPlacer::getBuildLocationNear(const Building & b,int 
     // iterate through the list until we've found a suitable location
     for (size_t i(0); i < closestToBuilding.size(); ++i)
     {
-        if (canBuildHereWithSpace(closestToBuilding[i],b,buildDist,horizontalOnly))
+        if (canBuildHereWithSpace(closestToBuilding[i],b,buildDist))
         {
             return closestToBuilding[i];
         }

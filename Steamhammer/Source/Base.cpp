@@ -6,60 +6,47 @@ using namespace UAlbertaBot;
 // The first base gets base id 1.
 static int BaseID = 1;
 
-void Base::init(BWAPI::TilePosition pos, const BWAPI::Unitset possibleResources)
-{
-	++BaseID;
-
-	for (auto unit : possibleResources)
-	{
-		if (unit->getPosition().isValid() && unit->getDistance(getPosition()) < BaseResourceRange)
-		{
-			// Ignore mineral patches which are too small. They are probably blocking minerals.
-			if (unit->getType().isMineralField() && unit->getInitialResources() > 64)
-			{
-				minerals.insert(unit);
-			}
-			else if (unit->getType() == BWAPI::UnitTypes::Resource_Vespene_Geyser)
-			{
-				geysers.insert(unit);
-			}
-		}
-	}
-}
-
-// Create a Base at the beginning of the game given its position only.
-// The Bases class creates bases after finding their positions.
+// Create a base with a location but without resources.
+// TODO to be removed - used temporarily by InfoMan
 Base::Base(BWAPI::TilePosition pos)
 	: id(BaseID)
 	, tilePosition(pos)
+	, distances(pos)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
 	, reserved(false)
 {
-	BWAPI::Unitset resources;
-
-	for (auto unit : BWAPI::Broodwar->getNeutralUnits())
-	{
-		if (unit->getType().isResourceContainer() &&
-			unit->getPosition().isValid() &&
-			unit->getDistance(getPosition()) < BaseResourceRange)
-		{
-			resources.insert(unit);
-		}
-	}
-
-	init(pos, resources);
+	++BaseID;
 }
 
 // Create a base given its position and a set of resources that may belong to it.
-Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset possibleResources)
+// The caller is responsible for eliminating resources which are too small to be worth it.
+Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
 	: id(BaseID)
 	, tilePosition(pos)
+	, distances(pos)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
 	, reserved(false)
 {
-	init(pos, possibleResources);
+	DistanceMap resourceDistances(pos, BaseResourceRange, false);
+
+	for (BWAPI::Unit resource : availableResources)
+	{
+		if (resource->getInitialTilePosition().isValid() && resourceDistances.getStaticUnitDistance(resource) >= 0)
+		{
+			if (resource->getType().isMineralField())
+			{
+				minerals.insert(resource);
+			}
+			else if (resource->getType() == BWAPI::UnitTypes::Resource_Vespene_Geyser)
+			{
+				geysers.insert(resource);
+			}
+		}
+	}
+
+	++BaseID;
 }
 
 // Called from InformationManager to work around a bug related to BWAPI 4.1.2.
@@ -70,7 +57,7 @@ void Base::findGeysers()
 	{
 		if ((unit->getType() == BWAPI::UnitTypes::Resource_Vespene_Geyser || unit->getType().isRefinery()) &&
 			unit->getPosition().isValid() &&
-			unit->getDistance(getPosition()) < BaseResourceRange)
+			unit->getDistance(getPosition()) < 320)
 		{
 			geysers.insert(unit);
 		}
@@ -86,21 +73,47 @@ void Base::setOwner(BWAPI::Unit depot, BWAPI::Player player)
 	reserved = false;
 }
 
+int Base::getInitialMinerals() const
+{
+	int total = 0;
+	for (const BWAPI::Unit min : minerals)
+	{
+		total += min->getInitialResources();
+	}
+	return total;
+}
+
+int Base::getInitialGas() const
+{
+	int total = 0;
+	for (const BWAPI::Unit gas : geysers)
+	{
+		total += gas->getInitialResources();
+	}
+	return total;
+}
+
 void Base::drawBaseInfo() const
 {
+	// DistanceMap d(tilePosition, BaseResourceRange, false);
+
 	BWAPI::Position offset(-16, -6);
 	for (BWAPI::Unit min : minerals)
 	{
 		BWAPI::Broodwar->drawTextMap(min->getInitialPosition() + offset, "%c%d", cyan, id);
+		// BWAPI::Broodwar->drawTextMap(min->getInitialPosition() + BWAPI::Position(-18, 4), "%c%d", yellow, d.getStaticUnitDistance(min));
 	}
 	for (BWAPI::Unit gas : geysers)
 	{
 		BWAPI::Broodwar->drawTextMap(gas->getInitialPosition() + offset, "%cgas %d", cyan, id);
+		// BWAPI::Broodwar->drawTextMap(gas->getInitialPosition() + BWAPI::Position(-18, 4), "%cgas %d", yellow, d.getStaticUnitDistance(gas));
 	}
 
 	BWAPI::Broodwar->drawBoxMap(
 		BWAPI::Position(tilePosition),
 		BWAPI::Position(tilePosition + BWAPI::TilePosition(4, 3)),
 		BWAPI::Colors::Cyan, false);
-	BWAPI::Broodwar->drawTextMap(BWAPI::Position(tilePosition) + BWAPI::Position(56,44), "%c%d", cyan, id);
+	BWAPI::Broodwar->drawTextMap(BWAPI::Position(tilePosition) + BWAPI::Position(40,40),
+		"%c%d (%d,%d)",
+		cyan, id, tilePosition.x, tilePosition.y);
 }

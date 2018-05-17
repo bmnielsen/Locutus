@@ -39,8 +39,8 @@ Squad::Squad(const std::string & name, SquadOrder order, size_t priority)
 	, _lastRetreatSwitch(0)
     , _lastRetreatSwitchVal(false)
     , _priority(priority)
-	, _order(order)
 {
+	setSquadOrder(order);
 }
 
 Squad::~Squad()
@@ -98,21 +98,20 @@ void Squad::update()
 		_microAirToAir.regroup(regroupPosition);
 		_microMelee.regroup(regroupPosition);
 		_microRanged.regroup(regroupPosition);
-		//_microLurkers.regroup(regroupPosition);    // does more harm than good
 		_microTanks.regroup(regroupPosition);
 	}
 	else
 	{
 		// No need to regroup. Execute micro.
-		_microAirToAir.execute(_order);
-		_microMelee.execute(_order);
-		_microRanged.execute(_order);
-		_microTanks.execute(_order);
+		_microAirToAir.execute();
+		_microMelee.execute();
+		_microRanged.execute();
+		_microTanks.execute();
 	}
 
 	// Lurkers never regroup, always execute their order.
 	// TODO It is because regrouping works poorly. It retreats and unburrows them too often.
-	_microLurkers.execute(_order);
+	_microLurkers.execute();
 
 	// Maybe stim marines and firebats.
 	stimIfNeeded();
@@ -128,7 +127,7 @@ void Squad::update()
 
 		// Detectors.
 		_microDetectors.setUnitClosestToEnemy(vanguard);
-		_microDetectors.execute(_order);
+		_microDetectors.execute();
 	}
 }
 
@@ -263,17 +262,17 @@ void Squad::addUnitsToMicroManagers()
             {
                 tankUnits.insert(unit);
             }   
-			else if (unit->getType().isDetector() && !unit->getType().isBuilding())
+			else if (unit->getType().isDetector() && unit->getType().isFlyer())   // not a building
 			{
 				detectorUnits.insert(unit);
 			}
-			// NOTE Excludes overlords as transports (they are also detectors, a confusing case).
+			// NOTE This excludes overlords as transports (they are also detectors, a confusing case).
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Shuttle ||
 				unit->getType() == BWAPI::UnitTypes::Terran_Dropship)
 			{
 				transportUnits.insert(unit);
 			}
-			// NOTE Excludes some units: spellcasters, valkyries, corsairs, devourers.
+			// NOTE This excludes spellcasters.
 			else if ((unit->getType().groundWeapon().maxRange() > 32) ||
 				unit->getType() == BWAPI::UnitTypes::Zerg_Scourge ||
 				unit->getType() == BWAPI::UnitTypes::Protoss_Reaver ||
@@ -289,6 +288,7 @@ void Squad::addUnitsToMicroManagers()
 				WorkerManager::Instance().setCombatWorker(unit);
 				meleeUnits.insert(unit);
 			}
+			// Melee units include firebats, which have range 32.
 			else if (unit->getType().groundWeapon().maxRange() <= 32)
 			{
 				meleeUnits.insert(unit);
@@ -353,59 +353,6 @@ bool Squad::needsToRegroup()
 		return false;
 	}
 
-	/* - simplification and supposed improvement suggested by bftjoe - remove this section
-	std::vector<UnitInfo> enemyCombatUnits;
-    const auto & enemyUnitInfo = InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy());
-
-	// if none of our units are in range of any enemy units, don't retreat
-	bool anyInRange = false;
-    for (const auto & eui : enemyUnitInfo)
-    {
-		for (const auto u : _units)
-        {
-			if (!u->exists() || u->isLoaded())
-			{
-				continue;
-			}
-
-			// Max of weapon range and vision range. Vision range is as long or longer, except for tanks.
-			// We assume that the tanks may siege, and check the siege range of unsieged tanks.
-			if (UnitUtil::CanAttack(eui.second.type, u->getType()))
-			{
-				int range = 0;     // range of enemy unit
-				if (eui.second.type == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
-					eui.second.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
-				{
-					range = (BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode).groundWeapon().maxRange() + 128;  // plus safety fudge
-				}
-				else
-				{
-					// Sight range is >= weapon range, so we can stop here.
-					range = eui.second.type.sightRange();
-				}
-				range += 128;    // plus some to account for our squad spreading out
-
-				if (range >= u->getDistance(eui.second.lastPosition))
-				{
-					anyInRange = true;
-					break;   // break out of inner loop
-				}
-			}
-        }
-
-		if (anyInRange)
-        {
-            break;       // break out of outer loop
-        }
-    }
-
-    if (!anyInRange)
-    {
-        _regroupStatus = std::string("No enemy units in range");
-        return false;
-    }
-	/* END proposed removal */
-
 	// If we most recently retreated, don't attack again until retreatDuration frames have passed.
 	const int retreatDuration = 2 * 24;
 	bool retreat = _lastRetreatSwitchVal && (BWAPI::Broodwar->getFrameCount() - _lastRetreatSwitch < retreatDuration);
@@ -434,11 +381,6 @@ bool Squad::needsToRegroup()
 	}
 
 	return retreat;
-}
-
-void Squad::setSquadOrder(const SquadOrder & so)
-{
-	_order = so;
 }
 
 bool Squad::containsUnit(BWAPI::Unit u) const
@@ -599,6 +541,22 @@ const BWAPI::Unitset & Squad::getUnits() const
 { 
 	return _units; 
 } 
+
+void Squad::setSquadOrder(const SquadOrder & so)
+{
+	_order = so;
+
+	// Pass the order on to all micromanagers.
+	_microAirToAir.setOrder(so);
+	_microMelee.setOrder(so);
+	_microRanged.setOrder(so);
+	_microDetectors.setOrder(so);
+	_microHighTemplar.setOrder(so);
+	_microLurkers.setOrder(so);
+	_microMedics.setOrder(so);
+	_microTanks.setOrder(so);
+	_microTransports.setOrder(so);
+}
 
 const SquadOrder & Squad::getSquadOrder() const			
 { 

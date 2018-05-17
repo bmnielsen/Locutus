@@ -7,6 +7,11 @@ namespace UAlbertaBot
 {
 class MicroRanged : public MicroManager
 {
+private:
+
+	// Ranged ground weapon does splash damage, so it works under dark swarm.
+	bool goodUnderDarkSwarm(BWAPI::UnitType type);
+
 public:
 
 	MicroRanged();

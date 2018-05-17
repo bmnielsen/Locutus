@@ -8,6 +8,14 @@ size_t TotalCommands = 0;
 
 const int dotRadius = 2;
 
+bool Micro::AlwaysKite(BWAPI::UnitType type)
+{
+	return
+		type == BWAPI::UnitTypes::Zerg_Mutalisk ||
+		type == BWAPI::UnitTypes::Terran_Vulture ||
+		type == BWAPI::UnitTypes::Terran_Wraith;
+}
+
 void Micro::Stop(BWAPI::Unit unit)
 {
 	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self())
@@ -391,6 +399,13 @@ void Micro::ReturnCargo(BWAPI::Unit worker)
 
 void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 {
+	// The always-kite units are have their own micro.
+	if (AlwaysKite(rangedUnit->getType()))
+	{
+		Micro::MutaDanceTarget(rangedUnit, target);
+		return;
+	}
+
 	if (!rangedUnit || !rangedUnit->exists() || rangedUnit->getPlayer() != BWAPI::Broodwar->self() ||
 		!target || !target->exists())
 	{
@@ -410,18 +425,14 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
 	bool kite(true);
 
-	// Kite if configured as a "KiteLonger" unit, or if the enemy's range is shorter than ours.
-	// Note: Assumes that the enemy does not have range upgrades.
-    bool kiteLonger = Config::Micro::KiteLongerRangedUnits.find(rangedUnit->getType()) != Config::Micro::KiteLongerRangedUnits.end();
-	if (!kiteLonger && (range <= target->getType().groundWeapon().maxRange()))
+	// Don't kite if the enemy's range is at least as long as ours.
+	// NOTE Assumes that the enemy does not have range upgrades, and only checks ground range.
+	// Also, if the target can't attack back, then don't kite.
+	if (range <= target->getType().groundWeapon().maxRange() ||
+		!UnitUtil::CanAttack(target, rangedUnit))
 	{
 		kite = false;
 	}
-    // If the target can't attack back, then don't kite.
-	else if (!UnitUtil::CanAttack(target, rangedUnit))
-    {
-    	kite = false;
-    }
 
 	// Kite if we're not ready yet: Wait for the weapon.
 	double dist(rangedUnit->getDistance(target));
@@ -454,11 +465,10 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	}
 }
 
-// Used for both mutalisks and vultures--fast units with short range.
+// Used for fast units with no delay in making turns.
 void Micro::MutaDanceTarget(BWAPI::Unit muta, BWAPI::Unit target)
 {
 	if (!muta || !muta->exists() || muta->getPlayer() != BWAPI::Broodwar->self() ||
-		(muta->getType() != BWAPI::UnitTypes::Zerg_Mutalisk && muta->getType() != BWAPI::UnitTypes::Terran_Vulture) ||
 		!target || !target->exists())
 	{
 		UAB_ASSERT(false, "bad arg");

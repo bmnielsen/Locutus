@@ -3,7 +3,7 @@
 
 using namespace UAlbertaBot;
 
-OpeningPlan OpponentModel::findBestEnemyPlan() const
+OpeningPlan OpponentModel::predictEnemyPlan() const
 {
 	struct PlanInfoType
 	{
@@ -50,18 +50,253 @@ OpeningPlan OpponentModel::findBestEnemyPlan() const
 	return bestPlan;
 }
 
-// If the opponent model tells us what openings to prefer or avoid,
-// note the information.
-// This runs once before play starts, when all we know is the opponent's name
-// and whatever the game records tell us about it.
+// Does the opponent seem to play the same strategy every game?
+// If we're pretty sure, set _singleStrategy to true.
+// So far, we only check the plan. We have plenty of other data that could be helpful.
+void OpponentModel::considerSingleStrategy()
+{
+	// Gather info.
+	int knownPlan = 0;
+	int unknownPlan = 0;
+	std::set<OpeningPlan> plansSeen;
+
+	for (const GameRecord * record : _pastGameRecords)
+	{
+		if (_gameRecord.sameMatchup(*record))
+		{
+			OpeningPlan plan = record->getEnemyPlan();
+			if (plan == OpeningPlan::Unknown)
+			{
+				unknownPlan += 1;
+			}
+			else
+			{
+				knownPlan += 1;
+				plansSeen.insert(plan);
+			}
+		}
+	}
+
+	// Decide.
+	// If we don't recognize the majority of plans, we're not sure.
+	if (knownPlan >= 2 && plansSeen.size() == 1 && unknownPlan <= knownPlan)
+	{
+		_singleStrategy = true;
+	}
+}
+
+// If the opponent model has collected useful information,
+// set _recommendedOpening, the opening to play (or instructions for choosing it).
+// This runs once before play starts, when all we know is the opponent
+// and whatever the game records tell us about the opponent.
 void OpponentModel::considerOpenings()
 {
-	OpeningPlan bestPlan = findBestEnemyPlan();
-
-	if (bestPlan != OpeningPlan::Unknown)
+	struct OpeningInfoType
 	{
-		_initialExpectedEnemyPlan = bestPlan;    // the only place the initial expectation is set
-		setRecommendedOpening(bestPlan);
+		int sameWins;		// on the same map as this game, or following the same plan as this game
+		int sameGames;
+		int otherWins;		// across all other maps/plans
+		int otherGames;
+		double weightedWins;
+		double weightedGames;
+
+		OpeningInfoType()
+			: sameWins(0)
+			, sameGames(0)
+			, otherWins(0)
+			, otherGames(0)
+			// The weighted values doesn't need to be initialized up front.
+		{
+		}
+	};
+
+	int totalWins = 0;
+	int totalGames = 0;
+	std::map<std::string, OpeningInfoType> openingInfo;		// opening name -> opening info
+	OpeningInfoType planInfo;								// summary of the recorded enemy plans
+
+	// Gather basic information from the game records.
+	for (const GameRecord * record : _pastGameRecords)
+	{
+		if (_gameRecord.sameMatchup(*record))
+		{
+			++totalGames;
+			if (record->getWin())
+			{
+				++totalWins;
+			}
+			OpeningInfoType & info = openingInfo[record->getOpeningName()];
+			if (record->getMapName() == BWAPI::Broodwar->mapFileName())
+			{
+				info.sameGames += 1;
+				if (record->getWin())
+				{
+					info.sameWins += 1;
+				}
+			}
+			else
+			{
+				info.otherGames += 1;
+				if (record->getWin())
+				{
+					info.otherWins += 1;
+				}
+			}
+			if (record->getExpectedEnemyPlan() == record->getEnemyPlan())
+			{
+				// The plan was recorded as correctly predicted in that game.
+				planInfo.sameGames += 1;
+				if (record->getWin())
+				{
+					planInfo.sameWins += 1;
+				}
+			}
+			else
+			{
+				// The plan was not correctly predicted.
+				planInfo.otherGames += 1;
+				if (record->getWin())
+				{
+					planInfo.otherWins += 1;
+				}
+			}
+		}
+	}
+
+	UAB_ASSERT(totalWins == planInfo.sameWins + planInfo.otherWins, "bad total");
+	UAB_ASSERT(totalGames == planInfo.sameGames + planInfo.otherGames, "bad total");
+
+	OpeningPlan enemyPlan = _expectedEnemyPlan;
+
+	// For the first games, stick to the counter openings based on the predicted plan.
+	if (totalGames <= 5)
+	{
+		_recommendedOpening = getOpeningForEnemyPlan(enemyPlan);
+		return;										// with or without expected play
+	}
+
+	UAB_ASSERT(totalGames > 0 && totalWins >= 0, "bad total");
+	UAB_ASSERT(openingInfo.size() > 0 && int(openingInfo.size()) <= totalGames, "bad total");
+
+	// If we keep winning, stick to the winning track.
+	if (totalWins == totalGames ||
+		_singleStrategy && planInfo.sameWins > 0 && planInfo.sameWins == planInfo.sameGames)   // Unknown plan is OK
+	{
+		_recommendedOpening = getOpeningForEnemyPlan(enemyPlan);
+		return;										// with or without expected play
+	}
+	
+	// Randomly choose any opening that always wins, or always wins on this map.
+	// This bypasses the map weighting below.
+	// The algorithm is reservoir sampling in the simplest case, with reservoir size = 1.
+	// It gives equal probabilities without remembering all the elements.
+	std::string alwaysWins;
+	double nAlwaysWins = 0.0;
+	std::string alwaysWinsOnThisMap;
+	double nAlwaysWinsOnThisMap = 0.0;
+	for (auto item : openingInfo)
+	{
+		const OpeningInfoType & info = item.second;
+		if (info.sameWins + info.otherWins > 0 && info.sameWins + info.otherWins == info.sameGames + info.otherGames)
+		{
+			nAlwaysWins += 1.0;
+			if (Random::Instance().flag(1.0 / nAlwaysWins))
+			{
+				alwaysWins = item.first;
+			}
+		}
+		if (info.sameWins > 0 && info.sameWins == info.sameGames)
+		{
+			nAlwaysWinsOnThisMap += 1.0;
+			if (Random::Instance().flag(1.0 / nAlwaysWinsOnThisMap))
+			{
+				alwaysWinsOnThisMap = item.first;
+			}
+		}
+	}
+	if (!alwaysWins.empty())
+	{
+		_recommendedOpening = alwaysWins;
+		return;
+	}
+	if (!alwaysWinsOnThisMap.empty())
+	{
+		_recommendedOpening = alwaysWinsOnThisMap;
+		return;
+	}
+
+	// Explore different actions this proportion of the time.
+	// The number varies depending on the overall win rate: Explore less if we're usually winning.
+	const double overallWinRate = double(totalWins) / totalGames;
+	UAB_ASSERT(overallWinRate >= 0.0 && overallWinRate <= 1.0, "bad total");
+	const double explorationRate = 0.05 + (1.0 - overallWinRate) * 0.10;
+
+	// Decide whether to explore, and choose which kind of exploration to do.
+	// The kind of exploration is affected by totalGames. Exploration choices are:
+	// The counter openings - "Counter ...".
+	// The matchup openings - "matchup".
+	// Any opening that this race can play - "random".
+	// The opening chooser in ParseUtils knows how to interpret the strings.
+	if (totalWins == 0 || Random::Instance().flag(explorationRate))
+	{
+		const double wrongPlanRate = double(planInfo.otherGames) / totalGames;
+		// Is the predicted enemy plan likely to be right?
+		if (totalGames > 30 && Random::Instance().flag(0.75))
+		{
+			_recommendedOpening = "random";
+		}
+		else if (Random::Instance().flag(0.8 * wrongPlanRate * double(std::min(totalGames, 20)) / 20.0))
+		{
+			_recommendedOpening = "matchup";
+		}
+		else
+		{
+			_recommendedOpening = getOpeningForEnemyPlan(enemyPlan);
+		}
+		return;
+	}
+
+	// Compute "weighted" win rates which combine map win rates and overall win rates, as an
+	// estimate of the true win rate on this map. The estimate is ad hoc, using an assumption
+	// that is sure to be wrong.
+	for (auto it = openingInfo.begin(); it != openingInfo.end(); ++it)
+	{
+		OpeningInfoType & info = it->second;
+
+		// Evidence provided by game results is proportional to the square root of the number of games.
+		// So let's pretend that a game played on the same map provides mapPower times as much evidence
+		// as a game played on another map.
+		double mapPower = info.sameGames ? (info.sameGames + info.otherGames) / sqrt(info.sameGames) : 0.0;
+
+		info.weightedWins = mapPower * info.sameWins + info.otherWins;
+		info.weightedGames = mapPower * info.sameGames + info.otherGames;
+	}
+
+	// We're not exploring. Choose an opening with the best weighted win rate.
+	// This is a variation on the epsilon-greedy method.
+	double bestScore = -1.0;		// every opening will have a win rate >= 0
+	double nBest = 1.0;
+	for (auto it = openingInfo.begin(); it != openingInfo.end(); ++it)
+	{
+		const OpeningInfoType & info = it->second;
+
+		double score = info.weightedGames < 0.1 ? 0.0 : info.weightedWins / info.weightedGames;
+
+		if (score > bestScore)
+		{
+			_recommendedOpening = it->first;
+			bestScore = score;
+			nBest = 1.0;
+		}
+		else if (abs (score - bestScore) < 0.0001)
+		{
+			// We choose randomly among openings with essentially equal score, using reservoir sampling.
+			nBest += 1.0;
+			if (Random::Instance().flag(1.0 / nBest))
+			{
+				_recommendedOpening = it->first;
+			}
+		}
 	}
 }
 
@@ -90,7 +325,7 @@ void OpponentModel::reconsiderEnemyPlan()
 	}
 
 	// We set the new expected plan even if it is Unknown. Better to know that we don't know.
-	_expectedEnemyPlan = findBestEnemyPlan();
+	_expectedEnemyPlan = predictEnemyPlan();
 }
 
 // If it seems appropriate to try to steal the enemy's gas, note that.
@@ -118,10 +353,10 @@ void OpponentModel::considerGasSteal()
 	// We add fictitious games saying that not stealing gas was tried once and won, and stealing gas
 	// was tried twice and lost. That way we don't try stealing gas unless we lose games without;
 	// it represents that stealing gas has a cost.
-	int nGames = 3;           // 3 fictitious games total
+	int nGames = 4;           // 4 fictitious games total
 	int nWins = 1;            // 1 fictitious win total
-	int nStealTries = 2;      // 2 fictitious gas steals
-	int nStealWins = 0;       // 2 fictitious losses on gas steal
+	int nStealTries = 3;      // 3 fictitious gas steals
+	int nStealWins = 0;       // 3 fictitious losses on gas steal
 	int nStealSuccesses = 0;  // for deciding on timing (not used yet)
 	for (const GameRecord * record : _pastGameRecords)
 	{
@@ -186,19 +421,25 @@ void OpponentModel::setBestMatch()
 
 // We expect the enemy to follow the given opening plan.
 // Recommend an opening to counter that plan.
-// For now, the way we formulate the recommendation is trivial.
-void OpponentModel::setRecommendedOpening(OpeningPlan enemyPlan)
+// The counters are configured; all we have to do is name the strategy mix.
+// The empty opening "" means play the regular openings, no plan recognized.
+std::string OpponentModel::getOpeningForEnemyPlan(OpeningPlan enemyPlan)
 {
-	_recommendedOpening = "Counter " + OpeningPlanString(enemyPlan);
-	_expectedEnemyPlan = enemyPlan;
+	if (enemyPlan == OpeningPlan::Unknown)
+	{
+		return "";
+	}
+	return "Counter " + OpeningPlanString(enemyPlan);
 }
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 OpponentModel::OpponentModel()
 	: _bestMatch(nullptr)
-	, _recommendGasSteal(false)
+	, _singleStrategy(false)
+	, _initialExpectedEnemyPlan(OpeningPlan::Unknown)
 	, _expectedEnemyPlan(OpeningPlan::Unknown)
+	, _recommendGasSteal(false)
 {
 	std::string name = BWAPI::Broodwar->enemy()->getName();
 
@@ -209,7 +450,7 @@ OpponentModel::OpponentModel()
 	_filename = "om_" + name + ".txt";
 }
 
-// Read past game records from the opponent model file.
+// Read past game records from the opponent model file, and do initial analysis.
 void OpponentModel::read()
 {
 	if (Config::IO::ReadOpponentModel)
@@ -241,16 +482,20 @@ void OpponentModel::read()
 	}
 
 	// Make immediate decisions that may take into account the game records.
+	// The initial expected enemy plan is set only here. That's the idea.
+	// The current expected enemy plan may be reset later.
+	_expectedEnemyPlan = _initialExpectedEnemyPlan = predictEnemyPlan();
+	considerSingleStrategy();
 	considerOpenings();
 	considerGasSteal();
 }
 
-// Write the current game record to the opponent model file.
+// Write the game records to the opponent model file.
 void OpponentModel::write()
 {
 	if (Config::IO::WriteOpponentModel)
 	{
-		std::ofstream outFile(Config::IO::WriteDir + _filename, std::ios::app);
+		std::ofstream outFile(Config::IO::WriteDir + _filename, std::ios::trunc);
 
 		// If it fails, there's not much we can do about it.
 		if (outFile.bad())
@@ -258,25 +503,32 @@ void OpponentModel::write()
 			return;
 		}
 
+		// The number of initial game records to skip over without rewriting.
+		// In normal operation, nToSkip is 0 or 1.
+		int nToSkip = 0;
+		if (int(_pastGameRecords.size()) >= Config::IO::MaxGameRecords)
+		{
+			nToSkip = _pastGameRecords.size() - Config::IO::MaxGameRecords + 1;
+		}
+
+		// Rewrite any old records that were read in.
+		// Not needed for local testing or for SSCAIT, necessary for other competitions.
+		for (auto record : _pastGameRecords)
+		{
+			if (nToSkip > 0)
+			{
+				--nToSkip;
+			}
+			else
+			{
+				record->write(outFile);
+			}
+		}
+
+		// And write the record of this game.
 		_gameRecord.write(outFile);
 
 		outFile.close();
-
-		// A test: Rewrite the input file.
-		/*
-		std::ofstream outFile2(Config::IO::WriteDir + "rewrite.txt", std::ios::trunc);
-		if (outFile2.bad())
-		{
-			BWAPI::Broodwar->printf("can't rewrite");
-			return;
-		}
-		for (auto record : _pastGameRecords)
-		{
-			record->write(outFile2);
-		}
-		_gameRecord.write(outFile2);
-		outFile2.close();
-		*/
 	}
 }
 
@@ -289,7 +541,7 @@ void OpponentModel::update()
 	{
 		_gameRecord.update();
 
-		// TODO turned off for now
+		// TODO the rest is turned off for now, not currently useful
 		return;
 
 		if (BWAPI::Broodwar->getFrameCount() % 32 == 31)

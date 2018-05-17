@@ -315,6 +315,7 @@ bool GameRecord::enemyScoutedUs() const
 // When this object is initialized, the opening and some other items are not yet known.
 GameRecord::GameRecord()
 	: valid(true)                  // never invalid, since it is recorded live
+	, savedRecord(false)
 	, ourRace(BWAPI::Broodwar->self()->getRace())
 	, enemyRace(BWAPI::Broodwar->enemy()->getRace())
 	, enemyIsRandom(BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Unknown)
@@ -339,6 +340,7 @@ GameRecord::GameRecord()
 // Constructor for the record of a past game.
 GameRecord::GameRecord(std::istream & input)
 	: valid(true)                  // until proven otherwise
+	, savedRecord(true)
 	, ourRace(BWAPI::Races::Unknown)
 	, enemyRace(BWAPI::Races::Unknown)
 	, enemyIsRandom(false)
@@ -369,7 +371,7 @@ void GameRecord::setWin(bool isWinner)
 
 // Write the game record to the given stream. File format:
 
-// file format version number
+// 1.4 = file format version number
 // matchup (e.g. ZvP, ZvRP)
 // map
 // opening
@@ -393,8 +395,11 @@ void GameRecord::setWin(bool isWinner)
 void GameRecord::write(std::ostream & output)
 {
 	// We only now notice that there was an expected enemy opening plan.
-	// Can't initialize this right off, and no point in tracking it in during the game.
-	expectedEnemyPlan = OpponentModel::Instance().getInitialExpectedEnemyPlan();
+	// Can't initialize this right off, and there is no point in tracking it during the game.
+	if (!savedRecord)
+	{
+		expectedEnemyPlan = OpponentModel::Instance().getInitialExpectedEnemyPlan();
+	}
 
 	output << fileFormatVersion << '\n';
 	output <<

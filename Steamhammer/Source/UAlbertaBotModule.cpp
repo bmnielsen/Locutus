@@ -28,7 +28,7 @@ void UAlbertaBotModule::onStart()
 	BWTA::analyze();
 
 	// Our own map analysis.
-	Bases::Instance().onStart();
+	Bases::Instance().initialize();
 
 	// Parse the bot's configuration file.
 	// Change this file path to point to your config file.
