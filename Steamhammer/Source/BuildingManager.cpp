@@ -11,6 +11,7 @@ BuildingManager::BuildingManager()
     : _reservedMinerals(0)
     , _reservedGas(0)
 	, _dontPlaceUntil(0)
+	, _stalledForLackOfSpace(false)
 {
 }
 
@@ -76,11 +77,24 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
             continue;
         }
 
+		// Skip protoss buildings that need pylon power if there is no space for them.
+		if (typeIsStalled(b.type))
+		{
+			continue;
+		}
+
 		// BWAPI::Broodwar->printf("Assigning Worker To: %s", b.type.getName().c_str());
 
         BWAPI::TilePosition testLocation = getBuildingLocation(b);
         if (!testLocation.isValid())
         {
+			// The building could not be placed (or was placed incorrectly due to a bug, which should not happen).
+			// Recognize the case where protoss building placement is stalled for lack of space.
+			// In principle, terran or zerg could run out of space, but it doesn't happen in practice.
+			if (UnitUtil::NeedsPylonPower(b.type) && testLocation == BWAPI::TilePositions::None)
+			{
+				_stalledForLackOfSpace = true;
+			}
 			continue;
         }
 
@@ -553,8 +567,14 @@ void BuildingManager::drawBuildingInformation(int x, int y)
 			int x2 = (b.desiredPosition.x + b.type.tileWidth()) * 32;
 			int y2 = (b.desiredPosition.y + b.type.tileHeight()) * 32;
 
-			BWAPI::Broodwar->drawTextScreen(x, y + 40 + ((yspace)* 10), "\x03 %s", NiceMacroActName(b.type.getName()).c_str());
-			BWAPI::Broodwar->drawTextScreen(x + 150, y + 40 + ((yspace++) * 10), "\x03 Need %c", getBuildingWorkerCode(b));
+			char color = yellow;
+			if (typeIsStalled(b.type))
+			{
+				color = red;
+			}
+
+			BWAPI::Broodwar->drawTextScreen(x, y + 40 + ((yspace)* 10), "%c %s", color, NiceMacroActName(b.type.getName()).c_str());
+			BWAPI::Broodwar->drawTextScreen(x + 150, y + 40 + ((yspace++) * 10), "%c Need %c", color, getBuildingWorkerCode(b));
 			BWAPI::Broodwar->drawBoxMap(x1, y1, x2, y2, BWAPI::Colors::Green, false);
         }
         else if (b.status == BuildingStatus::Assigned)
@@ -737,20 +757,8 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 		}
 	}
 
-	// Try to pack protoss buildings more closely together. Space can run out.
-	bool noVerticalSpacing = false;
-	if (b.type == BWAPI::UnitTypes::Protoss_Gateway ||
-		b.type == BWAPI::UnitTypes::Protoss_Forge || 
-		b.type == BWAPI::UnitTypes::Protoss_Stargate || 
-		b.type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun || 
-		b.type == BWAPI::UnitTypes::Protoss_Templar_Archives || 
-		b.type == BWAPI::UnitTypes::Protoss_Gateway)
-	{
-		noVerticalSpacing = true;
-	}
-
 	// Get a position within our region.
-	BWAPI::TilePosition tile = BuildingPlacer::Instance().getBuildLocationNear(b, distance, noVerticalSpacing);
+	BWAPI::TilePosition tile = BuildingPlacer::Instance().getBuildLocationNear(b, distance);
 
 	if (tile == BWAPI::TilePositions::None)
 	{
@@ -814,4 +822,12 @@ void BuildingManager::removeBuildings(const std::vector<Building> & toRemove)
             _buildings.erase(it);
         }
     }
+}
+
+// Buildings of this type are stalled and can't be built yet.
+// They are protoss buildings that require pylon power, and can be built after
+// a pylon finishes and provides powered space.
+bool BuildingManager::typeIsStalled(BWAPI::UnitType type)
+{
+	return _stalledForLackOfSpace && UnitUtil::NeedsPylonPower(type);
 }

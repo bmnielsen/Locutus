@@ -1,11 +1,19 @@
 #include "Common.h"
 
-// Return an upper bound for the UCB1 algorithm.
+// Return a  UCB1 upper bound value, for an unspecified action.
+// tries = the number of times the action has been tried
+// total = the total number of times all actions have been tried
 // Changing the constant 2.0 can alter the balance between exploration and exploitation.
+// A bigger constant means more exploration.
 double UCB1_bound(int tries, int total)
 {
+	return UCB1_bound(double(tries), double(total));
+}
+
+double UCB1_bound(double tries, double total)
+{
 	UAB_ASSERT(tries > 0 && total >= tries, "bad args");
-	return sqrt(2.0 * log(double(total)/tries));
+	return sqrt(2.0 * log(total) / tries);
 }
 
 int GetIntFromString(const std::string & s)

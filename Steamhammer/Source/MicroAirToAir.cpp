@@ -75,15 +75,29 @@ BWAPI::Unit MicroAirToAir::getTarget(BWAPI::Unit airUnit, const BWAPI::Unitset &
 
 	for (const auto target : targets)
 	{
-		int priority = getAttackPriority(airUnit, target);     // 0..12
-		int range    = airUnit->getDistance(target);           // 0..map size in pixels
-		int toGoal   = target->getDistance(order.getPosition());  // 0..map size in pixels
+		const int priority = getAttackPriority(airUnit, target);		// 0..12
+		const int range = airUnit->getDistance(target);					// 0..map size in pixels
+		const int closerToGoal =										// positive if target is closer than us to the goal
+			airUnit->getDistance(order.getPosition()) - target->getDistance(order.getPosition());
+
+		// Skip targets that are too far away to worry about.
+		if (range >= 13 * 32)
+		{
+			continue;
+		}
 
 		// Let's say that 1 priority step is worth 160 pixels (5 tiles).
 		// We care about unit-target range and target-order position distance.
-		int score = 5 * 32 * priority - range - toGoal/2;
+		int score = 5 * 32 * priority - range;
 
 		// Adjust for special features.
+		// A bonus for attacking enemies that are "in front".
+		// It helps reduce distractions from moving toward the goal, the order position.
+		if (closerToGoal > 0)
+		{
+			score += 3 * 32;
+		}
+
 		// This could adjust for relative speed and direction, so that we don't chase what we can't catch.
 		if (airUnit->isInWeaponRange(target))
 		{

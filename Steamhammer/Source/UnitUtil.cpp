@@ -22,6 +22,17 @@ bool UnitUtil::IsMorphedUnitType(BWAPI::UnitType type)
 		type == BWAPI::UnitTypes::Zerg_Devourer;
 }
 
+// A protoss building that requires pylon power.
+bool UnitUtil::NeedsPylonPower(BWAPI::UnitType type)
+{
+	return
+		type.getRace() == BWAPI::Races::Protoss &&
+		type.isBuilding() &&
+		type != BWAPI::UnitTypes::Protoss_Pylon &&
+		type != BWAPI::UnitTypes::Protoss_Assimilator &&
+		type != BWAPI::UnitTypes::Protoss_Nexus;
+}
+
 bool UnitUtil::IsStaticDefense(BWAPI::UnitType type)
 {
 	return

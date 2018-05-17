@@ -1,22 +1,27 @@
 #pragma once
 
-#include <Common.h>
-#include "BuildOrderQueue.h"
-#include "BuildingManager.h"
-#include "StrategyManager.h"
+#include <forward_list>
+
+#include "Common.h"
+
 #include "BOSSManager.h"
 #include "BuildOrder.h"
+#include "BuildOrderQueue.h"
+#include "BuildingManager.h"
+#include "ProductionGoal.h"
+#include "StrategyManager.h"
 
 namespace UAlbertaBot
 {
-
 enum class ExtractorTrick { None, Start, ExtractorOrdered, UnitOrdered, MakeUnitBypass };
 
 class ProductionManager
 {
     ProductionManager();
     
-    BuildOrderQueue     _queue;
+    BuildOrderQueue						_queue;
+	std::forward_list<ProductionGoal>	_goals;
+
 	int					_lastProductionFrame;            // for detecting jams
     BWAPI::TilePosition _predictedTilePosition;
     BWAPI::Unit         _assignedWorkerForThisBuilding;
@@ -31,16 +36,18 @@ class ProductionManager
 
 	int					_workersReplacedInOpening; // How many workers we have attempted to replace during the opening
     
-    BWAPI::Unit         getClosestUnitToPosition(const BWAPI::Unitset & units,BWAPI::Position closestTo);
-	BWAPI::Unit         getFarthestUnitFromPosition(const BWAPI::Unitset & units, BWAPI::Position farthest);
-	BWAPI::Unit         getClosestLarvaToPosition(BWAPI::Position closestTo);
+	BWAPI::Unit         getClosestUnitToPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position closestTo) const;
+	BWAPI::Unit         getFarthestUnitFromPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position farthest) const;
+	BWAPI::Unit         getClosestLarvaToPosition(BWAPI::Position closestTo) const;
 	
 	void				executeCommand(MacroCommand command);
+	void				updateGoals();
     bool                meetsReservedResources(MacroAct type);
-    void                create(BWAPI::Unit producer,const BuildOrderItem & item);
-    void                manageBuildOrderQueue();
-	void				maybePermuteQueue();
-	bool				independentUnitType(BWAPI::UnitType type) const;
+    void                create(BWAPI::Unit producer, const BuildOrderItem & item);
+	void				dropJammedItemsFromQueue();
+	bool				itemCanBeProduced(const MacroAct & act) const;
+	void                manageBuildOrderQueue();
+	void				maybeReorderQueue();
     bool                canMakeNow(BWAPI::Unit producer,MacroAct t);
     void                predictWorkerMovement(const Building & b);
 
@@ -49,7 +56,7 @@ class ProductionManager
 
 	void				doExtractorTrick();
 
-	BWAPI::Unit getProducer(MacroAct t, BWAPI::Position closestTo = BWAPI::Positions::None);
+	BWAPI::Unit getProducer(MacroAct t, BWAPI::Position closestTo = BWAPI::Positions::None) const;
 
 public:
 

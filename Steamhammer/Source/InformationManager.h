@@ -8,7 +8,6 @@
 
 namespace UAlbertaBot
 {
-
 class InformationManager 
 {
 	BWAPI::Player	_self;
@@ -32,11 +31,12 @@ class InformationManager
 
 	std::map<BWAPI::Player, UnitData>                   _unitData;
 	std::map<BWAPI::Player, BWTA::BaseLocation *>       _mainBaseLocations;
-	BWTA::BaseLocation *								_myNaturalBaseLocation;  // whether taken yet or not
+	BWTA::BaseLocation *								_myNaturalBaseLocation;  // whether taken yet or not; may be null
 	std::map<BWAPI::Player, std::set<BWTA::Region *> >  _occupiedRegions;        // contains any building
 	std::map<BWTA::BaseLocation *, Base *>				_theBases;
 	BWAPI::Unitset										_staticDefense;
 	const BWEB::Station *								_enemyBaseStation;
+	BWAPI::Unitset										_ourPylons;
 
 	InformationManager();
 

@@ -16,8 +16,7 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets)
     std::copy_if(targets.begin(), targets.end(), std::inserter(tankTargets, tankTargets.end()), 
                  [](BWAPI::Unit u){ return u->isVisible() && !u->isFlying(); });
     
-    int siegeTankRange = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 32;
-    bool haveSiege = BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode);
+    int siegeTankRange = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 8;
 
 	for (const auto tank : tanks)
 	{
@@ -31,36 +30,46 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets)
             }
         }
 
-		if (order.isCombatOrder()) 
-        {
+		if (order.isCombatOrder())
+		{
 			if (!tankTargets.empty())
 			{
 				BWAPI::Unit target = getTarget(tank, tankTargets);
 
-                if (target && Config::Debug::DrawUnitTargetInfo) 
-	            {
-		            BWAPI::Broodwar->drawLineMap(tank->getPosition(), tank->getTargetPosition(), BWAPI::Colors::Purple);
-	            }
-
-				bool shouldSiege = !tankNearChokepoint;
-
-				// Don't siege to fight buildings, unless they can shoot back.
-				if (target &&
-					target->getType().isBuilding() &&
-					target->getType().groundWeapon() == BWAPI::WeaponTypes::None &&
-					target->getType() != BWAPI::UnitTypes::Terran_Bunker)
+				if (target && Config::Debug::DrawUnitTargetInfo)
 				{
-					shouldSiege = false;
+					BWAPI::Broodwar->drawLineMap(tank->getPosition(), tank->getTargetPosition(), BWAPI::Colors::Purple);
 				}
 
-				// Also don't siege for spider mines.
-				else if (target && target->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
+				bool shouldSiege = tank->canSiege() && !tankNearChokepoint;
+
+				if (target)
 				{
-					shouldSiege = false;
+					// Don't siege to fight buildings, unless they can shoot back.
+					if (target->getType().isBuilding() &&
+						target->getType().groundWeapon() == BWAPI::WeaponTypes::None &&
+						target->getType() != BWAPI::UnitTypes::Terran_Bunker)
+					{
+						shouldSiege = false;
+					}
+
+					// Also don't siege for spider mines.
+					else if (target->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
+					{
+						shouldSiege = false;
+					}
+
+					// Also don't siege for single enemy units with low hitpoints.
+					else if (tankTargets.size() == 1 && target->getHitPoints() + target->getShields() <= 60)
+					{
+						shouldSiege = false;
+					}
 				}
 
-				// Unsiege for a target which is too close.
-				bool shouldUnsiege = target && tank->getDistance(target) < 64;
+				bool shouldUnsiege =
+					target && tank->getDistance(target) < 64 ||					// target is too close
+					target && tank->getDistance(target) > siegeTankRange ||		// target is too far away
+					tank->isUnderDisruptionWeb();
 
 				if (target &&
 					tank->getDistance(target) < siegeTankRange &&
@@ -70,21 +79,24 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets)
                 {
                     tank->siege();
                 }
-				else if (tank->canUnsiege() && (!target || tank->getDistance(target) > siegeTankRange || shouldUnsiege))
+				else if (tank->canUnsiege() && (!target || shouldUnsiege))
                 {
                     tank->unsiege();
                 }
 
-                if (tank->isSieged())
-                {
-                    Micro::AttackUnit(tank, target);
-                }
-                else
-                {
-                    Micro::KiteTarget(tank, target);
-                }
-			}
-			// if there are no targets
+				if (target)
+				{
+					if (tank->isSieged())
+					{
+						Micro::AttackUnit(tank, target);
+					}
+					else
+					{
+						Micro::KiteTarget(tank, target);
+					}
+				}
+ 			}
+			// There are no targets.
 			else
 			{
 				// if we're not near the order position
@@ -127,11 +139,6 @@ BWAPI::Unit MicroTanks::getTarget(BWAPI::Unit tank, const BWAPI::Unitset & targe
     // choose the highest priority one from them at the lowest health
     for (const auto target : newTargets)
     {
-        if (target->isFlying())
-        {
-            continue;
-        }
-
         int distance = tank->getDistance(target);
         int priority = getAttackPriority(tank, target);
 
@@ -147,27 +154,32 @@ BWAPI::Unit MicroTanks::getTarget(BWAPI::Unit tank, const BWAPI::Unitset & targe
 }
 
 // Only targets that the tank can potentially attack go into the target set.
-int MicroTanks::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target) 
+int MicroTanks::getAttackPriority(BWAPI::Unit tank, BWAPI::Unit target)
 {
-	BWAPI::UnitType rangedType = rangedUnit->getType();
 	BWAPI::UnitType targetType = target->getType();
 
-    if (target->getType() == BWAPI::UnitTypes::Zerg_Larva || target->getType() == BWAPI::UnitTypes::Zerg_Egg)
-    {
-        return 0;
-    }
+	if (target->getType() == BWAPI::UnitTypes::Zerg_Larva || target->getType() == BWAPI::UnitTypes::Zerg_Egg)
+	{
+		return 0;
+	}
 
-    // if the target is building something near our base something is fishy
-    BWAPI::Position ourBasePosition = BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation());
-    if (target->getType().isWorker() && (target->isConstructing() || target->isRepairing()) && target->getDistance(ourBasePosition) < 1200)
-    {
-        return 12;
-    }
+	// If it's under dark swarm, we can't hurt it unless we're sieged.
+	if (target->isUnderDarkSwarm() && !tank->isSieged())
+	{
+		return 0;
+	}
 
-    if (target->getType().isBuilding() && (target->isCompleted() || target->isBeingConstructed()) && target->getDistance(ourBasePosition) < 1200)
-    {
-        return 12;
-    }
+	// if the target is building something near our base something is fishy
+	BWAPI::Position ourBasePosition = BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation());
+	if (target->getType().isWorker() && (target->isConstructing() || target->isRepairing()) && target->getDistance(ourBasePosition) < 1200)
+	{
+		return 12;
+	}
+
+	if (target->getType().isBuilding() && (target->isCompleted() || target->isBeingConstructed()) && target->getDistance(ourBasePosition) < 1200)
+	{
+		return 12;
+	}
 
 	bool isThreat = UnitUtil::TypeCanAttackGround(targetType);    // includes bunkers
 	if (target->getType().isWorker())
@@ -185,18 +197,22 @@ int MicroTanks::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 12;
 	}
 	// something that can attack us or aid in combat
-    if (isThreat)
-    {
-        return 11;
-    }
-	// next priority is any unit on the ground
-	if (!targetType.isBuilding()) 
+	if (isThreat)
 	{
-  		return 9;
+		return 11;
+	}
+	// next priority is any unit on the ground, or a nydus canal
+	if (!targetType.isBuilding() || targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+	{
+		return 9;
 	}
 
-    // next is special buildings
-	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+	// next is special buildings
+	if (targetType.isResourceDepot())
+	{
+		return 7;
+	}
+	if (targetType == BWAPI::UnitTypes::Zerg_Spire)
 	{
 		return 6;
 	}
@@ -204,7 +220,11 @@ int MicroTanks::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	{
 		return 5;
 	}
-	if (targetType == BWAPI::UnitTypes::Protoss_Pylon || targetType == BWAPI::UnitTypes::Protoss_Templar_Archives)
+	if (targetType == BWAPI::UnitTypes::Protoss_Templar_Archives)
+	{
+		return 6;
+	}
+	if (targetType == BWAPI::UnitTypes::Protoss_Pylon)
 	{
 		return 5;
 	}

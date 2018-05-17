@@ -70,7 +70,6 @@ public:
     ~Squad();
 
 	void                update();
-	void                setSquadOrder(const SquadOrder & so);
 	void                addUnit(BWAPI::Unit u);
 	void                removeUnit(BWAPI::Unit u);
 	void				releaseWorkers();
@@ -86,6 +85,7 @@ public:
 	BWAPI::Position     calcRegroupPosition();
 
 	const BWAPI::Unitset &  getUnits() const;
+	void                setSquadOrder(const SquadOrder & so);
 	const SquadOrder &  getSquadOrder()	const;
 
 	int					getCombatSimRadius() const { return _combatSimRadius; };

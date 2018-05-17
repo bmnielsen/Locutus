@@ -37,11 +37,42 @@ MapTools::MapTools()
 void MapTools::setBWAPIMapData()
 {
 	// 1. Mark all tiles walkable and buildable at first.
+	_terrainWalkable = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(), std::vector<bool>(BWAPI::Broodwar->mapHeight(), true));
 	_walkable = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(), std::vector<bool>(BWAPI::Broodwar->mapHeight(), true));
 	_buildable = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(), std::vector<bool>(BWAPI::Broodwar->mapHeight(), true));
 	_depotBuildable = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(), std::vector<bool>(BWAPI::Broodwar->mapHeight(), true));
 
-	// 2. Check static units: Do they block tiles?
+	// 2. Check terrain: Is it buildable? Is it walkable?
+	// This sets _walkable and _terrainWalkable identically.
+	for (int x = 0; x < BWAPI::Broodwar->mapWidth(); ++x)
+	{
+		for (int y = 0; y < BWAPI::Broodwar->mapHeight(); ++y)
+		{
+			// This initializes all cells of _buildable and _depotBuildable.
+			bool buildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(x, y), false);
+			_buildable[x][y] = buildable;
+			_depotBuildable[x][y] = buildable;
+
+			bool walkable = true;
+
+			// Check each 8x8 walk tile within this 32x32 TilePosition.
+			for (int i = 0; i < 4 && walkable; ++i)
+			{
+				for (int j = 0; j < 4 && walkable; ++j)
+				{
+					if (!BWAPI::Broodwar->isWalkable(x * 4 + i, y * 4 + j))
+					{
+						walkable = false;   // break out of both loops
+						_terrainWalkable[x][y] = false;
+						_walkable[x][y] = false;
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Check neutral units: Do they block walkability?
+	// This affects _walkable but not _terrainWalkable. We don't update buildability here.
 	for (const auto unit : BWAPI::Broodwar->getStaticNeutralUnits())
 	{
 		// The neutral units may include moving critters which do not permanently block tiles.
@@ -62,41 +93,7 @@ void MapTools::setBWAPIMapData()
 		}
 	}
 
-	// 3. Check terrain: Is it buildable? Is it walkable?
-	for (int x = 0; x < BWAPI::Broodwar->mapWidth(); ++x)
-	{
-		for (int y = 0; y < BWAPI::Broodwar->mapHeight(); ++y)
-		{
-			// This initializes all cells of _buildable and _depotBuildable.
-			bool buildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(x, y), false);;
-			_buildable[x][y] = buildable;
-			_depotBuildable[x][y] = buildable;
-
-			// This tile is blocked by something else. No need to check it (and we shouldn't overwrite the value).
-			if (!_walkable[x][y])
-			{
-				continue;
-			}
-
-			bool walkable = true;
-
-			// Check each 8x8 walk tile within this 32x32 TilePosition.
-			for (int i = 0; i < 4 && walkable; ++i)
-			{
-				for (int j = 0; j < 4 && walkable; ++j)
-				{
-					if (!BWAPI::Broodwar->isWalkable(x * 4 + i, y * 4 + j))
-					{
-						walkable = false;
-					}
-				}
-			}
-
-			_walkable[x][y] = walkable;
-		}
-	}
-
-	// 4. Unmark tiles which are not actually buildable.
+	// 4. Check static resources: Do they block buildability?
 	for (const BWAPI::Unit resource : BWAPI::Broodwar->getStaticNeutralUnits())
 	{
 		if (!resource->getType().isResourceContainer())
@@ -114,7 +111,7 @@ void MapTools::setBWAPIMapData()
 				_buildable[x][y] = false;
 
 				// depots can't be built within 3 tiles of any resource
-				// TODO rewrite this to be less gross
+				// TODO rewrite this to be less disgusting
 				for (int dx = -3; dx <= 3; dx++)
 				{
 					for (int dy = -3; dy <= 3; dy++)
@@ -231,14 +228,15 @@ void MapTools::drawHomeDistanceMap()
 		return;
 	}
 
-    BWAPI::TilePosition homePosition = BWAPI::Broodwar->self()->getStartLocation();
+	BWAPI::TilePosition homePosition = BWAPI::Broodwar->self()->getStartLocation();
+	DistanceMap d(homePosition, false);
 
     for (int x = 0; x < BWAPI::Broodwar->mapWidth(); ++x)
     {
         for (int y = 0; y < BWAPI::Broodwar->mapHeight(); ++y)
         {
-			int dist = getGroundTileDistance(BWAPI::TilePosition(x, y), homePosition);
-			char color = _walkable[x][y] ? white : orange;
+			int dist = d.getDistance(x, y);
+			char color = dist == -1 ? orange : white;
 
 			BWAPI::Position pos(BWAPI::TilePosition(x, y));
 			BWAPI::Broodwar->drawTextMap(pos + BWAPI::Position(12, 12), "%c%d", color, dist);

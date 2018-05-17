@@ -10,6 +10,8 @@ namespace UnitUtil
 	bool IsMorphedBuildingType(BWAPI::UnitType type);
 	bool IsMorphedUnitType(BWAPI::UnitType type);
 
+	bool NeedsPylonPower(BWAPI::UnitType type);
+
 	bool IsStaticDefense(BWAPI::UnitType type);
 	bool IsComingStaticDefense(BWAPI::UnitType type);
 
@@ -33,6 +35,9 @@ namespace UnitUtil
 	int GetAttackRangeAssumingUpgrades(BWAPI::UnitType attacker, BWAPI::UnitType target);
 	int GetMaxAttackRange(BWAPI::UnitType attacker);    // air or ground
 	int GetWeaponDamageToWorker(BWAPI::Unit attacker);
+
+	bool GoodUnderDarkSwarm(BWAPI::Unit attacker);
+	bool GoodUnderDarkSwarm(BWAPI::UnitType attacker);
 
 	int GetAllUnitCount(BWAPI::UnitType type);
 	int GetCompletedUnitCount(BWAPI::UnitType type);

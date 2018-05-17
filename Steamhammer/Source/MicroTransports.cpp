@@ -4,13 +4,16 @@
 
 using namespace UAlbertaBot;
 
+// Distance between evenly-spaced waypoints, in tiles.
+// Not all are evenly spaced.
+const int WaypointSpacing = 5;
+
 MicroTransports::MicroTransports()
 	: _transportShip(nullptr)
-	, _currentRegionVertexIndex(-1)
-	, _minCorner(-1,-1)
-	, _maxCorner(-1,-1)
-	, _to(-1,-1)
-	, _from(-1,-1)
+	, _nextWaypointIndex(-1)
+	, _lastWaypointIndex(-1)
+	, _direction(0)
+	, _target(BWAPI::Positions::Invalid)
 {
 }
 
@@ -19,91 +22,71 @@ void MicroTransports::executeMicro(const BWAPI::Unitset & targets)
 {
 }
 
-void MicroTransports::calculateMapEdgeVertices()
+void MicroTransports::calculateWaypoints()
 {
-	BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
+	// Tile coordinates.
+	int minX = 0;
+	int minY = 0;
+	int maxX = BWAPI::Broodwar->mapWidth() - 1;
+	int maxY = BWAPI::Broodwar->mapHeight() - 1;
 
-	if (!enemyBaseLocation)
+	// Add vertices down the left edge.
+	for (int y = minY; y <= maxY; y += WaypointSpacing)
 	{
-		return;
+		_waypoints.push_back(BWAPI::Position(BWAPI::TilePosition(minX, y)) + BWAPI::Position(16, 16));
 	}
-
-	const BWAPI::Position basePosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
-	const std::vector<BWAPI::TilePosition> & closestTobase = MapTools::Instance().getClosestTilesTo(basePosition);
-
-	std::set<BWAPI::Position> unsortedVertices;
-
-	int minX = std::numeric_limits<int>::max(); int minY = minX;
-	int maxX = std::numeric_limits<int>::min(); int maxY = maxX;
-
-	//compute mins and maxs
-	for(auto & tile : closestTobase)
+	// Add vertices across the bottom.
+	for (int x = minX; x <= maxX; x += WaypointSpacing)
 	{
-		if (tile.x > maxX) maxX = tile.x;
-		else if (tile.x < minX) minX = tile.x;
-
-		if (tile.y > maxY) maxY = tile.y;
-		else if (tile.y < minY) minY = tile.y;
+		_waypoints.push_back(BWAPI::Position(BWAPI::TilePosition(x, maxY)) + BWAPI::Position(16, 16));
 	}
-
-	_minCorner = BWAPI::Position(minX, minY) * 32 + BWAPI::Position(16, 16);
-	_maxCorner = BWAPI::Position(maxX, maxY) * 32 + BWAPI::Position(16, 16);
-
-	//add all(some) edge tiles! 
-	for (int _x = minX; _x <= maxX; _x += 5)
+	// Add vertices up the right edge.
+	for (int y = maxY; y >= minY; y -= WaypointSpacing)
 	{
-		unsortedVertices.insert(BWAPI::Position(_x, minY) * 32 + BWAPI::Position(16, 16));
-		unsortedVertices.insert(BWAPI::Position(_x, maxY) * 32 + BWAPI::Position(16, 16));
+		_waypoints.push_back(BWAPI::Position(BWAPI::TilePosition(maxX, y)) + BWAPI::Position(16, 16));
 	}
-
-	for (int _y = minY; _y <= maxY; _y += 5)
+	// Add vertices across the top back to the origin.
+	for (int x = maxX; x >= minX; x -= WaypointSpacing)
 	{
-		unsortedVertices.insert(BWAPI::Position(minX, _y) * 32 + BWAPI::Position(16, 16));
-		unsortedVertices.insert(BWAPI::Position(maxX, _y) * 32 + BWAPI::Position(16, 16));
+		_waypoints.push_back(BWAPI::Position(BWAPI::TilePosition(x, minY)) + BWAPI::Position(16, 16));
 	}
-
-	std::vector<BWAPI::Position> sortedVertices;
-	BWAPI::Position current = *unsortedVertices.begin();
-
-	_mapEdgeVertices.push_back(current);
-	unsortedVertices.erase(current);
-
-	// while we still have unsorted vertices left, find the closest one remaining to current
-	while (!unsortedVertices.empty())
-	{
-		double bestDist = 1000000;
-		BWAPI::Position bestPos;
-
-		for (const BWAPI::Position & pos : unsortedVertices)
-		{
-			double dist = pos.getDistance(current);
-
-			if (dist < bestDist)
-			{
-				bestDist = dist;
-				bestPos = pos;
-			}
-		}
-
-		current = bestPos;
-		sortedVertices.push_back(bestPos);
-		unsortedVertices.erase(bestPos);
-	}
-    
-	_mapEdgeVertices = sortedVertices;
 }
 
-void MicroTransports::drawTransportInformation(int x = 0, int y = 0)
+// Turn an integer (possibly negative) into a valid waypoint index.
+// The waypoints form a loop. so moving to the next or previous one is always possible.
+// This calculation is also used in finding the shortest path around the map. Then
+// i may be as small as -_waypoints.size() + 1.
+int MicroTransports::waypointIndex(int i)
+{
+	UAB_ASSERT(_waypoints.size(), "no waypoints");
+	const int m = int(_waypoints.size());
+	return ((i % m) + m) % m;
+}
+
+// The index can be any integer. It gets mapped to a correct index first.
+const BWAPI::Position & MicroTransports::waypoint(int i)
+{
+	return _waypoints[waypointIndex(i)];
+}
+
+void MicroTransports::drawTransportInformation()
 {
 	if (!Config::Debug::DrawUnitTargetInfo)
 	{
 		return;
 	}
 
-	for (size_t i(0); i < _mapEdgeVertices.size(); ++i)
+	for (size_t i = 0; i < _waypoints.size(); ++i)
 	{
-		BWAPI::Broodwar->drawCircleMap(_mapEdgeVertices[i], 4, BWAPI::Colors::Green, false);
-		BWAPI::Broodwar->drawTextMap(_mapEdgeVertices[i], "%d", i);
+		BWAPI::Broodwar->drawCircleMap(_waypoints[i], 4, BWAPI::Colors::Green, false);
+		BWAPI::Broodwar->drawTextMap(_waypoints[i] + BWAPI::Position(-4, 4), "%d", i);
+	}
+	BWAPI::Broodwar->drawCircleMap(waypoint(_lastWaypointIndex), 5, BWAPI::Colors::Red, false);
+	BWAPI::Broodwar->drawCircleMap(waypoint(_lastWaypointIndex), 6, BWAPI::Colors::Red, false);
+	if (_target.isValid())
+	{
+		BWAPI::Broodwar->drawCircleMap(_target, 8, BWAPI::Colors::Purple, true);
+		BWAPI::Broodwar->drawCircleMap(_target, order.getRadius(), BWAPI::Colors::Purple, false);
 	}
 }
 
@@ -130,12 +113,6 @@ void MicroTransports::update()
 		return;
 	}
 
-	// Calculate a sneaky path to reach the enemy base.
-	if (_mapEdgeVertices.empty())
-	{
-		calculateMapEdgeVertices();
-	}
-
 	// If we're not full yet, wait.
 	if (_transportShip->getSpaceRemaining() > 0)
 	{
@@ -143,7 +120,7 @@ void MicroTransports::update()
 	}
 
 	// All clear. Go do stuff.
-	unloadTroops();
+	maybeUnloadTroops();
 	moveTransport();
 	
 	drawTransportInformation();
@@ -169,21 +146,19 @@ void MicroTransports::loadTroops()
 }
 
 // Only called when the transport exists and is loaded.
-void MicroTransports::unloadTroops()
+void MicroTransports::maybeUnloadTroops()
 {
 	// Unload if we're close to the destination, or if we're scary low on hit points.
 	// It's possible that we'll land on a cliff and the units will be stuck there.
 	const int transportHP = _transportShip->getHitPoints() + _transportShip->getShields();
 	
-	const BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
-
-	if ((transportHP < 50 || (enemyBaseLocation && _transportShip->getDistance(enemyBaseLocation->getPosition()) < 300)) &&
+	if ((transportHP < 50 || (_target.isValid() && _transportShip->getDistance(_target) < 300)) &&
 		_transportShip->canUnloadAtPosition(_transportShip->getPosition()))
 	{
 		// get the unit's current command
 		BWAPI::UnitCommand currentCommand(_transportShip->getLastCommand());
 
-		// if we've already told this unit to unload, wait
+		// Tf we've already ordered unloading, wait.
 		if (currentCommand.getType() == BWAPI::UnitCommandTypes::Unload_All || currentCommand.getType() == BWAPI::UnitCommandTypes::Unload_All_Position)
 		{
 			return;
@@ -196,7 +171,7 @@ void MicroTransports::unloadTroops()
 // Called when the transport exists and is loaded.
 void MicroTransports::moveTransport()
 {
-	// If I didn't finish unloading the troops, wait
+	// If we're busy unloading, wait.
 	BWAPI::UnitCommand currentCommand(_transportShip->getLastCommand());
 	if ((currentCommand.getType() == BWAPI::UnitCommandTypes::Unload_All || currentCommand.getType() == BWAPI::UnitCommandTypes::Unload_All_Position) &&
 		_transportShip->getLoadedUnits().size() > 0)
@@ -204,228 +179,86 @@ void MicroTransports::moveTransport()
 		return;
 	}
 
-	if (_to.isValid() && _from.isValid())
+	followPerimeter();
+}
+
+// Decide which direction to go, then follow the perimeterto the destination.
+// Called only when the transport exists and is loaded.
+void MicroTransports::followPerimeter()
+{
+	// We must have a _transportShip before calling this.
+	UAB_ASSERT(hasTransportShip(), "no transport");
+
+	// Place a loop of points around the edge of the map, to use as waypoints.
+	if (_waypoints.empty())
 	{
-		followPerimeter(_to, _from);
+		calculateWaypoints();
+	}
+
+	// To follow the waypoints around the edge of the map, we need these things:
+	// The initial waypoint index, the final waypoint index near the target,
+	// the direction to follow (+1 or -1), and the _target.
+	// direction == 0 means we haven't decided which direction to go around,
+	// and none of them is set yet.
+	if (_direction == 0)
+	{
+		// Set this so we don't have to deal with the order changing behind our backs.
+		_target = order.getPosition();
+
+		// Find the start and end waypoints by brute force.
+		int startDistance = 999999;
+		double endDistance = 999999.9;
+		for (size_t i = 0; i < _waypoints.size(); ++i)
+		{
+			const BWAPI::Position & waypoint = _waypoints[i];
+			if (_transportShip->getDistance(waypoint) < startDistance)
+			{
+				startDistance = _transportShip->getDistance(waypoint);
+				_nextWaypointIndex = i;
+			}
+			if (_target.getDistance(waypoint) < endDistance)
+			{
+				endDistance = _target.getDistance(waypoint);
+				_lastWaypointIndex = i;
+			}
+		}
+
+		// Decide which direction around the map is shorter.
+		int counterclockwise = waypointIndex(_lastWaypointIndex - _nextWaypointIndex);
+		int clockwise = waypointIndex(_nextWaypointIndex - _lastWaypointIndex);
+		_direction = (counterclockwise <= clockwise) ? 1 : -1;
+	}
+
+	// Everything is set. Do the movement.
+
+	// If we're near the destination, go straight there.
+	if (_transportShip->getDistance(waypoint(_lastWaypointIndex)) < 2 * 32 * WaypointSpacing)
+	{
+		// The target might be far from the edge of the map, although
+		// our path around the edge of the map makes sense only if it is close.
+		Micro::Move(_transportShip, _target);
 	}
 	else
 	{
-		followPerimeter();
-	}
-}
-
-void MicroTransports::followPerimeter(int clockwise)
-{
-	BWAPI::Position goTo = getFleePosition(clockwise);
-
-	if (Config::Debug::DrawUnitTargetInfo)
-	{
-		BWAPI::Broodwar->drawCircleMap(goTo, 5, BWAPI::Colors::Red, true);
-	}
-
-	Micro::Move(_transportShip, goTo);
-}
-
-void MicroTransports::followPerimeter(BWAPI::Position to, BWAPI::Position from)
-{
-	static int following = 0;
-	if (following)
-	{
-		followPerimeter(following);
-		return;
-	}
-
-	//assume we're near FROM! 
-	if (_transportShip->getDistance(from) < 50 && _waypoints.empty())
-	{
-		//compute waypoints
-		std::pair<int, int> wpIDX = findSafePath(to, from);
-		bool valid = (wpIDX.first > -1 && wpIDX.second > -1);
-		UAB_ASSERT(valid, "waypoints not valid");
-		_waypoints.push_back(_mapEdgeVertices[wpIDX.first]);
-		_waypoints.push_back(_mapEdgeVertices[wpIDX.second]);
-
-		// BWAPI::Broodwar->printf("WAYPOINTS: [%d] - [%d]", wpIDX.first, wpIDX.second);
-
-		Micro::Move(_transportShip, _waypoints[0]);
-	}
-	else if (_waypoints.size() > 1 && _transportShip->getDistance(_waypoints[0]) < 100)
-	{
-		// BWAPI::Broodwar->printf("FOLLOW PERIMETER TO SECOND WAYPOINT!");
-		//follow perimeter to second waypoint! 
-		//clockwise or counterclockwise? 
-		//int closestPolygonIndex = getClosestVertexIndex(_transportShip);
-		int closestPolygonIndex = getClosestVertexIndex(to);
-		UAB_ASSERT(closestPolygonIndex != -1, "Couldn't find a closest vertex");  // ensures map edge exists
-
-		// This controls which way around the map we go.
-		if (_mapEdgeVertices[(closestPolygonIndex + 1) % _mapEdgeVertices.size()].getApproxDistance(_waypoints[1]) <
-			_mapEdgeVertices[(closestPolygonIndex - 1) % _mapEdgeVertices.size()].getApproxDistance(_waypoints[1]))
+		// If the second waypoint ahead is close enough (1.5 waypoint distances), make it the next waypoint.
+		if (_transportShip->getDistance(waypoint(_nextWaypointIndex + _direction)) < 48 * WaypointSpacing)
 		{
-			following = 1;
-			followPerimeter(following);
-		}
-		else
-		{
-			following = -1;
-			followPerimeter(following);
+			_nextWaypointIndex = waypointIndex(_nextWaypointIndex + _direction);
 		}
 
-	}
-	else if (_waypoints.size() > 1 && _transportShip->getDistance(_waypoints[1]) < 50)
-	{	
-		//if close to second waypoint, go to destination!
-		following = 0;
-		Micro::Move(_transportShip, to);
-	}
-}
+		// Aim for the second waypoint ahead.
+		const BWAPI::Position & destination = waypoint(_nextWaypointIndex + _direction);
 
-int MicroTransports::getClosestVertexIndex(BWAPI::Unit unit)
-{
-	return getClosestVertexIndex(unit->getPosition());
-}
-
-int MicroTransports::getClosestVertexIndex(BWAPI::Position p)
-{
-	int closestIndex = -1;
-	int closestDistance = 10000000;
-
-	for (size_t i(0); i < _mapEdgeVertices.size(); ++i)
-	{
-		int dist = p.getApproxDistance(_mapEdgeVertices[i]);
-		if (dist < closestDistance)
+		if (Config::Debug::DrawUnitTargetInfo)
 		{
-			closestDistance = dist;
-			closestIndex = i;
-		}
-	}
-
-	return closestIndex;
-}
-
-std::pair<int,int> MicroTransports::findSafePath(BWAPI::Position to, BWAPI::Position from)
-{
-	// BWAPI::Broodwar->printf("FROM: [%d,%d]",from.x, from.y);
-	// BWAPI::Broodwar->printf("TO: [%d,%d]", to.x, to.y);
-
-	//closest map edge point to destination
-	int endPolygonIndex = getClosestVertexIndex(to);
-	//BWAPI::Broodwar->printf("end indx: [%d]", endPolygonIndex);
-
-	UAB_ASSERT_WARNING(endPolygonIndex != -1, "Couldn't find a closest vertex");
-	BWAPI::Position enemyEdge = _mapEdgeVertices[endPolygonIndex];
-
-	BWAPI::Position enemyPosition = order.getPosition();
-
-	//find the projections on the 4 edges
-	UAB_ASSERT_WARNING((_minCorner.isValid() && _maxCorner.isValid()), "Map corners should have been set! (transport mgr)");
-	std::vector<BWAPI::Position> p;
-	p.push_back(BWAPI::Position(from.x, _minCorner.y));
-	p.push_back(BWAPI::Position(from.x, _maxCorner.y));
-	p.push_back(BWAPI::Position(_minCorner.x, from.y));
-	p.push_back(BWAPI::Position(_maxCorner.x, from.y));
-
-	//for (auto _p : p)
-		//BWAPI::Broodwar->printf("p: [%d,%d]", _p.x, _p.y);
-
-	int d1 = p[0].getApproxDistance(enemyPosition);
-	int d2 = p[1].getApproxDistance(enemyPosition);
-	int d3 = p[2].getApproxDistance(enemyPosition);
-	int d4 = p[3].getApproxDistance(enemyPosition);
-
-	//have to choose the two points that are not max or min (the sides!)
-	int maxIndex = (d1 > d2 ? d1 : d2) > (d3 > d4 ? d3 : d4) ?
-						  (d1 > d2 ? 0 : 1) : (d3 > d4 ? 2 : 3);
-	
-	int minIndex = (d1 < d2 ? d1 : d2) < (d3 < d4 ? d3 : d4) ?
-						   (d1 < d2 ? 0 : 1) : (d3 < d4 ? 2 : 3);
-
-	if (maxIndex > minIndex)
-	{
-		p.erase(p.begin() + maxIndex);
-		p.erase(p.begin() + minIndex);
-	}
-	else
-	{
-		p.erase(p.begin() + minIndex);
-		p.erase(p.begin() + maxIndex);
-	}
-
-	//BWAPI::Broodwar->printf("new p: [%d,%d] [%d,%d]", p[0].x, p[0].y, p[1].x, p[1].y);
-
-	//get the one that works best from the two.
-	BWAPI::Position waypoint = (enemyEdge.getApproxDistance(p[0]) < enemyEdge.getApproxDistance(p[1])) ? p[0] : p[1];
-
-	int startPolygonIndex = getClosestVertexIndex(waypoint);
-
-	return std::pair<int, int>(startPolygonIndex, endPolygonIndex);
-
-}
-
-BWAPI::Position MicroTransports::getFleePosition(int clockwise)
-{
-	UAB_ASSERT(!_mapEdgeVertices.empty(), "We should have a transport route!");
-
-	//BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
-
-	// if this is the first flee, we will not have a previous perimeter index
-	if (_currentRegionVertexIndex == -1)
-	{
-		// so return the closest position in the polygon
-		int closestPolygonIndex = getClosestVertexIndex(_transportShip);
-
-		UAB_ASSERT_WARNING(closestPolygonIndex != -1, "Couldn't find a closest vertex");
-
-		if (closestPolygonIndex == -1)
-		{
-			return BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation());
-		}
-		else
-		{
-			// set the current index so we know how to iterate if we are still fleeing later
-			_currentRegionVertexIndex = closestPolygonIndex;
-			return _mapEdgeVertices[closestPolygonIndex];
-		}
-	}
-	// if we are still fleeing from the previous frame, get the next location if we are close enough
-	else
-	{
-		double distanceFromCurrentVertex = _mapEdgeVertices[_currentRegionVertexIndex].getDistance(_transportShip->getPosition());
-
-		// keep going to the next vertex in the perimeter until we get to one we're far enough from to issue another move command
-		while (distanceFromCurrentVertex < 128*2)
-		{
-			_currentRegionVertexIndex = (_currentRegionVertexIndex + clockwise*1) % _mapEdgeVertices.size();
-
-			distanceFromCurrentVertex = _mapEdgeVertices[_currentRegionVertexIndex].getDistance(_transportShip->getPosition());
+			BWAPI::Broodwar->drawCircleMap(destination, 5, BWAPI::Colors::Yellow, true);
 		}
 
-		return _mapEdgeVertices[_currentRegionVertexIndex];
+		Micro::Move(_transportShip, destination);
 	}
-
-}
-
-void MicroTransports::setTransportShip(BWAPI::Unit unit)
-{
-	_transportShip = unit;
 }
 
 bool MicroTransports::hasTransportShip() const
 {
 	return UnitUtil::IsValidUnit(_transportShip);
-}
-
-void MicroTransports::setFrom(BWAPI::Position from)
-{
-	if (from.isValid())
-	{
-		_from = from;
-	}
-}
-
-void MicroTransports::setTo(BWAPI::Position to)
-{
-	if (to.isValid()){
-		_to = to;
-	}
 }

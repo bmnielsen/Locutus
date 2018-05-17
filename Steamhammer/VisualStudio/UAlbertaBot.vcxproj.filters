@@ -156,6 +156,7 @@
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
     <ClCompile Include="..\Source\DistanceMap.cpp" />
+    <ClCompile Include="..\Source\ProductionGoal.cpp" />
     <ClCompile Include="..\..\BWEM\src\bwem_base.cpp">
       <Filter>BWEM</Filter>
     </ClCompile>
@@ -345,6 +346,7 @@
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\Bases.h" />
     <ClInclude Include="..\Source\DistanceMap.h" />
+    <ClInclude Include="..\Source\ProductionGoal.h" />
     <ClInclude Include="..\..\BWEM\src\cp.h">
       <Filter>BWEM</Filter>
     </ClInclude>

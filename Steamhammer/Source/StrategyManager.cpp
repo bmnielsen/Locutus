@@ -757,6 +757,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		}
 	}
 
+	// All other considerations are handled separately by zerg.
 	if (_selfRace == BWAPI::Races::Zerg)
 	{
 		StrategyBossZerg::Instance().handleUrgentProductionIssues(queue);
@@ -776,8 +777,14 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			return;
 		}
 
+		// If there are no workers, many reactions can't happen.
+		const bool anyWorkers =
+			UnitUtil::GetAllUnitCount(_selfRace == BWAPI::Races::Terran
+			? BWAPI::UnitTypes::Terran_SCV
+			: BWAPI::UnitTypes::Protoss_Probe) > 0;
+
 		// detect if there's a supply block once per second
-		if ((BWAPI::Broodwar->getFrameCount() % 24 == 1) && detectSupplyBlock(queue))
+		if ((BWAPI::Broodwar->getFrameCount() % 24 == 1) && detectSupplyBlock(queue) && anyWorkers)
 		{
 			if (Config::Debug::DrawBuildOrderSearchInfo)
 			{
@@ -800,6 +807,19 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 		}
 
+		// If we're protoss and building is stalled for lack of space,
+		// schedule a pylon to make more space where buildings can be placed.
+		if (BuildingManager::Instance().getStalledForLackOfSpace())
+		{
+			if (_selfRace == BWAPI::Races::Protoss && 
+				(!nextInQueuePtr || !nextInQueuePtr->isBuilding() || nextInQueuePtr->getUnitType() != BWAPI::UnitTypes::Protoss_Pylon) &&
+				!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Pylon))
+			{
+				queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Pylon);
+				return;				// and call it a day
+			}
+		}
+
 		// If we have collected too much gas, turn it off.
 		if (ProductionManager::Instance().isOutOfBook() &&
 			gas > 400 &&
@@ -814,7 +834,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		}
 
 		// If they have mobile cloaked units, get some detection.
-		if (InformationManager::Instance().enemyHasMobileCloakTech())
+		if (InformationManager::Instance().enemyHasMobileCloakTech() && anyWorkers)
 		{
 			if (_selfRace == BWAPI::Races::Protoss)
 			{
@@ -926,7 +946,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 					UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Marine) > 0 &&          // usefulness requirement
 					UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Terran_Barracks) > 0 &&  // tech requirement for a bunker
 					UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Bunker) == 0 &&
-					!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Bunker))
+					!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Bunker) &&
+					anyWorkers)
 				{
 					queue.queueAsHighestPriority(BWAPI::UnitTypes::Terran_Bunker);
 				}
@@ -941,7 +962,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway) > 0 &&  // tech requirement
 			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Shield_Battery) == 0 &&
 			!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Shield_Battery) &&
-			!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Shield_Battery))
+			!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Shield_Battery) &&
+			anyWorkers)
 			{
 			queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Shield_Battery);
 			}
@@ -992,9 +1014,10 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		}
 
 		// We only care about the next item in the queue, not possible later resource depots in the queue.
-		// This should be done last, so that no other emegency reaction puts something else in front of
-		// a resource depot in the queue. Otherwise the rule will fire repeatedly.
+		// This should be after other rules that may add something, so that no other emegency reaction
+		// pushes down the resource depot in the queue. Otherwise the rule will fire repeatedly.
 		if (makeResourceDepot &&
+			anyWorkers &&
 			(!nextInQueuePtr || !nextInQueuePtr->isUnit() || nextInQueuePtr->getUnitType() != resourceDepotType) &&
 			!BuildingManager::Instance().isBeingBuilt(resourceDepotType))
 		{
@@ -1005,7 +1028,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 }
 
 // Return true if we're supply blocked and should build supply.
-// Note: This understands zerg supply but is not used when we are zerg.
+// NOTE This understands zerg supply but is not used when we are zerg.
 bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 {
 	// Assume all is good if we're still in book

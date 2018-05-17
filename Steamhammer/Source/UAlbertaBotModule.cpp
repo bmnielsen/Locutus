@@ -31,7 +31,7 @@ void UAlbertaBotModule::onStart()
 	BWTA::analyze();
 
 	// Our own map analysis.
-	Bases::Instance().onStart();
+	Bases::Instance().initialize();
 
 	// BWEM map init
 	bwemMap.Initialize();

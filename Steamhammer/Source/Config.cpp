@@ -19,6 +19,7 @@ namespace Config
 	{
 		std::string ReadDir					= "bwapi-data/read/";
 		std::string WriteDir				= "bwapi-data/write/";
+		int MaxGameRecords					= 0;
 		bool ReadOpponentModel				= false;
 		bool WriteOpponentModel				= false;
 	}
@@ -32,6 +33,7 @@ namespace Config
         bool ScoutHarassEnemy               = true;
 		bool AutoGasSteal                   = true;
 		double RandomGasStealRate           = 0.0;
+		bool UsePlanRecognizer				= true;
 		bool SurrenderWhenHopeIsLost        = true;
         bool UseEnemySpecificStrategy       = true;
         bool FoundEnemySpecificStrategy     = false;
@@ -63,6 +65,7 @@ namespace Config
         bool DrawUnitHealthBars             = false;
         bool DrawProductionInfo             = true;
         bool DrawBuildOrderSearchInfo       = false;
+		bool DrawQueueFixInfo				= false;
         bool DrawScoutInfo                  = false;
         bool DrawResourceInfo               = false;
         bool DrawWorkerInfo                 = false;
@@ -96,7 +99,6 @@ namespace Config
     namespace Micro								
     {
         bool KiteWithRangedUnits            = true;
-        std::set<BWAPI::UnitType> KiteLongerRangedUnits;
         bool WorkersDefendRush              = false; 
 		int RetreatMeleeUnitShields         = 0;
         int RetreatMeleeUnitHP              = 0;

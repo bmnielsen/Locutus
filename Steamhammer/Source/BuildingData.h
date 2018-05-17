@@ -26,6 +26,7 @@ public:
     bool                    isWorkerScoutBuilding;
 	bool                    buildCommandGiven;
 	bool                    underConstruction;
+	bool					blocked;			// unused TODO for a clearable obstacle (spider mine, self-interference)
 
 	int						startFrame;			// when this building record was first created
 	int						buildersSent;		// count workers lost in construction
@@ -40,7 +41,8 @@ public:
         , status            (BuildingStatus::Unassigned)
         , buildCommandGiven (false)
         , underConstruction (false) 
-        , isWorkerScoutBuilding (false)
+		, blocked			(false)
+		, isWorkerScoutBuilding	(false)
 		, startFrame		(BWAPI::Broodwar->getFrameCount())
 		, buildersSent		(0)
     {} 
@@ -56,6 +58,7 @@ public:
         , status            (BuildingStatus::Unassigned)
         , buildCommandGiven (false)
         , underConstruction (false) 
+		, blocked			(false)
         , isWorkerScoutBuilding (false)
 		, startFrame		(BWAPI::Broodwar->getFrameCount())
 		, buildersSent		(0)

@@ -40,11 +40,6 @@ void Logger::LogOverwriteToFile(const std::string & logFile, const std::string &
     logStream.close();
 }
 
-void Logger::Debug(const std::string & msg)
-{
-	Logger::LogAppendToFile(Config::Debug::ErrorLogFilename, msg);
-}
-
 std::string FileUtils::ReadFile(const std::string & filename)
 {
     std::stringstream ss;

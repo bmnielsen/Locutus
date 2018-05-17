@@ -55,10 +55,12 @@ public:
 	MacroAct(MacroCommandType t, int amount);
 
 	bool    isUnit()		const;
+	bool	isWorker()		const;
 	bool    isTech()		const;
 	bool    isUpgrade()	    const;
 	bool    isCommand()	    const;
 	bool    isBuilding()	const;
+	bool	isAddon()		const;
 	bool    isRefinery()	const;
 	bool	isSupply()		const;
     
@@ -87,6 +89,10 @@ public:
 	void setWallBuildingPosition(std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> & wallPositions) const;
 	void setReservedPosition(BWAPI::TilePosition tile) const { _reservedPosition = tile; }
 
+	void getCandidateProducers(std::vector<BWAPI::Unit> & candidates) const;
+	bool hasPotentialProducer() const;
+	bool hasTech() const;
+
 	friend std::ostream& operator << (std::ostream& out, const MacroAct& m)
 	{
 		if (m.isUnit())
@@ -101,7 +107,6 @@ public:
 			out << m.getUpgradeType();
 		else if (m.isCommand())
 			out << m.getCommandType().getName();
-
 		return out;
 	};
 };

@@ -51,7 +51,9 @@ class CombatCommander
 	BWAPI::Position getDefendLocation();
 	void			chooseReconTarget();
 	BWAPI::Position getReconLocation() const;
-	BWAPI::Position getMainAttackLocation(const Squad * squad);
+	BWAPI::Position getAttackLocation(const Squad * squad);
+	BWAPI::Position getDropLocation(const Squad & squad);
+	BWAPI::Position	getDefenseLocation();
 
     void            initializeSquads();
     void            assignFlyingDefender(Squad & squad);
@@ -91,7 +93,7 @@ public:
 		_goAggressive = aggressive;  
 	}
 	bool getAggression() const { return _goAggressive; };
-
+	
 	void pullWorkers(int n);
 	void releaseWorkers();
 	

@@ -18,6 +18,8 @@ class BuildingManager
     int             _reservedGas;					// gas reserved for planned buildings
 	int			    _dontPlaceUntil;				// In the case of a building placement error, don't try to place a building until this frame
 
+	bool			_stalledForLackOfSpace;			// no valid location to place a protoss building
+
     bool            isBuildingPositionExplored(const Building & b) const;
 	void			undoBuildings(const std::vector<Building> & toRemove);
     void            removeBuildings(const std::vector<Building> & toRemove);
@@ -51,7 +53,10 @@ public:
     int                 getReservedMinerals() const;
     int                 getReservedGas() const;
 
-	bool				anythingBeingBuilt() const { return !_buildings.empty();  };
+	bool				getStalledForLackOfSpace() const { return _stalledForLackOfSpace; };
+	void				unstall() { _stalledForLackOfSpace = false; };
+
+	bool				anythingBeingBuilt() const { return !_buildings.empty(); };
     bool                isBeingBuilt(BWAPI::UnitType type) const;
     int                 numBeingBuilt(BWAPI::UnitType type) const;
 	size_t              getNumUnstarted() const;
@@ -65,6 +70,8 @@ public:
 	void                cancelBuilding(Building & b);
 	void				cancelQueuedBuildings();
 	void				cancelBuildingType(BWAPI::UnitType t);
+
+	bool				typeIsStalled(BWAPI::UnitType type);
 };
 
 }

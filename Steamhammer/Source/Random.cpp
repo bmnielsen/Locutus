@@ -20,7 +20,7 @@ int Random::index(int n)
 }
 
 // A random bool with the given probability of being true.
-// 0 <= probabilility <= 1 is not checked; out of range value are treated as if clipped.
+// 0 <= probabilility <= 1 is not checked; out of range values are treated as if clipped.
 bool Random::flag(double probability)
 {
 	std::uniform_real_distribution<double> uniform_dist(0.0, 1.0);
