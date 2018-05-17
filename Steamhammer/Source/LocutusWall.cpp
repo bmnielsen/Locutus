@@ -1115,6 +1115,39 @@ namespace UAlbertaBot
 		return result;
 	}
 
+    // At the Luna 10 o'clock start position, BWEM connects the main and natural through a third area, which messes everything up
+    LocutusWall luna10Oclock()
+    {
+        LocutusWall result;
+
+        result.pylon = BWAPI::TilePosition(24, 38);
+        result.forge = BWAPI::TilePosition(25, 36);
+        result.gateway = BWAPI::TilePosition(25, 33);
+        result.cannons.push_back(BWAPI::TilePosition(23, 36));
+        result.cannons.push_back(BWAPI::TilePosition(23, 34));
+        result.cannons.push_back(BWAPI::TilePosition(22, 38));
+        result.cannons.push_back(BWAPI::TilePosition(21, 36));
+
+        result.gapEnd1 = center(BWAPI::TilePosition(25, 33));
+        result.gapEnd1 = center(BWAPI::TilePosition(22, 30));
+        result.gapCenter = center(BWAPI::TilePosition(24, 32));
+        result.gapSize = 6;
+
+        bwebMap.startTile = BWAPI::TilePosition(21, 32);
+        bwebMap.endTile = BWAPI::TilePosition(30, 31);
+
+        // Add overlap
+        for (auto const& placement : result.placements())
+        {
+            bwebMap.addOverlap(placement.second, placement.first.tileWidth(), placement.first.tileHeight());
+        }
+
+        // Analyze wall geo
+        analyzeWallGeo(result);
+
+        return result;
+    }
+
 	LocutusWall createForgeGatewayWall(bool tight, int maxGapSize = INT_MAX)
 	{
         // Initialize pathfinding
@@ -1224,6 +1257,9 @@ namespace UAlbertaBot
         // Map-specific hard-coded walls
         if (BWAPI::Broodwar->mapHash() == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") return destinationWall();
         if (BWAPI::Broodwar->mapHash() == "0a41f144c6134a2204f3d47d57cf2afcd8430841") return matchPointWall();
+        if (BWAPI::Broodwar->mapHash() == "33527b4ce7662f83485575c4b1fcad5d737dfcf1"
+            && bwebMap.getNatural().y < BWAPI::TilePosition(bwemMap.Center()).y
+            && bwebMap.getNatural().x < BWAPI::TilePosition(bwemMap.Center()).x) return luna10Oclock();
 
         // Ensure we have the ability to make a wall
         bwebMap.area = bwebMap.getNaturalArea();
