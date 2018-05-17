@@ -92,8 +92,8 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 	if (unit->getType().isBuilding())
 		Log().Get() << "Lost " << unit->getType() << " @ " << unit->getTilePosition();
 
-	// If it's a static defense and we're still in our opening book, replace it
-	if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon && !_outOfBook)
+	// Replace static defenses
+	if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
 	{
 		MacroAct m(BWAPI::UnitTypes::Protoss_Photon_Cannon);
 		m.setReservedPosition(unit->getTilePosition());
