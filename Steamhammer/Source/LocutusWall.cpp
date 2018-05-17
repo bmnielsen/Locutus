@@ -1062,6 +1062,59 @@ namespace UAlbertaBot
 		return result;
 	}
 
+    // On match point, BWEM doesn't find the natural choke on the top-right base, and we need to build off of blocking minerals
+	LocutusWall matchPointWall()
+	{
+		LocutusWall result;
+		if (bwebMap.getNatural().y < BWAPI::TilePosition(bwemMap.Center()).y)
+		{
+			result.pylon = BWAPI::TilePosition(108, 52);
+			result.forge = BWAPI::TilePosition(103, 53);
+			result.gateway = BWAPI::TilePosition(100, 50);
+			result.cannons.push_back(BWAPI::TilePosition(104, 51));
+			result.cannons.push_back(BWAPI::TilePosition(108, 50));
+			result.cannons.push_back(BWAPI::TilePosition(110, 50));
+			result.cannons.push_back(BWAPI::TilePosition(104, 49));
+
+			result.gapEnd1 = center(BWAPI::TilePosition(108, 53));
+			result.gapEnd1 = center(BWAPI::TilePosition(105, 53));
+			result.gapCenter = center(BWAPI::TilePosition(106, 53));
+			result.gapSize = 4;
+
+			bwebMap.startTile = BWAPI::TilePosition(105, 44);
+			bwebMap.endTile = BWAPI::TilePosition(105, 56);
+		}
+		else
+		{
+			result.pylon = BWAPI::TilePosition(2, 75);
+			result.forge = BWAPI::TilePosition(9, 75);
+			result.gateway = BWAPI::TilePosition(6, 72);
+			result.cannons.push_back(BWAPI::TilePosition(7, 75));
+			result.cannons.push_back(BWAPI::TilePosition(2, 77));
+			result.cannons.push_back(BWAPI::TilePosition(7, 77));
+			result.cannons.push_back(BWAPI::TilePosition(9, 77));
+
+			result.gapEnd1 = center(BWAPI::TilePosition(6, 74));
+			result.gapEnd1 = center(BWAPI::TilePosition(3, 75));
+			result.gapCenter = center(BWAPI::TilePosition(5, 74));
+			result.gapSize = 4;
+
+			bwebMap.startTile = BWAPI::TilePosition(3, 83);
+			bwebMap.endTile = BWAPI::TilePosition(6, 72);
+		}
+
+		// Add overlap
+		for (auto const& placement : result.placements())
+		{
+			bwebMap.addOverlap(placement.second, placement.first.tileWidth(), placement.first.tileHeight());
+		}
+
+		// Analyze wall geo
+		analyzeWallGeo(result);
+
+		return result;
+	}
+
 	LocutusWall createForgeGatewayWall(bool tight, int maxGapSize = INT_MAX)
 	{
         // Initialize pathfinding
@@ -1170,6 +1223,7 @@ namespace UAlbertaBot
 
         // Map-specific hard-coded walls
         if (BWAPI::Broodwar->mapHash() == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") return destinationWall();
+        if (BWAPI::Broodwar->mapHash() == "0a41f144c6134a2204f3d47d57cf2afcd8430841") return matchPointWall();
 
         // Ensure we have the ability to make a wall
         bwebMap.area = bwebMap.getNaturalArea();
