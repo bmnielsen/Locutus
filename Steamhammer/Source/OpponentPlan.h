@@ -11,6 +11,7 @@ enum class OpeningPlan
 	, WorkerRush	// early like Stone, late like one Tscmoo version
 	, FastRush		// a cheese rush faster than 9 pool/8 rax/9 gate
 	, HeavyRush		// 2 hatcheries pool only, 2 barracks no gas, 2 gates no gas
+    , HydraBust     // 3 or more hatcheries, hydras, early game
 	, Factory		// terran fast factory
 	, SafeExpand	// defended fast expansion, with bunker or cannons
 	, NakedExpand	// undefended fast expansion (usual for zerg, bold for others)
@@ -25,6 +26,7 @@ const std::vector< std::pair<OpeningPlan, std::string> > PlanNames =
 	std::pair<OpeningPlan, std::string>(OpeningPlan::WorkerRush, "Worker rush"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::FastRush, "Fast rush"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::HeavyRush, "Heavy rush"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::HydraBust, "Hydra bust"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::Factory, "Factory"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::SafeExpand, "Safe expand"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::NakedExpand, "Naked expand"),

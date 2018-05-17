@@ -157,9 +157,19 @@ void OpponentPlan::recognize()
 		snap.getCount(BWAPI::UnitTypes::Protoss_Nexus) <= 1)
 	{
 		_openingPlan = OpeningPlan::HeavyRush;
-		_planIsFixed = true;
+		//_planIsFixed = true;
 		return;
 	}
+
+    // Recognize a hydra bust
+    if (frame < 7000 &&
+        snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) >= 2 &&
+        snap.getCount(BWAPI::UnitTypes::Zerg_Hydralisk_Den) > 0)
+    {
+        _openingPlan = OpeningPlan::HydraBust;
+        _planIsFixed = true;
+        return;
+    }
 
 	// Recognize terran factory tech openings.
 	if (recognizeFactoryTech())

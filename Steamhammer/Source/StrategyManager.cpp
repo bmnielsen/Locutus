@@ -8,6 +8,8 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
+
 StrategyManager::StrategyManager() 
 	: _selfRace(BWAPI::Broodwar->self()->getRace())
 	, _enemyRace(BWAPI::Broodwar->enemy()->getRace())
@@ -728,6 +730,37 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
 	}
 }
 
+void HandleHydraBust(BuildOrderQueue & queue)
+{
+    // If a cannon is next in the queue, we've probably already handled this
+    if (!queue.isEmpty() && queue.getHighestPriorityItem().macroAct.isBuilding() &&
+        queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+    {
+        return;
+    }
+
+    // Cancel any queued cannons
+    queue.dropStaticDefenses();
+
+    // Queue to 5 total cannons
+    auto& cannonPlacements = BuildingPlacer::Instance().getWall().cannons;
+    int queued = 0;
+    for (int i = 5; i > 0; i--)
+    {
+        if (i > cannonPlacements.size()) continue;
+
+        if (bwebMap.usedTiles.find(cannonPlacements[i - 1]) == bwebMap.usedTiles.end())
+        {
+            MacroAct m(BWAPI::UnitTypes::Protoss_Photon_Cannon);
+            m.setReservedPosition(cannonPlacements[i - 1]);
+            queue.queueAsHighestPriority(m);
+            queued++;
+        }
+    }
+
+    if (queued > 0) Log().Get() << "Queued " << queued << " cannon(s) in reaction to hydra threat";
+}
+
 void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 {
 	// This is the enemy plan that we have seen in action.
@@ -970,6 +1003,14 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 			*/
 		}
+
+        // If the opponent is doing a hydra bust against our wall, shore up the defenses
+        if (BWAPI::Broodwar->getFrameCount() < 7000 && 
+            enemyPlan == OpeningPlan::HydraBust && 
+            BuildingPlacer::Instance().getWall().isValid())
+        {
+            HandleHydraBust(queue);
+        }
 
 		// If we have an idle nexus and are otherwise safe, queue a probe
 		if (ProductionManager::Instance().isOutOfBook() 
