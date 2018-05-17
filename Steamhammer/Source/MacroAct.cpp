@@ -1,4 +1,5 @@
 #include "MacroAct.h"
+#include "BuildingManager.h"
 
 #include <regex>
 
@@ -664,6 +665,12 @@ bool MacroAct::hasTech() const
 	{
 		ourUnitTypes.insert(unit->getType());
 	}
+
+    // Consider queued buildings as well
+    for (const auto buildingType : BuildingManager::Instance().buildingsQueued())
+    {
+        ourUnitTypes.insert(buildingType);
+    }
 
 	// What we need. We only pay attention to the unit type, not the count,
 	// which is needed only for merging archons and dark archons (which is not done via MacroAct).
