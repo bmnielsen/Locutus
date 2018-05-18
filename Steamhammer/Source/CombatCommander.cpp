@@ -917,16 +917,32 @@ void CombatCommander::updateBaseDefenseSquads()
 
 void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers)
 {
-	defenseSquad.clear();
-
-	// if there's nothing left to defend, don't add anything
+	// if there's nothing left to defend, clear the squad
 	if (flyingDefendersNeeded == 0 && groundDefendersNeeded == 0)
 	{
-		return;
+        defenseSquad.clear();
+        return;
 	}
 
+    // Count current defenders in the squad
+    size_t flyingDefendersAdded = 0;
+    size_t groundDefendersAdded = 0;
+    size_t workersInGroup = 0;
+    for (auto& unit : defenseSquad.getUnits())
+    {
+        if (UnitUtil::CanAttackAir(unit)) flyingDefendersAdded++;
+        if (unit->getType().isWorker())
+        {
+            groundDefendersAdded++;
+            workersInGroup++;
+        }
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot)
+            groundDefendersAdded += 4;
+        else
+            groundDefendersAdded += 5;
+    }
+
 	// add flying defenders
-	size_t flyingDefendersAdded = 0;
 	BWAPI::Unit defenderToAdd;
 	while (flyingDefendersNeeded > flyingDefendersAdded &&
 		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false)))
@@ -937,13 +953,17 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	}
 
 	// add ground defenders if we still need them
-	size_t groundDefendersAdded = 0;
-	while (groundDefendersNeeded > groundDefendersAdded &&
+    // We try to replace workers with combat units whenever possible (excess workers are removed in the next block)
+	while (groundDefendersNeeded > (groundDefendersAdded - workersInGroup) &&
 		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), false, pullWorkers)))
 	{
 		if (defenderToAdd->getType().isWorker())
 		{
 			UAB_ASSERT(pullWorkers, "pulled worker defender mistakenly");
+
+            // Don't take the worker if we already have enough
+            if (groundDefendersNeeded <= groundDefendersAdded) break;
+
 			WorkerManager::Instance().setCombatWorker(defenderToAdd);
 			++groundDefendersAdded;
 		}
@@ -953,6 +973,19 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 			groundDefendersAdded += 5;
 		_squadData.assignUnitToSquad(defenderToAdd, defenseSquad);
 	}
+
+    // Remove excess workers
+    while (groundDefendersAdded > groundDefendersNeeded &&
+        defenseSquad.containsUnitType(BWAPI::UnitTypes::Protoss_Probe))
+    {
+        for (auto& unit : defenseSquad.getUnits())
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe)
+            {
+                defenseSquad.removeUnit(unit);
+                groundDefendersAdded--;
+                break;
+            }
+    }
 }
 
 // Choose a defender to join the base defense squad.
