@@ -169,6 +169,10 @@ void OpponentModel::considerOpenings()
 
 	OpeningPlan enemyPlan = _expectedEnemyPlan;
 
+    // Disable the rest for now
+    _recommendedOpening = getOpeningForEnemyPlan(enemyPlan);
+    return;										
+
 	// For the first games, stick to the counter openings based on the predicted plan.
 	if (totalGames <= 5)
 	{
@@ -652,9 +656,9 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 		strategyCount[strategy] = strategyCount[strategy] + 1;
 
 		if ((*it)->getWin())
-			factor *= 1.0 + 2.0 / strategyCount[strategy];
+			factor *= 1.0 + 1.6 / strategyCount[strategy];
 		else
-			factor *= 1.0 - 0.67 / strategyCount[strategy];
+			factor *= 1.0 - 0.6 / strategyCount[strategy];
 
 		result[strategy] = factor;
 	}
