@@ -99,6 +99,8 @@ public:
 	
 	void drawSquadInformation(int x, int y);
 
+    SquadData& getSquadData() { return _squadData; };
+
 	static CombatCommander & Instance();
 };
 }

@@ -1,4 +1,5 @@
 #include "MicroManager.h"
+#include "CombatCommander.h"
 #include "MapTools.h"
 #include "UnitUtil.h"
 
@@ -57,6 +58,16 @@ void MicroManager::execute()
 	BWAPI::Unitset nearbyEnemies;
 	getTargets(nearbyEnemies);
 	executeMicro(nearbyEnemies);
+
+    // If the units are part of a drop squad and there are no targets remaining, release them from the drop squad
+    if (nearbyEnemies.empty() && order.getType() == SquadOrderTypes::Drop)
+    {
+        for (auto& unit : _units)
+        {
+            auto squad = CombatCommander::Instance().getSquadData().getUnitSquad(*_units.begin());
+            if (squad) squad->removeUnit(unit);
+        }
+    }
 }
 
 void MicroManager::getTargets(BWAPI::Unitset & targets) const
