@@ -65,7 +65,8 @@ public:
 	bool						isWorkerScoutBuildingInQueue() const;
 	std::vector<Building *>		workerScoutBuildings();
 
-    std::vector<BWAPI::UnitType> buildingsQueued();
+    std::vector<BWAPI::UnitType> buildingTypesQueued();
+    std::vector<Building *>      buildingsQueued();
 
 	void                cancelBuilding(Building & b);
 	void				cancelQueuedBuildings();

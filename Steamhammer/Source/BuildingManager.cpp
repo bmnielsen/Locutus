@@ -604,16 +604,32 @@ BuildingManager & BuildingManager::Instance()
     return instance;
 }
 
-// The buildings queued and not yet started.
-std::vector<BWAPI::UnitType> BuildingManager::buildingsQueued()
+// The types of buildings queued and not yet started.
+std::vector<BWAPI::UnitType> BuildingManager::buildingTypesQueued()
 {
-    std::vector<BWAPI::UnitType> buildingsQueued;
+    std::vector<BWAPI::UnitType> buildingTypesQueued;
 
     for (const auto & b : _buildings)
     {
         if (b.status == BuildingStatus::Unassigned || b.status == BuildingStatus::Assigned)
         {
-            buildingsQueued.push_back(b.type);
+            buildingTypesQueued.push_back(b.type);
+        }
+    }
+
+    return buildingTypesQueued;
+}
+
+// The buildings queued and not yet started.
+std::vector<Building *> BuildingManager::buildingsQueued()
+{
+    std::vector<Building *> buildingsQueued;
+
+    for (auto & b : _buildings)
+    {
+        if (b.status == BuildingStatus::Unassigned || b.status == BuildingStatus::Assigned)
+        {
+            buildingsQueued.push_back(&b);
         }
     }
 
