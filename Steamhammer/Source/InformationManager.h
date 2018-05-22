@@ -19,6 +19,7 @@ class InformationManager
 
 	bool			_weHaveCombatUnits;
 	bool			_enemyHasCombatUnits;
+	bool			_enemyCanProduceCombatUnits;
 	bool			_enemyHasStaticAntiAir;
 	bool			_enemyHasAntiAir;
 	bool			_enemyHasAirTech;
@@ -116,6 +117,7 @@ public:
 	bool					weHaveCombatUnits();
 
 	bool					enemyHasCombatUnits();
+	bool					enemyCanProduceCombatUnits();
 	bool					enemyHasStaticAntiAir();
 	bool					enemyHasAntiAir();
 	bool					enemyHasAirTech();

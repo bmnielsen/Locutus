@@ -15,6 +15,7 @@ InformationManager::InformationManager()
 	
 	, _weHaveCombatUnits(false)
 	, _enemyHasCombatUnits(false)
+	, _enemyCanProduceCombatUnits(false)
 	, _enemyHasStaticAntiAir(false)
 	, _enemyHasAntiAir(false)
 	, _enemyHasAirTech(false)
@@ -1187,6 +1188,40 @@ bool InformationManager::enemyHasCombatUnits()
 			_enemyHasCombatUnits = true;
 			return true;
 		}
+	}
+
+	return false;
+}
+
+// Enemy can produce combat units (i.e. has a completed spawning poor, barracks, or gateway).
+bool InformationManager::enemyCanProduceCombatUnits()
+{
+	// Latch: Once they're known to have the tech, they always have it.
+	if (_enemyCanProduceCombatUnits)
+	{
+		return true;
+	}
+
+    // If we've seen a combat unit, they must have been able to produce it
+    if (_enemyHasCombatUnits)
+    {
+        _enemyCanProduceCombatUnits = true;
+        return true;
+    }
+
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+        bool completed = ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount();
+
+        if (completed && (ui.type == BWAPI::UnitTypes::Zerg_Spawning_Pool || 
+            ui.type == BWAPI::UnitTypes::Terran_Barracks ||
+            ui.type == BWAPI::UnitTypes::Protoss_Gateway))
+        {
+            _enemyCanProduceCombatUnits = true;
+            return true;
+        }
 	}
 
 	return false;
