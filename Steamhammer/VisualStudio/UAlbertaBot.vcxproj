@@ -178,7 +178,7 @@
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\ParseUtils.cpp" />
     <ClCompile Include="..\Source\PlayerSnapshot.cpp" />
-    <ClCompile Include="..\Source\ProductionGoal.cpp" />
+    <ClCompile Include="..\Source\TechCompleteProductionGoal.cpp" />
     <ClCompile Include="..\source\ProductionManager.cpp" />
     <ClCompile Include="..\Source\Random.cpp" />
     <ClCompile Include="..\source\ScoutManager.cpp" />
@@ -191,6 +191,7 @@
     <ClCompile Include="..\Source\UAlbertaBotModule.cpp" />
     <ClCompile Include="..\Source\UnitData.cpp" />
     <ClCompile Include="..\Source\UnitUtil.cpp" />
+    <ClCompile Include="..\Source\UpgradeCompleteProductionGoal.cpp" />
     <ClCompile Include="..\source\WorkerData.cpp" />
     <ClCompile Include="..\source\WorkerManager.cpp" />
   </ItemGroup>
@@ -265,11 +266,13 @@
     <ClInclude Include="..\Source\SquadOrder.h" />
     <ClInclude Include="..\Source\StrategyBossZerg.h" />
     <ClInclude Include="..\Source\StrategyManager.h" />
+    <ClInclude Include="..\Source\TechCompleteProductionGoal.h" />
     <ClInclude Include="..\source\TimerManager.h" />
     <ClInclude Include="..\Source\UABAssert.h" />
     <ClInclude Include="..\Source\UAlbertaBotModule.h" />
     <ClInclude Include="..\Source\UnitData.h" />
     <ClInclude Include="..\Source\UnitUtil.h" />
+    <ClInclude Include="..\Source\UpgradeCompleteProductionGoal.h" />
     <ClInclude Include="..\source\WorkerData.h" />
     <ClInclude Include="..\source\WorkerManager.h" />
   </ItemGroup>

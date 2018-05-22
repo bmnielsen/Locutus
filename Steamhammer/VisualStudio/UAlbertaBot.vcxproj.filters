@@ -40,6 +40,9 @@
     <Filter Include="BWEB">
       <UniqueIdentifier>{2e22c0f4-f676-40e0-888a-24c2ffa39140}</UniqueIdentifier>
     </Filter>
+    <Filter Include="game\macro\productiongoals">
+      <UniqueIdentifier>{2002b070-c326-4078-a3a4-281bf11e8fc6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Source\CombatCommander.cpp">
@@ -156,7 +159,6 @@
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
     <ClCompile Include="..\Source\DistanceMap.cpp" />
-    <ClCompile Include="..\Source\ProductionGoal.cpp" />
     <ClCompile Include="..\..\BWEM\src\bwem_base.cpp">
       <Filter>BWEM</Filter>
     </ClCompile>
@@ -228,6 +230,12 @@
     </ClCompile>
     <ClCompile Include="..\..\BWEB\src\PathFind.cpp">
       <Filter>BWEB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\TechCompleteProductionGoal.cpp">
+      <Filter>game\macro\productiongoals</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\UpgradeCompleteProductionGoal.cpp">
+      <Filter>game\macro\productiongoals</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -346,7 +354,6 @@
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\Bases.h" />
     <ClInclude Include="..\Source\DistanceMap.h" />
-    <ClInclude Include="..\Source\ProductionGoal.h" />
     <ClInclude Include="..\..\BWEM\src\cp.h">
       <Filter>BWEM</Filter>
     </ClInclude>
@@ -415,6 +422,15 @@
     </ClInclude>
     <ClInclude Include="..\Source\LocutusWall.h">
       <Filter>BWEB</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\ProductionGoal.h">
+      <Filter>game\macro</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\TechCompleteProductionGoal.h">
+      <Filter>game\macro\productiongoals</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\UpgradeCompleteProductionGoal.h">
+      <Filter>game\macro\productiongoals</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

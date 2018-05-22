@@ -20,7 +20,7 @@ class ProductionManager
     ProductionManager();
     
     BuildOrderQueue						_queue;
-	std::forward_list<ProductionGoal>	_goals;
+	std::forward_list<std::shared_ptr<ProductionGoal>>	_goals;
 
 	int					_lastProductionFrame;            // for detecting jams
     BWAPI::TilePosition _predictedTilePosition;

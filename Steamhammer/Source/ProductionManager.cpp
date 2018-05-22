@@ -2,6 +2,8 @@
 #include "GameCommander.h"
 #include "StrategyBossZerg.h"
 #include "UnitUtil.h"
+#include "TechCompleteProductionGoal.h"
+#include "UpgradeCompleteProductionGoal.h"
 
 using namespace UAlbertaBot;
 
@@ -273,6 +275,7 @@ void ProductionManager::manageBuildOrderQueue()
 			continue;
 		}
 
+        /*
 		// If this is an addon, turn it into a production goal.
 		if (currentItem.macroAct.isAddon())
 		{
@@ -280,6 +283,7 @@ void ProductionManager::manageBuildOrderQueue()
 			_queue.doneWithHighestPriorityItem();
 			continue;
 		}
+        */
 
 		// The unit which can produce the currentItem. May be null.
         BWAPI::Unit producer = getProducer(currentItem.macroAct);
@@ -663,10 +667,22 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 	else if (act.isTech())
 	{
 		producer->research(act.getTechType());
+
+        // If there is something we want to do when the research completes, make it a production goal
+        if (act.hasThen())
+        {
+            _goals.push_front(std::shared_ptr<ProductionGoal>(new TechCompleteProductionGoal(act.getThen(), act.getTechType())));
+        }
 	}
 	else if (act.isUpgrade())
 	{
 		producer->upgrade(act.getUpgradeType());
+
+        // If there is something we want to do when the upgrade completes, make it a production goal
+        if (act.hasThen())
+        {
+            _goals.push_front(std::shared_ptr<ProductionGoal>(new UpgradeCompleteProductionGoal(act.getThen(), act.getUpgradeType())));
+        }
 	}
 	else
 	{
@@ -910,12 +926,12 @@ void ProductionManager::executeCommand(MacroCommand command)
 void ProductionManager::updateGoals()
 {
 	// 1. Drop any goals which have been achieved.
-	_goals.remove_if([](ProductionGoal & g) { return g.done(); });
+	_goals.remove_if([](std::shared_ptr<ProductionGoal> & g) { return g->done(); });
 
 	// 2. Attempt to carry out goals.
-	for (ProductionGoal & goal : _goals)
+	for (auto & goal : _goals)
 	{
-		goal.update();
+		goal->update();
 	}
 }
 
@@ -980,10 +996,10 @@ void ProductionManager::drawProductionInformation(int x, int y)
 	// sort it based on the time it was started
 	std::sort(prod.begin(), prod.end(), CompareWhenStarted());
 
-	for (const ProductionGoal & goal : _goals)
+	for (const auto & goal : _goals)
 	{
 		y += 10;
-		BWAPI::Broodwar->drawTextScreen(x, y, " %cgoal %c%s", white, orange, NiceMacroActName(goal.act.getName()).c_str());
+		BWAPI::Broodwar->drawTextScreen(x, y, " %cgoal %c%s", white, orange, NiceMacroActName(goal->act.getName()).c_str());
 	}
 
 	for (const auto & unit : prod)
