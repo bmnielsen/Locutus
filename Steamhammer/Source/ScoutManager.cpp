@@ -833,6 +833,18 @@ void ScoutManager::calculateEnemyRegionVertices()
     }
 
     _enemyRegionVertices = sortedVertices;
+
+    // Set the initial index to the vertex closest to the enemy main, so we get scouting information as soon as possible
+    double bestDist = 1000000;
+    for (size_t i = 0; i < sortedVertices.size(); i++)
+    {
+        double dist = sortedVertices[i].getDistance(enemyCenter);
+        if (dist < bestDist)
+        {
+            bestDist = dist;
+            _currentRegionVertexIndex = i;
+        }
+    }
 }
 
 bool ScoutManager::pylonHarass()
