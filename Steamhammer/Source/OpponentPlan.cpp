@@ -1,6 +1,7 @@
 #include "OpponentPlan.h"
 
 #include "InformationManager.h"
+#include "ScoutManager.h"
 #include "PlayerSnapshot.h"
 
 using namespace UAlbertaBot;
@@ -141,30 +142,44 @@ void OpponentPlan::recognize()
 		return;
 	}
 
+    // When we know the enemy is not doing a fast plan, set it
+    // Will likely get overridden by an appropriate plan below later on
+    if (_openingPlan == OpeningPlan::Unknown && (
+        snap.getCount(BWAPI::UnitTypes::Zerg_Drone) > 6 || // 4- or 5-pool
+        snap.getCount(BWAPI::UnitTypes::Terran_SCV) > 8 || // BBS
+        snap.getCount(BWAPI::UnitTypes::Protoss_Probe) > 9)) // 9-gate
+    {
+        _openingPlan = OpeningPlan::NotFastRush;
+    }
+
 	// Recognize slower rushes.
 	// TODO make sure we've seen the bare geyser in the enemy base!
 	// TODO seeing a unit carrying gas also means the enemy has gas
 	if (snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) >= 2 &&
 		snap.getCount(BWAPI::UnitTypes::Zerg_Spawning_Pool) > 0 &&
-		snap.getCount(BWAPI::UnitTypes::Zerg_Extractor) == 0
+		snap.getCount(BWAPI::UnitTypes::Zerg_Extractor) == 0 &&
+        snap.getCount(BWAPI::UnitTypes::Zerg_Zergling) > 5
 		||
 		snap.getCount(BWAPI::UnitTypes::Terran_Barracks) >= 2 &&
 		snap.getCount(BWAPI::UnitTypes::Terran_Refinery) == 0 &&
-		snap.getCount(BWAPI::UnitTypes::Terran_Command_Center) <= 1
+		snap.getCount(BWAPI::UnitTypes::Terran_Command_Center) <= 1 &&
+		snap.getCount(BWAPI::UnitTypes::Terran_Marine) > 3
 		||
 		snap.getCount(BWAPI::UnitTypes::Protoss_Gateway) >= 2 &&
 		snap.getCount(BWAPI::UnitTypes::Protoss_Assimilator) == 0 &&
-		snap.getCount(BWAPI::UnitTypes::Protoss_Nexus) <= 1)
+		snap.getCount(BWAPI::UnitTypes::Protoss_Nexus) <= 1 &&
+		snap.getCount(BWAPI::UnitTypes::Protoss_Zealot) > 2)
 	{
 		_openingPlan = OpeningPlan::HeavyRush;
-		//_planIsFixed = true;
+		_planIsFixed = true;
 		return;
 	}
 
     // Recognize a hydra bust
     if (frame < 7000 &&
         snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) >= 2 &&
-        snap.getCount(BWAPI::UnitTypes::Zerg_Hydralisk_Den) > 0)
+        snap.getCount(BWAPI::UnitTypes::Zerg_Hydralisk_Den) > 0 &&
+        snap.getCount(BWAPI::UnitTypes::Zerg_Zergling) < 3)
     {
         _openingPlan = OpeningPlan::HydraBust;
         _planIsFixed = true;

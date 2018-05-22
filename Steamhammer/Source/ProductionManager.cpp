@@ -1213,3 +1213,16 @@ void ProductionManager::goOutOfBook()
 		goOutOfBookAndClearQueue();
 	}
 }
+
+void ProductionManager::cancelHighestPriorityItem()
+{
+    _queue.doneWithHighestPriorityItem();
+
+    if (_assignedWorkerForThisBuilding)
+        WorkerManager::Instance().finishedWithWorker(_assignedWorkerForThisBuilding);
+
+    _assignedWorkerForThisBuilding = nullptr;
+    _haveLocationForThisBuilding = false;
+    _frameWhenDependendenciesMet = false;
+    _delayBuildingPredictionUntilFrame = 0;
+}

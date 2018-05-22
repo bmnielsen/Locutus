@@ -79,6 +79,8 @@ public:
 	void	goOutOfBookAndClearQueue();
 	void	goOutOfBook();
 	bool	isOutOfBook() const { return _outOfBook; };
+
+    void    cancelHighestPriorityItem();
 };
 
 

@@ -730,35 +730,82 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
 	}
 }
 
-void HandleHydraBust(BuildOrderQueue & queue)
+void SetWallCannons(BuildOrderQueue & queue, int numCannons)
 {
-    // If a cannon is next in the queue, we've probably already handled this
-    if (!queue.isEmpty() && queue.getHighestPriorityItem().macroAct.isBuilding() &&
-        queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+    std::vector<BWAPI::TilePosition> cannonPlacements = BuildingPlacer::Instance().getWall().cannons;
+
+    // Count cannons we have already built and remove them from the vector
+    int builtCannons = 0;
+    for (auto it = cannonPlacements.begin(); it != cannonPlacements.end(); )
+    {
+        if (bwebMap.usedTiles.find(*it) != bwebMap.usedTiles.end())
+        {
+            builtCannons++;
+            it = cannonPlacements.erase(it);
+        }
+        else
+            it++;
+    }
+
+    // If we already have enough cannons, cancel an additional wall cannon we are about to build
+    if (builtCannons >= numCannons)
+    {
+        // Queued as the next thing to produce
+        if (!queue.isEmpty() &&
+            queue.getHighestPriorityItem().macroAct.isBuilding() &&
+            queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
+            queue.getHighestPriorityItem().macroAct.hasReservedPosition() &&
+            std::find(cannonPlacements.begin(), cannonPlacements.end(), queue.getHighestPriorityItem().macroAct.getReservedPosition()) != cannonPlacements.end())
+        {
+            ProductionManager::Instance().cancelHighestPriorityItem();
+        }
+
+        // Queued in the building manager
+        for (auto& building : BuildingManager::Instance().buildingsQueued())
+        {
+            if (building->type == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
+                building->finalPosition.isValid() &&
+                std::find(cannonPlacements.begin(), cannonPlacements.end(), building->finalPosition) != cannonPlacements.end())
+            {
+                BuildingManager::Instance().cancelBuilding(*building);
+            }
+        }
+
+        return;
+    }
+
+    // If a cannon is next in the queue, or is queued in the building manager, we've probably already handled this
+    if (BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Photon_Cannon) > 0 ||
+        (!queue.isEmpty() && queue.getHighestPriorityItem().macroAct.isBuilding() &&
+        queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Photon_Cannon))
     {
         return;
     }
 
-    // Cancel any queued cannons
-    queue.dropStaticDefenses();
-
-    // Queue to 5 total cannons
-    auto& cannonPlacements = BuildingPlacer::Instance().getWall().cannons;
-    int queued = 0;
-    for (int i = 5; i > 0; i--)
+    // Queue the requested number
+    MacroAct m;
+    int count = 0;
+    for (int i = 0; i < (numCannons - builtCannons) && i < cannonPlacements.size(); i++)
     {
-        if (i > cannonPlacements.size()) continue;
-
-        if (bwebMap.usedTiles.find(cannonPlacements[i - 1]) == bwebMap.usedTiles.end())
+        // Queue if there is not already a cannon at this location
+        if (bwebMap.usedTiles.find(cannonPlacements[i]) == bwebMap.usedTiles.end())
         {
-            MacroAct m(BWAPI::UnitTypes::Protoss_Photon_Cannon);
-            m.setReservedPosition(cannonPlacements[i - 1]);
-            queue.queueAsHighestPriority(m);
-            queued++;
+            MacroAct thisCannon(BWAPI::UnitTypes::Protoss_Photon_Cannon);
+            thisCannon.setReservedPosition(cannonPlacements[i]);
+
+            if (count == 0)
+                m = thisCannon;
+            else
+                m.setThen(thisCannon);
+
+            count++;
         }
     }
 
-    if (queued > 0) Log().Get() << "Queued " << queued << " cannon(s) in reaction to hydra threat";
+    if (count > 0)
+    {
+        queue.queueAsHighestPriority(m);
+    }
 }
 
 void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
@@ -1004,12 +1051,108 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			*/
 		}
 
-        // If the opponent is doing a hydra bust against our wall, shore up the defenses
-        if (BWAPI::Broodwar->getFrameCount() < 7000 && 
-            enemyPlan == OpeningPlan::HydraBust && 
-            BuildingPlacer::Instance().getWall().isValid())
+        // Set wall cannon count vs. zerg depending on the enemy plan
+        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
+            !CombatCommander::Instance().getAggression() &&
+            BuildingPlacer::Instance().getWall().isValid() &&
+            UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
         {
-            HandleHydraBust(queue);
+            int cannons = 0;
+            int frame = BWAPI::Broodwar->getFrameCount();
+
+            // If we don't know the enemy plan, use the likely plan if:
+            // - it is FastRush, since we won't have time to react to that later
+            // - we're past frame 4500
+            auto plan = 
+                (enemyPlan == OpeningPlan::Unknown && (frame > 4500 || likelyEnemyPlan == OpeningPlan::FastRush))
+                ? likelyEnemyPlan
+                : enemyPlan;
+
+            // Set cannons depending on the plan
+            switch (plan)
+            {
+            case OpeningPlan::FastRush:
+                // Fast rushes need two cannons immediately and a third shortly afterwards
+                if (frame > 3000)
+                    cannons = 3;
+                else
+                    cannons = 2;
+
+                break;
+
+            case OpeningPlan::HeavyRush:
+                // Heavy rushes ramp up to four cannons at a bit slower timing
+                if (frame > 5000)
+                    cannons = 4;
+                else if (frame > 4000)
+                    cannons = 3;
+                else if (frame > 3000)
+                    cannons = 2;
+
+                break;
+
+            case OpeningPlan::HydraBust:
+                // Hydra busts ramp up to five cannons at a much slower timing
+                if (frame > 9000)
+                    cannons = 5;
+                else if (frame > 8000)
+                    cannons = 4;
+                else if (frame > 7000)
+                    cannons = 3;
+                else if (frame > 6000)
+                    cannons = 2;
+
+                break;
+
+            default:
+                // We haven't scouted a dangerous plan directly
+
+                // Don't do anything if we already have the rough equivalent of a zealot and a dragoon
+                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Zealot) 
+                    + (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) * 2) >= 3)
+                {
+                    break;
+                }
+
+                // We don't have scouting info
+                if (!ScoutManager::Instance().eyesOnEnemyBase())
+                {
+                    // Build two cannons initially to defend against an unanticipated fast rush
+                    // Build a third cannon later if we still don't have any scouting information to protect against heavier pressure
+                    if (frame > 5000)
+                        cannons = 3;
+                    else
+                        cannons = 2;
+                }
+
+                // We have a scout in the enemy base
+                else
+                {
+                    PlayerSnapshot snap;
+                    snap.takeEnemy();
+
+                    // No cannons if the enemy can't create combat units
+                    if (!InformationManager::Instance().enemyCanProduceCombatUnits())
+                    {
+                        cannons = 0;
+                    }
+
+                    // If the enemy is relatively low on workers, prepare for some heavy pressure
+                    else if (frame > 5000 && snap.getCount(BWAPI::UnitTypes::Zerg_Drone) < 11)
+                    {
+                        if (frame > 6000)
+                            cannons = 4;
+                        else
+                            cannons = 3;
+                    }
+
+                    // Otherwise build two cannons to handle early ling pressure
+                    else
+                        cannons = 2;
+                }
+            }
+
+            SetWallCannons(queue, cannons);
         }
 
 		// If we have an idle nexus and are otherwise safe, queue a probe
