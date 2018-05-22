@@ -38,7 +38,7 @@ class MacroAct
 	mutable
 	BWAPI::TilePosition _reservedPosition;
 
-	MacroAct*			_then;
+    std::shared_ptr<MacroAct> _then;
 
 	MacroLocation		getMacroLocationFromString(std::string & s);
 	bool				determineType(std::string & name);
@@ -66,6 +66,8 @@ public:
     
 	bool    hasReservedPosition()	const;
 	bool	hasThen()				const;
+
+    void    setThen(MacroAct& m) { _then = std::make_shared<MacroAct>(m); };
 
     const size_t & type() const;
     const BWAPI::Race & getRace() const;

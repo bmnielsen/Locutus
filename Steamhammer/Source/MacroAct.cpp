@@ -101,7 +101,6 @@ MacroAct::MacroAct ()
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
 }
 
@@ -112,7 +111,6 @@ MacroAct::MacroAct(const std::string & name)
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
     std::string inputName(name);
     std::replace(inputName.begin(), inputName.end(), '_', ' ');
@@ -183,8 +181,8 @@ MacroAct::MacroAct(const std::string & name)
 	}
 
 	_macroLocation = specifiedMacroLocation;
-	if (isBuilding() && _unitType.isBuilding() && !thenClause.empty())
-		_then = new MacroAct(thenClause);
+    if (!thenClause.empty())
+        setThen(MacroAct(thenClause));
 }
 
 MacroAct::MacroAct (BWAPI::UnitType t) 
@@ -193,7 +191,6 @@ MacroAct::MacroAct (BWAPI::UnitType t)
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
 }
 
@@ -203,7 +200,6 @@ MacroAct::MacroAct(BWAPI::UnitType t, MacroLocation loc)
 	, _race(t.getRace())
 	, _macroLocation(loc)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
 }
 
@@ -213,7 +209,6 @@ MacroAct::MacroAct(BWAPI::TechType t)
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
 }
 
@@ -223,7 +218,6 @@ MacroAct::MacroAct (BWAPI::UpgradeType t)
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
 }
 
@@ -233,7 +227,6 @@ MacroAct::MacroAct(MacroCommandType t)
 	, _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
 }
 
@@ -243,7 +236,6 @@ MacroAct::MacroAct(MacroCommandType t, int amount)
 	, _race(BWAPI::Races::None)     // irrelevant
 	, _macroLocation(MacroLocation::Anywhere)
 	, _reservedPosition(BWAPI::TilePositions::None)
-	, _then(nullptr)
 {
 }
 
@@ -313,7 +305,7 @@ bool MacroAct::hasReservedPosition() const
 
 bool MacroAct::hasThen() const
 {
-	return _then != nullptr;
+	return !!_then;
 }
 
 const BWAPI::UnitType & MacroAct::getUnitType() const
@@ -353,7 +345,7 @@ const BWAPI::TilePosition MacroAct::getReservedPosition() const
 
 const MacroAct & MacroAct::getThen() const
 {
-	UAB_ASSERT(_then != nullptr, "getThen without then");
+	UAB_ASSERT(!!_then, "getThen without then");
 	return *_then;
 }
 
@@ -667,7 +659,7 @@ bool MacroAct::hasTech() const
 	}
 
     // Consider queued buildings as well
-    for (const auto buildingType : BuildingManager::Instance().buildingsQueued())
+    for (const auto buildingType : BuildingManager::Instance().buildingTypesQueued())
     {
         ourUnitTypes.insert(buildingType);
     }
