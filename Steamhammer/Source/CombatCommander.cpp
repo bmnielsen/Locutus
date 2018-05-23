@@ -29,7 +29,7 @@ CombatCommander::CombatCommander()
 	, _goAggressive(true)
 	, _reconTarget(BWAPI::Positions::Invalid)   // it will be changed later
 	, _lastReconTargetChange(0)
-	, _enemyWorkerHasAttacked(false)
+	, _enemyWorkerAttackedAt(0)
 {
 }
 
@@ -653,9 +653,9 @@ void CombatCommander::updateScoutDefenseSquad()
     {
         if (BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) == myRegion)
         {
-            // If an enemy worker has attacked at any point, consider workers to not be scouts
+            // If an enemy worker has attacked recently, consider workers to not be scouts
             if (unit->getType() != BWAPI::UnitTypes::Zerg_Overlord &&
-                (!unit->getType().isWorker() || _enemyWorkerHasAttacked))
+                (!unit->getType().isWorker() || _enemyWorkerAttackedAt > (BWAPI::Broodwar->getFrameCount() - 120)))
             {
                 chaseScout = false;
                 break;
@@ -760,20 +760,16 @@ void CombatCommander::updateBaseDefenseSquads()
             }
         }
 
-        // We assume the first enemy worker in the region is a scout, unless any enemy worker has attacked
-		if (!_enemyWorkerHasAttacked)
-			for (const auto unit : enemyUnitsInRegion)
-				if (unit->getType().isWorker())
-				{
-					if (unit->isAttacking())
-					{
-						_enemyWorkerHasAttacked = true;
-						Log().Get() << "Flagging that enemy worker has attacked";
-					}
-					else
-						enemyUnitsInRegion.erase(unit);
-					break;
-				}
+        // We assume the first enemy worker in the region is a scout, unless it has attacked us recently
+		for (const auto unit : enemyUnitsInRegion)
+			if (unit->getType().isWorker())
+			{
+				if (unit->isAttacking())
+					_enemyWorkerAttackedAt = BWAPI::Broodwar->getFrameCount();
+				else if (_enemyWorkerAttackedAt < (BWAPI::Broodwar->getFrameCount() - 120))
+					enemyUnitsInRegion.erase(unit);
+				break;
+			}
 
 		// if there's nothing in this region to worry about
         if (enemyUnitsInRegion.empty())
