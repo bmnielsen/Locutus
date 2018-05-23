@@ -1065,7 +1065,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         // Set wall cannon count vs. zerg depending on the enemy plan
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
             !CombatCommander::Instance().getAggression() &&
-            BuildingPlacer::Instance().getWall().isValid() &&
+            BuildingPlacer::Instance().getWall().exists() &&
             UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
         {
             int cannons = 0;

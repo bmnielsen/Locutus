@@ -7,6 +7,7 @@
 const double pi = 3.14159265358979323846;
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
 namespace UAlbertaBot
 {
@@ -198,7 +199,7 @@ namespace UAlbertaBot
 		BWAPI::Position natCenter = BWAPI::Position(bwebMap.getNatural()) + BWAPI::Position(64, 48);
 		double bestDist = DBL_MAX;
 		double bestNatDist = DBL_MAX;
-		BWAPI::Position bestCenter;
+		BWAPI::Position bestCenter = BWAPI::Positions::Invalid;
 
 		BWAPI::Position end1;
 		BWAPI::Position end2;
@@ -232,6 +233,13 @@ namespace UAlbertaBot
 					}
 				}
 			}
+
+        if (!bestCenter.isValid())
+        {
+            Log().Debug() << "Error scoring wall forge " << forge << ", gateway " << gateway << ", geo1 size " << geo1.size() << ", geo2 size " << geo2->size();
+            wallOptions.push_back(ForgeGatewayWallOption(forge, gateway));
+            return;
+        }
 
 		if (!geo)
 			delete geo2;
@@ -303,7 +311,7 @@ namespace UAlbertaBot
 	bool checkPath(BWAPI::TilePosition tile, int maxPathLength = 0)
 	{
 		bwebMap.currentWall[tile] = BWAPI::UnitTypes::Protoss_Pylon;
-		std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), bwebMap, bwebMap.startTile, bwebMap.endTile);
+		std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(bwemMap, bwebMap, bwebMap.startTile, bwebMap.endTile);
 		bwebMap.currentWall.clear();
 
 		if (path.empty()) return false;
@@ -372,7 +380,7 @@ namespace UAlbertaBot
 
 		// Move tiles we flagged inside the wall to outside if they were not in the natural area
 		for (auto it = wall.tilesInsideWall.begin(); it != wall.tilesInsideWall.end(); )
-			if (BWEM::Map::Instance().GetArea(*it) != bwebMap.naturalArea)
+			if (bwemMap.GetArea(*it) != bwebMap.naturalArea)
 			{
 				wall.tilesOutsideWall.insert(*it);
 				it = wall.tilesInsideWall.erase(it);
@@ -485,7 +493,7 @@ namespace UAlbertaBot
 				BWAPI::TilePosition tile(x, y);
 				if (!tile.isValid()) continue;
 
-				auto area = BWEM::Map::Instance().GetArea(tile);
+				auto area = bwemMap.GetArea(tile);
 				if (area && area != bwebMap.naturalArea)
 				{
 					double dist = tile.getDistance(start);
@@ -508,8 +516,8 @@ namespace UAlbertaBot
 			for (auto y = tile.y; y < tile.y + building.tileHeight(); y++)
 			{
 				BWAPI::TilePosition test(x, y);
-				auto area = BWEM::Map::Instance().GetArea(test);
-				if (!area) area = BWEM::Map::Instance().GetNearestArea(test);
+				auto area = bwemMap.GetArea(test);
+				if (!area) area = bwemMap.GetNearestArea(test);
 				if (area == bwebMap.naturalArea) return true;
 			}
 
@@ -540,7 +548,8 @@ namespace UAlbertaBot
 				for (int y = geyser->TopLeft().y; y <= geyser->BottomRight().y; y++)
 					geyserTiles.insert(BWAPI::TilePosition(x, y));
 
-		// Step 1: Find possible places to put the forge and gateway along the edges
+        // Get elevation of natural, we want our wall to be at the same elevation
+        auto elevation = BWAPI::Broodwar->getGroundHeight(bwebMap.naturalTile);
 
 		auto end1 = BWAPI::TilePosition(bwebMap.choke->Pos(BWEM::ChokePoint::end1));
 		auto end2 = BWAPI::TilePosition(bwebMap.choke->Pos(BWEM::ChokePoint::end2));
@@ -563,6 +572,7 @@ namespace UAlbertaBot
 					BWAPI::TilePosition tile(x, y);
 					if (!tile.isValid()) continue;
 					if (!bwebMap.isWalkable(tile)) end1Geo.push_back(center(tile));
+                    if (BWAPI::Broodwar->getGroundHeight(tile) != elevation) continue;
 
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end1ForgeOptions, tight, geyserTiles);
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end1GatewayOptions, tight, geyserTiles);
@@ -575,6 +585,7 @@ namespace UAlbertaBot
 					BWAPI::TilePosition tile(x, y);
 					if (!tile.isValid()) continue;
 					if (!bwebMap.isWalkable(tile)) end2Geo.push_back(center(tile));
+                    if (BWAPI::Broodwar->getGroundHeight(tile) != elevation) continue;
 
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end2ForgeOptions, tight, geyserTiles);
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end2GatewayOptions, tight, geyserTiles);
@@ -595,6 +606,7 @@ namespace UAlbertaBot
 					BWAPI::TilePosition tile(x, y);
 					if (!tile.isValid()) continue;
 					if (!bwebMap.isWalkable(tile)) end1Geo.push_back(center(tile));
+                    if (BWAPI::Broodwar->getGroundHeight(tile) != elevation) continue;
 
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end1ForgeOptions, tight, geyserTiles);
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end1GatewayOptions, tight, geyserTiles);
@@ -607,43 +619,7 @@ namespace UAlbertaBot
 					BWAPI::TilePosition tile(x, y);
 					if (!tile.isValid()) continue;
 					if (!bwebMap.isWalkable(tile)) end2Geo.push_back(center(tile));
-
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end2ForgeOptions, tight, geyserTiles);
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end2GatewayOptions, tight, geyserTiles);
-				}
-		}
-		else if (diffX > 0 == diffY > 0)
-		{
-			// Make sure end1 is the left side
-			if (end1.x > end2.x) swap(end1, end2);
-
-			// Diagonal wall
-			Log().Debug() << "Diagonal (top-left to bottom-right) wall between " << end1 << " and " << end2;
-
-			BWAPI::Position end1Center = center(end1);
-			BWAPI::Position end2Center = center(end2);
-
-			// Find options on left side
-			for (int x = end1.x - 4; x <= end1.x + 4; x++)
-				for (int y = end1.y - 4; y <= end1.y + 4; y++)
-				{
-					BWAPI::TilePosition tile(x, y);
-					if (!tile.isValid()) continue;
-					if (center(tile).getDistance(end1Center) > center(tile).getDistance(end2Center)) continue;
-					if (!bwebMap.isWalkable(tile)) end1Geo.push_back(center(tile));
-
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end1ForgeOptions, tight, geyserTiles);
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end1GatewayOptions, tight, geyserTiles);
-				}
-
-			// Find options on right side
-			for (int x = end2.x - 4; x <= end2.x + 4; x++)
-				for (int y = end2.y - 4; y <= end2.y + 4; y++)
-				{
-					BWAPI::TilePosition tile(x, y);
-					if (!tile.isValid()) continue;
-					if (center(tile).getDistance(end2Center) > center(tile).getDistance(end1Center)) continue;
-					if (!bwebMap.isWalkable(tile)) end2Geo.push_back(center(tile));
+                    if (BWAPI::Broodwar->getGroundHeight(tile) != elevation) continue;
 
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end2ForgeOptions, tight, geyserTiles);
 					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end2GatewayOptions, tight, geyserTiles);
@@ -655,35 +631,45 @@ namespace UAlbertaBot
 			if (end1.x > end2.x) swap(end1, end2);
 
 			// Diagonal wall
-			Log().Debug() << "Diagonal (bottom-left to top-right) wall between " << end1 << " and " << end2;
+			Log().Debug() << "Diagonal wall between " << end1 << " and " << end2;
 
 			BWAPI::Position end1Center = center(end1);
 			BWAPI::Position end2Center = center(end2);
 
-			// Find options on left side
-			for (int x = end1.x - 4; x <= end1.x + 4; x++)
-				for (int y = end1.y - 4; y <= end1.y + 4; y++)
-				{
-					BWAPI::TilePosition tile(x, y);
-					if (!tile.isValid()) continue;
-					if (center(tile).getDistance(end1Center) > center(tile).getDistance(end2Center)) continue;
-					if (!bwebMap.isWalkable(tile)) end1Geo.push_back(center(tile));
+            // Follow the slope perpendicular to the choke on both ends
+            double m = (-1.0) / (((double)end2Center.y - end1Center.y) / ((double)end2Center.x - end1Center.x));
+            for (int xdelta = -4; xdelta <= 4; xdelta++)
+                for (int ydelta = -3; ydelta <= 3; ydelta++)
+                {
+                    // Find options on left side
+                    {
+                        int x = end1.x + xdelta;
+                        int y = end1.y + (int)std::round(xdelta*m) + ydelta;
 
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end1ForgeOptions, tight, geyserTiles);
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end1GatewayOptions, tight, geyserTiles);
-				}
+                        BWAPI::TilePosition tile(x, y);
+                        if (!tile.isValid()) continue;
+                        if (center(tile).getDistance(end1Center) > center(tile).getDistance(end2Center)) continue;
+                        if (!bwebMap.isWalkable(tile)) end1Geo.push_back(center(tile));
+                        if (BWAPI::Broodwar->getGroundHeight(tile) != elevation) continue;
 
-			// Find options on right side
-			for (int x = end2.x - 4; x <= end2.x + 4; x++)
-				for (int y = end2.y - 4; y <= end2.y + 4; y++)
-				{
-					BWAPI::TilePosition tile(x, y);
-					if (!tile.isValid()) continue;
-					if (center(tile).getDistance(end2Center) > center(tile).getDistance(end1Center)) continue;
-					if (!bwebMap.isWalkable(tile)) end2Geo.push_back(center(tile));
+                        addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end1ForgeOptions, tight, geyserTiles);
+                        addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end1GatewayOptions, tight, geyserTiles);
+                    }
 
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end2ForgeOptions, tight, geyserTiles);
-					addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end2GatewayOptions, tight, geyserTiles);
+                    // Find options on right side
+                    {
+                        int x = end2.x + xdelta;
+                        int y = end2.y + (int)std::round(xdelta*m) + ydelta;
+
+                        BWAPI::TilePosition tile(x, y);
+                        if (!tile.isValid()) continue;
+                        if (center(tile).getDistance(end2Center) > center(tile).getDistance(end1Center)) continue;
+                        if (!bwebMap.isWalkable(tile)) end2Geo.push_back(center(tile));
+                        if (BWAPI::Broodwar->getGroundHeight(tile) != elevation) continue;
+
+                        addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Forge, end2ForgeOptions, tight, geyserTiles);
+                        addBuildingOption(x, y, BWAPI::UnitTypes::Protoss_Gateway, end2GatewayOptions, tight, geyserTiles);
+                    }
 				}
 		}
 	}
@@ -766,6 +752,9 @@ namespace UAlbertaBot
 		bool natSideOfForgeGatewayLine = sideOfLine(forgeCenter, gatewayCenter, natCenter);
 		bool natSideOfGapLine = sideOfLine(wall.gapEnd1, wall.gapEnd2, natCenter);
 
+        BWAPI::Position centroid = (forgeCenter + gatewayCenter) / 2;
+        double distCentroidNat = centroid.getDistance(natCenter);
+
 		double bestPylonDist = 0;
 		BWAPI::TilePosition bestPylon = BWAPI::TilePositions::Invalid;
 
@@ -785,9 +774,18 @@ namespace UAlbertaBot
 				if (bwebMap.overlapsAnything(tile, BWAPI::UnitTypes::Protoss_Pylon.tileWidth(), BWAPI::UnitTypes::Protoss_Pylon.tileHeight(), true)) continue;
 
 				BWAPI::Position pylonCenter = BWAPI::Position(BWAPI::TilePosition(x, y)) + BWAPI::Position(32, 32);
-				if (sideOfLine(forgeCenter, gatewayCenter, pylonCenter) != natSideOfForgeGatewayLine
-					&& sideOfLine(wall.gapEnd1, wall.gapEnd2, pylonCenter) != natSideOfGapLine)
-					continue;
+                if (sideOfLine(forgeCenter, gatewayCenter, pylonCenter) != natSideOfForgeGatewayLine
+                    && sideOfLine(wall.gapEnd1, wall.gapEnd2, pylonCenter) != natSideOfGapLine)
+                {
+                    Log().Debug() << "Pylon " << tile << " rejected for being on the wrong side of the line";
+                    continue;
+                }
+
+                if (pylonCenter.getDistance(natCenter) > distCentroidNat)
+                {
+                    Log().Debug() << "Pylon " << tile << " rejected for being further away from the natural";
+                    continue;
+                }
 
 				BWAPI::TilePosition spawn = gatewaySpawnPosition(wall, tile, BWAPI::UnitTypes::Protoss_Pylon);
 				if (!spawn.isValid())
@@ -797,16 +795,24 @@ namespace UAlbertaBot
 				if (dist > bestPylonDist)
 				{
 					// Ensure there is a valid path through the wall
-					if (!checkPath(tile, optimalPathLength * 2)) continue;
+                    if (!checkPath(tile, optimalPathLength * 2))
+                    {
+                        Log().Debug() << "Pylon " << tile << " rejected for not having a valid main path";
+                        continue;
+                    }
 
 					// Ensure there is a valid path from the gateway spawn position
 					if (sideOfLine(forgeCenter, gatewayCenter, center(spawn)) == natSideOfForgeGatewayLine)
 					{
 						bwebMap.currentWall[tile] = BWAPI::UnitTypes::Protoss_Pylon;
-						std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), bwebMap, spawn, bwebMap.endTile);
+						std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(bwemMap, bwebMap, spawn, bwebMap.endTile);
 						bwebMap.currentWall.clear();
 
-						if (path.empty()) continue;
+                        if (path.empty())
+                        {
+                            Log().Debug() << "Pylon " << tile << " rejected for not having a path from gateway spawn position";
+                            continue;
+                        }
 					}
 
 					// The caller just wants to verify there is one, so return immediately
@@ -820,33 +826,30 @@ namespace UAlbertaBot
 		return bestPylon;
 	}
 
-	ForgeGatewayWallOption getBestWallOption(std::vector<ForgeGatewayWallOption> & wallOptions)
+	ForgeGatewayWallOption getBestWallOption(std::vector<ForgeGatewayWallOption> & wallOptions, int optimalPathLength)
 	{
 		ForgeGatewayWallOption bestWallOption;
 
-		BWAPI::Position mapCenter = BWEM::Map::Instance().Center();
+		BWAPI::Position mapCenter = bwemMap.Center();
 		BWAPI::Position startTileCenter = BWAPI::Position(bwebMap.startTile) + BWAPI::Position(16, 16);
 		BWAPI::Position natCenter = BWAPI::Position(bwebMap.getNatural()) + BWAPI::Position(64, 48);
 
-		double bestWallQuality = INT_MAX;
+		double bestWallQuality = DBL_MAX;
 		double bestDistCentroid = 0;
 		BWAPI::Position bestCentroid;
 
 		for (auto const& wall : wallOptions)
 		{
-			// If the gap size is bigger than our current best, just skip it now
-			if (wall.gapSize > bestWallOption.gapSize) continue;
-
 			// Center of each building
 			BWAPI::Position forgeCenter = BWAPI::Position(wall.forge) + (BWAPI::Position(BWAPI::UnitTypes::Protoss_Forge.tileSize()) / 2);
 			BWAPI::Position gatewayCenter = BWAPI::Position(wall.gateway) + (BWAPI::Position(BWAPI::UnitTypes::Protoss_Gateway.tileSize()) / 2);
 
-			// If the gap size is equal, prefer walls where the door is closer to our start tile
+			// Prefer walls where the door is closer to our start tile
 			// Includes a small factor of the distance to the map center to encourage shorter paths from the door to the rest of the map
 			// Rounded to half-tile resolution
 			int distChoke = (int)std::floor((wall.gapCenter.getDistance(startTileCenter) + log(wall.gapCenter.getDistance(mapCenter))) / 16.0);
 
-			// If the gap size is equal, prefer "straight" walls
+			// Prefer walls that are slightly crooked, so we get better cannon placements
 			// For walls where the forge and gateway are touching, measure this by comparing the slope of the wall building centers to the slope of the gap, rounded to 15 degree increments
 			// Otherwise compute it based on the relative distance between the natural center and the forge and gateway
 			int straightness = 0;
@@ -856,12 +859,11 @@ namespace UAlbertaBot
 			{
 				double distForge = natCenter.getDistance(forgeCenter);
 				double distGateway = natCenter.getDistance(gatewayCenter);
-				Log().Debug() << "distForge=" << distForge << ";distGateway=" << distGateway;
 				straightness = (int)std::floor(2.0 * std::max(distForge, distGateway) / std::min(distForge, distGateway));
 			}
 
-			// Combine the previous two values into a measure of wall quality
-			double wallQuality = distChoke * (1.0 + straightness / 2.0);
+			// Combine the gap size and the previous two values into a measure of wall quality
+			double wallQuality = wall.gapSize * distChoke * (1.0 + std::abs(2 - straightness) / 2.0);
 
 			// Compute the centroid of the wall buildings
 			// If the other scores are equal, we prefer a centroid farther away from the natural
@@ -872,15 +874,14 @@ namespace UAlbertaBot
 
 			Log().Debug() << "Considering forge=" << wall.forge << ";gateway=" << wall.gateway << ";gapc=" << BWAPI::TilePosition(wall.gapCenter) << ";gapw=" << wall.gapSize << ";dchoke=" << distChoke << ";straightness=" << straightness << ";qualityFactor=" << wallQuality << ";dcentroid=" << distCentroidNat;
 
-			if (wall.gapSize < bestWallOption.gapSize
-				|| (wall.gapSize == bestWallOption.gapSize && wallQuality < bestWallQuality)
-				|| (wall.gapSize == bestWallOption.gapSize && wallQuality == bestWallQuality && distCentroidNat > bestDistCentroid))
+			if (wallQuality < bestWallQuality
+				|| (wallQuality == bestWallQuality && distCentroidNat > bestDistCentroid))
 			{
 				// Make sure there is at least one valid pylon to power this wall
 				bwebMap.addOverlap(wall.forge, BWAPI::UnitTypes::Protoss_Forge.tileWidth(), BWAPI::UnitTypes::Protoss_Forge.tileHeight());
 				bwebMap.addOverlap(wall.gateway, BWAPI::UnitTypes::Protoss_Gateway.tileWidth(), BWAPI::UnitTypes::Protoss_Gateway.tileHeight());
 
-				bool hasPylon = getPylonPlacement(LocutusWall(wall), 0, true).isValid();
+				bool hasPylon = getPylonPlacement(LocutusWall(wall), optimalPathLength, true).isValid();
 
 				removeOverlap(wall.forge, BWAPI::UnitTypes::Protoss_Forge.tileWidth(), BWAPI::UnitTypes::Protoss_Forge.tileHeight());
 				removeOverlap(wall.gateway, BWAPI::UnitTypes::Protoss_Gateway.tileWidth(), BWAPI::UnitTypes::Protoss_Gateway.tileHeight());
@@ -933,16 +934,12 @@ namespace UAlbertaBot
 					|| sideOfLine(forgeCenter, gatewayCenter, cannonCenter + BWAPI::Position(-16, 16)) != natSideOfForgeGatewayLine
 					|| sideOfLine(forgeCenter, gatewayCenter, cannonCenter + BWAPI::Position(-16, -16)) != natSideOfForgeGatewayLine)
 				{
-					Log().Debug() << "Rejected " << tile << " because on wrong side of line";
+					Log().Debug() << "Cannon " << tile << " rejected because on wrong side of line";
 					continue;
 				}
 
 				BWAPI::TilePosition spawn = gatewaySpawnPosition(wall, tile, BWAPI::UnitTypes::Protoss_Photon_Cannon);
-				if (!spawn.isValid())
-				{
-					Log().Debug() << "Rejected " << tile << " as it would block all spawn locations from gateway";
-					continue;
-				}
+                if (!spawn.isValid()) continue;
 
 				int borderingTiles = 0;
 				if (!walkableTile(BWAPI::TilePosition(x - 1, y))) borderingTiles++;
@@ -983,12 +980,12 @@ namespace UAlbertaBot
 					if (sideOfLine(forgeCenter, gatewayCenter, center(spawn)) == natSideOfForgeGatewayLine)
 					{
 						bwebMap.currentWall[tile] = BWAPI::UnitTypes::Protoss_Photon_Cannon;
-						std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), BWEB::Map::Instance(), spawn, bwebMap.endTile);
+						std::vector<BWAPI::TilePosition>& path = BWEB::Map::Instance().findPath(bwemMap, bwebMap, spawn, bwebMap.endTile);
 						bwebMap.currentWall.clear();
 
 						if (path.empty())
 						{
-							Log().Debug() << "Rejected " << tile << " as it blocks path from gateway spawn point " << spawn << " to door " << bwebMap.endTile;
+							Log().Debug() << "(rejected as blocks path from gateway spawn point)";
 							continue;
 						}
 					}
@@ -1007,33 +1004,14 @@ namespace UAlbertaBot
 	void registerWallWithBWEB(LocutusWall & wall)
 	{
 		// Reserve the path
-		for (auto& tile : BWEB::Map::Instance().findPath(BWEM::Map::Instance(), bwebMap, bwebMap.startTile, bwebMap.endTile))
+		for (auto& tile : BWEB::Map::Instance().findPath(bwemMap, bwebMap, bwebMap.startTile, bwebMap.endTile))
 			bwebMap.overlapGrid[tile.x][tile.y] = 1;
-
-		// Add the BWEB wall and set the door
-		BWEB::Wall newWall(bwebMap.area, bwebMap.choke);
-		BWAPI::Position centroid;
-		for (auto const & placement : wall.placements())
-		{
-			if (placement.first == BWAPI::UnitTypes::Protoss_Photon_Cannon)
-				newWall.insertDefense(placement.second);
-			else
-			{
-				newWall.insertSegment(placement.second, placement.first);
-				centroid += static_cast<BWAPI::Position>(placement.second) + static_cast<BWAPI::Position>(placement.first.tileSize()) / 2;
-			}
-		}
-
-		newWall.setCentroid(centroid / 3);
-		newWall.setWallDoor(BWAPI::TilePosition(wall.gapCenter));
-
-		bwebMap.walls.push_back(newWall);
 	}
 
 	LocutusWall destinationWall()
 	{
 		LocutusWall result;
-		if (bwebMap.getNatural().y < BWAPI::TilePosition(BWEM::Map::Instance().Center()).y)
+		if (bwebMap.getNatural().y < BWAPI::TilePosition(bwemMap.Center()).y)
 		{
 			result.pylon = BWAPI::TilePosition(61, 18);
 			result.forge = BWAPI::TilePosition(60, 22);
@@ -1042,6 +1020,7 @@ namespace UAlbertaBot
 			result.cannons.push_back(BWAPI::TilePosition(59, 17));
 			result.cannons.push_back(BWAPI::TilePosition(57, 17));
 			result.cannons.push_back(BWAPI::TilePosition(58, 15));
+            result.cannons.push_back(BWAPI::TilePosition(61, 16));
 
 			result.gapEnd1 = center(BWAPI::TilePosition(57, 19));
 			result.gapEnd1 = center(BWAPI::TilePosition(55, 19));
@@ -1060,6 +1039,7 @@ namespace UAlbertaBot
 			result.cannons.push_back(BWAPI::TilePosition(44, 107));
 			result.cannons.push_back(BWAPI::TilePosition(35, 110));
 			result.cannons.push_back(BWAPI::TilePosition(37, 110));
+			result.cannons.push_back(BWAPI::TilePosition(32, 110));
 
 			result.gapEnd1 = center(BWAPI::TilePosition(32, 107));
 			result.gapEnd1 = center(BWAPI::TilePosition(35, 107));
@@ -1084,15 +1064,9 @@ namespace UAlbertaBot
 
 	LocutusWall createForgeGatewayWall(bool tight, int maxGapSize = INT_MAX)
 	{
-		bwebMap.area = bwebMap.getNaturalArea();
-		bwebMap.choke = bwebMap.getNaturalChoke();
-
-		// Destination
-		if (BWAPI::Broodwar->mapHash() == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") return destinationWall();
-
-		// Initialize start tile for pathfinding
-		bwebMap.startTile = (BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + bwebMap.naturalTile) / 4;
-		bwebMap.setStartTile();
+        // Initialize pathfinding
+        int optimalPathLength = BWEB::Map::Instance().findPath(bwemMap, BWEB::Map::Instance(), bwebMap.startTile, bwebMap.endTile).size();
+        Log().Debug() << "Pathfinding between " << bwebMap.startTile << " and " << bwebMap.endTile << ", initial length " << optimalPathLength;
 
 		// Step 1: Analyze choke geo and find potential forge and gateway options
 		std::vector<BWAPI::Position> end1Geo;
@@ -1113,15 +1087,14 @@ namespace UAlbertaBot
 		if (wallOptions.empty()) return LocutusWall();
 
 		// Step 3: Select the best wall and do some calculations we'll need later
-		LocutusWall bestWall(getBestWallOption(wallOptions));
+		LocutusWall bestWall(getBestWallOption(wallOptions, optimalPathLength));
+
+        // Abort if there is no valid wall
+        if (!bestWall.forge.isValid())
+            return LocutusWall();
 
 		bwebMap.addOverlap(bestWall.forge, BWAPI::UnitTypes::Protoss_Forge.tileWidth(), BWAPI::UnitTypes::Protoss_Forge.tileHeight());
 		bwebMap.addOverlap(bestWall.gateway, BWAPI::UnitTypes::Protoss_Gateway.tileWidth(), BWAPI::UnitTypes::Protoss_Gateway.tileHeight());
-
-		// Initialize pathfinding
-		initializeEndTile();
-		int optimalPathLength = BWEB::Map::Instance().findPath(BWEM::Map::Instance(), BWEB::Map::Instance(), bwebMap.startTile, bwebMap.endTile).size();
-		Log().Debug() << "Pathfinding between " << bwebMap.startTile << " and " << bwebMap.endTile << ", initial length " << optimalPathLength;
 
 		// Step 4: Find initial cannons
 		// We do this before finding the pylon so the pylon doesn't interfere too much with optimal cannon placement
@@ -1158,11 +1131,13 @@ namespace UAlbertaBot
 		// Return invalid wall if no pylon location can be found
 		if (!pylon.isValid())
 		{
+            Log().Debug() << "ERROR: Could not find valid pylon, but this should have been checked when picking the best wall";
 			removeOverlap(bestWall.forge, BWAPI::UnitTypes::Protoss_Forge.tileWidth(), BWAPI::UnitTypes::Protoss_Forge.tileHeight());
 			removeOverlap(bestWall.gateway, BWAPI::UnitTypes::Protoss_Gateway.tileWidth(), BWAPI::UnitTypes::Protoss_Gateway.tileHeight());
 			return LocutusWall();
 		}
 
+        Log().Debug() << "Added pylon @ " << pylon;
 		bestWall.pylon = pylon;
 		bwebMap.addOverlap(bestWall.pylon, BWAPI::UnitTypes::Protoss_Pylon.tileWidth(), BWAPI::UnitTypes::Protoss_Pylon.tileHeight());
 
@@ -1193,6 +1168,25 @@ namespace UAlbertaBot
 	{
 		Log().Debug() << "Creating wall; tight=" << tight;
 
+        // Map-specific hard-coded walls
+        if (BWAPI::Broodwar->mapHash() == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") return destinationWall();
+
+        // Ensure we have the ability to make a wall
+        bwebMap.area = bwebMap.getNaturalArea();
+        bwebMap.choke = bwebMap.getNaturalChoke();
+        if (!bwebMap.area || !bwebMap.choke)
+        {
+            Log().Get() << "Either natural area or natural choke are missing; wall cannot be created";
+            return LocutusWall();
+        }
+
+        // Initialize pathfinding tiles
+        bwebMap.startTile = (BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + bwebMap.naturalTile) / 4;
+        bwebMap.setStartTile();
+        initializeEndTile();
+
+        // Create the wall
+		Log().Debug() << "Creating wall; tight=" << tight;
 		LocutusWall wall = createForgeGatewayWall(tight);
 
 		// Fall back to non-tight if a tight wall could not be found
@@ -1224,6 +1218,8 @@ namespace UAlbertaBot
 			// The loose wall wasn't better, so reset the overlap
 			else
 			{
+                Log().Debug() << "Using tight wall";
+
 				for (const auto & placement : wall.placements())
 					bwebMap.addOverlap(placement.second, placement.first.tileWidth(), placement.first.tileHeight());
 			}

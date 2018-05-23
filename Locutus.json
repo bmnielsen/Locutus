@@ -120,7 +120,7 @@
 		"UseEnemySpecificStrategy" : true,
         "EnemySpecificStrategy" :
         {
-			"locutus": "TestWallAndStartBlock"
+			"locutus": "TestWall"
 		},
 
 		"CounterStrategies" :

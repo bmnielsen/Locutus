@@ -383,6 +383,11 @@ bool BuildingPlacer::isReserved(int x, int y) const
 void BuildingPlacer::initializeBWEB()
 {
 	bwebMap.onStart();
+
+    // TODO: Check if non-tight walls are better vs. protoss and terran
+    _wall = LocutusWall::CreateForgeGatewayWall(true);
+
+    bwebMap.findBlocks();
 }
 
 BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo)
@@ -494,37 +499,10 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
 
 void BuildingPlacer::reserveWall(const BuildOrder & buildOrder)
 {
-	bool hasWall = false;
-	for (size_t i(0); i < buildOrder.size(); ++i)
-		if (buildOrder[i].hasWallBuilding())
-		{
-			hasWall = true;
-			break;
-		}
+    if (!_wall.isValid()) return;
 
-	if (!hasWall)
-	{
-		if (!_foundBlocks)
-		{
-			bwebMap.findBlocks();
-			_foundBlocks = true;
-		}
-
-		return;
-	}
-
-	// Haven't tested all of the non-tight walls, so let's just go tight against everyone for now
-	bool tight = true; // BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg || BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Random;
-
-	_wall = LocutusWall::CreateForgeGatewayWall(tight);
 	std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> wallPlacements = _wall.placements();
 
 	for (size_t i(0); i < buildOrder.size(); ++i)
 		buildOrder[i].setWallBuildingPosition(wallPlacements);
-
-	if (!_foundBlocks)
-	{
-		bwebMap.findBlocks();
-		_foundBlocks = true;
-	}
 }

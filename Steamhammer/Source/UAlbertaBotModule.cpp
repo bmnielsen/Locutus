@@ -22,6 +22,9 @@ namespace { auto & bwebMap = BWEB::Map::Instance(); }
 // This gets called when the bot starts.
 void UAlbertaBotModule::onStart()
 {
+    // Uncomment this when we need to debug log stuff before the config file is parsed
+    //Config::Debug::LogDebug = true;
+
     // Initialize BOSS, the Build Order Search System
     BOSS::init();
 
@@ -39,9 +42,10 @@ void UAlbertaBotModule::onStart()
 	bool startingLocationsOK = bwemMap.FindBasesForStartingLocations();
 	UAB_ASSERT(startingLocationsOK, "BWEM map analysis failed");
 
-	BuildingPlacer::Instance().initializeBWEB();
+    // BWEB map init
+    BuildingPlacer::Instance().initializeBWEB();
 
-	// Parse the bot's configuration file.
+    // Parse the bot's configuration file.
 	// Change this file path to point to your config file.
     // Any relative path name will be relative to Starcraft installation folder
 	// The config depends on the map and must be read after the map is analyzed.

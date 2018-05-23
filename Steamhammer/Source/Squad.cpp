@@ -490,7 +490,7 @@ BWAPI::Position Squad::calcRegroupPosition()
 		if (natural && InformationManager::Instance().getBaseOwner(natural) == BWAPI::Broodwar->self())
 		{
 			// If we have a wall, use its door location
-			if (BuildingPlacer::Instance().getWall().isValid())
+			if (BuildingPlacer::Instance().getWall().exists())
 				regroup = BuildingPlacer::Instance().getWall().gapCenter;
 			else
 				regroup = BWTA::getRegion(natural->getTilePosition())->getCenter();

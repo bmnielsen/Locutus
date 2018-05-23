@@ -482,13 +482,13 @@ void CombatCommander::updateAttackSquads()
 
 		// We may have a wall at the natural. If so, guard it.
 		LocutusWall& wall = BuildingPlacer::Instance().getWall();
-		if (wall.isValid())
+		if (wall.exists())
 		{
 			defendPosition = wall.gapCenter;
 			radius /= 4;
 		}
 
-		SquadOrder mainDefendOrder(wall.isValid() ? SquadOrderTypes::HoldWall : SquadOrderTypes::Hold, defendPosition, radius, "Hold the wall");
+		SquadOrder mainDefendOrder(wall.exists() ? SquadOrderTypes::HoldWall : SquadOrderTypes::Hold, defendPosition, radius, "Hold the wall");
 		groundSquad.setSquadOrder(mainDefendOrder);
 
 		SquadOrder flyingDefendOrder(SquadOrderTypes::Hold, defendPosition, radius, "Hold the wall");

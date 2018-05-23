@@ -87,6 +87,11 @@ namespace UAlbertaBot
 			return pylon.isValid() && forge.isValid() && gateway.isValid();
 		}
 
+        bool exists() const
+        {
+            return isValid() && BWEB::Map::Instance().usedTiles.find(forge) != BWEB::Map::Instance().usedTiles.end();
+        }
+
 		std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> placements() const
 		{
 			std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> result;

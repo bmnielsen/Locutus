@@ -22,7 +22,6 @@ class BuildingPlacer
     int	    _boxRight;
 
 	// BWEB-related stuff
-	bool			_foundBlocks;
 	LocutusWall		_wall;
 
 public:
