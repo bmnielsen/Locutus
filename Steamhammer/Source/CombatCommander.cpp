@@ -709,7 +709,8 @@ void CombatCommander::updateBaseDefenseSquads()
 	}
 
 	// for each of our occupied regions
-	for (BWTA::Region * myRegion : InformationManager::Instance().getOccupiedRegions(BWAPI::Broodwar->self()))
+    auto & occupiedRegions = InformationManager::Instance().getOccupiedRegions(BWAPI::Broodwar->self());
+	for (BWTA::Region * myRegion : BWTA::getRegions())
 	{
         // don't defend inside the enemy region, this will end badly when we are stealing gas
         if (myRegion == enemyRegion)
@@ -722,6 +723,20 @@ void CombatCommander::updateBaseDefenseSquads()
 		{
 			continue;
 		}
+
+        std::stringstream squadName;
+        squadName << "Base Defense " << regionCenter.x << " " << regionCenter.y;
+
+        // If we aren't occupying the region, make sure we aren't defending it
+        if (occupiedRegions.find(myRegion) == occupiedRegions.end())
+        {
+            if (_squadData.squadExists(squadName.str()))
+            {
+                _squadData.getSquad(squadName.str()).clear();
+            }
+
+            continue;
+        }
 
 		// start off assuming all enemy units in region are just workers
 		const int numDefendersPerEnemyUnit = 2;
@@ -760,9 +775,6 @@ void CombatCommander::updateBaseDefenseSquads()
 					break;
 				}
 
-        std::stringstream squadName;
-        squadName << "Base Defense " << regionCenter.x << " " << regionCenter.y; 
-        
 		// if there's nothing in this region to worry about
         if (enemyUnitsInRegion.empty())
         {
