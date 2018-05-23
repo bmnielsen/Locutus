@@ -118,6 +118,61 @@
 
             var shuffledMaps = ShuffledMaps();
 
+            if (args.Contains("trainingrun"))
+            {
+                if (!File.Exists("opponents.csv"))
+                {
+                    Console.WriteLine("Error: no opponents.csv file found for training run");
+                    return;
+                }
+
+                var outputFilename = "trainingrun-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss") + ".csv";
+                File.AppendAllText(outputFilename, "Opponent;Map;Game ID;Result\n");
+
+                var trainingOpponents = File.ReadAllLines("opponents.csv")
+                    .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("-"))
+                    .ToList();
+
+                while (true)
+                {
+                    // Pick an opponent and map at random
+                    var trainingOpponent = trainingOpponents[Rnd.Next(0, trainingOpponents.Count)].Split(';');
+                    var map = shuffledMaps[Rnd.Next(0, shuffledMaps.Count)];
+
+                    // Set the timeout
+                    timeout = MaxTimeout;
+                    if (trainingOpponent.Length > 0)
+                    {
+                        if (trainingOpponent[1] == "short")
+                        {
+                            timeout = ShortTimeout;
+                        }
+                        else if (trainingOpponent[1] == "medium")
+                        {
+                            timeout = MediumTimeout;
+                        }
+                        else if (trainingOpponent[1] == "long")
+                        {
+                            timeout = LongTimeout;
+                        }
+                    }
+
+                    int winsBefore = wins;
+                    int lossesBefore = losses;
+
+                    Run(trainingOpponent[0], map, true, false, timeout);
+
+                    // Output result if there was one
+                    if (registeredResult && (wins > winsBefore || losses > lossesBefore))
+                    {
+                        var result = wins > winsBefore ? "win" : "loss";
+                        File.AppendAllText(outputFilename, $"{trainingOpponent[0]};{map};{currentGameId};{result}\n");
+                    }
+
+                    Console.WriteLine("Overall score is {0} wins {1} losses", wins, losses);
+                }
+            }
+
             if (args.Contains("all") || args.Contains("five"))
             {
                 var count = 0;
@@ -198,6 +253,8 @@
                 if (CheckCrash(currentGameId, opponent))
                 {
                     Console.WriteLine("Game appears to have crashed, killing it");
+                    process.OutputDataReceived -= ProcessOutput;
+                    process.ErrorDataReceived -= ProcessOutput;
                     process.Kill();
                 }
 
