@@ -133,13 +133,17 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	bool hasStargate = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0;
 
 	// Look up capacity of various producers
-	int idleGateways = 0;
+    int numGateways = 0;
+    int idleGateways = 0;
 	int idleRoboFacilities = 0;
 	int idleForges = 0;
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		if (unit->isCompleted()
 			&& (!unit->getType().requiresPsi() || unit->isPowered()))
 		{
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway)
+                numGateways++;
+
 			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway
 				&& unit->getRemainingTrainTime() < 48)
 				idleGateways++;
@@ -354,6 +358,13 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Reaver, std::max(3, numReavers + idleRoboFacilities)));
 		}
 	}
+
+    // Queue a gateway if we have no idle gateways and enough minerals for it
+    // If we queue too many, the production manager will cancel them
+    if (idleGateways == 0 && self->minerals() >= 150)
+    {
+        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 1));
+    }
 
 	// If we're doing a corsair thing and it's still working, slowly add more.
 	if (_enemyRace == BWAPI::Races::Zerg &&
@@ -1218,14 +1229,14 @@ bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 	// Assume all is good if we're still in book
 	if (!ProductionManager::Instance().isOutOfBook()) return false;
 
-	// If supply is maxed, there is no block.
-	if (BWAPI::Broodwar->self()->supplyTotal() >= 400)
-	{
-		return false;
-	}
-
 	// Count supply being built
-	int supplyBeingBuilt = BuildingManager::Instance().numBeingBuilt(BWAPI::Broodwar->self()->getRace().getSupplyProvider()) * 8;
+	int supplyBeingBuilt = BuildingManager::Instance().numBeingBuilt(BWAPI::Broodwar->self()->getRace().getSupplyProvider()) * 16;
+
+    // If supply is maxed, there is no block.
+    if (BWAPI::Broodwar->self()->supplyTotal() + supplyBeingBuilt >= 400)
+    {
+        return false;
+    }
 
 	// Terran and protoss calculation:
 	int supplyAvailable = BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() + supplyBeingBuilt;
@@ -1261,8 +1272,8 @@ bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 	for (int i = queue.size() - 1; i >= 0 && i >= queue.size() - 5; --i)
 		supplyNeeded += queue[i].macroAct.supplyRequired();
 
-	// Keep a buffer of 8 extra supply
-	supplyNeeded += 8;
+	// Keep a buffer of 16 or 15% extra supply, whichever is higher
+	supplyNeeded += std::max(16, (int)std::ceil(supplyAvailable * 0.15));
 
 	return supplyAvailable < supplyNeeded;
 }
