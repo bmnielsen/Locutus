@@ -558,11 +558,17 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
         {
             return 11;
         }
-		// Repairing or blocking a choke makes you critical.
-		if (target->isRepairing() || unitNearChokepoint(target))
+		// Blocking a choke makes you critical.
+		if (unitNearChokepoint(target))
 		{
 			return 11;
 		}
+        // Repairing anything other than a bunker makes you critical.
+        if (target->isRepairing() && 
+            (!target->getOrderTarget() || target->getOrderTarget()->getType() != BWAPI::UnitTypes::Terran_Bunker))
+        {
+            return 11;
+        }
 		// SCVs constructing are also important.
 		if (target->isConstructing())
 		{
