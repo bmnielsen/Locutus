@@ -4,6 +4,8 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
+
 // Distance between evenly-spaced waypoints, in tiles.
 // Not all are evenly spaced.
 const int WaypointSpacing = 5;
@@ -153,7 +155,8 @@ void MicroTransports::maybeUnloadTroops()
 	const int transportHP = _transportShip->getHitPoints() + _transportShip->getShields();
 	
 	if ((transportHP < 50 || (_target.isValid() && _transportShip->getDistance(_target) < 300)) &&
-		_transportShip->canUnloadAtPosition(_transportShip->getPosition()))
+		_transportShip->canUnloadAtPosition(_transportShip->getPosition())
+        && bwebMap.usedTiles.find(BWAPI::TilePosition(_transportShip->getPosition())) == bwebMap.usedTiles.end())
 	{
 		// get the unit's current command
 		BWAPI::UnitCommand currentCommand(_transportShip->getLastCommand());
