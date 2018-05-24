@@ -344,6 +344,10 @@
                 {
                     waitingForPlayersCount++;
                 }
+                else
+                {
+                    waitingForPlayersCount = 0;
+                }
 
                 if (!registeredResult)
                 {
