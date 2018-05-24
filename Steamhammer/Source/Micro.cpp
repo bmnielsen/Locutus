@@ -454,6 +454,20 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
         kite = false;
     }
 
+    // Special case: move inside the firing range of sieged tanks
+    if (target->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode
+        && rangedUnit->getGroundWeaponCooldown() > 0)
+    {
+        if (rangedUnit->getDistance(target) > 48)
+        {
+            Micro::Move(rangedUnit, target->getPosition());
+            return;
+        }
+
+        // Otherwise fall through to attack
+        kite = false;
+    }
+
 	// Don't kite if the enemy's range is at least as long as ours.
 	// NOTE Assumes that the enemy does not have range upgrades, and only checks ground range.
 	// Also, if the target can't attack back, then don't kite.
