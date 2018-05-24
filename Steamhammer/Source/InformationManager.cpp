@@ -24,6 +24,7 @@ InformationManager::InformationManager()
 	, _enemyHasOverlordHunters(false)
 	, _enemyHasStaticDetection(false)
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
+	, _enemyHasSiegeTech(false)
 
 	, _enemyBaseStation(nullptr)
 {
@@ -1549,6 +1550,32 @@ bool InformationManager::enemyHasMobileDetection()
 			ui.type == BWAPI::UnitTypes::Protoss_Observer)
 		{
 			_enemyHasMobileDetection = true;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Enemy has the capability of sieging tanks.
+bool InformationManager::enemyHasSiegeTech()
+{
+	// Latch: Once they're known to have the tech, they always have it.
+	if (_enemyHasSiegeTech)
+	{
+		return true;
+	}
+
+    // Only terran can get siege tech
+    if (_enemy->getRace() != BWAPI::Races::Terran) return false;
+
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+		{
+            _enemyHasSiegeTech = true;
 			return true;
 		}
 	}

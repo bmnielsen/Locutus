@@ -211,6 +211,24 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		zealotRatio = 0.0;
 	}
 
+    // Mix in speedlots if the enemy has siege tanks
+    if (InformationManager::Instance().enemyHasSiegeTech())
+    {
+        getZealotSpeed = true;
+
+        // Keep the zealot:goon ratio at about 1:2, but keep training both
+        if ((numZealots * 2) < numDragoons)
+        {
+            zealotRatio = 0.7;
+            goonRatio = 0.3;
+        }
+        else
+        {
+            zealotRatio = 0.3;
+            goonRatio = 0.7;
+        }
+    }
+
 	// If we are currently gas blocked, train some zealots
 	if (zealotRatio < 0.5 && idleGateways > 2 && self->gas() < 400 && self->minerals() > 700 && self->minerals() > self->gas() * 3)
 	{
