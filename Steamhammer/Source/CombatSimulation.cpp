@@ -50,10 +50,10 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		InformationManager::Instance().getNearbyForce(enemyStaticDefense, center, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyStaticDefense)
 		{
-			// If it wasn't completed when we saw it, pessimistically assume that it is now.
 			if (ui.type.isBuilding() && 
 				ui.lastHealth > 0 &&
 				!ui.unit->isVisible() &&
+                (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
 				UnitUtil::IsCombatSimUnit(ui.type))
 			{
 				fap.addIfCombatUnitPlayer2(ui);
@@ -72,9 +72,10 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		InformationManager::Instance().getNearbyForce(enemyCombatUnits, center, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyCombatUnits)
 		{
-			// The check is careful about seen units and assumes that unseen units are completed and powered.
+			// The check is careful about seen units and assumes that unseen units are powered.
 			if (ui.lastHealth > 0 &&
 				(ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
+                (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
 				(ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)))
 			{
 				fap.addIfCombatUnitPlayer2(ui);
