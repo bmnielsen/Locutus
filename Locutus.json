@@ -147,8 +147,8 @@
 			"Anti5Pool" : {	"--disabled-- Protoss" : "Turtle" },
 			"AntiFastCheese" : { "Protoss" : "9-9Gate" },
 			"AntiSlowerCheese" : { "Protoss" : "9-9Gate" },
-			"AntiMarine" : { "Protoss" : "Turtle" },
-			"AntiZealot" : { "Protoss" : "Turtle" }
+			"AntiMarine" : { "-- disabled -- Protoss" : "Turtle" },
+			"AntiZealot" : { "-- disabled -- Protoss" : "Turtle" }
 		},
 
 		"Strategies" :
