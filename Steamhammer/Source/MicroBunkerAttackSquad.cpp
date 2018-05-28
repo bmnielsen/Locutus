@@ -271,11 +271,16 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition)
         _units.size() > 2 &&
         InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Bunker, BWAPI::Broodwar->enemy()) == 1)
     {
-        // Gather the units that are close enough
+        // Gather the units that are close enough and healthy
+        int healthCutoff = (BWAPI::UnitTypes::Protoss_Dragoon.maxShields() + BWAPI::UnitTypes::Protoss_Dragoon.maxHitPoints()) / 2;
         std::set<BWAPI::Unit> runByUnits;
         for (auto& unit : _units)
         {
-            if (_bunker->getDistance(unit) < 240) runByUnits.insert(unit);
+            if (_bunker->getDistance(unit) < 240 &&
+                (unit->getShields() + unit->getHitPoints()) > healthCutoff)
+            {
+                runByUnits.insert(unit);
+            }
         }
 
         // Set the run-by units if enough are available
