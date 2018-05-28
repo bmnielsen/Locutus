@@ -558,8 +558,8 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
         {
             return 11;
         }
-		// Blocking a choke makes you critical.
-		if (unitNearChokepoint(target))
+		// Blocking a narrow choke makes you critical.
+		if (unitNearNarrowChokepoint(target))
 		{
 			return 11;
 		}

@@ -23,7 +23,7 @@ protected:
 	bool				buildScarabOrInterceptor(BWAPI::Unit u) const;
 	bool                checkPositionWalkable(BWAPI::Position pos);
 	bool                unitNearEnemy(BWAPI::Unit unit);
-	bool                unitNearChokepoint(BWAPI::Unit unit) const;
+	bool                unitNearNarrowChokepoint(BWAPI::Unit unit) const;
 
 	bool				mobilizeUnit(BWAPI::Unit unit) const;      // unsiege or unburrow
 	bool				immobilizeUnit(BWAPI::Unit unit) const;    // siege or burrow

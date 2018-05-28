@@ -242,11 +242,12 @@ bool MicroManager::checkPositionWalkable(BWAPI::Position pos)
 	return true;
 }
 
-bool MicroManager::unitNearChokepoint(BWAPI::Unit unit) const
+bool MicroManager::unitNearNarrowChokepoint(BWAPI::Unit unit) const
 {
 	for (BWTA::Chokepoint * choke : BWTA::getChokepoints())
 	{
-		if (unit->getDistance(choke->getCenter()) < 80)
+		if (choke->getWidth() < 96 &&
+            unit->getDistance(choke->getCenter()) < 64)
 		{
 			return true;
 		}
