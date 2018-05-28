@@ -85,6 +85,43 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 	}
 }
 
+// Determine if we should ignore the given target and look for something better closer to our order position
+bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target)
+{
+    if (!combatUnit || !target) return true;
+
+    // If we are already close to our order position, this is the best target we're going to get
+    if (combatUnit->getDistance(order.getPosition()) <= 100) return false;
+
+    // If there isn't an enemy resource depot at the order position, then let our units pick their targets at will
+    // This is so we don't ignore outlying buildings after we've already razed the center of the base
+    bool resourceDepotAtOrderPosition = false;
+    for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+    {
+        if (unit.second.type.isResourceDepot() && unit.second.lastPosition.getDistance(order.getPosition()) < 200)
+        {
+            resourceDepotAtOrderPosition = true;
+            break;
+        }
+    }
+    if (!resourceDepotAtOrderPosition) return false;
+
+    // Consider outlying buildings
+    // Static defenses are handled separately so we can consider run-bys as a squad
+    // TODO: Detect when the building is part of a wall and act accordingly
+    if (target->getType().isBuilding())
+    {
+        // Never ignore static defenses
+        if (UnitUtil::CanAttackGround(target)) return false;
+
+        // Otherwise, let's ignore this and find something better to attack
+        Log().Debug() << combatUnit->getType() << " " << combatUnit->getID() << " @ " << combatUnit->getPosition() << " running by " << target->getType() << " @ " << target->getPosition();
+        return true;
+    }
+
+    return false;
+}
+
 const BWAPI::Unitset & MicroManager::getUnits() const
 { 
     return _units; 

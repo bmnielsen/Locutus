@@ -403,7 +403,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		}
 	}
 
-	return bestScore > 0 ? bestTarget : nullptr;
+	return bestScore > 0 && !shouldIgnoreTarget(rangedUnit, bestTarget) ? bestTarget : nullptr;
 }
 
 // get the attack priority of a target unit

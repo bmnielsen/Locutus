@@ -19,6 +19,7 @@ protected:
 
 	virtual void        executeMicro(const BWAPI::Unitset & targets) = 0;
 	virtual void		getTargets(BWAPI::Unitset & targets) const;
+    virtual bool        shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target);
 	bool				buildScarabOrInterceptor(BWAPI::Unit u) const;
 	bool                checkPositionWalkable(BWAPI::Position pos);
 	bool                unitNearEnemy(BWAPI::Unit unit);

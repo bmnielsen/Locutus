@@ -223,7 +223,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		}
 	}
 
-	return bestTarget;
+	return shouldIgnoreTarget(meleeUnit, bestTarget) ? nullptr : bestTarget;
 }
 
 // get the attack priority of a type
