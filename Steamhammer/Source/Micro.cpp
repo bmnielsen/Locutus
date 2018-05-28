@@ -429,32 +429,7 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
 	bool kite(true);
 
-    // Special case: ranged goons move towards the edge of their range when engaging bunkers
-    if (rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon
-        && BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge)
-        && target->getType() == BWAPI::UnitTypes::Terran_Bunker
-        && rangedUnit->getGroundWeaponCooldown() > 0)
-    {
-        double distanceToTarget = rangedUnit->getDistance(target);
-        double fractionalDistanceToMove = (distanceToTarget - range) / distanceToTarget;
-
-        BWAPI::Position delta(rangedUnit->getPosition() - target->getPosition());
-        delta.x = (int)std::round((double)delta.x * fractionalDistanceToMove);
-        delta.y = (int)std::round((double)delta.y * fractionalDistanceToMove);
-
-        BWAPI::Position targetPosition(rangedUnit->getPosition() - delta);
-
-        if (rangedUnit->getPosition() != targetPosition)
-        {
-            Micro::Move(rangedUnit, targetPosition);
-            return;
-        }
-
-        // Otherwise fall through to attack
-        kite = false;
-    }
-
-    // Special case: move inside the firing range of sieged tanks
+    // Special case: move inside the minimum range of sieged tanks
     if (target->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode
         && rangedUnit->getGroundWeaponCooldown() > 0)
     {

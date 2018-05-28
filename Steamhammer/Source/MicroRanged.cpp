@@ -70,6 +70,10 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 {
     const BWAPI::Unitset & rangedUnits = getUnits();
 
+    // Update bunker attack squads
+    for (auto& pair : bunkerAttackSquads)
+        pair.second.update();
+
 	// The set of potential targets.
 	BWAPI::Unitset rangedUnitTargets;
     std::copy_if(targets.begin(), targets.end(), std::inserter(rangedUnitTargets, rangedUnitTargets.end()),
@@ -249,7 +253,15 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				}
 
 				// attack it.
-				if (Config::Micro::KiteWithRangedUnits)
+                // Ranged goons attacking a bunker are handled separately
+                if (target->getType() == BWAPI::UnitTypes::Terran_Bunker &&
+                    target->isCompleted() && 
+                    rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
+                    BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
+                {
+                    bunkerAttackSquads[target].addUnit(target, rangedUnit);
+                }
+				else if (Config::Micro::KiteWithRangedUnits)
 				{
 					Micro::KiteTarget(rangedUnit, target);
 				}
@@ -263,11 +275,17 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				// No target found. If we're not near the order position, go there.
 				if (rangedUnit->getDistance(order.getPosition()) > 100)
 				{
-					Micro::AttackMove(rangedUnit, order.getPosition());
+					Micro::Move(rangedUnit, order.getPosition());
 				}
 			}
 		}
 	}
+
+    // Execute micro for bunker squads
+    for (auto& pair : bunkerAttackSquads)
+    {
+        pair.second.execute(order.getPosition());
+    }
 }
 
 // This can return null if no target is worth attacking.
@@ -406,6 +424,35 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 	return bestScore > 0 && !shouldIgnoreTarget(rangedUnit, bestTarget) ? bestTarget : nullptr;
 }
 
+bool MicroRanged::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target)
+{
+    // The default implementation is also relevant here
+    bool ignore = MicroManager::shouldIgnoreTarget(combatUnit, target);
+    if (ignore) return true;
+
+    // Check if this unit is currently performing a run-by of a bunker
+    for (auto& pair : bunkerAttackSquads)
+        if (pair.second.isPerformingRunBy(combatUnit))
+        {
+            // Don't attack enemy buildings or workers while we are running by a bunker
+            // This is mainly to ignore SCVs that are stationed to repair the bunker, but also helps us
+            // move sufficiently far past the bunker before attacking low-risk targets
+            if (target->getType().isWorker() || target->getType().isBuilding())
+            {
+                if (combatUnit->getDistance(pair.first) < (6 * 32) // assumes marine range upgrade
+                    || target->getDistance(pair.first) < (3 * 32))
+                {
+                    Log().Debug() << combatUnit->getType() << " " << combatUnit->getID() << " ignoring " << target->getType() << " because in range of run-by bunker";
+                    return true;
+                }
+            }
+
+            break;
+        }
+
+    return false;
+}
+
 // get the attack priority of a target unit
 int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target) 
 {
@@ -522,10 +569,9 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 11;
 	}
 
-	// Short circuit: Give bunkers a lower priority to reduce bunker obsession.
 	if (targetType == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		return 9;
+		return 10;
 	}
 
 	// Threats can attack us. Exceptions: Workers are not threats.

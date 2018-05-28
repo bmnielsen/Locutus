@@ -237,6 +237,7 @@
     <ClCompile Include="..\Source\UpgradeCompleteProductionGoal.cpp">
       <Filter>game\macro\productiongoals</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\MicroBunkerAttackSquad.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -432,5 +433,6 @@
     <ClInclude Include="..\Source\UpgradeCompleteProductionGoal.h">
       <Filter>game\macro\productiongoals</Filter>
     </ClInclude>
+    <ClInclude Include="..\Source\MicroBunkerAttackSquad.h" />
   </ItemGroup>
 </Project>

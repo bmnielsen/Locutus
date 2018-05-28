@@ -2,6 +2,7 @@
 
 #include "ScoutManager.h"
 #include "UnitUtil.h"
+#include "MapGrid.h"
 
 using namespace UAlbertaBot;
 
@@ -353,16 +354,35 @@ bool Squad::needsToRegroup()
 		return false;
 	}
 
+    // Don't retreat if we are actively doing a run-by
+    // TODO: Split the run-by units into their own squad
+    for (auto & unit : _units)
+        if (_microRanged.isPerformingRunBy(unit))
+            return false;
+
 	// If we most recently retreated, don't attack again until retreatDuration frames have passed.
 	const int retreatDuration = 2 * 24;
 	bool retreat = _lastRetreatSwitchVal && (BWAPI::Broodwar->getFrameCount() - _lastRetreatSwitch < retreatDuration);
 
 	if (!retreat)
 	{
+        // Ignore bunkers if our squad consists solely of ranged goons
+        // TODO: Consider whether the enemy has range upgrade
+        bool ignoreBunkers = BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge);
+
+        // Is our squad all ranged goons?
+        if (ignoreBunkers)
+            for (auto & unit : _units)
+                if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon)
+                {
+                    ignoreBunkers = false;
+                    break;
+                }
+
 		// All other checks are done. Finally do the expensive combat simulation.
 		CombatSimulation sim;
 
-		sim.setCombatUnits(unitClosest->getPosition(), _combatSimRadius, _fightVisibleOnly);
+		sim.setCombatUnits(unitClosest->getPosition(), _combatSimRadius, _fightVisibleOnly, ignoreBunkers);
 		double score = sim.simulateCombat();
 
 		retreat = score < 0;
