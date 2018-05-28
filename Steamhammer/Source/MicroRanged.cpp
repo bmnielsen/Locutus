@@ -253,11 +253,12 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				}
 
 				// attack it.
-                // Ranged goons attacking a bunker are handled separately
+                // Ranged goons attacking a non-ranged bunker are handled separately
                 if (target->getType() == BWAPI::UnitTypes::Terran_Bunker &&
                     target->isCompleted() && 
                     rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
-                    BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
+                    BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
+                    !InformationManager::Instance().enemyHasMarineRangeUpgrade())
                 {
                     bunkerAttackSquads[target].addUnit(target, rangedUnit);
                 }

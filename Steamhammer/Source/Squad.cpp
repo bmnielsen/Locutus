@@ -366,9 +366,10 @@ bool Squad::needsToRegroup()
 
 	if (!retreat)
 	{
-        // Ignore bunkers if our squad consists solely of ranged goons
-        // TODO: Consider whether the enemy has range upgrade
-        bool ignoreBunkers = BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge);
+        // Ignore bunkers if our squad consists solely of ranged goons and the enemy doesn't have the range upgrade
+        bool ignoreBunkers = 
+            BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
+            !InformationManager::Instance().enemyHasMarineRangeUpgrade();
 
         // Is our squad all ranged goons?
         if (ignoreBunkers)

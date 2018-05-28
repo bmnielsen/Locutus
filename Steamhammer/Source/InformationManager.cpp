@@ -25,6 +25,7 @@ InformationManager::InformationManager()
 	, _enemyHasStaticDetection(false)
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
 	, _enemyHasSiegeTech(false)
+	, _enemyHasMarineRangeUpgrade(false)
 
 	, _enemyBaseStation(nullptr)
 {
@@ -1579,6 +1580,29 @@ bool InformationManager::enemyHasSiegeTech()
 			return true;
 		}
 	}
+
+	return false;
+}
+
+// Enemy has the marine range upgrade
+bool InformationManager::enemyHasMarineRangeUpgrade()
+{
+	// Latch: Once they're known to have the tech, they always have it.
+	if (_enemyHasMarineRangeUpgrade)
+	{
+		return true;
+	}
+
+    // Only terran can get the marine range upgrade
+    if (_enemy->getRace() != BWAPI::Races::Terran) return false;
+
+    // This will trigger when we first see a marine with the upgrade
+    // TODO: Consider range of bullets from bunkers
+    if (BWAPI::Broodwar->enemy()->getUpgradeLevel(BWAPI::UpgradeTypes::U_238_Shells))
+    {
+        _enemyHasMarineRangeUpgrade = true;
+        return true;
+    }
 
 	return false;
 }
