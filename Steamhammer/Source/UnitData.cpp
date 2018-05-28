@@ -48,6 +48,31 @@ void UnitData::updateUnit(BWAPI::Unit unit)
     }
     
 	UnitInfo & ui   = unitMap[unit];
+
+    // Logic for detecting our own stuck goons
+    if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon)
+    {
+        // If isMoving==false, the unit isn't stuck
+        if (!unit->isMoving())
+            ui.potentiallyStuckSince = 0;
+
+        // If the unit's position has changed after potentially being stuck, it is no longer stuck
+        else if (ui.potentiallyStuckSince > 0 && unit->getPosition() != ui.lastPosition)
+            ui.potentiallyStuckSince = 0;
+
+        // If we have issued a stop command to the unit on the last turn, it will no longer be stuck when the command is executed
+        else if (ui.potentiallyStuckSince > 0 &&
+            unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Stop &&
+            BWAPI::Broodwar->getRemainingLatencyFrames() == BWAPI::Broodwar->getLatencyFrames())
+        {
+            ui.potentiallyStuckSince = 0;
+        }
+
+        // Otherwise it might have been stuck since the last frame where isAttackFrame==true
+        else if (unit->isAttackFrame())
+            ui.potentiallyStuckSince = BWAPI::Broodwar->getFrameCount();
+    }
+
     ui.unit         = unit;
 	ui.updateFrame	= BWAPI::Broodwar->getFrameCount();
     ui.player       = unit->getPlayer();

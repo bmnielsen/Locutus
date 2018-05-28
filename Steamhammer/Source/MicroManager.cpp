@@ -144,6 +144,9 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 {
 	for (const auto unit : _units)
 	{
+        // Units might get stuck while retreating
+        if (unstickStuckUnit(unit)) continue;
+
 		// 1. A broodling should never retreat, but attack as long as it lives.
 		// 2. If none of its kind has died yet, a dark templar or lurker should not retreat.
 		// 3. A ground unit next to an enemy sieged tank should not move away.
@@ -294,7 +297,7 @@ bool MicroManager::immobilizeUnit(BWAPI::Unit unit) const
 // Luckily it's easy to recognize, though units may be on PlayerGuard for other reasons.
 // Return whether any action was taken.
 // This solves stuck zerglings, but doesn't always prevent other units from getting stuck.
-bool MicroManager::unstickStuckUnit(BWAPI::Unit unit)
+bool MicroManager::unstickStuckUnit(BWAPI::Unit unit) const
 {
 	if (!unit->isMoving() && !unit->getType().isFlyer() && !unit->isBurrowed() &&
 		unit->getOrder() == BWAPI::Orders::PlayerGuard &&
@@ -303,6 +306,23 @@ bool MicroManager::unstickStuckUnit(BWAPI::Unit unit)
 		Micro::Stop(unit);
 		return true;
 	}
+
+    // Unstick units that have had the isMoving flag set for a while without actually moving
+    if (unit->isMoving())
+    {
+        // Get unit info
+        auto& units = InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->self());
+        auto& it = units.find(unit);
+        if (it != units.end())
+        {
+            if (it->second.potentiallyStuckSince > 0 &&
+                it->second.potentiallyStuckSince < (BWAPI::Broodwar->getFrameCount() - BWAPI::Broodwar->getLatencyFrames() - 10))
+            {
+                Micro::Stop(unit);
+                return true;
+            }
+        }
+    }
 
 	return false;
 }

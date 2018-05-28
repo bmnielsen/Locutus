@@ -27,7 +27,7 @@ protected:
 
 	bool				mobilizeUnit(BWAPI::Unit unit) const;      // unsiege or unburrow
 	bool				immobilizeUnit(BWAPI::Unit unit) const;    // siege or burrow
-	bool				unstickStuckUnit(BWAPI::Unit unit);
+	bool				unstickStuckUnit(BWAPI::Unit unit) const;
 
 	void				useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery);
 
