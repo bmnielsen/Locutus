@@ -41,6 +41,9 @@ class InformationManager
 	const BWEB::Station *								_enemyBaseStation;
 	BWAPI::Unitset										_ourPylons;
 
+    std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
+    int                             bulletsSeenAtExtendedMarineRange;
+
 	InformationManager();
 
 	void					initializeTheBases();
@@ -67,6 +70,7 @@ class InformationManager
 	void					updateTheBases();
 	void                    updateOccupiedRegions(BWTA::Region * region, BWAPI::Player player);
 	void					updateGoneFromLastPosition();
+    void                    updateBullets();
 
 public:
 

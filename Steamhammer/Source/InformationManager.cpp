@@ -12,6 +12,8 @@ InformationManager::InformationManager()
     : _self(BWAPI::Broodwar->self())
     , _enemy(BWAPI::Broodwar->enemy())
 	, _enemyProxy(false)
+
+	, bulletsSeenAtExtendedMarineRange(0)
 	
 	, _weHaveCombatUnits(false)
 	, _enemyHasCombatUnits(false)
@@ -265,6 +267,7 @@ void InformationManager::update()
 	updateBaseLocationInfo();
 	updateTheBases();
 	updateGoneFromLastPosition();
+    updateBullets();
 }
 
 void InformationManager::updateUnitInfo() 
@@ -535,6 +538,72 @@ void InformationManager::updateGoneFromLastPosition()
 	{
 		_unitData[_enemy].updateGoneFromLastPosition();
 	}
+}
+
+// Currently only checks for marine range via bullets from bunkers
+// TODO: Use this to implement dodging
+void InformationManager::updateBullets()
+{
+    if (_enemyHasMarineRangeUpgrade || BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran) return;
+
+    for (auto& bullet : BWAPI::Broodwar->getBullets())
+    {
+        if (!bullet->exists() || !bullet->isVisible()) continue;
+
+        // Ensure it is a marine shot
+        if (bullet->getType() != BWAPI::BulletTypes::Gauss_Rifle_Hit) continue;
+
+        // If the source of the shot (either marine or bunker) was invisible before the shot
+        // (e.g. if it was on higher ground than our units), they first become visible to us
+        // on the second frame, so don't analyze the bullet until then
+        if (bulletFrames.find(bullet) == bulletFrames.end())
+        {
+            bulletFrames[bullet] = BWAPI::Broodwar->getFrameCount();
+            continue;
+        }
+        if (BWAPI::Broodwar->getFrameCount() != (bulletFrames[bullet] + 1)) continue;
+
+        // If the bullet has a source, it definitely isn't from a bunker
+        // The bullet may still be from a marine if it has died in the meantime, but since we
+        // analyze on the second frame, this is unlikely to happen
+        if (bullet->getSource()) continue;
+
+        // Ignore bullets where the target has died in the meantime
+        if (!bullet->getTarget()) continue;
+
+        // Get the closest visible bunker to the bullet
+        double bestDist = DBL_MAX;
+        BWAPI::Unit bunker = nullptr;
+        for (auto& unit : BWAPI::Broodwar->enemy()->getUnits())
+        {
+            if (!unit->exists() || !unit->isVisible() || !unit->isCompleted()) continue;
+            if (unit->getType() != BWAPI::UnitTypes::Terran_Bunker) continue;
+            double dist = unit->getDistance(bullet->getPosition());
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bunker = unit;
+            }
+        }
+        if (!bunker) continue;
+
+        // The bullet seems to always be located 7 pixels "inside" the target, so use this to compute distance between bunker and target
+        double distanceToTarget = bestDist - 7;
+
+        // Now use this to determine if the marines have the range upgrade
+        // We get some false positives, so use a relatively conservative distance range and
+        // make sure we have seen a few volleys
+        if (distanceToTarget > 180 && distanceToTarget <= 192)
+        {
+            bulletsSeenAtExtendedMarineRange++;
+            if (bulletsSeenAtExtendedMarineRange > 8)
+            {
+                Log().Get() << "Detected ranged marines in bunker";
+                _enemyHasMarineRangeUpgrade = true;
+                return;
+            }
+        }
+    }
 }
 
 bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region) 
