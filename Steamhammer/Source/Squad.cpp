@@ -55,6 +55,10 @@ void Squad::update()
 	// update all necessary unit information within this squad
 	updateUnits();
 
+    // Update bunker attack squads
+    for (auto& pair : bunkerAttackSquads)
+        pair.second.update();
+
 	if (_units.empty())
 	{
 		return;
@@ -109,6 +113,12 @@ void Squad::update()
 		_microRanged.execute();
 		_microTanks.execute();
 	}
+
+    // Execute micro for bunker squads
+    for (auto& pair : bunkerAttackSquads)
+    {
+        pair.second.execute(getSquadOrder().getPosition(), needToRegroup);
+    }
 
 	// Lurkers never regroup, always execute their order.
 	// TODO It is because regrouping works poorly. It retreats and unburrows them too often.
@@ -357,7 +367,7 @@ bool Squad::needsToRegroup()
     // Don't retreat if we are actively doing a run-by
     // TODO: Split the run-by units into their own squad
     for (auto & unit : _units)
-        if (_microRanged.isPerformingRunBy(unit))
+        if (getBunkerRunBySquad(unit))
             return false;
 
 	// If we most recently retreated, don't attack again until retreatDuration frames have passed.
@@ -737,6 +747,19 @@ void Squad::stimIfNeeded()
 	}
 }
 
+void Squad::addUnitToBunkerAttackSquad(BWAPI::Unit bunker, BWAPI::Unit unit)
+{
+    bunkerAttackSquads[bunker].addUnit(bunker, unit);
+}
+
+MicroBunkerAttackSquad * Squad::getBunkerRunBySquad(BWAPI::Unit unit)
+{
+    for (auto& pair : bunkerAttackSquads)
+        if (pair.second.isPerformingRunBy(unit))
+            return &pair.second;
+    return nullptr;
+}
+
 const bool Squad::hasCombatUnits() const
 {
 	// If the only units we have are detectors, then we have no combat units.
@@ -771,4 +794,18 @@ const bool Squad::isOverlordHunterSquad() const
 		}
 	}
 	return true;
+}
+
+bool Squad::hasMicroManager(MicroManager* microManager) const
+{
+    return
+        &_microAirToAir == microManager ||
+        &_microDetectors == microManager ||
+        &_microHighTemplar == microManager ||
+        &_microLurkers == microManager ||
+        &_microMedics == microManager ||
+        &_microMelee == microManager ||
+        &_microRanged == microManager ||
+        &_microTanks == microManager ||
+        &_microTransports == microManager;
 }

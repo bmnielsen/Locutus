@@ -47,6 +47,9 @@ class Squad
 	MicroTanks			_microTanks;
 	MicroTransports		_microTransports;
 
+    // Sub-squads specializing in enemy bunkers
+    std::map<BWAPI::Unit, MicroBunkerAttackSquad> bunkerAttackSquads;
+
 	std::map<BWAPI::Unit, bool>	_nearEnemy;
 
 	BWAPI::Unit		getRegroupUnit();
@@ -88,6 +91,9 @@ public:
 	void                setSquadOrder(const SquadOrder & so);
 	const SquadOrder &  getSquadOrder()	const;
 
+    void                        addUnitToBunkerAttackSquad(BWAPI::Unit bunker, BWAPI::Unit unit);
+    MicroBunkerAttackSquad *    getBunkerRunBySquad(BWAPI::Unit unit);
+
 	int					getCombatSimRadius() const { return _combatSimRadius; };
 	void				setCombatSimRadius(int radius) { _combatSimRadius = radius; };
 
@@ -102,5 +108,6 @@ public:
 	const bool			hasCombatUnits()	const;
 	const bool			isOverlordHunterSquad() const;
 
+    bool                hasMicroManager(MicroManager* microManager) const;
 };
 }

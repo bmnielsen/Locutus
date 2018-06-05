@@ -1,4 +1,5 @@
 #include "MicroRanged.h"
+#include "CombatCommander.h"
 #include "UnitUtil.h"
 #include "BuildingPlacer.h"
 
@@ -69,10 +70,7 @@ BWAPI::Position center(BWAPI::TilePosition tile)
 void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 {
     const BWAPI::Unitset & rangedUnits = getUnits();
-
-    // Update bunker attack squads
-    for (auto& pair : bunkerAttackSquads)
-        pair.second.update();
+    Squad & squad = CombatCommander::Instance().getSquadData().getSquad(this);
 
 	// The set of potential targets.
 	BWAPI::Unitset rangedUnitTargets;
@@ -253,14 +251,11 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				}
 
 				// attack it.
-                // Ranged goons attacking a non-ranged bunker are handled separately
+                // Bunkers are handled by a special micro manager
                 if (target->getType() == BWAPI::UnitTypes::Terran_Bunker &&
-                    target->isCompleted() && 
-                    rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
-                    BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
-                    !InformationManager::Instance().enemyHasMarineRangeUpgrade())
+                    target->isCompleted())
                 {
-                    bunkerAttackSquads[target].addUnit(target, rangedUnit);
+                    squad.addUnitToBunkerAttackSquad(target, rangedUnit);
                 }
 				else if (Config::Micro::KiteWithRangedUnits)
 				{
@@ -273,20 +268,23 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 			}
 			else
 			{
-				// No target found. If we're not near the order position, go there.
+                // No target found. If we're not near the order position, go there.
 				if (rangedUnit->getDistance(order.getPosition()) > 100)
 				{
-					Micro::Move(rangedUnit, order.getPosition());
+                    // If this unit is doing a bunker run-by, get the position it should move towards
+                    auto bunkerRunBySquad = squad.getBunkerRunBySquad(rangedUnit);
+                    if (bunkerRunBySquad)
+                    {
+                        Micro::Move(rangedUnit, bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
+                    }
+                    else
+                    {
+                        Micro::Move(rangedUnit, order.getPosition());
+                    }
 				}
 			}
 		}
 	}
-
-    // Execute micro for bunker squads
-    for (auto& pair : bunkerAttackSquads)
-    {
-        pair.second.execute(order.getPosition());
-    }
 }
 
 // This can return null if no target is worth attacking.
@@ -425,35 +423,6 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 	return bestScore > 0 && !shouldIgnoreTarget(rangedUnit, bestTarget) ? bestTarget : nullptr;
 }
 
-bool MicroRanged::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target)
-{
-    // The default implementation is also relevant here
-    bool ignore = MicroManager::shouldIgnoreTarget(combatUnit, target);
-    if (ignore) return true;
-
-    // Check if this unit is currently performing a run-by of a bunker
-    for (auto& pair : bunkerAttackSquads)
-        if (pair.second.isPerformingRunBy(combatUnit))
-        {
-            // Don't attack enemy buildings or workers while we are running by a bunker
-            // This is mainly to ignore SCVs that are stationed to repair the bunker, but also helps us
-            // move sufficiently far past the bunker before attacking low-risk targets
-            if (target->getType().isWorker() || target->getType().isBuilding())
-            {
-                if (combatUnit->getDistance(pair.first) < (6 * 32) // assumes marine range upgrade
-                    || target->getDistance(pair.first) < (3 * 32))
-                {
-                    Log().Debug() << combatUnit->getType() << " " << combatUnit->getID() << " ignoring " << target->getType() << " because in range of run-by bunker";
-                    return true;
-                }
-            }
-
-            break;
-        }
-
-    return false;
-}
-
 // get the attack priority of a target unit
 int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target) 
 {
@@ -572,7 +541,7 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
 	if (targetType == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		return 10;
+		return 9;
 	}
 
 	// Threats can attack us. Exceptions: Workers are not threats.
@@ -610,24 +579,32 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		{
 			return 11;
 		}
-        // Repairing anything other than a bunker makes you critical.
-        if (target->isRepairing() && 
-            (!target->getOrderTarget() || target->getOrderTarget()->getType() != BWAPI::UnitTypes::Terran_Bunker))
+        // Repairing something that can shoot makes you critical.
+        if (target->isRepairing() && target->getOrderTarget() && target->getOrderTarget()->getType().groundWeapon() != BWAPI::WeaponTypes::None)
         {
             return 11;
         }
-		// SCVs constructing are also important.
-		if (target->isConstructing())
-		{
-			return 10;
-		}
+        // SCVs so close to the unit that they are likely to be attacking it are important
+        if (rangedUnit->getDistance(target) < 32)
+        {
+            return 10;
+        }
+        // SCVs constructing are also important.
+        if (target->isConstructing())
+        {
+            return 9;
+        }
 
-  		return 9;
+  		return 8;
 	}
+    // Sieged tanks are slightly more important than unsieged tanks
+    if (targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+    {
+        return 9;
+    }
 	// Important combat units that we may not have targeted above (esp. if we're a flyer).
 	if (targetType == BWAPI::UnitTypes::Protoss_Carrier ||
-		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
-		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
 	{
 		return 8;
 	}

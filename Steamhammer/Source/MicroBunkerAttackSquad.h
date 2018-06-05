@@ -16,13 +16,18 @@ class MicroBunkerAttackSquad
     std::map<BWAPI::Unit, BWAPI::Position> unitToAssignedPosition;
     std::map<BWAPI::Position, BWAPI::Unit> assignedPositionToUnit;
 
-    std::set<BWAPI::Unit>   unitsDoingRunBy;
+    std::map<BWAPI::Unit, BWAPI::Position>   unitsDoingRunBy;
 
     void initialize(BWAPI::Unit bunker);
     void assignToPosition(BWAPI::Unit unit, std::set<BWAPI::Position>& reservedPositions);
+    void assignUnitsToRunBy(BWAPI::Position orderPosition, bool squadIsRegrouping);
 
 public:
     MicroBunkerAttackSquad();
+
+    BWAPI::Unit getBunker() const {
+        return _bunker;
+    }
 
     // Called before processing the squad on a new frame
     void update();
@@ -32,11 +37,13 @@ public:
     void addUnit(BWAPI::Unit bunker, BWAPI::Unit unit);
 
     // Execute the micro for the squad
-    void execute(BWAPI::Position orderPosition);
+    void execute(BWAPI::Position orderPosition, bool squadIsRegrouping);
 
     // Whether the unit is currently performing a run-by of this bunker
-    bool isPerformingRunBy(BWAPI::Unit unit) {
-        return unitsDoingRunBy.find(unit) != unitsDoingRunBy.end();
-    }
+    bool isPerformingRunBy(BWAPI::Unit unit);
+
+    // Get the position a unit doing a runby should aim for
+    // May be the order position, or a position the unit should go to first before moving on to the order position
+    BWAPI::Position getRunByPosition(BWAPI::Unit unit, BWAPI::Position orderPosition);
 };
 }

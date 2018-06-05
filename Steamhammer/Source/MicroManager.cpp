@@ -1,5 +1,6 @@
 #include "MicroManager.h"
 #include "CombatCommander.h"
+#include "Squad.h"
 #include "MapTools.h"
 #include "UnitUtil.h"
 
@@ -106,13 +107,30 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
     }
     if (!resourceDepotAtOrderPosition) return false;
 
+    // Check if this unit is currently performing a run-by of a bunker
+    // If so, ignore all targets while we are doing the run-by
+    auto bunkerRunBySquad = CombatCommander::Instance().getSquadData().getSquad(this).getBunkerRunBySquad(combatUnit);
+    if (bunkerRunBySquad)
+    {
+        // We consider ourselves as doing the run-by when either:
+        // - We are in firing range of the bunker
+        // - We are closer to the bunker than our current run-by position
+        int bunkerRange = InformationManager::Instance().enemyHasMarineRangeUpgrade() ? 6 * 32 : 5 * 32;
+        auto runByPosition = bunkerRunBySquad->getRunByPosition(combatUnit, order.getPosition());
+        int distanceToBunker = combatUnit->getDistance(bunkerRunBySquad->getBunker());
+        if (distanceToBunker < (bunkerRange + 32) || distanceToBunker < combatUnit->getDistance(runByPosition))
+        {
+            return true;
+        }
+    }
+
     // Consider outlying buildings
     // Static defenses are handled separately so we can consider run-bys as a squad
     // TODO: Detect when the building is part of a wall and act accordingly
     if (target->getType().isBuilding())
     {
         // Never ignore static defenses
-        if (UnitUtil::CanAttackGround(target)) return false;
+        if (target->isCompleted() && UnitUtil::CanAttackGround(target)) return false;
 
         // Otherwise, let's ignore this and find something better to attack
         Log().Debug() << combatUnit->getType() << " " << combatUnit->getID() << " @ " << combatUnit->getPosition() << " running by " << target->getType() << " @ " << target->getPosition();

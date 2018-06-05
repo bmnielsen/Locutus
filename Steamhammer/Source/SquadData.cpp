@@ -195,3 +195,13 @@ Squad & SquadData::getSquad(const std::string & squadName)
 
     return _squads[squadName];
 }
+
+Squad & SquadData::getSquad(MicroManager * microManager)
+{
+    for (auto& squad : _squads)
+        if (squad.second.hasMicroManager(microManager))
+            return squad.second;
+
+    UAB_ASSERT(false, "Getting squad for unowned MicroManager");
+    return Squad();
+}
