@@ -494,6 +494,11 @@ namespace UAlbertaBot {
             airDamage = groundDamage;
             airCooldown = groundCooldown;
             airMaxRange = groundMaxRange;
+
+            // Good enemies repair their bunkers, so fudge this a bit by giving the bunker more health
+            // TODO: Actually simulate the repair
+            health *= 2;
+            maxHealth *= 2;
         }
         else if (ui.type == BWAPI::UnitTypes::Protoss_Reaver)
         {
