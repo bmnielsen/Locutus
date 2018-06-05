@@ -366,24 +366,25 @@ bool Squad::needsToRegroup()
 
 	if (!retreat)
 	{
-        // Ignore bunkers if our squad consists solely of ranged goons and the enemy doesn't have the range upgrade
-        bool ignoreBunkers = 
+        // Special case: if our squad is only ranged goons, and the enemy has only a bunker without the range upgrade,
+        // ignore the bunker
+        bool ignoreSolitaryBunker = 
             BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
             !InformationManager::Instance().enemyHasMarineRangeUpgrade();
 
         // Is our squad all ranged goons?
-        if (ignoreBunkers)
+        if (ignoreSolitaryBunker)
             for (auto & unit : _units)
                 if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon)
                 {
-                    ignoreBunkers = false;
+                    ignoreSolitaryBunker = false;
                     break;
                 }
 
 		// All other checks are done. Finally do the expensive combat simulation.
 		CombatSimulation sim;
 
-		sim.setCombatUnits(unitClosest->getPosition(), _combatSimRadius, _fightVisibleOnly, ignoreBunkers);
+		sim.setCombatUnits(unitClosest->getPosition(), _combatSimRadius, _fightVisibleOnly, ignoreSolitaryBunker);
 		double score = sim.simulateCombat();
 
 		retreat = score < 0;

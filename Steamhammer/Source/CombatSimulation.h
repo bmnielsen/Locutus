@@ -13,7 +13,7 @@ public:
 
 	CombatSimulation();
 
-	void setCombatUnits(const BWAPI::Position & center, const int radius, bool visibleOnly, bool ignoreBunkers);
+	void setCombatUnits(const BWAPI::Position & center, const int radius, bool visibleOnly, bool ignoreSolitaryBunker);
 
 	double simulateCombat();
 };
