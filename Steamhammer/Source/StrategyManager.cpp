@@ -703,6 +703,25 @@ const MetaPairVector StrategyManager::getZergBuildOrderGoal() const
 	return goal;
 }
 
+void PullToTopOrQueue(BuildOrderQueue & queue, BWAPI::UnitType unitType)
+{
+    // Not in the queue: queue it
+    if (!queue.anyInQueue(unitType))
+    {
+        queue.queueAsHighestPriority(unitType);
+        return;
+    }
+
+    for (int i = queue.size() - 1; i >= 0; --i)
+        if (queue[i].macroAct.isUnit() && queue[i].macroAct.getUnitType() == unitType)
+        {
+            // Only pull it up if it isn't already at the top
+            if (i < queue.size() - 1) queue.pullToTop(i);
+            return;
+        }
+}
+
+
 void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
 {
 	// Do nothing if we are already building it
@@ -733,30 +752,8 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
 		return;
 	}
 
-	// We made it this far, so we know we want to build the unit
-
-	// If it is already queued, move it to the top
-	if (queue.anyInQueue(type))
-	{
-		for (int i = queue.size() - 1; i >= 0; --i)
-			if (queue[i].macroAct.isUnit() && queue[i].macroAct.getUnitType() == type)
-			{
-				// Only pull it up if it isn't already at the top
-				if (i < queue.size() - 1)
-				{
-					Log().Get() << "Pulled " << type << " to top of queue because of urgent issue";
-					queue.pullToTop(i);
-				}
-				return;
-			}
-	}
-
-	// Otherwise push to top of queue
-	else
-	{
-		Log().Get() << "Queued " << type << " because of urgent issue";
-		queue.queueAsHighestPriority(type);
-	}
+    // Queue it
+    PullToTopOrQueue(queue, type);
 }
 
 void SetWallCannons(BuildOrderQueue & queue, int numCannons)
@@ -892,6 +889,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			? BWAPI::UnitTypes::Terran_SCV
 			: BWAPI::UnitTypes::Protoss_Probe) > 0;
 
+        const MacroAct * nextInQueuePtr = queue.isEmpty() ? nullptr : &(queue.getHighestPriorityItem().macroAct);
+
 		// detect if there's a supply block once per second
 		if ((BWAPI::Broodwar->getFrameCount() % 24 == 1) && detectSupplyBlock(queue) && anyWorkers)
 		{
@@ -900,11 +899,9 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 				BWAPI::Broodwar->printf("Supply block, building supply!");
 			}
 
-			queue.queueAsHighestPriority(MacroAct(BWAPI::Broodwar->self()->getRace().getSupplyProvider()));
+            PullToTopOrQueue(queue, BWAPI::Broodwar->self()->getRace().getSupplyProvider());
 			return;
 		}
-
-		const MacroAct * nextInQueuePtr = queue.isEmpty() ? nullptr : &(queue.getHighestPriorityItem().macroAct);
 
 		// If we need gas, make sure it is turned on.
 		int gas = BWAPI::Broodwar->self()->gas();
@@ -924,7 +921,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 				(!nextInQueuePtr || !nextInQueuePtr->isBuilding() || nextInQueuePtr->getUnitType() != BWAPI::UnitTypes::Protoss_Pylon) &&
 				!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Pylon))
 			{
-				queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Pylon);
+                PullToTopOrQueue(queue, BWAPI::UnitTypes::Protoss_Pylon);
 				return;				// and call it a day
 			}
 		}
