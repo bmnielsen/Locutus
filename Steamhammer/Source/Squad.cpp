@@ -451,9 +451,29 @@ bool Squad::unitNearEnemy(BWAPI::Unit unit)
 
 	BWAPI::Unitset enemyNear;
 
-	MapGrid::Instance().getUnits(enemyNear, unit->getPosition(), 400, false, true);
+	//MapGrid::Instance().getUnits(enemyNear, unit->getPosition(), 400, false, true);
 
-	return enemyNear.size() > 0;
+    //return enemyNear.size() > 0;
+
+    // Consider all enemy units, even if they are no longer visible
+    // Otherwise we just stand still and let tanks range us down
+    std::vector<UnitInfo> enemyUnits;
+    InformationManager::Instance().getNearbyForce(enemyUnits, unit->getPosition(), BWAPI::Broodwar->enemy(), 400);
+
+    // Return true if we are close to being in firing range of any of the enemy units
+    for (auto& ui : enemyUnits)
+    {
+        if (ui.lastHealth > 0 &&
+            (ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
+            (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
+            (ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)))
+        {
+            int range = UnitUtil::GetAttackRangeAssumingUpgrades(ui.type, unit->getType()) * 32;
+            if (unit->getDistance(ui.lastPosition) < (range + 64)) return true;
+        }
+    }
+
+    return false;
 }
 
 BWAPI::Position Squad::calcCenter()
