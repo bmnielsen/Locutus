@@ -28,7 +28,7 @@
     "Macro" :
     {
         "BOSSFrameLimit"            : 160,
-		"ProductionJamFrameLimit"	: 600,
+		"ProductionJamFrameLimit"	: 300,
         "WorkersPerRefinery"        : 3,
 		"WorkersPerPatch"			: { "Zerg" : 1.6, "Protoss" : 2.2, "Terran" : 2.4 },
 		"AbsoluteMaxWorkers"		: 75,
