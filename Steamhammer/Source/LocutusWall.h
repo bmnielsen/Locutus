@@ -89,7 +89,7 @@ namespace UAlbertaBot
 
         bool exists() const
         {
-            return isValid() && BWEB::Map::Instance().usedTiles.find(forge) != BWEB::Map::Instance().usedTiles.end();
+            return isValid() && BWEB::Map::Instance().usedTiles.find(pylon) != BWEB::Map::Instance().usedTiles.end();
         }
 
 		std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> placements() const

@@ -8,6 +8,8 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
+
 // Squad priorities: Which can steal units from others.
 const size_t IdlePriority = 0;
 const size_t AttackPriority = 1;
@@ -470,15 +472,20 @@ void CombatCommander::updateAttackSquads()
 
 		// We are guaranteed to always have a main base location, even if it has been destroyed.
 		BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
+        if (bwebMap.mainChoke)
+            defendPosition = BWAPI::Position(bwebMap.mainChoke->Center());
+        else
+            defendPosition = base->getPosition();
 
 		// We may have taken our natural. If so, call that the front line.
 		BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
 		if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
 		{
-			base = natural;
+            if (bwebMap.naturalChoke)
+                defendPosition = BWAPI::Position(bwebMap.naturalChoke->Center());
+            else
+                defendPosition = natural->getPosition();
 		}
-
-		defendPosition = base->getPosition();
 
 		// We may have a wall at the natural. If so, guard it.
 		LocutusWall& wall = BuildingPlacer::Instance().getWall();
