@@ -102,6 +102,7 @@ public:
 	BWAPI::Player			getBaseOwner(BWTA::BaseLocation * base);
 	BWAPI::Unit 			getBaseDepot(BWTA::BaseLocation * base);
 	BWTA::BaseLocation *	getMyNaturalLocation();
+    std::vector<BWTA::BaseLocation *> getMyBases();
 	int						getTotalNumBases() const;
 	int						getNumBases(BWAPI::Player player);
 	int						getNumFreeLandBases();

@@ -700,6 +700,21 @@ BWTA::BaseLocation * InformationManager::getMyNaturalLocation()
 	return _myNaturalBaseLocation;
 }
 
+// All bases owned by me.
+std::vector<BWTA::BaseLocation *> InformationManager::getMyBases()
+{
+    std::vector<BWTA::BaseLocation *> result;
+    for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+    {
+        if (_theBases[base]->owner == BWAPI::Broodwar->self())
+        {
+            result.push_back(base);
+        }
+    }
+
+    return result;
+}
+
 // The number of bases believed owned by the given player,
 // self, enemy, or neutral.
 int InformationManager::getNumBases(BWAPI::Player player)

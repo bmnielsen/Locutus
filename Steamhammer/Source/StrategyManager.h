@@ -70,6 +70,7 @@ public:
 	const	BuildOrder &            getOpeningBookBuildOrder() const;
 
 			void					handleUrgentProductionIssues(BuildOrderQueue & queue);
+			void					handleMacroProduction(BuildOrderQueue & queue);
 			void					freshProductionPlan();
 
 			bool					dropIsPlanned() const;

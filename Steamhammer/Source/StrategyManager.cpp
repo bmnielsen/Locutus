@@ -412,10 +412,10 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	}
 
 	// if we want to expand, insert a nexus into the build order
-	if (shouldExpandNow())
-	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Nexus, numNexusAll + 1));
-	}
+	//if (shouldExpandNow())
+	//{
+	//	goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Nexus, numNexusAll + 1));
+	//}
 
 	return goal;
 }
@@ -830,8 +830,135 @@ void SetWallCannons(BuildOrderQueue & queue, int numCannons)
 
     if (count > 0)
     {
+        // Ensure we have a forge
+        QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return;
+
         queue.queueAsHighestPriority(m);
     }
+}
+
+bool IsInBuildingOrProductionQueue(BWAPI::TilePosition tile, BuildOrderQueue & queue)
+{
+    for (auto& building : BuildingManager::Instance().buildingsQueued())
+    {
+        BWAPI::TilePosition position = building->finalPosition.isValid() ? building->finalPosition : building->desiredPosition;
+        if (position == tile) return true;
+    }
+
+    for (int i = queue.size() - 1; i >= 0; i--)
+    {
+        auto act = queue[i].macroAct;
+        if (!act.isBuilding()) continue;
+        if (!act.hasReservedPosition()) continue;
+
+        if (act.getReservedPosition() == tile) return true;
+    }
+
+    return false;
+}
+
+void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue)
+{
+    if (cannons <= 0 || !base) return;
+
+    // Get the BWEB Station for the base
+    const BWEB::Station* station = bwebMap.getClosestStation(base->getTilePosition());
+    if (!station) return;
+
+    // If we have anything in the building or production queue for the station's defensive locations, we've already handled this base
+    for (auto tile : station->DefenseLocations())
+    {
+        if (IsInBuildingOrProductionQueue(tile, queue)) return;
+    }
+
+    // Reduce desired cannons based on what we already have in the base
+    BWAPI::Position basePosition = base->getPosition();
+    int desiredCannons = cannons;
+    for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
+            unit->getPosition().getDistance(basePosition) < 320)
+        {
+            desiredCannons--;
+        }
+    if (desiredCannons <= 0) return;
+
+    // Ensure we have a forge
+    QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
+    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return;
+
+    // Collect the available defensive locations
+    std::set<BWAPI::TilePosition> poweredAvailableLocations;
+    std::set<BWAPI::TilePosition> unpoweredAvailableLocations;
+    for (auto tile : station->DefenseLocations())
+    {
+        if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Photon_Cannon, tile)) continue;
+
+        if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Photon_Cannon))
+            poweredAvailableLocations.insert(tile);
+        else
+            unpoweredAvailableLocations.insert(tile);
+    }
+
+    // If there are no available locations, we can't do anything
+    if (poweredAvailableLocations.empty() && unpoweredAvailableLocations.empty()) return;
+
+    // If there are not enough powered locations, build a pylon at the corner position
+    if (poweredAvailableLocations.size() < desiredCannons)
+    {
+        // The corner position is the one that matches every position on either X or Y coordinate
+        BWAPI::TilePosition cornerTile = BWAPI::TilePositions::Invalid;
+        for (auto t1 : station->DefenseLocations())
+        {
+            bool matches = true;
+            for (auto t2 : station->DefenseLocations())
+            {
+                if (t1.x != t2.x && t1.y != t2.y)
+                {
+                    matches = false;
+                    break;
+                }
+            }
+
+            if (matches)
+            {
+                cornerTile = t1;
+                break;
+            }
+        }
+
+        // Build the pylon if the tile is available
+        if (cornerTile.isValid() && bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, cornerTile))
+        {
+            // Queue the pylon
+            MacroAct pylon(BWAPI::UnitTypes::Protoss_Pylon);
+            pylon.setReservedPosition(cornerTile);
+            queue.queueAsHighestPriority(pylon);
+
+            // Don't use this tile for a cannon
+            poweredAvailableLocations.erase(cornerTile);
+        }
+    }
+
+    // Queue the cannons
+    MacroAct m;
+    int count = 0;
+    for (auto tile : poweredAvailableLocations)
+    {
+        MacroAct cannon(BWAPI::UnitTypes::Protoss_Photon_Cannon);
+        cannon.setReservedPosition(tile);
+        if (count == 0)
+            m = cannon;
+        else
+            m.setThen(cannon);
+
+        // Break when we have enough
+        count++;
+        if (count >= desiredCannons) break;
+    }
+
+    if (count > 0)
+        queue.queueAsHighestPriority(m);
 }
 
 void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
@@ -944,26 +1071,29 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		{
 			if (_selfRace == BWAPI::Races::Protoss)
 			{
-				// Get mobile detection
-				if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
+				// Get mobile detection once we are out of our opening book
+				if (ProductionManager::Instance().isOutOfBook() && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
 				{
 					QueueUrgentItem(BWAPI::UnitTypes::Protoss_Observer, queue);
 				}
 
-				// Get static detection in the natural
-				if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon) < 2 &&
-					!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Photon_Cannon) &&
-					!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Photon_Cannon))
-				{
-					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon, MacroLocation::Natural));
-					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon, MacroLocation::Natural));
+                // Ensure the wall has cannons
+                if (BuildingPlacer::Instance().getWall().exists())
+                {
+                    SetWallCannons(queue, 2);
+                }
+                else
+                {
+                    // Otherwise, if we have taken our natural, make sure we have cannons there
+                    BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+                    if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
+                    {
+                        EnsureCannonsAtBase(natural, 2, queue);
+                    }
+                }
 
-					if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Protoss_Forge) == 0 &&
-						!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge))
-					{
-						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Forge));
-					}
-				}
+                // Ensure the main has cannons
+                EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 2, queue);
 			}
 			else if (_selfRace == BWAPI::Races::Terran)
 			{
@@ -1000,39 +1130,20 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
 			if (desiredCannons > 0)
 			{
-				// Count cannons we have in the main and any units that can defend against air
-				BWAPI::Position main = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
-				int cannonsInMain = 0;
-				int antiAirUnits = 0;
-				for (const auto unit : BWAPI::Broodwar->self()->getUnits())
-					if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
-						unit->getPosition().getDistance(main) < 500)
-						cannonsInMain++;
-					else if (!unit->getType().isBuilding() && UnitUtil::CanAttackAir(unit))
-						antiAirUnits++;
+                // Count the number of combat units we have that can defend against air
+                int antiAirUnits = 0;
+                for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+                    if (!unit->getType().isBuilding() && UnitUtil::CanAttackAir(unit))
+                        antiAirUnits++;
 
-				// Reduce the number of needed cannons if we have sufficient anti-air units
-				if (antiAirUnits > 3)
-					desiredCannons--;
-				if (antiAirUnits > 0)
-					desiredCannons--;
-
-				// Assume cannons in the queue are for the main
-				cannonsInMain += queue.numInQueue(BWAPI::UnitTypes::Protoss_Photon_Cannon);
-				cannonsInMain += BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Photon_Cannon);
-
-				if (cannonsInMain < desiredCannons)
-				{
-					for (int i = 0; i < (desiredCannons - cannonsInMain); i++)
-						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Photon_Cannon));
-
-					Log().Get() << "Queued " << (desiredCannons - cannonsInMain) << " cannon(s) in reaction to enemy air threat";
-
-					if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) == 0
-						&& !BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge))
-						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Forge));
-				}
+                // Reduce the number of needed cannons if we have sufficient anti-air units
+                if (antiAirUnits > 3)
+                    desiredCannons--;
+                if (antiAirUnits > 0)
+                    desiredCannons--;
 			}
+
+            EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), desiredCannons, queue);
 		}
 
 		// This is the enemy plan that we have seen, or if none yet, the expected enemy plan.
@@ -1080,8 +1191,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         // Set wall cannon count vs. zerg depending on the enemy plan
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
             !CombatCommander::Instance().getAggression() &&
-            BuildingPlacer::Instance().getWall().exists() &&
-            UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
+            BuildingPlacer::Instance().getWall().exists())
         {
             int cannons = 0;
             int frame = BWAPI::Broodwar->getFrameCount();
@@ -1181,23 +1291,6 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
             SetWallCannons(queue, cannons);
         }
 
-		// If we have an idle nexus and are otherwise safe, queue a probe
-		if (ProductionManager::Instance().isOutOfBook() 
-			&& !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Probe)
-			&& UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe) < WorkerManager::Instance().getMaxWorkers())
-		{
-			bool idleNexus = false;
-			int combatUnits = 0;
-			for (const auto unit : BWAPI::Broodwar->self()->getUnits())
-				if (unit->isCompleted() && unit->getType() == BWAPI::UnitTypes::Protoss_Nexus && unit->getRemainingTrainTime() == 0)
-					idleNexus = true;
-				else if (unit->isCompleted() && UnitUtil::IsCombatUnit(unit))
-					combatUnits++;
-
-			if (idleNexus && combatUnits >= 10)
-				queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Probe);
-		}
-
 		if (numDepots > _highWaterBases)
 		{
 			_highWaterBases = numDepots;
@@ -1235,6 +1328,104 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			return;    // and don't do anything else just yet
 		}
 	}
+}
+
+// This handles queueing expansions and probes
+// This logic was formerly in shouldExpandNow and handleUrgentProductionIssues, but fits better together here
+void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
+{
+    // Don't do anything if we are in the opening book
+    if (!ProductionManager::Instance().isOutOfBook()) return;
+
+    // First, let's try to figure out if it is safe to expand or not
+    // We consider ourselves safe if we have units in our attack squad and it isn't close to our base
+    auto& groundSquad = CombatCommander::Instance().getSquadData().getSquad("Ground");
+    bool safeToExpand =
+        CombatCommander::Instance().getAggression() &&
+        groundSquad.hasCombatUnits() &&
+        groundSquad.calcCenter().getApproxDistance(InformationManager::Instance().getMyMainBaseLocation()->getPosition()) > 1500;
+
+    // Count how many active mineral patches we have
+    // We don't count patches that are close to being mined out
+    int mineralPatches = 0;
+    for (auto & base : InformationManager::Instance().getMyBases())
+        for (auto & mineralPatch : base->getMinerals())
+            if (mineralPatch->getResources() >= 50) mineralPatches++;
+
+    // Count our probes
+    int probes = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe);
+
+    // Queue an expansion if:
+    // - it is safe to do so
+    // - we don't already have one queued
+    // - we will soon run out of mineral patches for our workers
+    if (safeToExpand && 
+        !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
+        BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
+        (mineralPatches * 2.2) < (probes + 5))
+    {
+        // Double-check that there is actually a place to expand to
+        if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
+        {
+            queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Nexus);
+        }
+    }
+
+    // Queue a probe unless we are already oversaturated
+    if (!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Probe)
+        && probes < WorkerManager::Instance().getMaxWorkers()
+        && WorkerManager::Instance().getNumIdleWorkers() < 5)
+    {
+        bool idleNexus = false;
+        for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+            if (unit->isCompleted() && unit->getType() == BWAPI::UnitTypes::Protoss_Nexus && unit->getRemainingTrainTime() == 0)
+                idleNexus = true;
+
+        if (idleNexus)
+            queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Probe);
+    }
+
+    // If we are mining gas, make sure we've taken the geysers at our mining bases
+    if (WorkerManager::Instance().isCollectingGas() &&
+        !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Assimilator) &&
+        BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Assimilator) < 1)
+    {
+        std::set<BWAPI::TilePosition> assimilators;
+        for (auto unit : BWAPI::Broodwar->self()->getUnits())
+        {
+            if (unit->getType() != BWAPI::UnitTypes::Protoss_Assimilator) continue;
+            assimilators.insert(unit->getTilePosition());
+        }
+
+        for (auto base : InformationManager::Instance().getMyBases())
+        {
+            if (base->gas() < 100) continue;
+            for (auto geyser : base->getGeysers())
+            {
+                if (assimilators.find(geyser->getTilePosition()) == assimilators.end() &&
+                    !BuildingPlacer::Instance().isReserved(geyser->getTilePosition().x, geyser->getTilePosition().y))
+                {
+                    MacroAct m(BWAPI::UnitTypes::Protoss_Assimilator);
+                    m.setReservedPosition(geyser->getTilePosition());
+                    queue.queueAsHighestPriority(m);
+                    return;
+                }
+            }
+        }
+    }
+
+    // If we are safe and have a forge, make sure our bases are fortified
+    if (safeToExpand && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
+    {
+        for (auto base : InformationManager::Instance().getMyBases())
+        {
+            if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
+            if (base == InformationManager::Instance().getMyNaturalLocation() &&
+                BuildingPlacer::Instance().getWall().exists()) continue;
+
+            EnsureCannonsAtBase(base, 2, queue);
+        }
+    }
 }
 
 // Return true if we're supply blocked and should build supply.

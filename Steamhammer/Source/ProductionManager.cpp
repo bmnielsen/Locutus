@@ -55,6 +55,9 @@ void ProductionManager::update()
 	// Includes scheduling supply as needed.
 	StrategyManager::Instance().handleUrgentProductionIssues(_queue);
 
+    // Schedule macro stuff like probes and expansions
+    StrategyManager::Instance().handleMacroProduction(_queue);
+
 	// Drop any initial queue items which can't be produced next because they are missing
 	// prerequisites. This prevents some queue deadlocks.
 	// Zerg does this separately (and more elaborately) in handleUrgentProductionIssues() above.
@@ -94,8 +97,10 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 	if (unit->getType().isBuilding())
 		Log().Get() << "Lost " << unit->getType() << " @ " << unit->getTilePosition();
 
-	// Replace static defenses
-	if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+	// Replace static defenses if we have a forge and the location is still powered
+	if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
+        BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
+        BWAPI::Broodwar->hasPower(unit->getTilePosition(), BWAPI::UnitTypes::Protoss_Photon_Cannon))
 	{
 		MacroAct m(BWAPI::UnitTypes::Protoss_Photon_Cannon);
 		m.setReservedPosition(unit->getTilePosition());
