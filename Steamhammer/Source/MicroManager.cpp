@@ -92,14 +92,14 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
     if (!combatUnit || !target) return true;
 
     // If we are already close to our order position, this is the best target we're going to get
-    if (combatUnit->getDistance(order.getPosition()) <= 100) return false;
+    if (combatUnit->getDistance(order.getPosition()) <= 200) return false;
 
     // If there isn't an enemy resource depot at the order position, then let our units pick their targets at will
     // This is so we don't ignore outlying buildings after we've already razed the center of the base
     bool resourceDepotAtOrderPosition = false;
     for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
     {
-        if (unit.second.type.isResourceDepot() && unit.second.lastPosition.getDistance(order.getPosition()) < 200)
+        if (unit.second.type.isResourceDepot() && order.getPosition() == unit.second.lastPosition)
         {
             resourceDepotAtOrderPosition = true;
             break;
