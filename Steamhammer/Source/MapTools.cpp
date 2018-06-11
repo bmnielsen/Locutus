@@ -301,7 +301,7 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
         {
 			for (int y = 0; y < player->getRace().getCenter().tileHeight(); ++y)
             {
-				if (BuildingPlacer::Instance().isReserved(x,y))
+				if (BuildingPlacer::Instance().isReserved(tile.x + x, tile.y + y))
 				{
 					// This happens if we were already planning to expand here. Try somewhere else.
 					buildingInTheWay = true;
