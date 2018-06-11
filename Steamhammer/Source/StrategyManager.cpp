@@ -1119,13 +1119,13 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
             case OpeningPlan::HydraBust:
                 // Hydra busts ramp up to five cannons at a much slower timing
-                if (frame > 9000)
+                if (frame > 8000)
                     cannons = 5;
-                else if (frame > 8000)
-                    cannons = 4;
                 else if (frame > 7000)
-                    cannons = 3;
+                    cannons = 4;
                 else if (frame > 6000)
+                    cannons = 3;
+                else if (frame > 5000)
                     cannons = 2;
 
                 break;
