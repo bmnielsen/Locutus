@@ -16,6 +16,7 @@ namespace SquadOrderTypes
 		HoldWall,  // defend the wall
 		Load,      // load into a transport (Drop squad)
 		Drop,      // go drop on the enemy (Drop squad)
+		Harass,    // harass the enemy
 	};
 }
 
@@ -86,6 +87,7 @@ public:
 			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::Hold ||
 			_type == SquadOrderTypes::HoldWall ||
+			_type == SquadOrderTypes::Harass ||
 			_type == SquadOrderTypes::Drop;
 	}
 

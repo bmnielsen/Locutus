@@ -14,9 +14,10 @@ namespace { auto & bwebMap = BWEB::Map::Instance(); }
 const size_t IdlePriority = 0;
 const size_t AttackPriority = 1;
 const size_t ReconPriority = 2;
-const size_t BaseDefensePriority = 3;
-const size_t ScoutDefensePriority = 4;
-const size_t DropPriority = 5;         // don't steal from Drop squad for Defense squad
+const size_t HarassPriority = 3;
+const size_t BaseDefensePriority = 4;
+const size_t ScoutDefensePriority = 5;
+const size_t DropPriority = 6;         // don't steal from Drop squad for Defense squad
 
 // The attack squads.
 const int AttackRadius = 800;
@@ -49,6 +50,9 @@ void CombatCommander::initializeSquads()
 
 	// The flying squad separates air units so they can act independently.
 	_squadData.addSquad(Squad("Flying", mainAttackOrder, AttackPriority));
+
+    // Harass squad
+    _squadData.addSquad(Squad("Harass", mainAttackOrder, HarassPriority));
 
 	// The recon squad carries out reconnaissance in force to deny enemy bases.
 	// It is filled in when enough units are available.
@@ -94,6 +98,7 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 		updateDropSquads();
 		updateScoutDefenseSquad();
 		updateBaseDefenseSquads();
+		updateHarassSquad();
 		updateReconSquad();
 		updateAttackSquads();
 	}
@@ -120,6 +125,23 @@ void CombatCommander::updateIdleSquad()
             idleSquad.addUnit(unit);
         }
     }
+}
+
+// Update the harassment squad
+// Currently we put all dark templar that aren't being used for drops or base defense in here
+void CombatCommander::updateHarassSquad()
+{
+    Squad & harassSquad = _squadData.getSquad("Harass");
+
+    for (const auto unit : _combatUnits)
+    {
+        if (unit->getType() != BWAPI::UnitTypes::Protoss_Dark_Templar) continue;
+        if (_squadData.canAssignUnitToSquad(unit, harassSquad)) harassSquad.addUnit(unit);
+    }
+
+    // For now we just use the same order as the main squad
+    SquadOrder harassOrder(SquadOrderTypes::Harass, getAttackLocation(&harassSquad), AttackRadius, "Harass enemy base");
+    harassSquad.setSquadOrder(harassOrder);
 }
 
 // Update the small recon squad which tries to find and deny enemy bases.
