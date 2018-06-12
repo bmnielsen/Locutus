@@ -23,15 +23,19 @@ OpeningPlan OpponentModel::predictEnemyPlan() const
 	}
 
 	// 2. Gather info.
-	double weight = 1.0;
-	for (const GameRecord * record : _pastGameRecords)
+	double weight = 100000.0;
+    int count = 0;
+    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 50; it++)
 	{
+        count++;
+        auto record = *it;
+
 		if (_gameRecord.sameMatchup(*record))
 		{
 			PlanInfoType & info = planInfo[int(record->getEnemyPlan())];
 			info.games += 1;
 			info.weight += weight;
-			weight *= 1.25;        // more recent game records are more heavily weighted
+			weight *= 0.8;        // more recent game records are more heavily weighted
 		}
 	}
 
