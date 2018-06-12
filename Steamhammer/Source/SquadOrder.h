@@ -17,6 +17,7 @@ namespace SquadOrderTypes
 		Load,      // load into a transport (Drop squad)
 		Drop,      // go drop on the enemy (Drop squad)
 		Harass,    // harass the enemy
+		KamikazeAttack,    // attack the enemy and never retreat
 	};
 }
 
@@ -75,6 +76,8 @@ public:
 			case SquadOrderTypes::HoldWall:return 'W';
 			case SquadOrderTypes::Load:    return 'L';
 			case SquadOrderTypes::Drop:    return 'D';
+			case SquadOrderTypes::Harass:  return 'S';
+			case SquadOrderTypes::KamikazeAttack:  return 'K';
 		}
 		return '?';
 	}
@@ -88,6 +91,7 @@ public:
 			_type == SquadOrderTypes::Hold ||
 			_type == SquadOrderTypes::HoldWall ||
 			_type == SquadOrderTypes::Harass ||
+			_type == SquadOrderTypes::KamikazeAttack ||
 			_type == SquadOrderTypes::Drop;
 	}
 

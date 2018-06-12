@@ -18,6 +18,7 @@ const size_t HarassPriority = 3;
 const size_t BaseDefensePriority = 4;
 const size_t ScoutDefensePriority = 5;
 const size_t DropPriority = 6;         // don't steal from Drop squad for Defense squad
+const size_t KamikazePriority = 7;
 
 // The attack squads.
 const int AttackRadius = 800;
@@ -50,6 +51,10 @@ void CombatCommander::initializeSquads()
 
 	// The flying squad separates air units so they can act independently.
 	_squadData.addSquad(Squad("Flying", mainAttackOrder, AttackPriority));
+
+    // The kamikaze squad is an attack squad that never retreats
+    // We put units in here that are doomed anyway
+    _squadData.addSquad(Squad("Kamikaze", mainAttackOrder, KamikazePriority));
 
     // Harass squad
     _squadData.addSquad(Squad("Harass", mainAttackOrder, HarassPriority));
@@ -111,6 +116,8 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 
 	_squadData.update();          // update() all the squads
 
+    updateKamikazeSquad();
+
 	cancelDyingItems();
 }
 
@@ -125,6 +132,35 @@ void CombatCommander::updateIdleSquad()
             idleSquad.addUnit(unit);
         }
     }
+}
+
+void CombatCommander::updateKamikazeSquad()
+{
+    // We currently add units to the kamikaze squad in one situation: we are fighting a zerg
+    // opponent who has done a muta switch and we only have zealots
+    if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg) return;
+    if (!InformationManager::Instance().enemyHasAirCombatUnits()) return;
+
+    Squad & groundSquad = _squadData.getSquad("Ground");
+    Squad & kamikazeSquad = _squadData.getSquad("Kamikaze");
+
+    // Add units to the kamikaze squad if needed
+    if (!groundSquad.isEmpty() && !groundSquad.canAttackAir())
+    {
+        std::vector<BWAPI::Unit> unitsToMove;
+        for (auto & unit : groundSquad.getUnits())
+            if (_squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+                unitsToMove.push_back(unit);
+
+        for (auto & unit : unitsToMove)
+            _squadData.assignUnitToSquad(unit, kamikazeSquad);
+
+        Log().Get() << "Sent " << unitsToMove.size() << " units on a kamikaze attack";
+    }
+
+    // For now we just use the same order as the main squad
+    SquadOrder kamikazeOrder(SquadOrderTypes::KamikazeAttack, getAttackLocation(&kamikazeSquad), AttackRadius, "Kamikaze attack enemy base");
+    kamikazeSquad.setSquadOrder(kamikazeOrder);
 }
 
 // Update the harassment squad

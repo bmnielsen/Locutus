@@ -29,6 +29,7 @@ class CombatCommander
 	void            updateAttackSquads();
     void            updateDropSquads();
 	void            updateIdleSquad();
+    void            updateKamikazeSquad();
 
 	void			loadOrUnloadBunkers();
 	void			doComsatScan();
