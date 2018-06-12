@@ -29,6 +29,7 @@ public:
 	bool					blocked;			// unused TODO for a clearable obstacle (spider mine, self-interference)
 
 	int						startFrame;			// when this building record was first created
+	int						buildFrame;			// when the build command for this building was first issued
 	int						buildersSent;		// count workers lost in construction
 
 	Building() 
@@ -44,6 +45,7 @@ public:
 		, blocked			(false)
 		, isWorkerScoutBuilding	(false)
 		, startFrame		(BWAPI::Broodwar->getFrameCount())
+		, buildFrame        (0)
 		, buildersSent		(0)
     {} 
 
@@ -61,7 +63,8 @@ public:
 		, blocked			(false)
         , isWorkerScoutBuilding (false)
 		, startFrame		(BWAPI::Broodwar->getFrameCount())
-		, buildersSent		(0)
+        , buildFrame        (0)
+        , buildersSent		(0)
 	{}
 
 	bool operator==(const Building & b) 
@@ -69,6 +72,45 @@ public:
 		// buildings are equal if their worker unit or building unit are equal
 		return (b.buildingUnit == buildingUnit) || (b.builderUnit == builderUnit);
 	}
+
+    friend std::ostream& operator << (std::ostream& out, const Building& b)
+    {
+        out << b.type;
+
+        switch (b.status)
+        {
+        case BuildingStatus::Unassigned:
+            out << ": Unassigned";
+            break;
+        case BuildingStatus::Assigned:
+            out << ": Assigned to " << b.builderUnit->getID();
+            if (!b.builderUnit->exists())
+                out << " (DEAD)";
+            else
+                out << " @ " << BWAPI::TilePosition(b.builderUnit->getPosition());
+            break;
+        case BuildingStatus::UnderConstruction:
+            out << ": UnderConstruction";
+            break;
+        }
+
+        if (b.finalPosition.isValid())
+        {
+            out << "; final " << b.finalPosition;
+        }
+        else
+        {
+            out << "; desired " << b.desiredPosition;
+        }
+
+        out << "; workerscout=" << b.isWorkerScoutBuilding;
+        out << "; buildCommandGiven=" << b.buildCommandGiven;
+        out << "; underconstruction=" << b.underConstruction;
+        out << "; startFrame=" << b.startFrame;
+        out << "; buildersSent=" << b.buildersSent;
+
+        return out;
+    };
 };
 
 class BuildingData 

@@ -21,8 +21,7 @@ class BuildingManager
 	bool			_stalledForLackOfSpace;			// no valid location to place a protoss building
 
     bool            isBuildingPositionExplored(const Building & b) const;
-	void			undoBuildings(const std::vector<Building> & toRemove);
-    void            removeBuildings(const std::vector<Building> & toRemove);
+	void			undoBuilding(Building & b);
 
     void            validateWorkersAndBuildings();		    // STEP 1
     void            assignWorkersToUnassignedBuildings();	// STEP 2

@@ -31,9 +31,28 @@ void BuildingManager::update()
 // If true, the building gets canceled.
 bool BuildingManager::buildingTimedOut(const Building & b) const
 {
-	return
-		BWAPI::Broodwar->getFrameCount() - b.startFrame > 60 * 24 ||
-		b.buildersSent > 2;
+    if (b.status == BuildingStatus::UnderConstruction) return false;
+
+    // Many builders have failed to build this
+    if (b.buildersSent > 2)
+    {
+        return true;
+    }
+
+    // The first build command was issued over 10 seconds ago, but the building still hasn't been built
+    if (b.buildFrame > 0 &&
+        BWAPI::Broodwar->getFrameCount() - b.buildFrame > 10 * 24)
+    {
+        return true;
+    }
+
+    // No building should take over 2 minutes total to be built
+    if (BWAPI::Broodwar->getFrameCount() - b.startFrame > 120 * 24)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 // STEP 1: DO BOOK KEEPING ON BUILDINGS WHICH MAY HAVE DIED OR TIMED OUT
@@ -42,27 +61,34 @@ void BuildingManager::validateWorkersAndBuildings()
     std::vector<Building> toRemove;
     
     // find any buildings which have become obsolete
-    for (auto & b : _buildings)
+    for (auto it = _buildings.begin(); it != _buildings.end(); )
     {
-		if (buildingTimedOut(b) &&
+        auto & b = *it;
+
+        if (buildingTimedOut(b) &&
 			ProductionManager::Instance().isOutOfBook() &&
 			(!b.buildingUnit || b.type.getRace() == BWAPI::Races::Terran && !b.builderUnit))
 		{
-			toRemove.push_back(b);
+            undoBuilding(b);
+            it = _buildings.erase(it);
+            continue;
 		}
-		else if (b.status == BuildingStatus::UnderConstruction)
+		
+        if (b.status == BuildingStatus::UnderConstruction)
 		{
 			if (!b.buildingUnit ||
 				!b.buildingUnit->exists() ||
 				b.buildingUnit->getHitPoints() <= 0 ||
 				!b.buildingUnit->getType().isBuilding())
 			{
-				toRemove.push_back(b);
-			}
+                undoBuilding(b);
+                it = _buildings.erase(it);
+                continue;
+            }
 		}
-    }
 
-    undoBuildings(toRemove);
+        it++;
+    }
 }
 
 // STEP 2: ASSIGN WORKERS TO BUILDINGS WITHOUT THEM
@@ -145,7 +171,7 @@ void BuildingManager::constructAssignedBuildings()
 		}
 		else if (!b.builderUnit->isConstructing())
         {
-			if (!isBuildingPositionExplored(b))
+			if (!isBuildingPositionExplored(b) || b.builderUnit->getDistance(BWAPI::Position(b.finalPosition)) > 200)
             {
 				// We haven't explored the build position. Go there.
 				Micro::Move(b.builderUnit, BWAPI::Position(b.finalPosition));
@@ -160,6 +186,7 @@ void BuildingManager::constructAssignedBuildings()
 				b.builderUnit = nullptr;
 
                 b.buildCommandGiven = false;
+                b.buildFrame = 0;
                 b.status = BuildingStatus::Unassigned;
 
 				// Unreserve the building location. The building will mark its own location.
@@ -172,6 +199,9 @@ void BuildingManager::constructAssignedBuildings()
 				// If the builderUnit is zerg, it changes to !exists() when it builds.
 				b.buildCommandGiven = b.builderUnit->build(b.type, b.finalPosition);
 				Log().Debug() << "Gave build command to " << b.builderUnit << " to build " << b.type << " @ " << b.finalPosition << "; result " << b.buildCommandGiven;
+
+                // Record the first frame we attempted to build, we will use this to detect timeouts
+                if (b.buildFrame == 0) b.buildFrame = BWAPI::Broodwar->getFrameCount();
            }
         }
     }
@@ -276,13 +306,14 @@ void BuildingManager::checkForDeadTerranBuilders()
 // Zerg and protoss can't do that.
 void BuildingManager::checkForCompletedBuildings()
 {
-    std::vector<Building> toRemove;
-
     // for each of our buildings under construction
-    for (auto & b : _buildings)
+    for (auto it = _buildings.begin(); it != _buildings.end(); )
     {
+        auto & b = *it;
+
         if (b.status != BuildingStatus::UnderConstruction)
         {
+            it++;
             continue;       
         }
 
@@ -302,28 +333,28 @@ void BuildingManager::checkForCompletedBuildings()
 			}
 
             // And we don't want to keep the building record any more.
-            toRemove.push_back(b);
+            it = _buildings.erase(it);
+            continue;
         }
-		else
+
+        // The building, whatever it is, is not completed.
+		// If it is a terran gas steal, stop construction early.
+		if (b.isWorkerScoutBuilding &&
+			b.type == BWAPI::UnitTypes::Terran_Refinery &&
+			b.builderUnit &&
+			b.builderUnit->canHaltConstruction() &&
+			b.buildingUnit->getRemainingBuildTime() < 24)
 		{
-			// The building, whatever it is, is not completed.
-			// If it is a terran gas steal, stop construction early.
-			if (b.isWorkerScoutBuilding &&
-				b.type == BWAPI::UnitTypes::Terran_Refinery &&
-				b.builderUnit &&
-				b.builderUnit->canHaltConstruction() &&
-				b.buildingUnit->getRemainingBuildTime() < 24)
-			{
-				b.builderUnit->haltConstruction();
-				releaseBuilderUnit(b);
+			b.builderUnit->haltConstruction();
+			releaseBuilderUnit(b);
 
-				// Call the building done. It's as finished as we want it to be.
-				toRemove.push_back(b);
-			}
-		}
+			// Call the building done. It's as finished as we want it to be.
+            it = _buildings.erase(it);
+            continue;
+        }
+
+        it++;
     }
-
-    removeBuildings(toRemove);
 }
 
 // Error check: A bug in placing hatcheries can cause resources to be reserved and
@@ -642,30 +673,14 @@ std::vector<Building *> BuildingManager::buildingsQueued()
 //      morphing zerg structures which the BuildingManager does not handle.
 void BuildingManager::cancelBuilding(Building & b)
 {
-	if (b.status == BuildingStatus::Unassigned)
-	{
-		undoBuildings({ b });
-	}
-	else if (b.status == BuildingStatus::Assigned)
-	{
-		releaseBuilderUnit(b);
-		b.builderUnit = nullptr;
-		BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
-		undoBuildings({ b });
-	}
-	else if (b.status == BuildingStatus::UnderConstruction)
-	{
-		if (b.buildingUnit && b.buildingUnit->exists() && !b.buildingUnit->isCompleted())
-		{
-			b.buildingUnit->cancelConstruction();
-			BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
-		}
-		undoBuildings({ b });
-	}
-	else
-	{
-		UAB_ASSERT(false, "unexpected building status");
-	}
+    undoBuilding(b);
+
+    auto & it = std::find(_buildings.begin(), _buildings.end(), b);
+
+    if (it != _buildings.end())
+    {
+        _buildings.erase(it);
+    }
 }
 
 // It's an emergency. Cancel all buildings which are not yet started.
@@ -792,52 +807,40 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 
 // The building failed or is canceled.
 // Undo any connections with other data structures, then delete.
-void BuildingManager::undoBuildings(const std::vector<Building> & toRemove)
+void BuildingManager::undoBuilding(Building& b)
 {
-	for (const Building & b : toRemove)
+	// If the building was to establish a base, unreserve the base location.
+	if (b.type.isResourceDepot() && b.macroLocation != MacroLocation::Macro && b.finalPosition.isValid())
 	{
-		// If the building was to establish a base, unreserve the base location.
-		if (b.type.isResourceDepot() && b.macroLocation != MacroLocation::Macro && b.finalPosition.isValid())
-		{
-			InformationManager::Instance().unreserveBase(b.finalPosition);
-		}
-
-		// If the building is not yet under construction, release its resources.
-		if (b.status == BuildingStatus::Unassigned || b.status == BuildingStatus::Assigned)
-		{
-			_reservedMinerals -= b.macroAct.mineralPrice();
-			_reservedGas -= b.macroAct.gasPrice();
-		}
-
-		// Cancel a terran building under construction. Zerg and protoss finish on their own,
-		// but terran needs another SCV to be sent, and it won't happen.
-		if (b.buildingUnit &&
-			b.buildingUnit->getType().getRace() == BWAPI::Races::Terran &&
-			b.buildingUnit->exists() &&
-			b.buildingUnit->canCancelConstruction())
-		{
-			b.buildingUnit->cancelConstruction();
-		}
-
-		// Release the worker, if necessary.
-		releaseBuilderUnit(b);
+		InformationManager::Instance().unreserveBase(b.finalPosition);
 	}
 
-	removeBuildings(toRemove);
-}
-
-// Remove buildings from the list of buildings--nothing more, nothing less.
-void BuildingManager::removeBuildings(const std::vector<Building> & toRemove)
-{
-    for (auto & b : toRemove)
+    // Free reserved tiles
+    if (b.finalPosition.isValid())
     {
-		auto & it = std::find(_buildings.begin(), _buildings.end(), b);
-
-        if (it != _buildings.end())
-        {
-            _buildings.erase(it);
-        }
+        BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
     }
+
+	// If the building is not yet under construction, release its resources.
+	if (b.status == BuildingStatus::Unassigned || b.status == BuildingStatus::Assigned)
+	{
+		_reservedMinerals -= b.macroAct.mineralPrice();
+		_reservedGas -= b.macroAct.gasPrice();
+	}
+
+	// Cancel a terran building under construction. Zerg and protoss finish on their own,
+	// but terran needs another SCV to be sent, and it won't happen.
+	if (b.buildingUnit &&
+		b.buildingUnit->getType().getRace() == BWAPI::Races::Terran &&
+		b.buildingUnit->exists() &&
+		b.buildingUnit->canCancelConstruction())
+	{
+		b.buildingUnit->cancelConstruction();
+	}
+
+	// Release the worker, if necessary.
+	releaseBuilderUnit(b);
+    b.builderUnit = nullptr;
 }
 
 // Buildings of this type are stalled and can't be built yet.
