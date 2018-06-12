@@ -195,7 +195,9 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     {
         getGoonRange = true;
         goonRatio = 1.0;
-        buildDarkTemplar = true;
+
+        // We use dark templar primarily for harassment, so don't build too many of them
+        if (numDarkTemplar < 8) buildDarkTemplar = true;
     }
 	else
 	{
