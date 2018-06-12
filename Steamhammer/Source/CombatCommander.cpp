@@ -854,13 +854,14 @@ void CombatCommander::updateBaseDefenseSquads()
 		// - zealots 5
 		// - everything else 6
 		// Then multiply by 1.2 to make sure we have a buffer
+        // Also keep track if the enemy has units that require a ranged unit to fight effectively
 		groundDefendersNeeded = 0;
-		bool isGroundUnitAttacking = false;
+        bool preferRangedUnits = false;
 		for (auto unit : enemyUnitsInRegion)
 		{
 			if (unit->isFlying()) continue;
+            if (unit->getType() == BWAPI::UnitTypes::Terran_Vulture) preferRangedUnits = true;
 
-			isGroundUnitAttacking = isGroundUnitAttacking || unit->isAttacking();
 			if (unit->getType().isWorker())
 				groundDefendersNeeded += 1;
 			else if (unit->getType() == BWAPI::UnitTypes::Zerg_Zergling)
@@ -873,14 +874,7 @@ void CombatCommander::updateBaseDefenseSquads()
 				groundDefendersNeeded += 6;
 		}
 
-		// If no ground units are attacking, reduce the requirement a bit to avoid having too much extra capacity on hand
-		// Disabled since it doesn't really work
-		//if (!isGroundUnitAttacking)
-		//	groundDefendersNeeded = std::floor(groundDefendersNeeded * 0.8);
-
-		//// Otherwise increase it to give us a buffer
-		//else
-			groundDefendersNeeded = std::ceil(groundDefendersNeeded * 1.2);
+		groundDefendersNeeded = std::ceil(groundDefendersNeeded * 1.2);
 
 		// Count static defense as air defenders.
 		// Ignore bunkers; they're more complicated.
@@ -920,7 +914,7 @@ void CombatCommander::updateBaseDefenseSquads()
 			Config::Micro::WorkersDefendRush &&
 			(!sunkenDefender && numZerglingsInOurBase() > 0 || buildingRush()));
 
-		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers);
+		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, preferRangedUnits);
     }
 
     // for each of our defense squads, if there aren't any enemy units near the position, clear the squad
@@ -952,7 +946,7 @@ void CombatCommander::updateBaseDefenseSquads()
 	}
 }
 
-void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers)
+void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool preferRangedUnits)
 {
 	// if there's nothing left to defend, clear the squad
 	if (flyingDefendersNeeded == 0 && groundDefendersNeeded == 0)
@@ -982,7 +976,7 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	// add flying defenders
 	BWAPI::Unit defenderToAdd;
 	while (flyingDefendersNeeded > flyingDefendersAdded &&
-		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false)))
+		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false, false)))
 	{
 		UAB_ASSERT(!defenderToAdd->getType().isWorker(), "flying worker defender");
 		_squadData.assignUnitToSquad(defenderToAdd, defenseSquad);
@@ -992,7 +986,7 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	// add ground defenders if we still need them
     // We try to replace workers with combat units whenever possible (excess workers are removed in the next block)
 	while (groundDefendersNeeded > (groundDefendersAdded - workersInGroup) &&
-		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), false, pullWorkers)))
+		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), false, pullWorkers, preferRangedUnits)))
 	{
 		if (defenderToAdd->getType().isWorker())
 		{
@@ -1026,7 +1020,7 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 }
 
 // Choose a defender to join the base defense squad.
-BWAPI::Unit CombatCommander::findClosestDefender(const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullWorkers)
+BWAPI::Unit CombatCommander::findClosestDefender(const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullWorkers, bool preferRangedUnits)
 {
 	BWAPI::Unit closestDefender = nullptr;
 	int minDistance = 99999;
@@ -1048,6 +1042,10 @@ BWAPI::Unit CombatCommander::findClosestDefender(const Squad & defenseSquad, BWA
         }
 
 		int dist = unit->getDistance(pos);
+
+        // Penalize non-ranged units if we want to pull ranged units
+        if (preferRangedUnits && unit->getType().groundWeapon().maxRange() <= 32)
+            dist *= 5;
 
 		if (unit->getType().isWorker())
 		{
