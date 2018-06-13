@@ -172,7 +172,8 @@ void CombatCommander::updateHarassSquad()
     for (const auto unit : _combatUnits)
     {
         if (unit->getType() != BWAPI::UnitTypes::Protoss_Dark_Templar) continue;
-        if (_squadData.canAssignUnitToSquad(unit, harassSquad)) harassSquad.addUnit(unit);
+        if (_squadData.canAssignUnitToSquad(unit, harassSquad)) 
+            _squadData.assignUnitToSquad(unit, harassSquad);
     }
 
     // For now we just use the same order as the main squad
