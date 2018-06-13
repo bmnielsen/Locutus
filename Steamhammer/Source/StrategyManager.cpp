@@ -134,6 +134,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 	// Look up capacity of various producers
     int numGateways = 0;
+    int numForges = 0;
     int idleGateways = 0;
 	int idleRoboFacilities = 0;
 	int idleForges = 0;
@@ -143,6 +144,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		{
             if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway)
                 numGateways++;
+            else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge)
+                numForges++;
 
 			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway
 				&& unit->getRemainingTrainTime() < 48)
@@ -248,7 +251,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		buildDarkTemplar = true;
 
 	// Upgrade when we have at least two bases and a reasonable army size
-	upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) > 12;
+    upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) >= 10;
 
 	// Build reavers when we have 2 or more bases
 	// Disabled until we can micro reavers better
@@ -275,6 +278,29 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	{
 		if (!startedForge) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 1));
 
+        // Get a second forge and a templar archives when we are on 3 or more bases
+        // This will let us efficiently upgrade both weapons and armor to 3
+        if (numNexusCompleted >= 3)
+        {
+            if (numForges < 2)
+            {
+                goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 2));
+            }
+
+            if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) < 1)
+            {
+                if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+
+                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+                    && !startedCitadel)
+                    goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
+
+                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
+                    && !startedTemplarArchives)
+                    goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
+            }
+        }
+
 		// Weapon to 1, armor to 1, weapon to 3, armor to 3
 		int weaponsUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Weapons);
 		int armorUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Armor);
@@ -295,13 +321,23 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			idleForges--;
 		}
 
-		// If we have an idle forge and money to burn, get shield upgrades
-		if (idleForges > 0 && self->minerals() > 2000 && self->gas() > 1000 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Plasma_Shields))
-		{
-			int shieldUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Plasma_Shields);
-			if (shieldUps == 0 || (shieldUps < 3 && canUpgradeBeyond1))
-				goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Plasma_Shields, shieldUps + 1));
-		}
+        // Get shields if other upgrades are done or running and we have money to burn
+        // This will typically happen when we are maxed
+        if ((weaponsUps >= 3 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons)) &&
+            (armorUps >= 3 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor)) &&
+            self->minerals() > 2000 && self->gas() > 1000)
+        {
+            if (idleForges > 0)
+            {
+                int shieldUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Plasma_Shields);
+                if (shieldUps == 0 || (shieldUps < 3 && canUpgradeBeyond1))
+                    goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Plasma_Shields, shieldUps + 1));
+            }
+            else
+            {
+                goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, numForges + 1));
+            }
+        }
 	}
 
 	if (buildDarkTemplar)
