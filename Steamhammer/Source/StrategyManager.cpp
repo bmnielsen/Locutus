@@ -860,7 +860,7 @@ bool IsInBuildingOrProductionQueue(BWAPI::TilePosition tile, BuildOrderQueue & q
     return false;
 }
 
-void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue)
+void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue, bool queueOneAtATime = false)
 {
     if (cannons <= 0 || !base) return;
 
@@ -956,7 +956,7 @@ void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue
 
         // Break when we have enough
         count++;
-        if (count >= desiredCannons) break;
+        if (count >= desiredCannons || queueOneAtATime) break;
     }
 
     if (count > 0)
@@ -1357,18 +1357,27 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Count our probes
     int probes = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe);
 
+    // Count the number of mineral patches needed to satisfy our current probe count
+    // We subtract probes mining gas, but assume our existing nexuses will build a couple
+    // of probes each before our next expansion is up
+    int predictedProbes = std::min(
+        WorkerManager::Instance().getMaxWorkers(),
+        probes + (2 * UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus)));
+    int desiredMineralPatches = (predictedProbes - WorkerManager::Instance().getNumGasWorkers()) / 2;
+
     // Queue an expansion if:
     // - it is safe to do so
     // - we don't already have one queued
-    // - we will soon run out of mineral patches for our workers
+    // - we want more active mineral patches than we currently have
     if (safeToExpand && 
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
-        (mineralPatches * 2.2) < (probes + 5))
+        mineralPatches < desiredMineralPatches)
     {
         // Double-check that there is actually a place to expand to
         if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
         {
+            Log().Get() << "Expanding: " << mineralPatches << " active mineral patches, " << probes << " probes, " << UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) << " nexuses";
             queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Nexus);
         }
     }
@@ -1388,7 +1397,9 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     }
 
     // If we are mining gas, make sure we've taken the geysers at our mining bases
-    if (WorkerManager::Instance().isCollectingGas() &&
+    // They usually get ordered automatically, so don't do this too often
+    if (BWAPI::Broodwar->getFrameCount() % (30 * 24) == 0 &&
+        WorkerManager::Instance().isCollectingGas() &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Assimilator) &&
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Assimilator) < 1)
     {
@@ -1417,7 +1428,8 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     }
 
     // If we are safe and have a forge, make sure our bases are fortified
-    if (safeToExpand && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
+    if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
+        safeToExpand && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
     {
         for (auto base : InformationManager::Instance().getMyBases())
         {
@@ -1425,7 +1437,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
             if (base == InformationManager::Instance().getMyNaturalLocation() &&
                 BuildingPlacer::Instance().getWall().exists()) continue;
 
-            EnsureCannonsAtBase(base, 2, queue);
+            EnsureCannonsAtBase(base, 2, queue, true);
         }
     }
 }
