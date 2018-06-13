@@ -905,10 +905,12 @@ void CombatCommander::updateBaseDefenseSquads()
         // Also keep track if the enemy has units that require a ranged unit to fight effectively
 		groundDefendersNeeded = 0;
         bool preferRangedUnits = false;
+        bool needsDetection = false;
 		for (auto unit : enemyUnitsInRegion)
 		{
 			if (unit->isFlying()) continue;
             if (unit->getType() == BWAPI::UnitTypes::Terran_Vulture) preferRangedUnits = true;
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar) needsDetection = true;
 
 			if (unit->getType().isWorker())
 				groundDefendersNeeded += 1;
@@ -952,6 +954,9 @@ void CombatCommander::updateBaseDefenseSquads()
 			{
 				sunkenDefender = true;
 				groundDefendersNeeded -= 6; // 3 zerglings
+
+                // We assume the cannon will fulfill any detection needs
+                needsDetection = false;
 			}
 		}
 		groundDefendersNeeded = std::max(groundDefendersNeeded, 0);
@@ -963,6 +968,42 @@ void CombatCommander::updateBaseDefenseSquads()
 			(!sunkenDefender && numZerglingsInOurBase() > 0 || buildingRush()));
 
 		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, preferRangedUnits);
+
+        // Add an observer if needed
+        if (needsDetection && !defenseSquad.containsUnitType(BWAPI::UnitTypes::Protoss_Observer))
+        {
+            BWAPI::Unit closestObserver = nullptr;
+            int minDistance = 99999;
+
+            for (const auto unit : _combatUnits)
+            {
+                if (unit->getType() != BWAPI::UnitTypes::Protoss_Observer) continue;
+                if (!_squadData.canAssignUnitToSquad(unit, defenseSquad)) continue;
+
+                int dist = unit->getDistance(defenseSquad.getSquadOrder().getPosition());
+                if (dist < minDistance)
+                {
+                    closestObserver = unit;
+                    minDistance = dist;
+                }
+            }
+
+            if (closestObserver)
+            {
+                _squadData.assignUnitToSquad(closestObserver, defenseSquad);
+            }
+        }
+
+        // Remove an observer if no longer needed
+        else if (!needsDetection && defenseSquad.containsUnitType(BWAPI::UnitTypes::Protoss_Observer))
+        {
+            for (const auto unit : defenseSquad.getUnits())
+                if (unit->getType() == BWAPI::UnitTypes::Protoss_Observer)
+                {
+                    defenseSquad.removeUnit(unit);
+                    break;
+                }
+        }
     }
 
     // for each of our defense squads, if there aren't any enemy units near the position, clear the squad
