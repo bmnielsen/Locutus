@@ -399,13 +399,27 @@ void InformationManager::updateBaseLocationInfo()
 	}
 
 	// We occupy a region if we have a building there.
+    // Special case: if we have a wall at our natural, it will often have buildings in both the
+    // natural region and a region outside our base. They are all logically part of the natural though,
+    // so we fudge the region assignment to fit.
+    BWTA::BaseLocation * naturalLocation = InformationManager::Instance().getMyNaturalLocation();
+    BWTA::Region * naturalRegion = nullptr;
+    if (naturalLocation)
+    {
+        naturalRegion = BWTA::getRegion(naturalLocation->getPosition());
+    }
 	for (const auto & kv : _unitData[_self].getUnits())
 	{
 		const UnitInfo & ui(kv.second);
 
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
-			updateOccupiedRegions(BWTA::getRegion(BWAPI::TilePosition(ui.lastPosition)), _self);
+            auto region = BWTA::getRegion(BWAPI::TilePosition(ui.lastPosition));
+
+            if (naturalRegion && BuildingPlacer::Instance().getWall().containsBuildingAt(ui.unit->getTilePosition()))
+                region = naturalRegion;
+
+			updateOccupiedRegions(region, _self);
 		}
 	}
 }

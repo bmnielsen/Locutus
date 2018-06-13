@@ -89,7 +89,20 @@ namespace UAlbertaBot
 
         bool exists() const
         {
-            return isValid() && BWEB::Map::Instance().usedTiles.find(pylon) != BWEB::Map::Instance().usedTiles.end();
+            return isValid() && (
+                BWEB::Map::Instance().usedTiles.find(pylon) != BWEB::Map::Instance().usedTiles.end() ||
+                BWEB::Map::Instance().usedTiles.find(forge) != BWEB::Map::Instance().usedTiles.end() ||
+                BWEB::Map::Instance().usedTiles.find(gateway) != BWEB::Map::Instance().usedTiles.end());
+        }
+
+        bool containsBuildingAt(BWAPI::TilePosition tile) const
+        {
+            if (!exists()) return false;
+            if (pylon == tile || forge == tile || gateway == tile) return true;
+            for (auto const & cannon : cannons)
+                if (cannon == tile) return true;
+            
+            return false;
         }
 
 		std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> placements() const

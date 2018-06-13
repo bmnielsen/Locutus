@@ -773,6 +773,13 @@ void CombatCommander::updateBaseDefenseSquads()
 		mainRegion = BWTA::getRegion(mainBaseLocation->getPosition());
 	}
 
+	BWTA::BaseLocation * naturalLocation = InformationManager::Instance().getMyNaturalLocation();
+	BWTA::Region * naturalRegion = nullptr;
+	if (naturalLocation)
+	{
+        naturalRegion = BWTA::getRegion(naturalLocation->getPosition());
+	}
+
 	// for each of our occupied regions
     auto & occupiedRegions = InformationManager::Instance().getOccupiedRegions(BWAPI::Broodwar->self());
 	for (BWTA::Region * myRegion : BWTA::getRegions())
@@ -823,6 +830,13 @@ void CombatCommander::updateBaseDefenseSquads()
             {
                 enemyUnitsInRegion.insert(unit);
             }
+
+            // When defending a wall, also include enemy units close to it
+            if (myRegion == naturalRegion && BuildingPlacer::Instance().getWall().exists() &&
+                unit->getDistance(BuildingPlacer::Instance().getWall().gapCenter) < 320)
+            {
+                enemyUnitsInRegion.insert(unit);
+            }
         }
 
         // We assume the first enemy worker in the region is a scout, unless it has attacked us recently
@@ -850,26 +864,23 @@ void CombatCommander::updateBaseDefenseSquads()
         }
         else 
         {
-			// Defend region normally if we've gone aggressive or if it is our main
-			if (_goAggressive || myRegion == mainRegion)
-			{
-				SquadOrder defendRegion(SquadOrderTypes::Defend, regionCenter, 32 * 25, "Defend region");
+            // By default we defend the center of the region
+            SquadOrder defendRegion(SquadOrderTypes::Defend, regionCenter, 32 * 25, "Defend region");
 
-				if (!_squadData.squadExists(squadName.str()))
-					_squadData.addSquad(Squad(squadName.str(), defendRegion, BaseDefensePriority));
-				else
-					_squadData.getSquad(squadName.str()).setSquadOrder(defendRegion);
+            // If we are defending our natural and we have a wall, use a special order
+            if (myRegion == naturalRegion && BuildingPlacer::Instance().getWall().exists())
+            {
+                defendRegion = SquadOrder(
+                    SquadOrderTypes::HoldWall,
+                    BuildingPlacer::Instance().getWall().gapCenter,
+                    DefensivePositionRadius / 4,
+                    "Hold the wall");
+            }
 
-			}
-
-			// Otherwise we reuse the order of our main squad, which is already defending the natural
+			if (!_squadData.squadExists(squadName.str()))
+				_squadData.addSquad(Squad(squadName.str(), defendRegion, BaseDefensePriority));
 			else
-			{
-				if (!_squadData.squadExists(squadName.str()))
-					_squadData.addSquad(Squad(squadName.str(), _squadData.getSquad("Ground").getSquadOrder(), BaseDefensePriority));
-				else
-					_squadData.getSquad(squadName.str()).setSquadOrder(_squadData.getSquad("Ground").getSquadOrder());
-			}
+				_squadData.getSquad(squadName.str()).setSquadOrder(defendRegion);
         }
 
 		int numEnemyFlyingInRegion = std::count_if(enemyUnitsInRegion.begin(), enemyUnitsInRegion.end(), [](BWAPI::Unit u) { return u->isFlying(); });
