@@ -238,6 +238,9 @@
       <Filter>game\macro\productiongoals</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroBunkerAttackSquad.cpp" />
+    <ClCompile Include="..\Source\LocutusUnit.cpp">
+      <Filter>game\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -434,5 +437,8 @@
       <Filter>game\macro\productiongoals</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroBunkerAttackSquad.h" />
+    <ClInclude Include="..\Source\LocutusUnit.h">
+      <Filter>game\util</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

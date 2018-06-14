@@ -326,20 +326,10 @@ bool MicroManager::unstickStuckUnit(BWAPI::Unit unit) const
 	}
 
     // Unstick units that have had the isMoving flag set for a while without actually moving
-    if (unit->isMoving())
+    if (unit->isMoving() && InformationManager::Instance().getLocutusUnit(unit).isStuck())
     {
-        // Get unit info
-        auto& units = InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->self());
-        auto& it = units.find(unit);
-        if (it != units.end())
-        {
-            if (it->second.potentiallyStuckSince > 0 &&
-                it->second.potentiallyStuckSince < (BWAPI::Broodwar->getFrameCount() - BWAPI::Broodwar->getLatencyFrames() - 10))
-            {
-                Micro::Stop(unit);
-                return true;
-            }
-        }
+        Micro::Stop(unit);
+        return true;
     }
 
 	return false;

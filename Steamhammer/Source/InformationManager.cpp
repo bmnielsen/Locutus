@@ -303,6 +303,8 @@ void InformationManager::updateUnitInfo()
 			_ourPylons.insert(unit);
 			anyNewPylons = true;
 		}
+
+        getLocutusUnit(unit).update();
 	}
 
 	if (anyNewPylons)
@@ -1762,6 +1764,14 @@ BWAPI::Position InformationManager::predictUnitPosition(BWAPI::Unit unit, int fr
     if (!unit || !unit->exists() || !unit->isVisible()) return BWAPI::Positions::Invalid;
 
     return unit->getPosition() + BWAPI::Position(frames * unit->getVelocityX(), frames * unit->getVelocityY());
+}
+
+LocutusUnit& InformationManager::getLocutusUnit(BWAPI::Unit unit)
+{
+    if (_myUnits.find(unit) == _myUnits.end())
+        _myUnits[unit] = LocutusUnit(unit);
+
+    return _myUnits[unit];
 }
 
 InformationManager & InformationManager::Instance()

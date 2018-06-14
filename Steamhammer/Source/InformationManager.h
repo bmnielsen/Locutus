@@ -5,6 +5,7 @@
 
 #include "Base.h"
 #include "UnitData.h"
+#include "LocutusUnit.h"
 
 namespace UAlbertaBot
 {
@@ -40,6 +41,8 @@ class InformationManager
 	BWAPI::Unitset										_staticDefense;
 	const BWEB::Station *								_enemyBaseStation;
 	BWAPI::Unitset										_ourPylons;
+
+    std::map<BWAPI::Unit, LocutusUnit>  _myUnits;
 
     std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
     int                             bulletsSeenAtExtendedMarineRange;
@@ -156,6 +159,8 @@ public:
     std::string             getEnemyName() const { return _enemyName; }
 
     BWAPI::Position         predictUnitPosition(BWAPI::Unit unit, int frames) const;
+
+    LocutusUnit&            getLocutusUnit(BWAPI::Unit unit);
 
 	// yay for singletons!
 	static InformationManager & Instance();

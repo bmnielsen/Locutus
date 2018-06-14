@@ -20,7 +20,6 @@ struct UnitInfo
     BWAPI::UnitType type;
     bool            completed;
 	int				estimatedCompletionFrame;
-    int             potentiallyStuckSince;  // frame the unit might have been stuck since, or 0 if it isn't stuck
 
     UnitInfo()
         : unitID(0)
@@ -34,7 +33,6 @@ struct UnitInfo
         , type(BWAPI::UnitTypes::None)
         , completed(false)
 		, estimatedCompletionFrame(0)
-		, potentiallyStuckSince(0)
 	{
     }
 
@@ -50,7 +48,6 @@ struct UnitInfo
 		, type(unit->getType())
 		, completed(unit->isCompleted())
 		, estimatedCompletionFrame(ComputeCompletionFrame(unit))
-		, potentiallyStuckSince(0)
 	{
 	}
 
