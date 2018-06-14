@@ -133,7 +133,6 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
         if (target->isCompleted() && UnitUtil::CanAttackGround(target)) return false;
 
         // Otherwise, let's ignore this and find something better to attack
-        Log().Debug() << combatUnit->getType() << " " << combatUnit->getID() << " @ " << combatUnit->getPosition() << " running by " << target->getType() << " @ " << target->getPosition();
         return true;
     }
 
@@ -189,7 +188,8 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 		{
 			if (!mobilizeUnit(unit))
 			{
-				Micro::Move(unit, regroupPosition);
+                InformationManager::Instance().getLocutusUnit(unit).moveTo(regroupPosition);
+				//Micro::Move(unit, regroupPosition);
 			}
 		}
 		else

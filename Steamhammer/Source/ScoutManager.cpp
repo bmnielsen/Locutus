@@ -319,7 +319,8 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 	{
 		// The target is valid exactly when we are still looking for the enemy base.
 		_scoutStatus = "Seeking enemy base";
-		Micro::Move(_workerScout, BWAPI::Position(_workerScoutTarget));
+        InformationManager::Instance().getLocutusUnit(_workerScout).moveTo(BWAPI::Position(_workerScoutTarget));
+        //Micro::Move(_workerScout, BWAPI::Position(_workerScoutTarget));
 	}
 	else
 	{

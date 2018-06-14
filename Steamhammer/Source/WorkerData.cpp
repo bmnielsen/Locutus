@@ -1,5 +1,6 @@
 #include "WorkerData.h"
 #include "Micro.h"
+#include "InformationManager.h"
 
 using namespace UAlbertaBot;
 
@@ -107,8 +108,13 @@ void WorkerData::setWorkerJob(BWAPI::Unit unit, WorkerJob job, BWAPI::Unit jobUn
         workerMineralAssignment[unit] = mineralToMine;
         addToMineralPatch(mineralToMine, 1);
 
-		// right click the mineral to start mining
-		Micro::RightClick(unit, mineralToMine);
+        // If we are a long way away from the depot, move towards it
+        if (unit->getDistance(jobUnit) > 200)
+            InformationManager::Instance().getLocutusUnit(unit).moveTo(jobUnit->getPosition());
+
+		// Otherwise right click the mineral to start mining
+        else
+		    Micro::RightClick(unit, mineralToMine);
 	}
 	else if (job == Gas)
 	{

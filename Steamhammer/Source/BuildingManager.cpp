@@ -174,7 +174,8 @@ void BuildingManager::constructAssignedBuildings()
 			if (!isBuildingPositionExplored(b) || b.builderUnit->getDistance(BWAPI::Position(b.finalPosition)) > 200)
             {
 				// We haven't explored the build position. Go there.
-				Micro::Move(b.builderUnit, BWAPI::Position(b.finalPosition));
+                InformationManager::Instance().getLocutusUnit(b.builderUnit).moveTo(BWAPI::Position(b.finalPosition));
+				//Micro::Move(b.builderUnit, BWAPI::Position(b.finalPosition));
             }
             // if this is not the first time we've sent this guy to build this
             // it must be the case that something was in the way

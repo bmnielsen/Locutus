@@ -275,11 +275,14 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
                     auto bunkerRunBySquad = squad.getBunkerRunBySquad(rangedUnit);
                     if (bunkerRunBySquad)
                     {
-                        Micro::Move(rangedUnit, bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
+                        InformationManager::Instance().getLocutusUnit(rangedUnit)
+                            .moveTo(bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
+                        //Micro::Move(rangedUnit, bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
                     }
                     else
                     {
-                        Micro::Move(rangedUnit, order.getPosition());
+                        InformationManager::Instance().getLocutusUnit(rangedUnit).moveTo(order.getPosition());
+                        //Micro::Move(rangedUnit, order.getPosition());
                     }
 				}
 			}
