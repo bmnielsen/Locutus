@@ -7,6 +7,7 @@
     using System.IO;
     using System.Linq;
     using System.Threading;
+    using Newtonsoft.Json;
 
     public class Program
     {
@@ -41,11 +42,7 @@
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
 
         // State for current game
-        private static string currentGameId;
-
-        private static int waitingForPlayersCount;
-
-        private static bool registeredResult;
+        private static GameData currentGame;
 
         private static int wins;
 
@@ -127,7 +124,7 @@
                 }
 
                 var outputFilename = "trainingrun-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss") + ".csv";
-                File.AppendAllText(outputFilename, "Opponent;Map;Game ID;Result\n");
+                File.AppendAllText(outputFilename, "Opponent;Map;Game ID;My Strategy;Opponent Strategy;Result\n");
 
                 var trainingOpponents = File.ReadAllLines("opponents.csv")
                     .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("-"))
@@ -157,16 +154,13 @@
                         }
                     }
 
-                    int winsBefore = wins;
-                    int lossesBefore = losses;
-
                     Run(trainingOpponent[0], map, true, false, timeout);
 
                     // Output result if there was one
-                    if (registeredResult && (wins > winsBefore || losses > lossesBefore))
+                    if (currentGame.HaveResult)
                     {
-                        var result = wins > winsBefore ? "win" : "loss";
-                        File.AppendAllText(outputFilename, $"{trainingOpponent[0]};{map};{currentGameId};{result}\n");
+                        var result = currentGame.Won ? "win" : "loss";
+                        File.AppendAllText(outputFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.OpponentStrategy};{result}\n");
                     }
 
                     Console.WriteLine("Overall score is {0} wins {1} losses", wins, losses);
@@ -219,9 +213,7 @@
             var timeoutParam = timeout > 0 ? "--timeout " + timeout : string.Empty;
             var args = $"--bots \"Locutus\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"sscai/{map}\" {timeoutParam} --read_overwrite";
 
-            currentGameId = null;
-            waitingForPlayersCount = 0;
-            registeredResult = false;
+            currentGame = new GameData();
 
             var process = new Process();
             process.StartInfo.UseShellExecute = false;
@@ -235,39 +227,87 @@
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            var handledReplay = false;
             while (!process.HasExited)
             {   
                 Thread.Sleep(500);
 
-                if (string.IsNullOrEmpty(currentGameId))
+                if (string.IsNullOrEmpty(currentGame.Id))
                 {
                     continue;
                 }
 
                 // Output our log to console
-                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGameId}_0\\Locutus_ErrorLog.txt", "Err: ");
-                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGameId}_0\\Locutus_log.txt", "Log: ");
+                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGame.Id}_0\\Locutus_ErrorLog.txt", "Err: ");
+                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGame.Id}_0\\Locutus_log.txt", "Log: ");
 
-                // Check for crashes
-                if (CheckCrash(currentGameId, opponent))
+                // Process output files
+                ProcessOutputFiles(opponent, map, showReplay);
+
+                // Check for crashes or games that hang after completion
+                if (IsGameOver(opponent))
                 {
-                    Console.WriteLine("Game appears to have crashed, killing it");
-                    process.OutputDataReceived -= ProcessOutput;
-                    process.ErrorDataReceived -= ProcessOutput;
-                    process.Kill();
+                    try
+                    {
+                        process.OutputDataReceived -= ProcessOutput;
+                        process.ErrorDataReceived -= ProcessOutput;
+                        process.Kill();
+                    }
+                    catch (Exception)
+                    {
+                        // Ignore exceptions, it can throw if the process exited in the meantime
+                    }
                 }
-
-                // Rename the replay file when it becomes available
-                handledReplay = handledReplay 
-                    || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_0.rep", opponent, map, showReplay)
-                    || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_1.rep", opponent, map, showReplay);
             }
 
-            // Rename the replay file if it wasn't already done
-            handledReplay = handledReplay
-                          || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_0.rep", opponent, map, showReplay)
-                          || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGameId}_1.rep", opponent, map, showReplay);
+            ProcessOutputFiles(opponent, map, showReplay);
+        }
+
+        private static void ProcessOutputFiles(string opponent, string map, bool showReplay)
+        {
+            // Parse the results files
+            HandleResults($"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_results.json", true);
+            HandleResults($"{BaseDir}\\logs\\GAME_{currentGame.Id}_1_results.json", false);
+
+            // Rename the replay file as soon as we see it after the game is over
+            if (currentGame.HaveResult)
+            {
+                currentGame.RenamedReplay = currentGame.RenamedReplay
+                                            || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGame.Id}_0.rep", opponent, map, showReplay)
+                                            || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGame.Id}_1.rep", opponent, map, showReplay);
+            }
+        }
+
+        private static void HandleResults(string file, bool mine)
+        {
+            if (currentGame.HaveResult)
+            {
+                return;
+            }
+
+            var resultsFileContent = ReadFileContents(file);
+            if (string.IsNullOrEmpty(resultsFileContent))
+            {
+                return;
+            }
+
+            var results = JsonConvert.DeserializeObject<GameResult>(resultsFileContent);
+            if (!results.IsCrashed)
+            {
+                currentGame.HaveResult = true;
+                currentGame.ResultTimestamp = DateTime.UtcNow;
+                currentGame.Won = mine ? results.IsWinner : !results.IsWinner;
+
+                if (currentGame.Won)
+                {
+                    Console.WriteLine("Result: Won");
+                    wins++;
+                }
+                else
+                {
+                    Console.WriteLine("Result: Loss");
+                    losses++;
+                }
+            }
         }
 
         private static bool HandleReplay(string file, string opponent, string map, bool show)
@@ -276,8 +316,18 @@
             {
                 var fileName = file.Substring(0, file.Length - 4);
                 var mapShortName = map.Substring(3, map.Length - 7);
-                var newFileName = $"{fileName}-{opponent}-{mapShortName}.rep";
-                File.Move(file, newFileName);
+                var result = currentGame.Won ? "win" : "loss";
+                var newFileName = $"{fileName}-{opponent}-{mapShortName}-{result}.rep";
+
+                try
+                {
+                    File.Move(file, newFileName);
+                }
+                catch (Exception)
+                {
+                    // File might be locked, try again later
+                    return false;
+                }
 
                 if (!show)
                 {
@@ -298,6 +348,16 @@
         {
             foreach (var line in GetNewLinesFromFile(path))
             {
+                if (line.Contains(": Strategy: "))
+                {
+                    currentGame.MyStrategy = line.Substring(line.IndexOf(": Strategy: ", StringComparison.InvariantCulture) + 12);
+                }
+
+                if (line.Contains(": Opponent: "))
+                {
+                    currentGame.OpponentStrategy = line.Substring(line.IndexOf(": Opponent: ", StringComparison.InvariantCulture) + 12);
+                }
+
                 Console.WriteLine($"{DateTime.Now:HH:mm:ss} {prefix}{line}");
             }
         }
@@ -313,73 +373,49 @@
 
             if (e.Data.Contains("Waiting until game GAME_"))
             {
-                currentGameId = e.Data.Substring(e.Data.IndexOf("GAME_", StringComparison.Ordinal) + 5, 8);
-                Console.WriteLine("Got game ID {0}", currentGameId);
-            }
-
-            if (!registeredResult)
-            {
-                if (e.Data == "0")
-                {
-                    registeredResult = true;
-                    wins++;
-                }
-
-                if (e.Data == "1")
-                {
-                    registeredResult = true;
-                    losses++;
-                }
+                currentGame.Id = e.Data.Substring(e.Data.IndexOf("GAME_", StringComparison.Ordinal) + 5, 8);
+                Console.WriteLine("Got game ID {0}", currentGame.Id);
             }
         }
 
-        private static bool CheckCrash(string gameId, string opponent)
+        private static bool IsGameOver(string opponent)
         {
-            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGameId}_0_Locutus_game.log";
-            var opponentLogFilename = $"{BaseDir}\\logs\\GAME_{currentGameId}_0_{opponent.Replace(' ', '_')}_game.log";
-
+            // Check logs for repeated "waiting for players" messages
+            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_Locutus_game.log";
+            var opponentLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{opponent.Replace(' ', '_')}_game.log";
             foreach (var line in GetNewLinesFromFile(myLogFilename).Concat(GetNewLinesFromFile(opponentLogFilename)))
             {
                 if (line == "waiting for players...")
                 {
-                    waitingForPlayersCount++;
+                    currentGame.WaitingForPlayersCount++;
+
+                    if (currentGame.WaitingForPlayersCount > 2)
+                    {
+                        Console.WriteLine("Killing game as it appears to have crashed");
+                        return true;
+                    }
                 }
                 else
                 {
-                    waitingForPlayersCount = 0;
-                }
-
-                if (!registeredResult)
-                {
-                    if (line == ":: Locutus was eliminated.")
-                    {
-                        registeredResult = true;
-                        losses++;
-                    }
-
-                    if (line == $":: {opponent} was eliminated.")
-                    {
-                        registeredResult = true;
-                        wins++;
-                    }
+                    currentGame.WaitingForPlayersCount = 0;
                 }
             }
 
-            return waitingForPlayersCount > 2;
+            // Kill if it has been 10 seconds since we got a result
+            if (currentGame.HaveResult && (DateTime.UtcNow - currentGame.ResultTimestamp).TotalSeconds > 10)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static IEnumerable<string> GetNewLinesFromFile(string path)
         {
-            if (!File.Exists(path))
+            var content = ReadFileContents(path);
+            if (string.IsNullOrEmpty(content))
             {
                 return new List<string>();
-            }
-
-            string content;
-            using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var textReader = new StreamReader(fileStream))
-            {
-                content = textReader.ReadToEnd();
             }
 
             string lastContent;
@@ -394,6 +430,30 @@
             LogCache[path] = content;
 
             return newLines;
+        }
+
+        private static string ReadFileContents(string path)
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            try
+            {
+                // This should allow us to read the file in most cases even if it is being written
+                using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var textReader = new StreamReader(fileStream))
+                {
+                    return textReader.ReadToEnd();
+                }
+            }
+            catch (Exception)
+            {
+                // We couldn't read the file for some reason, just ignore it for now
+            }
+
+            return null;
         }
 
         private static List<string> ShuffledMaps()
@@ -427,6 +487,34 @@
             {
                 Console.WriteLine("Failed to clear {0}: {1}", directory, exception.Message);
             }
+        }
+
+        private class GameData
+        {
+            public string Id { get; set; }
+
+            public int WaitingForPlayersCount { get; set; }
+
+            public bool HaveResult { get; set; }
+
+            public DateTime ResultTimestamp { get; set; }
+
+            public bool Won { get; set; }
+
+            public bool RenamedReplay { get; set; }
+
+            public string MyStrategy { get; set; }
+
+            public string OpponentStrategy { get; set; }
+        }
+
+        public class GameResult
+        {
+            [JsonProperty("is_winner")]
+            public bool IsWinner { get; set; }
+
+            [JsonProperty("is_crashed")]
+            public bool IsCrashed { get; set; }
         }
     }
 }
