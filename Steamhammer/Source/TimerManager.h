@@ -28,6 +28,8 @@ public:
 
 	void stopTimer(const TimerManager::Type t);
 
+    void log();
+
 	double getMilliseconds();      // for this frame
 	double getMaxMilliseconds();   // over all frames
 	double getMeanMilliseconds();  // over all frames

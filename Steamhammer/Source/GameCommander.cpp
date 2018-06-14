@@ -124,10 +124,9 @@ void GameCommander::update()
 
 	_timerManager.stopTimer(TimerManager::Total);
 
-	double time = _timerManager.getMilliseconds();
-	if (time > 85)
+	if (_timerManager.getMilliseconds() > 45)
 	{
-		Log().Get() << "Frame time: " << time;
+        _timerManager.log();
 	}
 
 	drawDebugInterface();

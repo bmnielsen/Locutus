@@ -57,6 +57,20 @@ double TimerManager::getMeanMilliseconds()
 	return _totalMilliseconds / _count;
 }
 
+void TimerManager::log()
+{
+    int longestTimer = Total;
+    double longestTime = 0;
+    for (int i = 1; i < NumTypes; i++)
+        if (_timers[i].getElapsedTimeInMilliSec() > longestTime)
+        {
+            longestTime = _timers[i].getElapsedTimeInMilliSec();
+            longestTimer = i;
+        }
+
+    Log().Get() << "Frame time: " << getMilliseconds() << "ms; longest " << _timerNames[longestTimer] << ": " << longestTime << "ms";
+}
+
 void TimerManager::displayTimers(int x, int y)
 {
     if (!Config::Debug::DrawModuleTimers)
