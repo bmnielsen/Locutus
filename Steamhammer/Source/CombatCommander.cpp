@@ -863,25 +863,14 @@ void CombatCommander::updateBaseDefenseSquads()
             // and return, nothing to defend here
             continue;
         }
-        else 
+
+        // Ensure squad exists
+        if (!_squadData.squadExists(squadName.str()))
         {
-            // By default we defend the center of the region
-            SquadOrder defendRegion(SquadOrderTypes::Defend, regionCenter, 32 * 25, "Defend region");
-
-            // If we are defending our natural and we have a wall, use a special order
-            if (myRegion == naturalRegion && BuildingPlacer::Instance().getWall().exists())
-            {
-                defendRegion = SquadOrder(
-                    SquadOrderTypes::HoldWall,
-                    BuildingPlacer::Instance().getWall().gapCenter,
-                    DefensivePositionRadius / 4,
-                    "Hold the wall");
-            }
-
-			if (!_squadData.squadExists(squadName.str()))
-				_squadData.addSquad(Squad(squadName.str(), defendRegion, BaseDefensePriority));
-			else
-				_squadData.getSquad(squadName.str()).setSquadOrder(defendRegion);
+            _squadData.addSquad(Squad(
+                squadName.str(), 
+                SquadOrder(SquadOrderTypes::Defend, regionCenter, 32 * 25, "Defend region"), 
+                BaseDefensePriority));
         }
 
 		int numEnemyFlyingInRegion = std::count_if(enemyUnitsInRegion.begin(), enemyUnitsInRegion.end(), [](BWAPI::Unit u) { return u->isFlying(); });
@@ -945,6 +934,7 @@ void CombatCommander::updateBaseDefenseSquads()
 		// Ignore bunkers; they're more complicated.
 		// Cannons are double-counted as air and ground, which can be a mistake.
 		bool sunkenDefender = false;
+        bool activeWallCannon = false;
 		for (const auto unit : BWAPI::Broodwar->self()->getUnits()) {
 			if ((unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
 				unit->getType() == BWAPI::UnitTypes::Zerg_Sunken_Colony) &&
@@ -957,6 +947,10 @@ void CombatCommander::updateBaseDefenseSquads()
 
                 // We assume the cannon will fulfill any detection needs
                 needsDetection = false;
+
+                // Flag if this cannon is part of our wall
+                if (BuildingPlacer::Instance().getWall().containsBuildingAt(unit->getTilePosition()))
+                    activeWallCannon = true;
 			}
 		}
 		groundDefendersNeeded = std::max(groundDefendersNeeded, 0);
@@ -1003,6 +997,28 @@ void CombatCommander::updateBaseDefenseSquads()
                     defenseSquad.removeUnit(unit);
                     break;
                 }
+        }
+
+        // Set the squad order
+
+        // If we are defending our natural and we have a wall with cannons, use a special order
+        if (myRegion == naturalRegion && activeWallCannon)
+        {
+            _squadData.getSquad(squadName.str()).setSquadOrder(SquadOrder(
+                SquadOrderTypes::HoldWall,
+                BuildingPlacer::Instance().getWall().gapCenter,
+                DefensivePositionRadius / 4,
+                "Hold the wall"));
+        }
+
+        // Otherwise defend the center of the region
+        else
+        {
+            _squadData.getSquad(squadName.str()).setSquadOrder(SquadOrder(
+                SquadOrderTypes::Defend, 
+                regionCenter, 
+                32 * 25, 
+                "Defend region"));
         }
     }
 
