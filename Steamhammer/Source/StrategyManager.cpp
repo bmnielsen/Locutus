@@ -307,15 +307,20 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 		bool canUpgradeBeyond1 = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0;
 
-		if (idleForges > 0 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons) && (
-			weaponsUps == 0 || (armorUps > 0 && weaponsUps < 3 && canUpgradeBeyond1)))
+		if (idleForges > 0 && 
+            !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons) &&
+            weaponsUps < 3 && 
+            (weaponsUps == 0 || canUpgradeBeyond1) &&
+            (weaponsUps == 0 || armorUps > 0 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor)))
 		{
 			goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Weapons, weaponsUps + 1));
 			idleForges--;
 		}
 
-		if (idleForges > 0 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor) && (
-			armorUps == 0 || (armorUps < 3 && canUpgradeBeyond1)))
+		if (idleForges > 0 &&
+            !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor) &&
+            armorUps < 3 &&
+            (armorUps == 0 || canUpgradeBeyond1))
 		{
 			goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Armor, armorUps + 1));
 			idleForges--;
@@ -1229,7 +1234,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         // Set wall cannon count vs. zerg depending on the enemy plan
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
             !CombatCommander::Instance().getAggression() &&
-            BuildingPlacer::Instance().getWall().exists())
+            BuildingPlacer::Instance().getWall().exists() &&
+            (BWAPI::Broodwar->getFrameCount() > 4000 || UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0))
         {
             int cannons = 0;
             int frame = BWAPI::Broodwar->getFrameCount();
