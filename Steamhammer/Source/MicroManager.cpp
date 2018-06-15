@@ -77,7 +77,9 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 	MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
 
 	// For some orders, add enemies which are near our units.
-	if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
+	if (order.getType() == SquadOrderTypes::Attack || 
+	    order.getType() == SquadOrderTypes::KamikazeAttack || 
+        order.getType() == SquadOrderTypes::Defend)
 	{
 		for (const auto unit : _units)
 		{
