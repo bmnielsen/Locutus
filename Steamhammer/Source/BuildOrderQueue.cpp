@@ -19,9 +19,9 @@ BuildOrderQueue::BuildOrderQueue()
 
 void BuildOrderQueue::clearAll() 
 {
-	queue.clear();
+    if (!queue.empty()) Log().Debug() << "Cleared build queue";
+    queue.clear();
 	modified = true;
-	Log().Debug() << "Cleared build queue";
 }
 
 // A special purpose queue modification.
