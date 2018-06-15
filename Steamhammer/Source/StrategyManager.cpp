@@ -1410,7 +1410,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // We don't count patches that are close to being mined out
     int mineralPatches = 0;
     for (auto & base : InformationManager::Instance().getMyBases())
-        for (auto & mineralPatch : base->getMinerals())
+        for (auto & mineralPatch : base->getStaticMinerals())
             if (mineralPatch->getResources() >= 50) mineralPatches++;
 
     // Count our probes
