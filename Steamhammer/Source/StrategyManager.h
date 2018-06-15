@@ -72,6 +72,7 @@ public:
 			void					handleUrgentProductionIssues(BuildOrderQueue & queue);
 			void					handleMacroProduction(BuildOrderQueue & queue);
 			void					freshProductionPlan();
+            double                  getGatewaySaturation() const;
 
 			bool					dropIsPlanned() const;
 			bool					hasDropTech();

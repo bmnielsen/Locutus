@@ -250,6 +250,7 @@ void ProductionManager::manageBuildOrderQueue()
 		}
 
 		// More BOSS workarounds:
+        // - don't build gates if the ones we have aren't in use
 		// - only build at most two gates at a time
 		// - cap of 3 gateways per nexus
 		// - cap of one forge per 3 nexus
@@ -261,7 +262,7 @@ void ProductionManager::manageBuildOrderQueue()
 			int robos = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Robotics_Facility);
 			int nexuses = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
 			if (currentItem.macroAct.isUnit() && (
-				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Gateway && (gates > nexuses * 3 || BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway) >= 2)) ||
+				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Gateway && (StrategyManager::Instance().getGatewaySaturation() < 0.76 || gates > nexuses * 3 || BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway) >= 2)) ||
 				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Forge && forges * 3 >= nexuses) ||
 				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Robotics_Facility && robos * 3 >= nexuses)))
 			{

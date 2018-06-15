@@ -158,6 +158,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 				idleForges++;
 		}
 
+    double gatewaySaturation = getGatewaySaturation();
+
 	// Look up whether we are already building various tech prerequisites
 	bool startedForge = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
@@ -250,8 +252,9 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		&& numDarkTemplar < 3)
 		buildDarkTemplar = true;
 
-	// Upgrade when we have at least two bases and a reasonable army size
-    upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) >= 10;
+	// Upgrade when we have at least two bases, a reasonable army size, and our gateways are busy
+    upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) >= 10 && 
+        ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.5);
 
 	// Build reavers when we have 2 or more bases
 	// Disabled until we can micro reavers better
@@ -1679,4 +1682,27 @@ bool StrategyManager::hasDropTech()
 	}
 
 	return false;
+}
+
+// Returns the percentage of our gateways that are currently training something
+double StrategyManager::getGatewaySaturation() const
+{
+    // Special case: if we are close to maxed, always count the gateways as busy
+    if (BWAPI::Broodwar->self()->supplyUsed() > 300) return 1.0;
+
+    // Look up capacity of various producers
+    int numGateways = 0;
+    int idleGateways = 0;
+    for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway 
+            && unit->isCompleted()
+            && unit->isPowered())
+        {
+            numGateways++;
+            if (unit->getRemainingTrainTime() < 48) idleGateways++;
+        }
+
+    if (numGateways == 0) return 1.0;
+
+    return (double)(numGateways - idleGateways) / (double)numGateways;
 }
