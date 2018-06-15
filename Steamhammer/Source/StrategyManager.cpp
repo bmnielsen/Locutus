@@ -904,18 +904,18 @@ bool IsInBuildingOrProductionQueue(BWAPI::TilePosition tile, BuildOrderQueue & q
     return false;
 }
 
-void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue, bool queueOneAtATime = false)
+int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue, bool queueOneAtATime = false)
 {
-    if (cannons <= 0 || !base) return;
+    if (cannons <= 0 || !base) return 0;
 
     // Get the BWEB Station for the base
     const BWEB::Station* station = bwebMap.getClosestStation(base->getTilePosition());
-    if (!station) return;
+    if (!station) return 0;
 
     // If we have anything in the building or production queue for the station's defensive locations, we've already handled this base
     for (auto tile : station->DefenseLocations())
     {
-        if (IsInBuildingOrProductionQueue(tile, queue)) return;
+        if (IsInBuildingOrProductionQueue(tile, queue)) return 0;
     }
 
     // Reduce desired cannons based on what we already have in the base
@@ -927,11 +927,11 @@ void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue
         {
             desiredCannons--;
         }
-    if (desiredCannons <= 0) return;
+    if (desiredCannons <= 0) return 0;
 
     // Ensure we have a forge
     QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
-    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return;
+    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return 0;
 
     // Collect the available defensive locations
     std::set<BWAPI::TilePosition> poweredAvailableLocations;
@@ -947,9 +947,10 @@ void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue
     }
 
     // If there are no available locations, we can't do anything
-    if (poweredAvailableLocations.empty() && unpoweredAvailableLocations.empty()) return;
+    if (poweredAvailableLocations.empty() && unpoweredAvailableLocations.empty()) return 0;
 
     // If there are not enough powered locations, build a pylon at the corner position
+    bool queuedPylon = false;
     if (poweredAvailableLocations.size() < desiredCannons)
     {
         // The corner position is the one that matches every position on either X or Y coordinate
@@ -980,6 +981,7 @@ void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue
             MacroAct pylon(BWAPI::UnitTypes::Protoss_Pylon);
             pylon.setReservedPosition(cornerTile);
             queue.queueAsHighestPriority(pylon);
+            queuedPylon = true;
 
             // Don't use this tile for a cannon
             poweredAvailableLocations.erase(cornerTile);
@@ -1005,6 +1007,8 @@ void EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue
 
     if (count > 0)
         queue.queueAsHighestPriority(m);
+
+    return count + (queuedPylon ? 1 : 0);
 }
 
 void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
@@ -1483,16 +1487,22 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     }
 
     // If we are safe and have a forge, make sure our bases are fortified
+    // This should not take priority over training units though, so make sure our gateways are busy first and don't queue too much at a time
     if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
-        safeToExpand && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
+        safeToExpand &&
+        UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
+        getGatewaySaturation() > 0.5)
     {
+        int totalQueued = 0;
+
         for (auto base : InformationManager::Instance().getMyBases())
         {
             if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
             if (base == InformationManager::Instance().getMyNaturalLocation() &&
                 BuildingPlacer::Instance().getWall().exists()) continue;
 
-            EnsureCannonsAtBase(base, 2, queue, true);
+            totalQueued += EnsureCannonsAtBase(base, 2, queue, true);
+            if (totalQueued > 2) break;
         }
     }
 }
