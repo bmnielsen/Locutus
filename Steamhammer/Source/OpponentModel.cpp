@@ -451,6 +451,7 @@ OpponentModel::OpponentModel()
 	, _singleStrategy(false)
 	, _initialExpectedEnemyPlan(OpeningPlan::Unknown)
 	, _expectedEnemyPlan(OpeningPlan::Unknown)
+	, _enemyCanFastRush(false)
 	, _recommendGasSteal(false)
 	, _worstCaseExpectedAirTech(INT_MAX)
 	, _worstCaseExpectedCloakTech(INT_MAX)
@@ -497,8 +498,27 @@ void OpponentModel::read()
 	considerOpenings();
 	considerGasSteal();
 
-	int count = 0;
+    // If the opponent has done a fast rush against us in the last 50 games, flag it
+    int count = 0;
+    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 50; it++)
+    {
+        if (!_gameRecord.sameMatchup(**it)) continue;
+
+        count++;
+
+        if ((*it)->getEnemyPlan() == OpeningPlan::FastRush) 
+        {
+            Log().Get() << "Enemy has done a fast rush in the last 20 games";
+            _enemyCanFastRush = true;
+            break;
+        }
+    }
+
+    // If we have no record of the opponent, assume they can do a fast rush
+    if (count == 0) _enemyCanFastRush = true;
+
 	// Look at the previous 3 games and store the earliest frame we saw air and cloak tech
+	count = 0;
 	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 3; it++)
 	{
 		if (!_gameRecord.sameMatchup(**it)) continue;
@@ -529,11 +549,6 @@ void OpponentModel::write()
 		if (outFile.bad())
 		{
 			return;
-		}
-
-		for (auto record : _pastGameRecords)
-		{
-			record->write(outFile);
 		}
 
 		// The number of initial game records to skip over without rewriting.

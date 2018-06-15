@@ -1307,12 +1307,16 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                 // We don't have scouting info
                 if (!ScoutManager::Instance().eyesOnEnemyBase())
                 {
-                    // Build two cannons initially to defend against an unanticipated fast rush
-                    // Build a third cannon later if we still don't have any scouting information to protect against heavier pressure
+                    // Build two cannons immediately if the opponent does fast rushes
+                    // Otherwise, scale cannons up gradually to protect against unscouted heavy pressure
                     if (frame > 5000)
                         cannons = 3;
-                    else
+                    else if (frame > 4000 || OpponentModel::Instance().enemyCanFastRush())
                         cannons = 2;
+                    else if (frame > 3000)
+                        cannons = 1;
+                    else
+                        cannons = 0;
                 }
 
                 // We have a scout in the enemy base
@@ -1321,14 +1325,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                     PlayerSnapshot snap;
                     snap.takeEnemy();
 
-                    // No cannons if the enemy can't create combat units
-                    if (!InformationManager::Instance().enemyCanProduceCombatUnits())
-                    {
-                        cannons = 0;
-                    }
-
                     // If the enemy is relatively low on workers, prepare for some heavy pressure
-                    else if (frame > 5000 && snap.getCount(BWAPI::UnitTypes::Zerg_Drone) < 11)
+                    if (frame > 5000 && snap.getCount(BWAPI::UnitTypes::Zerg_Drone) < 11)
                     {
                         if (frame > 6000)
                             cannons = 4;
@@ -1336,9 +1334,11 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                             cannons = 3;
                     }
 
-                    // Otherwise build two cannons to handle early ling pressure
-                    else
+                    // Otherwise scale up gradually to two cannons to handle early ling pressure
+                    else if (frame > 4000 && InformationManager::Instance().enemyCanProduceCombatUnits())
                         cannons = 2;
+                    else if (frame > 3000)
+                        cannons = 1;
                 }
             }
 

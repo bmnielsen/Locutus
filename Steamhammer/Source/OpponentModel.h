@@ -24,7 +24,8 @@ namespace UAlbertaBot
 		OpeningPlan _initialExpectedEnemyPlan;  // first predicted enemy plan, before play starts
 		OpeningPlan _expectedEnemyPlan;		    // in-game predicted enemy plan
 		// NOTE There is also an actual recognized enemy plan. It is kept in _planRecognizer.getPlan().
-		bool _recommendGasSteal;
+        bool _enemyCanFastRush;		            // Whether this opponent has recently done a fast rush against us
+        bool _recommendGasSteal;
 		std::string _recommendedOpening;
 
 		int _worstCaseExpectedAirTech;
@@ -60,6 +61,7 @@ namespace UAlbertaBot
 		OpeningPlan getExpectedEnemyPlan() const { return _expectedEnemyPlan; };
 		std::string getExpectedEnemyPlanString() const;
 		OpeningPlan getBestGuessEnemyPlan() const;
+        bool        enemyCanFastRush() const { return _enemyCanFastRush; };
 
 		std::map<std::string, double> getStrategyWeightFactors() const;
 
