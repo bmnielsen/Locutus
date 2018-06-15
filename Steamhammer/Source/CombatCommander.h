@@ -47,7 +47,8 @@ class CombatCommander
 
 	int             getNumType(BWAPI::Unitset & units, BWAPI::UnitType type);
 
-	BWAPI::Unit     findClosestDefender(const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullWorkers, bool preferRangedUnits);
+	BWAPI::Unit     findClosestDefender(
+        const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullCloseWorkers, bool pullDistantWorkers, bool preferRangedUnits);
     BWAPI::Unit     findClosestWorkerToTarget(BWAPI::Unitset & unitsToAssign, BWAPI::Unit target);
 
 	BWAPI::Position getDefendLocation();

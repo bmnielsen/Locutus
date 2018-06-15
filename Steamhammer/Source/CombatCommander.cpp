@@ -959,7 +959,7 @@ void CombatCommander::updateBaseDefenseSquads()
 		// Pulling workers (as implemented) can lead to big losses.
 		bool pullWorkers = !_goAggressive || (
 			Config::Micro::WorkersDefendRush &&
-			(!sunkenDefender && numZerglingsInOurBase() > 0 || buildingRush()));
+			(!sunkenDefender && numZerglingsInOurBase() > 0 || buildingRush() || groundDefendersNeeded < 4));
 
 		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, preferRangedUnits);
 
@@ -1081,17 +1081,20 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	// add flying defenders
 	BWAPI::Unit defenderToAdd;
 	while (flyingDefendersNeeded > flyingDefendersAdded &&
-		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false, false)))
+		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false, false, false)))
 	{
 		UAB_ASSERT(!defenderToAdd->getType().isWorker(), "flying worker defender");
 		_squadData.assignUnitToSquad(defenderToAdd, defenseSquad);
 		++flyingDefendersAdded;
 	}
 
+    // We pull distant workers only if we have less than 5 close workers
+    bool pullDistantWorkers = pullWorkers && workersInGroup < 5;
+
 	// add ground defenders if we still need them
     // We try to replace workers with combat units whenever possible (excess workers are removed in the next block)
 	while (groundDefendersNeeded > (groundDefendersAdded - workersInGroup) &&
-		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), false, pullWorkers, preferRangedUnits)))
+		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), false, pullWorkers, pullDistantWorkers, preferRangedUnits)))
 	{
 		if (defenderToAdd->getType().isWorker())
 		{
@@ -1102,6 +1105,10 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 
 			WorkerManager::Instance().setCombatWorker(defenderToAdd);
 			++groundDefendersAdded;
+
+            // Stop pulling distant workers after we've pulled 5
+            workersInGroup++;
+            if (workersInGroup >= 5) pullDistantWorkers = false;
 		}
 		else if (defenderToAdd->getType() == BWAPI::UnitTypes::Protoss_Zealot)
 			groundDefendersAdded += 4;
@@ -1125,7 +1132,8 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 }
 
 // Choose a defender to join the base defense squad.
-BWAPI::Unit CombatCommander::findClosestDefender(const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullWorkers, bool preferRangedUnits)
+BWAPI::Unit CombatCommander::findClosestDefender(
+    const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullCloseWorkers, bool pullDistantWorkers, bool preferRangedUnits)
 {
 	BWAPI::Unit closestDefender = nullptr;
 	int minDistance = 99999;
@@ -1155,9 +1163,8 @@ BWAPI::Unit CombatCommander::findClosestDefender(const Squad & defenseSquad, BWA
 		if (unit->getType().isWorker())
 		{
 			// Pull workers only if requested, and not from distant bases.
-			if (!pullWorkers || dist > 1000) continue;
-
-			if (dist < minWorkerDistance)
+            if (((pullCloseWorkers && dist < 200) ||
+                (pullDistantWorkers && dist < 1000)) && dist < minWorkerDistance)
 			{
 				closestWorker = unit;
 				minWorkerDistance = dist;
@@ -1172,8 +1179,8 @@ BWAPI::Unit CombatCommander::findClosestDefender(const Squad & defenseSquad, BWA
 		}
 	}
 
-	// Return a worker if it's all we have or if the nearest non-worker is more than 200 away
-	if (closestWorker && (!closestDefender || (minWorkerDistance < minDistance && minDistance > 200))) return closestWorker;
+	// Return a worker if it's all we have or if the nearest non-worker is more than 400 away
+	if (closestWorker && (!closestDefender || (minWorkerDistance < minDistance && minDistance > 400))) return closestWorker;
 	return closestDefender;
 }
 
