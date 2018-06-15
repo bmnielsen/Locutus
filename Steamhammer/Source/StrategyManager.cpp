@@ -1437,7 +1437,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
         {
             Log().Get() << "Expanding: " << mineralPatches << " active mineral patches, " << probes << " probes, " << UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) << " nexuses";
-            queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Nexus);
+            queue.queueAsLowestPriority(BWAPI::UnitTypes::Protoss_Nexus);
         }
     }
 
@@ -1452,7 +1452,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
                 idleNexus = true;
 
         if (idleNexus)
-            queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Probe);
+            queue.queueAsLowestPriority(BWAPI::UnitTypes::Protoss_Probe);
     }
 
     // If we are mining gas, make sure we've taken the geysers at our mining bases
@@ -1479,7 +1479,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
                 {
                     MacroAct m(BWAPI::UnitTypes::Protoss_Assimilator);
                     m.setReservedPosition(geyser->getTilePosition());
-                    queue.queueAsHighestPriority(m);
+                    queue.queueAsLowestPriority(m);
                     return;
                 }
             }
