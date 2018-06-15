@@ -477,7 +477,7 @@ void GameRecord::update()
 		{
 			frameEnemyGetsMobileAntiAir = now;
 		}
-		if (!frameEnemyGetsCloakedUnits && InformationManager::Instance().enemyHasCloakTech())
+		if (!frameEnemyGetsCloakedUnits && InformationManager::Instance().enemyHasCloakedCombatUnits())
 		{
 			frameEnemyGetsCloakedUnits = now;
 		}

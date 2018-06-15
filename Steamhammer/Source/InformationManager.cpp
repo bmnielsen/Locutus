@@ -23,6 +23,7 @@ InformationManager::InformationManager()
 	, _enemyHasAirTech(false)
 	, _enemyHasCloakTech(false)
 	, _enemyHasMobileCloakTech(false)
+	, _enemyHasCloakedCombatUnits(false)
 	, _enemyHasOverlordHunters(false)
 	, _enemyHasStaticDetection(false)
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
@@ -1549,13 +1550,40 @@ bool InformationManager::enemyHasMobileCloakTech()
 			ui.type == BWAPI::UnitTypes::Zerg_Lurker_Egg)
 		{
 			_enemyHasMobileCloakTech = true;
-			Log().Get() << "Detected enemy mobile cloak tech";
 			return true;
 		}
 	}
 
 	return false;
 }
+
+// Similar to enemyHasMobileCloakTech, but returns true a bit earlier to give us time to prepare
+// Meant to give us time to get observers vs. a dt protoss
+bool InformationManager::enemyHasCloakedCombatUnits()
+{
+    if (_enemyHasCloakedCombatUnits)
+    {
+        return true;
+    }
+
+    for (const auto & kv : getUnitData(_enemy).getUnits())
+    {
+        const UnitInfo & ui(kv.second);
+
+        if (ui.type.isCloakable() ||                                   // wraith, ghost
+            ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar ||
+            ui.type == BWAPI::UnitTypes::Zerg_Lurker ||
+            ui.type == BWAPI::UnitTypes::Zerg_Lurker_Egg)
+        {
+            Log().Get() << "Detected enemy cloaked combat unit";
+            _enemyHasCloakedCombatUnits = true;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 
 // Enemy has air units good for hunting down overlords.
 // A stargate counts, but not a fleet beacon or arbiter tribunal.

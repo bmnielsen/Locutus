@@ -28,6 +28,7 @@ namespace UAlbertaBot
 		std::string _recommendedOpening;
 
 		int _worstCaseExpectedAirTech;
+		int _worstCaseExpectedCloakTech;
 
 		OpeningPlan predictEnemyPlan() const;
 
@@ -66,6 +67,7 @@ namespace UAlbertaBot
 		const std::string & getRecommendedOpening() const { return _recommendedOpening; };
 
 		bool expectAirTechSoon();
+		bool expectCloakedCombatUnitsSoon();
 
 		static OpponentModel & Instance();
 	};

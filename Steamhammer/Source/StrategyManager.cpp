@@ -1109,13 +1109,22 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 		}
 
-		// If they have mobile cloaked units, get some detection.
-		if (InformationManager::Instance().enemyHasMobileCloakTech() && anyWorkers)
+		// If they have cloaked combat units, get some detection.
+        // The logic is:
+        // - If we have seen a cloaked combat unit, we definitely need detection
+        // - If our opponent model tells us they might soon get cloaked combat units, get
+        //   them unless we are currently scouting the enemy base and have seen no sign of cloak tech
+		if (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
+            (OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
+                !ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech())))
 		{
-			if (_selfRace == BWAPI::Races::Protoss)
+			if (_selfRace == BWAPI::Races::Protoss &&
+                UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
 			{
-				// Get mobile detection once we are out of our opening book
-				if (ProductionManager::Instance().isOutOfBook() && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
+				// Get mobile detection once we are out of our opening book or deep into it
+                // Earlier it messes up the build order too much, as it requires so much gas
+				if ((ProductionManager::Instance().isOutOfBook() || BWAPI::Broodwar->getFrameCount() > 6000) 
+                    && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
 				{
 					QueueUrgentItem(BWAPI::UnitTypes::Protoss_Observer, queue);
 				}
@@ -1127,16 +1136,17 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                 }
                 else
                 {
-                    // Otherwise, if we have taken our natural, make sure we have cannons there
+                    // Otherwise, put cannons at our most forward base
                     BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
                     if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
                     {
                         EnsureCannonsAtBase(natural, 2, queue);
                     }
+                    else
+                    {
+                        EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 2, queue);
+                    }
                 }
-
-                // Ensure the main has cannons
-                EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 2, queue);
 			}
 			else if (_selfRace == BWAPI::Races::Terran)
 			{

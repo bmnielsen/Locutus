@@ -453,6 +453,7 @@ OpponentModel::OpponentModel()
 	, _expectedEnemyPlan(OpeningPlan::Unknown)
 	, _recommendGasSteal(false)
 	, _worstCaseExpectedAirTech(INT_MAX)
+	, _worstCaseExpectedCloakTech(INT_MAX)
 {
 	_filename = "om_" + InformationManager::Instance().getEnemyName() + ".txt";
 }
@@ -496,8 +497,8 @@ void OpponentModel::read()
 	considerOpenings();
 	considerGasSteal();
 
-	// Look at the previous 3 games and store the earliest frame we saw air tech
 	int count = 0;
+	// Look at the previous 3 games and store the earliest frame we saw air and cloak tech
 	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 3; it++)
 	{
 		if (!_gameRecord.sameMatchup(**it)) continue;
@@ -507,9 +508,14 @@ void OpponentModel::read()
 		int airTech = (*it)->getAirTechFrame();
 		if (airTech > 0 && airTech < _worstCaseExpectedAirTech)
 			_worstCaseExpectedAirTech = airTech;
+
+        int cloakTech = (*it)->getCloakTechFrame();
+        if (cloakTech > 0 && cloakTech < _worstCaseExpectedCloakTech)
+            _worstCaseExpectedCloakTech = cloakTech;
 	}
 
 	if (_worstCaseExpectedAirTech != INT_MAX) Log().Get() << "Worst case expected air tech at frame " << _worstCaseExpectedAirTech;
+	if (_worstCaseExpectedCloakTech != INT_MAX) Log().Get() << "Worst case expected cloaked combat units at frame " << _worstCaseExpectedCloakTech;
 }
 
 // Write the game records to the opponent model file.
@@ -673,6 +679,15 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 bool OpponentModel::expectAirTechSoon()
 {
 	return _worstCaseExpectedAirTech < (BWAPI::Broodwar->getFrameCount() + BWAPI::UnitTypes::Protoss_Photon_Cannon.buildTime());
+}
+
+bool OpponentModel::expectCloakedCombatUnitsSoon()
+{
+	return _worstCaseExpectedCloakTech < (
+        BWAPI::Broodwar->getFrameCount() + 
+        BWAPI::UnitTypes::Protoss_Observer.buildTime() +
+        BWAPI::UnitTypes::Protoss_Observatory.buildTime() +
+        BWAPI::UnitTypes::Protoss_Robotics_Facility.buildTime());
 }
 
 OpponentModel & OpponentModel::Instance()

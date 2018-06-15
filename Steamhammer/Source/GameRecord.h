@@ -130,6 +130,7 @@ public:
 	int getFrameScoutSentForGasSteal() const { return frameScoutSentForGasSteal; };
 	bool getGasStealHappened() const { return gasStealHappened; };
 	int getAirTechFrame() const { return frameEnemyGetsAirUnits; };
+	int getCloakTechFrame() const { return frameEnemyGetsCloakedUnits; };
 
 	void debugLog();
 	static GameRecord & Instance();
