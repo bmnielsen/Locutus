@@ -781,8 +781,12 @@ void CombatCommander::updateBaseDefenseSquads()
         naturalRegion = BWTA::getRegion(naturalLocation->getPosition());
 	}
 
+    // Gather the regions we have bases in
+    std::set<BWTA::Region*> regionsWithBases;
+    for (auto & base : InformationManager::Instance().getMyBases())
+        regionsWithBases.insert(base->getRegion());
+
 	// for each of our occupied regions
-    auto & occupiedRegions = InformationManager::Instance().getOccupiedRegions(BWAPI::Broodwar->self());
 	for (BWTA::Region * myRegion : BWTA::getRegions())
 	{
         // don't defend inside the enemy region, this will end badly when we are stealing gas
@@ -800,8 +804,8 @@ void CombatCommander::updateBaseDefenseSquads()
         std::stringstream squadName;
         squadName << "Base Defense " << regionCenter.x << " " << regionCenter.y;
 
-        // If we aren't occupying the region, make sure we aren't defending it
-        if (occupiedRegions.find(myRegion) == occupiedRegions.end())
+        // If we don't have a base in the region, make sure we aren't defending it
+        if (regionsWithBases.find(myRegion) == regionsWithBases.end())
         {
             if (_squadData.squadExists(squadName.str()))
             {
@@ -954,6 +958,22 @@ void CombatCommander::updateBaseDefenseSquads()
 			}
 		}
 		groundDefendersNeeded = std::max(groundDefendersNeeded, 0);
+
+        // If it is hopeless to defend this base, don't bother, unless it is early
+        // in the game and the base is our main or natural
+        if (groundDefendersNeeded > 50 &&
+            (BWAPI::Broodwar->getFrameCount() > 14000 ||
+            (myRegion != mainRegion && myRegion != naturalRegion)))
+        {
+            // if a defense squad for this region exists, empty it
+            if (_squadData.squadExists(squadName.str()))
+            {
+                _squadData.getSquad(squadName.str()).clear();
+            }
+
+            // and return
+            continue;
+        }
 
 		// Pull workers only in narrow conditions.
 		// Pulling workers (as implemented) can lead to big losses.
