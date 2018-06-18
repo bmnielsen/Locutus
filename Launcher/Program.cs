@@ -48,6 +48,8 @@
 
         private static int losses;
 
+        private static int crashes;
+
         public static void Main(string[] args)
         {
             Go(args);
@@ -156,14 +158,15 @@
 
                     Run(trainingOpponent[0], map, true, false, timeout);
 
-                    // Output result if there was one
-                    if (currentGame.HaveResult)
+                    if (!currentGame.HaveResult)
                     {
-                        var result = currentGame.Won ? "win" : "loss";
-                        File.AppendAllText(outputFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.OpponentStrategy};{result}\n");
+                        crashes++;
                     }
 
-                    Console.WriteLine("Overall score is {0} wins {1} losses", wins, losses);
+                    var result = currentGame.HaveResult ? (currentGame.Won ? "win" : "loss") : "crash";
+                    File.AppendAllText(outputFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.OpponentStrategy};{result}\n");
+
+                    Console.WriteLine("Overall score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
                 }
             }
 
@@ -175,7 +178,13 @@
                 foreach (var map in shuffledMaps)
                 {
                     Run(opponent, map, isHeadless, false, timeout);
-                    Console.WriteLine("Score is {0} wins {1} losses", wins, losses);
+
+                    if (!currentGame.HaveResult)
+                    {
+                        crashes++;
+                    }
+
+                    Console.WriteLine("Score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
 
                     count++;
                     if (count >= limit) break;
