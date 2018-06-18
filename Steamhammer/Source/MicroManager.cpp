@@ -269,7 +269,7 @@ bool MicroManager::unitNearNarrowChokepoint(BWAPI::Unit unit) const
 {
 	for (BWTA::Chokepoint * choke : BWTA::getChokepoints())
 	{
-		if (choke->getWidth() < 96 &&
+		if (choke->getWidth() < 64 &&
             unit->getDistance(choke->getCenter()) < 64)
 		{
 			return true;

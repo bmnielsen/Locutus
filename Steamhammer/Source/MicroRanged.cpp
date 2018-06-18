@@ -3,6 +3,10 @@
 #include "UnitUtil.h"
 #include "BuildingPlacer.h"
 
+const double pi = 3.14159265358979323846;
+
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 // The unit's ranged ground weapon does splash damage, so it works under dark swarm.
@@ -259,7 +263,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
                 }
 				else if (Config::Micro::KiteWithRangedUnits)
 				{
-					Micro::KiteTarget(rangedUnit, target);
+					kite(rangedUnit, target);
 				}
 				else
 				{
@@ -673,4 +677,179 @@ bool MicroRanged::stayHomeUntilReady(const BWAPI::Unit u) const
 {
 	return
 		u->getType() == BWAPI::UnitTypes::Protoss_Carrier && u->getInterceptorCount() < 4;
+}
+
+void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
+{
+    double range(rangedUnit->getType().groundWeapon().maxRange());
+    if (rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
+    {
+        range = 6 * 32;
+    }
+    else if (rangedUnit->getType() == BWAPI::UnitTypes::Zerg_Hydralisk && BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Grooved_Spines))
+    {
+        range = 5 * 32;
+    }
+
+    // Check if we are blocking a ramp
+    bool blockingRamp = false;
+    for (BWTA::Chokepoint * choke : BWTA::getChokepoints())
+    {
+        if (choke->getWidth() < 64 &&
+            rangedUnit->getDistance(choke->getCenter()) < 64)
+        {
+            // We're close to a choke, find out if there are friendly units behind us
+
+            // Start by computing the angle of the choke
+            BWAPI::Position chokeDelta(choke->getSides().first, choke->getSides().second);
+            double chokeAngle = atan2(chokeDelta.y, chokeDelta.x);
+
+            // Now find points ahead and behind us with respect to the choke
+            // We'll find out which is which in a moment
+            BWAPI::Position first(
+                rangedUnit->getPosition().x - (int)std::round(64 * std::cos(chokeAngle + (pi / 2.0))),
+                rangedUnit->getPosition().y - (int)std::round(64 * std::sin(chokeAngle + (pi / 2.0))));
+            BWAPI::Position second(
+                rangedUnit->getPosition().x - (int)std::round(64 * std::cos(chokeAngle - (pi / 2.0))),
+                rangedUnit->getPosition().y - (int)std::round(64 * std::sin(chokeAngle - (pi / 2.0))));
+
+            // Find out which position is behind us
+            BWAPI::Position position = first;
+            if (target->getDistance(second) > target->getDistance(first))
+                position = second;
+
+            // Now check how many friendly units are close to it
+            int friendlies = 0;
+            for (auto & unit : getUnits())
+            {
+                if (unit == rangedUnit) continue;
+                if (unit->getDistance(position) < 64)
+                {
+                    friendlies++;
+                    break;
+                }
+            }
+
+            blockingRamp = friendlies >= 2;
+
+            break;
+        }
+    }
+
+    // Move towards the target if:
+    // - it is a sieged tank
+    // - we are blocking a ramp
+    if (rangedUnit->getGroundWeaponCooldown() > 0 &&
+        (blockingRamp ||
+            target->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode))
+    {
+        if (rangedUnit->getDistance(target) > 48)
+        {
+            Micro::Move(rangedUnit, target->getPosition());
+        }
+        else
+        {
+            Micro::AttackUnit(rangedUnit, target);
+        }
+
+        return;
+    }
+
+    bool kite(true);
+
+    // Don't kite if the enemy's range is at least as long as ours.
+    // NOTE Assumes that the enemy does not have range upgrades, and only checks ground range.
+    // Also, if the target can't attack back, then don't kite.
+    if (range <= target->getType().groundWeapon().maxRange() ||
+        !UnitUtil::CanAttack(target, rangedUnit))
+    {
+        kite = false;
+    }
+
+    // Kite if we're not ready yet: Wait for the weapon.
+    double dist(rangedUnit->getDistance(target));
+    double speed(rangedUnit->getType().topSpeed());
+    double timeToEnter = 0.0;                      // time to reach firing range
+    if (speed > .00001)                            // don't even visit the same city as division by zero
+    {
+        timeToEnter = std::max(0.0, dist - range) / speed;
+    }
+    if (timeToEnter >= rangedUnit->getGroundWeaponCooldown() ||
+        target->getType().isBuilding())
+    {
+        kite = false;
+    }
+
+    // Don't kite if the enemy is moving away from us
+    if (kite)
+    {
+        BWAPI::Position predictedPosition = InformationManager::Instance().predictUnitPosition(target, 1);
+        if (predictedPosition.isValid() && rangedUnit->getDistance(predictedPosition) > rangedUnit->getDistance(target->getPosition()))
+        {
+            kite = false;
+        }
+    }
+
+    if (!kite)
+    {
+        Micro::AttackUnit(rangedUnit, target);
+        return;
+    }
+
+    // Determine the position to move towards
+    // Criteria:
+    // - Walkable and not blocked by a building
+    // - TODO: Not blocking other friendly units from moving into firing position
+    // - TODO: Generally moving us away from nearby enemy units
+    // - TODO: Far from enemy static defense
+
+    // Distance we want to move away from our current position
+    double distance = 32.0;
+    if (speed > 0.1) distance = rangedUnit->getGroundWeaponCooldown() * speed;
+
+    // Our current angle relative to the target
+    BWAPI::Position delta(target->getPosition() - rangedUnit->getPosition());
+    double angleToTarget = atan2(delta.y, delta.x);
+
+    // Score moving at a variety of angles
+    double bestScore = DBL_MAX;
+    BWAPI::Position bestPosition = BWAPI::Positions::Invalid;
+
+    for (int i = -3; i <= 3; i++)
+    {
+        double a = angleToTarget + (i * pi / 6);
+
+        BWAPI::Position position(
+            rangedUnit->getPosition().x - (int)std::round(distance * std::cos(a)),
+            rangedUnit->getPosition().y - (int)std::round(distance * std::sin(a)));
+
+        // Valid and walkable
+        if (!position.isValid() ||
+            !BWAPI::WalkPosition(position).isValid() ||
+            !BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(position)))
+        {
+            continue;
+        }
+
+        // Not blocked by a building
+        if (bwebMap.usedTiles.find(BWAPI::TilePosition(position)) != bwebMap.usedTiles.end())
+        {
+            continue;
+        }
+
+        // Score
+        // TODO: Add more metrics
+        double score = std::abs(a - angleToTarget);
+
+        if (score < bestScore)
+        {
+            bestScore = score;
+            bestPosition = position;
+        }
+    }
+
+    if (bestPosition.isValid())
+    {
+        Micro::Move(rangedUnit, bestPosition);
+    }
 }

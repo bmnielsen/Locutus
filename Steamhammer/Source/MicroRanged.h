@@ -13,6 +13,8 @@ private:
 	// Ranged ground weapon does splash damage, so it works under dark swarm.
 	bool goodUnderDarkSwarm(BWAPI::UnitType type);
 
+    void kite(BWAPI::Unit rangedUnit, BWAPI::Unit target);
+
 public:
 
 	MicroRanged();
