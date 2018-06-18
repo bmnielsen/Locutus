@@ -334,7 +334,7 @@ void InformationManager::updateBaseLocationInfo()
 
 		for (BWTA::BaseLocation * startLocation : BWTA::getStartLocations()) 
 		{
-			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()))) 
+			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()), true)) 
 			{
 				updateOccupiedRegions(BWTA::getRegion(startLocation->getTilePosition()), _enemy);
 
@@ -623,7 +623,7 @@ void InformationManager::updateBullets()
     }
 }
 
-bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region) 
+bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries) 
 {
 	// invalid regions aren't considered the same, but they will both be null
 	if (!region)
@@ -634,6 +634,9 @@ bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region)
 	for (const auto & kv : _unitData[_enemy].getUnits())
 	{
 		const UnitInfo & ui(kv.second);
+
+        if (ignoreRefineries && ui.type.isRefinery()) continue;
+
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
 			if (BWTA::getRegion(BWAPI::TilePosition(ui.lastPosition)) == region) 

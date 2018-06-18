@@ -358,7 +358,7 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 			score += 0.02 * base->gas();
 		}
 		// Big penalty for enemy buildings in the same region.
-		if (InformationManager::Instance().isEnemyBuildingInRegion(base->getRegion()))
+		if (InformationManager::Instance().isEnemyBuildingInRegion(base->getRegion(), false))
 		{
 			score -= 100.0;
 		}
