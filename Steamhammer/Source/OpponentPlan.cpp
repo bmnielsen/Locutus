@@ -122,14 +122,12 @@ void OpponentPlan::recognize()
 	snap.takeEnemy();
 
 	// Recognize fast rushes.
-	// TODO consider distance and speed: when might units have been produced?
-	//      as it stands, 4 pool is unrecognized half the time because lings are seen too late
-	if (frame < 1600 && snap.getCount(BWAPI::UnitTypes::Zerg_Spawning_Pool) > 0 ||
-		frame < 3200 && snap.getCount(BWAPI::UnitTypes::Zerg_Zergling) > 0 ||
-		frame < 1750 && snap.getCount(BWAPI::UnitTypes::Protoss_Gateway) > 0 ||
-		frame < 3300 && snap.getCount(BWAPI::UnitTypes::Protoss_Zealot) > 0 ||
-		frame < 1400 && snap.getCount(BWAPI::UnitTypes::Terran_Barracks) > 0 ||
-		frame < 3000 && snap.getCount(BWAPI::UnitTypes::Terran_Marine) > 0)
+	if (snap.getFrame(BWAPI::UnitTypes::Zerg_Spawning_Pool) < 1600 ||
+		snap.getFrame(BWAPI::UnitTypes::Zerg_Zergling) < 3200 ||
+		snap.getFrame(BWAPI::UnitTypes::Protoss_Gateway) < 1750 ||
+		snap.getFrame(BWAPI::UnitTypes::Protoss_Zealot) < 3300 ||
+		snap.getFrame(BWAPI::UnitTypes::Terran_Barracks) < 1400 ||
+		snap.getFrame(BWAPI::UnitTypes::Terran_Marine) < 3000)
 	{
 		_openingPlan = OpeningPlan::FastRush;
 		_planIsFixed = true;

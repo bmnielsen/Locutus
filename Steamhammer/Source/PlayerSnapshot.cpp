@@ -4,6 +4,8 @@
 #include "InformationManager.h"
 #include "UnitUtil.h"
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 // Is this unit type to be excluded from the game record?
@@ -68,10 +70,59 @@ void PlayerSnapshot::takeEnemy()
 	{
 		const UnitInfo & ui(kv.second);
 
-		if ((ui.completed || ui.type.isBuilding()) && !excludeType(ui.type))
-		{
-			++unitCounts[ui.type];
-		}
+        if (excludeType(ui.type)) continue;
+        if (!ui.type.isBuilding() && !ui.completed) continue;
+
+        int startFrame = 0;
+
+        if (ui.type.isBuilding())
+        {
+            ++unitCounts[ui.type];
+
+            startFrame = (ui.completed ? BWAPI::Broodwar->getFrameCount() : ui.estimatedCompletionFrame) - ui.type.buildTime();
+        }
+        else if (ui.completed)
+        {
+            ++unitCounts[ui.type];
+
+            // For rush units, estimate when they were likely completed
+            if (ui.type == BWAPI::UnitTypes::Zerg_Zergling ||
+                ui.type == BWAPI::UnitTypes::Terran_Marine ||
+                ui.type == BWAPI::UnitTypes::Protoss_Zealot)
+            {
+                // If we haven't found the enemy base yet, assume the unit came from the closest starting location to it
+                auto enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
+                if (!enemyBase)
+                {
+                    int minDistance = INT_MAX;
+                    for (BWTA::BaseLocation * base : BWTA::getStartLocations())
+                    {
+                        if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
+
+                        int dist = ui.lastPosition.getApproxDistance(base->getPosition());
+                        if (dist < minDistance)
+                        {
+                            minDistance = dist;
+                            enemyBase = base;
+                        }
+                    }
+                }
+
+                int distanceToMove;
+                bwemMap.GetPath(ui.lastPosition, enemyBase->getPosition(), &distanceToMove);
+                int framesToMove = std::floor(((double)distanceToMove / ui.type.topSpeed()) * 1.1);
+
+                startFrame = BWAPI::Broodwar->getFrameCount() - framesToMove;
+            }
+        }
+
+        if (startFrame > 0)
+        {
+            if (unitFrame.find(ui.type) == unitFrame.end())
+                unitFrame[ui.type] = startFrame;
+            else
+                unitFrame[ui.type] = std::min(unitFrame[ui.type], startFrame);
+        }
 	}
 }
 
@@ -81,6 +132,16 @@ int PlayerSnapshot::getCount(BWAPI::UnitType type) const
 	if (it == unitCounts.end())
 	{
 		return 0;
+	}
+	return it->second;
+}
+
+int PlayerSnapshot::getFrame(BWAPI::UnitType type) const
+{
+	auto it = unitFrame.find(type);
+	if (it == unitFrame.end())
+	{
+		return INT_MAX;
 	}
 	return it->second;
 }
