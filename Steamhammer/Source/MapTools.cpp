@@ -1,7 +1,9 @@
 #include "MapTools.h"
 
+#include "Bases.h"
 #include "BuildingPlacer.h"
 #include "InformationManager.h"
+#include "The.h"
 
 using namespace UAlbertaBot;
 
@@ -12,6 +14,7 @@ MapTools & MapTools::Instance()
 }
 
 MapTools::MapTools()
+	: the(The::Root())
 {
 	// Figure out which tiles are walkable and buildable.
 	setBWAPIMapData();
@@ -148,19 +151,19 @@ int MapTools::getGroundTileDistance(BWAPI::TilePosition origin, BWAPI::TilePosit
 	auto it = _allMaps.find(destination);
 	if (it != _allMaps.end())
 	{
-		return (*it).second.getDistance(origin);
+		return (*it).second.at(origin);
 	}
 
 	// It's symmetrical. A distance map to the origin is just as good.
 	it = _allMaps.find(origin);
 	if (it != _allMaps.end())
 	{
-		return (*it).second.getDistance(destination);
+		return (*it).second.at(destination);
 	}
 
 	// Make a new map for this destination.
-	_allMaps.insert(std::pair<BWAPI::TilePosition, DistanceMap>(destination, DistanceMap(destination)));
-	return _allMaps[destination].getDistance(origin);
+	_allMaps.insert(std::pair<BWAPI::TilePosition, GridDistances>(destination, GridDistances(destination)));
+	return _allMaps[destination].at(origin);
 }
 
 int MapTools::getGroundTileDistance(BWAPI::Position origin, BWAPI::Position destination)
@@ -221,7 +224,7 @@ bool MapTools::isBuildable(BWAPI::TilePosition tile, BWAPI::UnitType type) const
 	return true;
 }
 
-void MapTools::drawHomeDistanceMap()
+void MapTools::drawHomeDistances()
 {
 	if (!Config::Debug::DrawMapDistances)
 	{
@@ -229,13 +232,13 @@ void MapTools::drawHomeDistanceMap()
 	}
 
 	BWAPI::TilePosition homePosition = BWAPI::Broodwar->self()->getStartLocation();
-	DistanceMap d(homePosition, false);
+	GridDistances d(homePosition, true);
 
     for (int x = 0; x < BWAPI::Broodwar->mapWidth(); ++x)
     {
         for (int y = 0; y < BWAPI::Broodwar->mapHeight(); ++y)
         {
-			int dist = d.getDistance(x, y);
+			int dist = d.at(x, y);
 			char color = dist == -1 ? orange : white;
 
 			BWAPI::Position pos(BWAPI::TilePosition(x, y));
@@ -249,7 +252,7 @@ void MapTools::drawHomeDistanceMap()
     }
 }
 
-BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
+Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 {
 	UAB_ASSERT(wantMinerals || wantGas, "unwanted expansion");
 
@@ -258,38 +261,30 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 	BWAPI::Player enemy = BWAPI::Broodwar->enemy();
 
 	// We'll go through the bases and pick the one with the best score.
-	BWTA::BaseLocation * bestBase = nullptr;
+	Base * bestBase = nullptr;
 	double bestScore = -999999.0;
 	
-	BWAPI::TilePosition homeTile = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
+	BWAPI::TilePosition homeTile = Bases::Instance().myStartingBase()->getTilePosition();
 	BWAPI::Position myBasePosition(homeTile);
 	BWTA::BaseLocation * enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();  // may be null
 
-    for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+    for (Base * base : Bases::Instance().getBases())
     {
-		double score = 0.0;
+		// Don't expand to an existing base, or a reserved base.
+		if (base->getOwner() != BWAPI::Broodwar->neutral() || base->isReserved())
+		{
+			continue;
+		}
 
-        // Do we demand a gas base?
-		if (wantGas && (base->isMineralOnly() || base->gas() == 0))
+		// Do we demand a gas base?
+		if (wantGas && base->getInitialGas() == 0)
 		{
 			continue;
 		}
 
 		// Do we demand a mineral base?
 		// The constant is an arbitrary limit "enough minerals to be worth it".
-		if (wantMinerals && base->minerals() < 500)
-		{
-			continue;
-		}
-
-		// Don't expand to an existing base.
-		if (InformationManager::Instance().getBaseOwner(base) != BWAPI::Broodwar->neutral())
-		{
-			continue;
-		}
-        
-		// Don't expand to a base already reserved for another expansion.
-		if (InformationManager::Instance().isBaseReserved(base))
+		if (wantMinerals && base->getInitialMinerals() < 500)
 		{
 			continue;
 		}
@@ -301,7 +296,7 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
         {
 			for (int y = 0; y < player->getRace().getCenter().tileHeight(); ++y)
             {
-				if (BuildingPlacer::Instance().isReserved(x,y))
+				if (BuildingPlacer::Instance().isReserved(tile.x + x, tile.y + y))
 				{
 					// This happens if we were already planning to expand here. Try somewhere else.
 					buildingInTheWay = true;
@@ -319,19 +314,37 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
                 }
             }
         }
-            
+
         if (buildingInTheWay)
         {
             continue;
         }
 
-        // Want to be close to our own base (unless this is to be a hidden base).
+		double score = 0.0;
+
+		// NOTE Ground distances are computed at tile resolution, which is coarser than the walking
+		// resolution. When a map has narrow chokes, two connected points may appear unconnected
+		// by ground, meaning their distance is returned as -1. Map partitions are computed at walk
+		// resolution, and we use those to decide whether a base is reachable. That can also be wrong
+		// if the widest path between the points is too narrow for a worker. But it works for all
+		// maps I have tried.
+		// Anyway, if we get ground distance -1, we check connectivity and switch to air distance
+		// as a backup.
+
+		// Want to be close to our own base (unless this is to be a hidden base).
 		double distanceFromUs = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), myBasePosition);
 
-        // if it is not connected, continue
+        // If it is not connected by ground, skip this potential base.
 		if (distanceFromUs < 0)
         {
-            continue;
+			if (the.partitions.id(tile) == the.partitions.id(myBasePosition))
+			{
+				distanceFromUs = myBasePosition.getDistance(BWAPI::Position(tile));
+			}
+			else
+			{
+				continue;
+			}
         }
 
 		// Want to be far from the enemy base.
@@ -339,9 +352,17 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 		if (enemyBase) {
 			BWAPI::TilePosition enemyTile = enemyBase->getTilePosition();
 			distanceFromEnemy = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), BWAPI::Position(enemyTile));
-			if (distanceFromEnemy < 0)        // no ground connection between the locations
+			if (distanceFromEnemy < 0)
 			{
-				distanceFromEnemy = 0.0;
+				// No ground distance found, so again substitute air distance.
+				if (the.partitions.id(tile) == the.partitions.id(enemyTile))
+				{
+					distanceFromEnemy = enemyTile.getDistance(tile);
+				}
+				else
+				{
+					distanceFromEnemy = 0.0;
+				}
 			}
 		}
 
@@ -351,17 +372,20 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 		// More resources -> better.
 		if (wantMinerals)
 		{
-			score += 0.01 * base->minerals();
+			score += 0.01 * base->getInitialMinerals();
 		}
 		if (wantGas)
 		{
-			score += 0.02 * base->gas();
+			score += 0.02 * base->getInitialGas();
 		}
+
+		/* TODO our map analysis does not provide regions (yet)
 		// Big penalty for enemy buildings in the same region.
 		if (InformationManager::Instance().isEnemyBuildingInRegion(base->getRegion()))
 		{
 			score -= 100.0;
 		}
+		*/
 
 		// BWAPI::Broodwar->printf("base score %d, %d -> %f",  tile.x, tile.y, score);
 		if (score > bestScore)
@@ -385,7 +409,7 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 
 BWAPI::TilePosition MapTools::getNextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 {
-	BWTA::BaseLocation * base = nextExpansion(hidden, wantMinerals, wantGas);
+	Base * base = nextExpansion(hidden, wantMinerals, wantGas);
 	if (base)
 	{
 		// BWAPI::Broodwar->printf("foresee base @ %d, %d", base->getTilePosition().x, base->getTilePosition().y);
@@ -396,11 +420,11 @@ BWAPI::TilePosition MapTools::getNextExpansion(bool hidden, bool wantMinerals, b
 
 BWAPI::TilePosition MapTools::reserveNextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 {
-	BWTA::BaseLocation * base = nextExpansion(hidden, wantMinerals, wantGas);
+	Base * base = nextExpansion(hidden, wantMinerals, wantGas);
 	if (base)
 	{
 		// BWAPI::Broodwar->printf("reserve base @ %d, %d", base->getTilePosition().x, base->getTilePosition().y);
-		InformationManager::Instance().reserveBase(base);
+		base->reserve();
 		return base->getTilePosition();
 	}
 	return BWAPI::TilePositions::None;

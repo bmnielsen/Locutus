@@ -1,17 +1,26 @@
+#include "InformationManager.h"
+#include "Micro.h"
 #include "MicroMelee.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
-// Note: Melee units are ground units only. Scourge is a "ranged" unit.
+// NOTE Melee units are ground units only. Scourge is treated as a ranged unit.
 
-MicroMelee::MicroMelee() 
+MicroMelee::MicroMelee()
 { 
 }
 
 void MicroMelee::executeMicro(const BWAPI::Unitset & targets) 
 {
-	assignTargets(targets);
+	if (order.getType() == SquadOrderTypes::DestroyNeutral)
+	{
+		destroyNeutralTargets(targets);
+	}
+	else
+	{
+		assignTargets(targets);
+	}
 }
 
 void MicroMelee::assignTargets(const BWAPI::Unitset & targets)

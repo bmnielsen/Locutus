@@ -1,5 +1,5 @@
-#include "Common.h"
 #include "BuildingManager.h"
+#include "MapTools.h"
 #include "Micro.h"
 #include "ProductionManager.h"
 #include "ScoutManager.h"
@@ -38,10 +38,12 @@ bool BuildingManager::buildingTimedOut(const Building & b) const
 // STEP 1: DO BOOK KEEPING ON BUILDINGS WHICH MAY HAVE DIED OR TIMED OUT
 void BuildingManager::validateWorkersAndBuildings()
 {
-    std::vector<Building> toRemove;
+	// The purpose of this vector is to avoid changing the list of buildings
+	// while we are in the midst of iterating through it.
+    std::vector< std::reference_wrapper<Building> > toRemove;
     
-    // find any buildings which have become obsolete
-    for (auto & b : _buildings)
+    // Find and remove any buildings which have failed construction and should be deleted.
+    for (Building & b : _buildings)
     {
 		if (buildingTimedOut(b) &&
 			ProductionManager::Instance().isOutOfBook() &&
@@ -84,8 +86,16 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 
 		// BWAPI::Broodwar->printf("Assigning Worker To: %s", b.type.getName().c_str());
 
-        BWAPI::TilePosition testLocation = getBuildingLocation(b);
-        if (!testLocation.isValid())
+		if (b.buildersSent > 0 && b.type == BWAPI::UnitTypes::Zerg_Hatchery && b.macroLocation != MacroLocation::Macro)
+		{
+			// This is a zerg expansion which failed--we sent a builder and it never built.
+			// The builder was most likely killed along the way.
+			// Assume that we need more production and change it to a macro hatchery.
+			b.macroLocation = MacroLocation::Macro;
+		}
+		
+		BWAPI::TilePosition testLocation = getBuildingLocation(b);
+		if (!testLocation.isValid())
         {
 			// The building could not be placed (or was placed incorrectly due to a bug, which should not happen).
 			// Recognize the case where protoss building placement is stalled for lack of space.
@@ -118,7 +128,7 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 // STEP 3: ISSUE CONSTRUCTION ORDERS TO ASSIGNED BUILDINGS AS NEEDED
 void BuildingManager::constructAssignedBuildings()
 {
-    for (auto & b : _buildings)
+    for (Building & b : _buildings)
     {
         if (b.status != BuildingStatus::Assigned)
         {
@@ -130,7 +140,8 @@ void BuildingManager::constructAssignedBuildings()
 			!b.builderUnit->exists() && b.type != BWAPI::UnitTypes::Zerg_Extractor)
 		{
 			// NOTE A zerg drone builderUnit no longer exists() after starting an extractor.
-			//      Other zerg buildings behave differently.
+			//      The geyser unit changes into the building, the drone vanishes.
+			//      For other zerg buildings, the drone changes into the building.
 			releaseBuilderUnit(b);
 
 			// BWAPI::Broodwar->printf("b.builderUnit gone, b.type = %s", b.type.getName().c_str());
@@ -176,7 +187,7 @@ void BuildingManager::constructAssignedBuildings()
 void BuildingManager::checkForStartedConstruction()
 {
     // for each building unit which is being constructed
-    for (const auto buildingStarted : BWAPI::Broodwar->self()->getUnits())
+    for (const BWAPI::Unit buildingStarted : BWAPI::Broodwar->self()->getUnits())
     {
         // filter out units which aren't buildings under construction
         if (!buildingStarted->getType().isBuilding() || !buildingStarted->isBeingConstructed())
@@ -185,7 +196,7 @@ void BuildingManager::checkForStartedConstruction()
         }
 
         // check all our building status objects to see if we have a match and if we do, update it
-        for (auto & b : _buildings)
+        for (Building & b : _buildings)
         {
             if (b.status != BuildingStatus::Assigned)
             {
@@ -207,7 +218,7 @@ void BuildingManager::checkForStartedConstruction()
 				// Terran builders are dealt with after the building finishes.
                 if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg)
                 {
-					// If we are zerg, the builderUnit no longest exists.
+					// If we are zerg, the builderUnit no longest exists as such.
 					// If the building later gets canceled, a new drone will "mysteriously" appear.
 					b.builderUnit = nullptr;
 					// There's no drone to release, but we still want to let the ScoutManager know
@@ -224,7 +235,8 @@ void BuildingManager::checkForStartedConstruction()
 
                 BuildingPlacer::Instance().freeTiles(b.finalPosition,b.type.tileWidth(),b.type.tileHeight());
 
-                // only one building will match
+                // Only one Building will match.
+				// We keep running the outer loop to look for more buildings starting construction.
                 break;
             }
         }
@@ -239,7 +251,7 @@ void BuildingManager::checkForDeadTerranBuilders()
 		return;
 	}
 
-	for (auto & b : _buildings)
+	for (Building & b : _buildings)
 	{
 		if (b.status != BuildingStatus::UnderConstruction)
 		{
@@ -265,10 +277,10 @@ void BuildingManager::checkForDeadTerranBuilders()
 // Zerg and protoss can't do that.
 void BuildingManager::checkForCompletedBuildings()
 {
-    std::vector<Building> toRemove;
+	std::vector< std::reference_wrapper<Building> > toRemove;
 
     // for each of our buildings under construction
-    for (auto & b : _buildings)
+    for (Building & b : _buildings)
     {
         if (b.status != BuildingStatus::UnderConstruction)
         {
@@ -311,16 +323,16 @@ void BuildingManager::checkForCompletedBuildings()
     removeBuildings(toRemove);
 }
 
-// Error check: A bug in placing hatcheries can cause resources to be reserved and
-// never released.
-// We correct the values as a workaround, since the underlying bug has not been found.
+// Error check: Bugs could cause resources to be reserved and never released.
+// We correct the values as a workaround.
+// Currently there are no known bugs causing this.
 void BuildingManager::checkReservedResources()
 {
 	// Check for errors.
 	int minerals = 0;
 	int gas = 0;
 
-	for (auto & b : _buildings)
+	for (Building & b : _buildings)
 	{
 		if (b.status == BuildingStatus::Assigned || b.status == BuildingStatus::Unassigned)
 		{
@@ -331,6 +343,7 @@ void BuildingManager::checkReservedResources()
 
 	if (minerals != _reservedMinerals || gas != _reservedGas)
 	{
+		// This message should ideally never happen. If it does, we correct the error and carry on.
 		BWAPI::Broodwar->printf("reserves wrong: %d %d should be %d %d", _reservedMinerals, _reservedGas, minerals, gas);
 		_reservedMinerals = minerals;
 		_reservedGas = gas;
@@ -437,7 +450,7 @@ int BuildingManager::getReservedGas() const
 // In the building queue with any status.
 bool BuildingManager::isBeingBuilt(BWAPI::UnitType type) const
 {
-	for (const auto & b : _buildings)
+	for (const Building & b : _buildings)
 	{
 		if (b.type == type)
 		{
@@ -453,7 +466,7 @@ size_t BuildingManager::getNumUnstarted() const
 {
 	size_t count = 0;
 
-	for (const auto & b : _buildings)
+	for (const Building & b : _buildings)
 	{
 		if (b.status != BuildingStatus::UnderConstruction)
 		{
@@ -469,7 +482,7 @@ size_t BuildingManager::getNumUnstarted(BWAPI::UnitType type) const
 {
 	size_t count = 0;
 
-	for (const auto & b : _buildings)
+	for (const Building & b : _buildings)
 	{
 		if (b.type == type && b.status != BuildingStatus::UnderConstruction)
 		{
@@ -482,7 +495,7 @@ size_t BuildingManager::getNumUnstarted(BWAPI::UnitType type) const
 
 bool BuildingManager::isGasStealInQueue() const
 {
-	for (const auto & b : _buildings)
+	for (const Building & b : _buildings)
 	{
 		if (b.isGasSteal)
 		{
@@ -510,7 +523,7 @@ void BuildingManager::drawBuildingInformation(int x, int y)
 
     int yspace = 0;
 
-	for (const auto & b : _buildings)
+	for (const Building & b : _buildings)
     {
         if (b.status == BuildingStatus::Unassigned)
         {
@@ -561,7 +574,7 @@ std::vector<BWAPI::UnitType> BuildingManager::buildingsQueued()
 {
     std::vector<BWAPI::UnitType> buildingsQueued;
 
-    for (const auto & b : _buildings)
+	for (const Building & b : _buildings)
     {
         if (b.status == BuildingStatus::Unassigned || b.status == BuildingStatus::Assigned)
         {
@@ -574,20 +587,24 @@ std::vector<BWAPI::UnitType> BuildingManager::buildingsQueued()
 
 // Cancel a given building when possible.
 // Used as part of the extractor trick or in an emergency.
-// NOTE CombatCommander::cancelDyingBuildings() can also cancel buildings, including
+// NOTE CombatCommander::cancelDyingItems() can also cancel buildings, including
 //      morphing zerg structures which the BuildingManager does not handle.
 void BuildingManager::cancelBuilding(Building & b)
 {
+	std::vector< std::reference_wrapper<Building> > toRemove;
+
 	if (b.status == BuildingStatus::Unassigned)
 	{
-		undoBuildings({ b });
+		toRemove.push_back(b);
+		undoBuildings(toRemove);
 	}
 	else if (b.status == BuildingStatus::Assigned)
 	{
 		releaseBuilderUnit(b);
 		b.builderUnit = nullptr;
 		BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
-		undoBuildings({ b });
+		toRemove.push_back(b);
+		undoBuildings(toRemove);
 	}
 	else if (b.status == BuildingStatus::UnderConstruction)
 	{
@@ -596,7 +613,8 @@ void BuildingManager::cancelBuilding(Building & b)
 			b.buildingUnit->cancelConstruction();
 			BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
 		}
-		undoBuildings({ b });
+		toRemove.push_back(b);
+		undoBuildings(toRemove);
 	}
 	else
 	{
@@ -607,24 +625,38 @@ void BuildingManager::cancelBuilding(Building & b)
 // It's an emergency. Cancel all buildings which are not yet started.
 void BuildingManager::cancelQueuedBuildings()
 {
+	std::vector< std::reference_wrapper<Building> > toCancel;
+
 	for (Building & b : _buildings)
 	{
 		if (b.status == BuildingStatus::Unassigned || b.status == BuildingStatus::Assigned)
 		{
-			cancelBuilding(b);
+			toCancel.push_back(b);
 		}
+	}
+
+	for (Building & b : toCancel)
+	{
+		cancelBuilding(b);
 	}
 }
 
 // It's an emergency. Cancel all buildings of a given type.
 void BuildingManager::cancelBuildingType(BWAPI::UnitType t)
 {
+	std::vector< std::reference_wrapper<Building> > toCancel;
+
 	for (Building & b : _buildings)
 	{
 		if (b.type == t)
 		{
-			cancelBuilding(b);
+			toCancel.push_back(b);
 		}
+	}
+
+	for (Building & b : toCancel)
+	{
+		cancelBuilding(b);
 	}
 }
 
@@ -634,8 +666,8 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	if (b.isGasSteal)
     {
         BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
-        UAB_ASSERT(enemyBaseLocation,"Should find enemy base before gas steal");
-        UAB_ASSERT(enemyBaseLocation->getGeysers().size() > 0,"Should have spotted an enemy geyser");
+        UAB_ASSERT(enemyBaseLocation, "Should find enemy base before gas steal");
+        UAB_ASSERT(enemyBaseLocation->getGeysers().size() > 0, "Should have spotted an enemy geyser");
 
         for (const auto geyser : enemyBaseLocation->getGeysers())
         {
@@ -673,7 +705,7 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 		b.type == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
 		b.type == BWAPI::UnitTypes::Zerg_Creep_Colony)
 	{
-		// Pack defenses tightly together.
+		// Pack defenses tightly together. Turrets are an exception.
 		distance = 0;
 	}
 	else if (b.type == BWAPI::UnitTypes::Protoss_Pylon)
@@ -694,11 +726,11 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	return BuildingPlacer::Instance().getBuildLocationNear(b, distance);
 }
 
-// The building failed or is canceled.
+// The buildings failed or were canceled.
 // Undo any connections with other data structures, then delete.
-void BuildingManager::undoBuildings(const std::vector<Building> & toRemove)
+void BuildingManager::undoBuildings(const std::vector< std::reference_wrapper<Building> > & toRemove)
 {
-	for (const Building & b : toRemove)
+	for (Building & b : toRemove)
 	{
 		// If the building was to establish a base, unreserve the base location.
 		if (b.type.isResourceDepot() && b.macroLocation != MacroLocation::Macro && b.finalPosition.isValid())
@@ -722,32 +754,29 @@ void BuildingManager::undoBuildings(const std::vector<Building> & toRemove)
 		{
 			b.buildingUnit->cancelConstruction();
 		}
-
-		// Release the worker, if necessary.
-		releaseBuilderUnit(b);
 	}
 
 	removeBuildings(toRemove);
 }
 
 // Remove buildings from the list of buildings--nothing more, nothing less.
-void BuildingManager::removeBuildings(const std::vector<Building> & toRemove)
+void BuildingManager::removeBuildings(const std::vector< std::reference_wrapper<Building> > & toRemove)
 {
-    for (auto & b : toRemove)
+    for (Building & b : toRemove)
     {
 		auto & it = std::find(_buildings.begin(), _buildings.end(), b);
 
-        if (it != _buildings.end())
-        {
-            _buildings.erase(it);
-        }
-    }
+		if (it != _buildings.end())
+		{
+			_buildings.erase(it);
+		}
+	}
 }
 
 // Buildings of this type are stalled and can't be built yet.
 // They are protoss buildings that require pylon power, and can be built after
 // a pylon finishes and provides powered space.
-bool BuildingManager::typeIsStalled(BWAPI::UnitType type)
+bool BuildingManager::typeIsStalled(BWAPI::UnitType type) const
 {
 	return _stalledForLackOfSpace && UnitUtil::NeedsPylonPower(type);
 }

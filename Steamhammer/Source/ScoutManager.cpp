@@ -1,5 +1,7 @@
 #include "ScoutManager.h"
 
+#include "MapTools.h"
+#include "Micro.h"
 #include "OpponentModel.h"
 #include "ProductionManager.h"
 
@@ -163,9 +165,16 @@ void ScoutManager::update()
     // Calculate waypoints around the enemy base if we expect to need them.
 	// We use these to go directly to the enemy base if its location is known,
 	// as well as to run circuits around it.
-    if (_workerScout && _enemyRegionVertices.empty())
+	if (_workerScout && _enemyRegionVertices.empty() && InformationManager::Instance().getEnemyMainBaseLocation())
 	{
         calculateEnemyRegionVertices();
+
+		// It's possible for BWTA to fail and give us no region.
+		// Workaround for now: Give up on worker scouting.
+		if (_enemyRegionVertices.empty())
+		{
+			releaseWorkerScout();
+		}
     }
 
 	// Do the actual scouting. Also steal gas if called for.
@@ -608,8 +617,6 @@ int ScoutManager::getClosestVertexIndex(BWAPI::Unit unit)
 
 BWAPI::Position ScoutManager::getFleePosition()
 {
-    UAB_ASSERT_WARNING(!_enemyRegionVertices.empty(), "should have enemy region vertices");
-    
     BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
 
     // if this is the first flee, we will not have a previous perimeter index
@@ -661,6 +668,7 @@ void ScoutManager::calculateEnemyRegionVertices()
 
     if (!enemyRegion)
     {
+		BWAPI::Broodwar->printf("enemy base but no enemy region");
         return;
     }
 

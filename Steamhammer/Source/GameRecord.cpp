@@ -593,7 +593,7 @@ void GameRecord::debugLog()
 	}
 	msg  << '\n';
 
-	Logger::LogAppendToFile(Config::Debug::ErrorLogFilename, msg.str());
+	Logger::LogAppendToFile(Config::IO::ErrorLogFilename, msg.str());
 }
 
 // The game records have the same matchup, as best we can tell so far.

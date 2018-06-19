@@ -1,10 +1,11 @@
 #pragma once;
 
-#include <Common.h>
 #include "MicroManager.h"
 
 namespace UAlbertaBot
 {
+class MicroManager;
+
 class MicroAirToAir : public MicroManager
 {
 public:

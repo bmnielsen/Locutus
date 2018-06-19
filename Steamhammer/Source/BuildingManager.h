@@ -3,8 +3,6 @@
 #include "WorkerManager.h"
 #include "BuildingPlacer.h"
 #include "InformationManager.h"
-#include "MacroAct.h"
-#include "MapTools.h"
 
 namespace UAlbertaBot
 {
@@ -20,8 +18,8 @@ class BuildingManager
 	bool			_stalledForLackOfSpace;			// no valid location to place a protoss building
 
     bool            isBuildingPositionExplored(const Building & b) const;
-	void			undoBuildings(const std::vector<Building> & toRemove);
-    void            removeBuildings(const std::vector<Building> & toRemove);
+	void			undoBuildings(const std::vector< std::reference_wrapper<Building> > &toRemove);
+	void            removeBuildings(const std::vector< std::reference_wrapper<Building> > & toRemove);
 
     void            validateWorkersAndBuildings();		    // STEP 1
     void            assignWorkersToUnassignedBuildings();	// STEP 2
@@ -67,7 +65,7 @@ public:
 	void				cancelQueuedBuildings();
 	void				cancelBuildingType(BWAPI::UnitType t);
 
-	bool				typeIsStalled(BWAPI::UnitType type);
+	bool				typeIsStalled(BWAPI::UnitType type) const;
 };
 
 }

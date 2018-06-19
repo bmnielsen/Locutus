@@ -1,6 +1,6 @@
 #include "Common.h"
 #include "BuildingPlacer.h"
-#include "MapGrid.h"
+#include "InformationManager.h"
 #include "MapTools.h"
 
 using namespace UAlbertaBot;

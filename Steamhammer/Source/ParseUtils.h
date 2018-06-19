@@ -27,6 +27,11 @@ namespace ParseUtils
 		const rapidjson::Value * strategyCombos
 	);
 
+	bool _MeetsRequirements(
+		const std::string & itemName,
+		const rapidjson::Value * strategyCombos
+	);
+
     bool GetBoolFromString(const std::string & str);
 	int GetIntByRace(const char * name, const rapidjson::Value & item);
 	double GetDoubleByRace(const char * name, const rapidjson::Value & item);

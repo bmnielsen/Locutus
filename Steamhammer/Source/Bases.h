@@ -6,6 +6,7 @@
 
 namespace UAlbertaBot
 {
+	class The;
 
 	class PotentialBase
 	{
@@ -29,26 +30,26 @@ namespace UAlbertaBot
 	class Bases
 	{
 	private:
-		std::vector<Base *> bases;
-		std::vector<BWAPI::Unit> smallMinerals;        // too small to be worth mining
+		The & the;
 
-		// TODO debug data structures
+		std::vector<Base *> bases;
+		std::vector<Base *> startingBases;			// starting locations
+		Base * startingBase;
+		std::vector<BWAPI::Unit> smallMinerals;		// patches too small to be worth mining
+
+		bool islandStart;
+		std::map<BWAPI::Unit, Base *> baseBlockers;	// neutral building to destroy -> base it belongs to
+
+		// Debug data structures. Not used for any other purpose, can be deleted with their uses.
 		std::vector<BWAPI::Unitset> nonbases;
 		std::vector<PotentialBase> potentialBases;
 
-		// These numbers are in tiles.
-		const int BaseResourceRange = 22;   // max distance of one resource from another
-		const int BasePositionRange = 15;   // max distance of the base location from the start point
-		const int DepotTileWidth = 4;
-		const int DepotTileHeight = 3;
-
-		// Each base much meet at least one of these minimum limits to be worth keeping.
-		const int MinTotalMinerals = 500;
-		const int MinTotalGas = 500;
-
 		Bases();
 
-		void removeUsedResources(BWAPI::Unitset & resources, const Base & base) const;
+		bool checkIslandMap() const;
+		void rememberBaseBlockers();
+
+		void removeUsedResources(BWAPI::Unitset & resources, const Base * base) const;
 		void countResources(BWAPI::Unit resource, int & minerals, int & gas) const;
 		BWAPI::TilePosition findBasePosition(BWAPI::Unitset resources);
 		int baseLocationScore(const BWAPI::TilePosition & tile, BWAPI::Unitset resources) const;
@@ -64,9 +65,18 @@ namespace UAlbertaBot
 		void initialize();
 		void drawBaseInfo() const;
 
+		bool isIslandStart() const { return islandStart; };
+
+		Base * myStartingBase() const { return startingBase; };
+		bool connectedToStart(const BWAPI::Position & pos) const;
+		bool connectedToStart(const BWAPI::TilePosition & tile) const;
+
 		Base * getBaseAtTilePosition(BWAPI::TilePosition pos);
 		const std::vector<Base *> & getBases() { return bases; };
+		const std::vector<Base *> & getStartingBases() { return startingBases; };
 		const std::vector<BWAPI::Unit> & getSmallMinerals() { return smallMinerals; };
+
+		void clearNeutral(BWAPI::Unit unit);
 
 		static Bases & Instance();
 	};

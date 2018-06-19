@@ -1,3 +1,5 @@
+#include "InformationManager.h"
+#include "Micro.h"
 #include "MicroRanged.h"
 #include "UnitUtil.h"
 
@@ -290,8 +292,14 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 			return 10;
 		}
 
+		// Carriers next.
+		if (targetType == BWAPI::UnitTypes::Protoss_Carrier)
+		{
+			return 9;
+		}
+
 		// Everything else is the same. Hit whatever's closest.
-		return 9;
+		return 8;
 	}
 
 	if (rangedType == BWAPI::UnitTypes::Zerg_Guardian && target->isFlying())
@@ -300,7 +308,7 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 0;
 	}
 
-	// A carrier should not target an enemy interceptor.
+	// A carrier should not target an enemy interceptor. It's too hard to hit.
 	if (rangedType == BWAPI::UnitTypes::Protoss_Carrier && targetType == BWAPI::UnitTypes::Protoss_Interceptor)
 	{
 		return 0;
@@ -352,20 +360,28 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	}
 
 	// Wraiths, scouts, and goliaths strongly prefer air targets because they do more damage to air units.
-	if (rangedUnit->getType() == BWAPI::UnitTypes::Terran_Wraith ||
-		rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Scout)
+	if (rangedType == BWAPI::UnitTypes::Terran_Wraith ||
+		rangedType == BWAPI::UnitTypes::Protoss_Scout)
 	{
 		if (target->getType().isFlyer())    // air units, not floating buildings
 		{
 			return 11;
 		}
 	}
-	else if (rangedUnit->getType() == BWAPI::UnitTypes::Terran_Goliath)
+	else if (rangedType == BWAPI::UnitTypes::Terran_Goliath)
 	{
-		if (target->getType().isFlyer())    // air units, not floating buildings
+		if (targetType.isFlyer())    // air units, not floating buildings
 		{
 			return 10;
 		}
+	}
+
+	// Failing, that, give higher priority to air units hitting tanks.
+	// Not quite as high a priority as hitting reavers or high templar, though.
+	if (rangedType.isFlyer() &&
+		(targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode || targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode))
+	{
+		return 10;
 	}
 
 	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar)

@@ -4,18 +4,22 @@
 #include <vector>
 
 #include "Common.h"
-#include "DistanceMap.h"
+#include "GridDistances.h"
 
 // Keep track of map information, like what tiles are walkable or buildable.
 
 namespace UAlbertaBot
 {
+class The;
+class Base;
 
 class MapTools
 {
+	The & the;
+
 	const size_t allMapsSize = 40;			// store this many distance maps in _allMaps
 
-	std::map<BWAPI::TilePosition, DistanceMap>
+	std::map<BWAPI::TilePosition, GridDistances>
 						_allMaps;			// a cache of already computed distance maps
 	std::vector< std::vector<bool> >
 						_terrainWalkable;	// walkable considering terrain only
@@ -27,15 +31,15 @@ class MapTools
 						_depotBuildable;
 	bool				_hasIslandBases;
 
-    MapTools();
-
     void				setBWAPIMapData();					// reads in the map data from bwapi and stores it in our map format
 
-	BWTA::BaseLocation *nextExpansion(bool hidden, bool wantMinerals, bool wantGas);
+	Base *				nextExpansion(bool hidden, bool wantMinerals, bool wantGas);
 
 public:
 
-    static MapTools &	Instance();
+	MapTools();
+
+	static MapTools &	Instance();
 
 	int		getGroundTileDistance(BWAPI::TilePosition from, BWAPI::TilePosition to);
 	int		getGroundTileDistance(BWAPI::Position from, BWAPI::Position to);
@@ -52,7 +56,7 @@ public:
 	const std::vector<BWAPI::TilePosition> & getClosestTilesTo(BWAPI::TilePosition pos);
 	const std::vector<BWAPI::TilePosition> & getClosestTilesTo(BWAPI::Position pos);
 
-	void	drawHomeDistanceMap();
+	void	drawHomeDistances();
 
 	BWAPI::TilePosition	getNextExpansion(bool hidden, bool wantMinerals, bool wantGas);
 	BWAPI::TilePosition	reserveNextExpansion(bool hidden, bool wantMinerals, bool wantGas);

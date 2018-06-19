@@ -283,7 +283,6 @@ void ProductionManager::manageBuildOrderQueue()
 		if (BWAPI::Broodwar->getFrameCount() > _lastProductionFrame + Config::Macro::ProductionJamFrameLimit)
 		{
 			// Looks very like a jam. Clear the queue and hope for better luck next time.
-			// BWAPI::Broodwar->printf("breaking a production jam");
 			goOutOfBookAndClearQueue();
 		}
 
@@ -817,7 +816,7 @@ void ProductionManager::drawProductionInformation(int x, int y)
 
 	// fill prod with each unit which is under construction
 	std::vector<BWAPI::Unit> prod;
-	for (const auto & unit : BWAPI::Broodwar->self()->getUnits())
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
         UAB_ASSERT(unit != nullptr, "Unit was null");
 

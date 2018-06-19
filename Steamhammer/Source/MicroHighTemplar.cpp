@@ -1,3 +1,6 @@
+#include "InformationManager.h"
+#include "Micro.h"
+#include "MicroManager.h"
 #include "MicroHighTemplar.h"
 #include "UnitUtil.h"
 

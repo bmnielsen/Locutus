@@ -5,11 +5,13 @@
 #include "SquadData.h"
 #include "InformationManager.h"
 #include "StrategyManager.h"
+#include "The.h"
 
 namespace UAlbertaBot
 {
 class CombatCommander
 {
+	The &			the;
 	SquadData       _squadData;
     BWAPI::Unitset  _combatUnits;
     bool            _initialized;
@@ -48,6 +50,7 @@ class CombatCommander
 	BWAPI::Position getDefendLocation();
 	void			chooseReconTarget();
 	BWAPI::Position getReconLocation() const;
+	SquadOrder		getAttackOrder(const Squad * squad);
 	BWAPI::Position getAttackLocation(const Squad * squad);
 	BWAPI::Position getDropLocation(const Squad & squad);
 	BWAPI::Position	getDefenseLocation();

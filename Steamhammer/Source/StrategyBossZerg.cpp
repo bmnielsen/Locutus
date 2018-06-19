@@ -172,6 +172,7 @@ void StrategyBossZerg::updateGameState()
 	hasUltraUps = _self->getUpgradeLevel(BWAPI::UpgradeTypes::Anabolic_Synthesis) != 0 &&
 		(_self->getUpgradeLevel(BWAPI::UpgradeTypes::Chitinous_Plating) != 0 ||
 		_self->isUpgrading(BWAPI::UpgradeTypes::Chitinous_Plating));
+	hasNydus = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Nydus_Canal) > 0;
 
 	// hasLair means "can research stuff in the lair", like overlord speed.
 	// hasLairTech means "can do stuff that needs lair", like research lurker aspect.
@@ -182,13 +183,16 @@ void StrategyBossZerg::updateGameState()
 	hasLair = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Zerg_Lair) > 0;
 	hasLairTech = hasLair || nHives > 0;
 	
+	// If we start on an island, we go air until we have nydus canals.
+	goingIslandAir = Bases::Instance().isIslandStart() && !hasNydus;
+	
 	outOfBook = ProductionManager::Instance().isOutOfBook();
 	nBases = InformationManager::Instance().getNumBases(_self);
 	nFreeBases = InformationManager::Instance().getNumFreeLandBases();
 	nMineralPatches = InformationManager::Instance().getMyNumMineralPatches();
 	maxDrones = WorkerManager::Instance().getMaxWorkers();
 
-	// Exception: If we have lost all our hatcheries, make up to 2 drones,
+	// Exception: If we have lost all our hatcheries, allow up to 2 drones,
 	// one to build and one to mine. (Also the creep may disappear and we'll lose larvas.)
 	if (nHatches == 0)
 	{
@@ -558,18 +562,23 @@ bool StrategyBossZerg::nextInQueueIsUseless(BuildOrderQueue & queue) const
 
 void StrategyBossZerg::produce(const MacroAct & act)
 {
-	_latestBuildOrder.add(act);
-
 	// To restrict economy bookkeeping to cases that use a larva, try
 	//  && act.whatBuilds() == BWAPI::UnitTypes::Zerg_Larva
 	if (act.isUnit())
 	{
-		++_economyTotal;
 		if (act.getUnitType() == BWAPI::UnitTypes::Zerg_Drone)
 		{
+			// If we should not make any more drones, then drop this one. Produce nothing.
+			if (nDrones >= maxDrones)
+			{
+				return;
+			}
 			++_economyDrones;
 		}
+		++_economyTotal;
 	}
+
+	_latestBuildOrder.add(act);
 }
 
 // Make a drone instead of a combat unit with this larva?
@@ -593,6 +602,7 @@ BWAPI::UnitType StrategyBossZerg::findUnitType(BWAPI::UnitType type) const
 		return BWAPI::UnitTypes::Zerg_Drone;
 	}
 
+	// The base unit of a morphed unit.
 	if (type == BWAPI::UnitTypes::Zerg_Lurker && nHydras == 0)
 	{
 		return BWAPI::UnitTypes::Zerg_Hydralisk;
@@ -1586,17 +1596,16 @@ void StrategyBossZerg::vProtossTechScores(const PlayerSnapshot & snap)
 			if (type.isFlyer())
 			{
 				// Enemy air units.
-				techScores[int(TechUnit::Devourers)] += count * type.supplyRequired();
 				if (type == BWAPI::UnitTypes::Protoss_Corsair || type == BWAPI::UnitTypes::Protoss_Scout)
 				{
 					techScores[int(TechUnit::Mutalisks)] -= count * type.supplyRequired() + 2;
 					techScores[int(TechUnit::Guardians)] -= count * (type.supplyRequired() + 1);
-					techScores[int(TechUnit::Devourers)] += count * type.supplyRequired();
+					techScores[int(TechUnit::Devourers)] += 2 * count * type.supplyRequired() + 4;
 				}
 				else if (type == BWAPI::UnitTypes::Protoss_Carrier)
 				{
 					techScores[int(TechUnit::Guardians)] -= count * type.supplyRequired() + 2;
-					techScores[int(TechUnit::Devourers)] += count * 6;
+					techScores[int(TechUnit::Devourers)] += count * type.supplyRequired();
 				}
 			}
 			else
@@ -1953,7 +1962,7 @@ void StrategyBossZerg::chooseTechTarget()
 	// It can also happen against protoss.
 	if (techScores[int(TechUnit::Zerglings)] <= 0 &&
 		techScores[int(TechUnit::Hydralisks)] > 0 &&
-		!hasDen &&
+		!hasDen && !goingIslandAir &&
 		nLairs + nHives == 0)                           // no lair (or hive) started yet
 	{
 		_techTarget = TechUnit::Hydralisks;
@@ -2014,6 +2023,14 @@ void StrategyBossZerg::chooseTechTarget()
 		}
 	}
 
+	// Fourth: On an island map, go all air until nydus canals are established.
+	if (goingIslandAir)
+	{
+		targetTaken[int(TechUnit::Hydralisks)] = true;
+		targetTaken[int(TechUnit::Lurkers)] = true;
+		targetTaken[int(TechUnit::Ultralisks)] = true;
+	}
+
 	// Default. Value at the start of the game and after all tech is taken.
 	_techTarget = TechUnit::None;
 
@@ -2060,12 +2077,28 @@ void StrategyBossZerg::chooseUnitMix()
 	std::array<bool, int(TechUnit::Size)> available;
 	setAvailableTechUnits(available);
 	
+	// If we're on an island map, go all air until nydus canals are established.
+	// Ground units are "not available".
+	if (goingIslandAir)
+	{
+		// Zerglings are OK only if we have all the drones we need.
+		if (nDrones < maxDrones)
+		{
+			available[int(TechUnit::Zerglings)] = false;
+		}
+		available[int(TechUnit::Hydralisks)] = false;
+		available[int(TechUnit::Lurkers)] = false;
+		available[int(TechUnit::Ultralisks)] = false;
+	}
+
 	// Find the best available unit to be the main unit of the mix.
+	// Special case: If we're going air, zerglings cannot be the best.
+	// Other ground units are excluded above by calling them unavailable.
 	TechUnit bestUnit = TechUnit::None;
 	int techScore = -99999;
 	for (int i = int(TechUnit::None); i < int(TechUnit::Size); ++i)
 	{
-		if (available[i] && techScores[i] > techScore)
+		if (available[i] && techScores[i] > techScore && (!goingIslandAir || !hasSpire || TechUnit(i) != TechUnit::Zerglings))
 		{
 			bestUnit = TechUnit(i);
 			techScore = techScores[i];
@@ -2077,6 +2110,7 @@ void StrategyBossZerg::chooseUnitMix()
 	BWAPI::UnitType gasUnit = BWAPI::UnitTypes::None;
 
 	// bestUnit is one unit of the mix. The other we fill in as reasonable.
+	// If we're going air, the bestUnit cannot be zerglings. Those are only for defense.
 	if (bestUnit == TechUnit::Zerglings)
 	{
 		if (hasPool)
@@ -2122,7 +2156,7 @@ void StrategyBossZerg::chooseUnitMix()
 		{
 			minUnit = BWAPI::UnitTypes::Zerg_Hydralisk;
 		}
-		else if (hasPool)
+		else if (hasPool && available[int(TechUnit::Zerglings)])
 		{
 			minUnit = BWAPI::UnitTypes::Zerg_Zergling;
 		}
@@ -2140,7 +2174,7 @@ void StrategyBossZerg::chooseUnitMix()
 		{
 			minUnit = BWAPI::UnitTypes::Zerg_Hydralisk;
 		}
-		else if (hasPool)
+		else if (hasPool && available[int(TechUnit::Zerglings)])
 		{
 			minUnit = BWAPI::UnitTypes::Zerg_Zergling;
 		}
@@ -2156,7 +2190,7 @@ void StrategyBossZerg::chooseUnitMix()
 		{
 			minUnit = BWAPI::UnitTypes::Zerg_Hydralisk;
 		}
-		else if (hasPool)
+		else if (hasPool && available[int(TechUnit::Zerglings)])
 		{
 			minUnit = BWAPI::UnitTypes::Zerg_Zergling;
 		}
@@ -2313,12 +2347,11 @@ void StrategyBossZerg::produceUnits(int & mineralsLeft, int & gasLeft)
 		gasLeft -= auxType.gasPrice();
 	}
 
-	// If we have resources left, make units too.
+	// If we have resources left, make units.
 	// Substitute in drones according to _economyRatio (findUnitType() does this).
-	// NOTE Gas usage above in the code is not counted at all.
 	if (_gasUnit == BWAPI::UnitTypes::None ||
 		gas < _gasUnit.gasPrice() ||
-		double(UnitUtil::GetAllUnitCount(_mineralUnit)) / double(UnitUtil::GetAllUnitCount(_gasUnit)) < 0.2 ||
+		double(numMineralUnits) / double(numGasUnits) < 0.2 ||
 		_gasUnit == BWAPI::UnitTypes::Zerg_Devourer && nDevourers >= maxDevourers)
 	{
 		// Only the mineral unit.
@@ -2518,6 +2551,8 @@ void StrategyBossZerg::produceOtherStuff(int & mineralsLeft, int & gasLeft, bool
 		hasEnoughUnits &&
 		hasHiveTech && hasSpire && !hasGreaterSpire && nGas >= 2 && nDrones >= 15 &&
 		(!_emergencyGroundDefense || gasLeft >= 75) &&
+		!_self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Flyer_Carapace) &&
+		!_self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Flyer_Attacks) &&
 		UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Greater_Spire) == 0)
 	{
 		produce(BWAPI::UnitTypes::Zerg_Greater_Spire);
@@ -2701,13 +2736,15 @@ void StrategyBossZerg::produceOtherStuff(int & mineralsLeft, int & gasLeft, bool
 
 	// Prepare an evo chamber or two.
 	// Terran doesn't want the first evo until after den or spire.
-	if (hasPool && nGas > 0 && !_emergencyGroundDefense &&
+	// On islands, we go air so get only 1 evo and get it later.
+	if (hasPool && nGas > 0 &&
 		!_emergencyGroundDefense && hasEnoughUnits &&
 		nEvo == UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Evolution_Chamber) &&     // none under construction
 		!isBeingBuilt(BWAPI::UnitTypes::Zerg_Evolution_Chamber))
 	{
 		if (nEvo == 0 && nDrones >= 18 && (_enemyRace != BWAPI::Races::Terran || hasDen || hasSpire || hasUltra) ||
-			nEvo == 1 && nDrones >= 30 && nGas >= 2 && (hasDen || hasSpire || hasUltra) && _self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Carapace))
+			nEvo == 1 && nDrones >= 30 && nGas >= 2 && (hasDen || hasSpire || hasUltra) && _self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Carapace) ||
+			nEvo == 0 && nDrones >= 30 && nGas > 0 && hasLairTech && Bases::Instance().isIslandStart())
 		{
 			produce(BWAPI::UnitTypes::Zerg_Evolution_Chamber);
 			mineralsLeft -= 75;
@@ -2715,10 +2752,12 @@ void StrategyBossZerg::produceOtherStuff(int & mineralsLeft, int & gasLeft, bool
 	}
 
 	// If we're in reasonable shape, get carapace upgrades.
+	// On islands, we go air so don't get ground upgrades before hive.
 	// Coordinate upgrades with the nextInQueueIsUseless() check.
 	if (nEvo > 0 && nDrones >= 12 && nGas > 0 &&
 		hasPool &&
 		!_emergencyGroundDefense && hasEnoughUnits &&
+		(!Bases::Instance().isIslandStart() || hasHiveTech) &&
 		!_self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Carapace))
 	{
 		if (armorUps == 0 ||
@@ -2730,7 +2769,7 @@ void StrategyBossZerg::produceOtherStuff(int & mineralsLeft, int & gasLeft, bool
 			{
 				produce(BWAPI::UpgradeTypes::Zerg_Carapace);
 				mineralsLeft -= 150;     // TODO not correct for upgrades 2 or 3
-				gasLeft -= 250;          // ditto
+				gasLeft -= 150;          // ditto
 			}
 		}
 	}
@@ -2755,6 +2794,41 @@ void StrategyBossZerg::produceOtherStuff(int & mineralsLeft, int & gasLeft, bool
 				gasLeft -= 100;        // ditto
 			}
 		}
+	}
+
+	// If we're going air and expect to keep needing air units, get air upgrades.
+	// NOTE Due to a BWAPI 4.1.2 bug, it can't research upgrades in a greater spire.
+	//      So we stop at flyer carapace +2.
+	//      Comments show how to get the higher upgrades.
+	if (hasSpire && nDrones >= 15 && nGas > 0 &&
+		hasPool &&
+		!_emergencyGroundDefense && hasEnoughUnits &&
+		nMutas + nGuardians + nDevourers >= 8 &&
+		(_gasUnit != BWAPI::UnitTypes::None && _gasUnit.isFlyer() || goingIslandAir) &&
+		!_self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Flyer_Carapace) &&
+		!_self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Flyer_Attacks))
+	{
+		const int airArmorUps = _self->getUpgradeLevel(BWAPI::UpgradeTypes::Zerg_Flyer_Carapace);
+		const int airAttackUps = _self->getUpgradeLevel(BWAPI::UpgradeTypes::Zerg_Flyer_Attacks);
+
+		//if (airArmorUps < 2 && hasLairTech ||
+		//	airArmorUps < 3 && hasGreaterSpire && hasHiveTech)
+		if (airArmorUps < 2 && hasLairTech && !hasGreaterSpire)
+		{
+			produce(BWAPI::UpgradeTypes::Zerg_Flyer_Carapace);
+			mineralsLeft -= 150;     // TODO not correct for upgrades 2 or 3
+			gasLeft -= 150;          // ditto
+		}
+		/*
+		else if (airArmorUps == 3 && airAttackUps < 3 && hasGreaterSpire && hasHiveTech &&
+			nMutas + nGuardians >= 10 &&		// devourers don't count
+			!_self->isUpgrading(BWAPI::UpgradeTypes::Zerg_Flyer_Attacks))
+		{
+			produce(BWAPI::UpgradeTypes::Zerg_Flyer_Attacks);
+			mineralsLeft -= 100;     // TODO not correct for upgrades 2 or 3
+			gasLeft -= 100;          // ditto
+		}
+		*/
 	}
 }
 

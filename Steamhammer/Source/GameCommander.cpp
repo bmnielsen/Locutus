@@ -1,5 +1,6 @@
-#include "Common.h"
+#include "Bases.h"
 #include "GameCommander.h"
+#include "MapTools.h"
 #include "OpponentModel.h"
 #include "UnitUtil.h"
 
@@ -87,7 +88,7 @@ void GameCommander::drawDebugInterface()
 	ProductionManager::Instance().drawProductionInformation(30, 60);
 	BOSSManager::Instance().drawSearchInformation(490, 100);
     BOSSManager::Instance().drawStateInformation(250, 0);
-	MapTools::Instance().drawHomeDistanceMap();
+	MapTools::Instance().drawHomeDistances();
     
 	_combatCommander.drawSquadInformation(200, 30);
     _timerManager.displayTimers(490, 225);
@@ -152,8 +153,13 @@ void GameCommander::drawGameInformation(int x, int y)
 	BWAPI::Broodwar->drawTextScreen(x + 50, y, "%c%s%c%s", orange, expect.c_str(), yellow, enemyPlanString.c_str());
 	y += 12;
 
+	std::string island = "";
+	if (Bases::Instance().isIslandStart())
+	{
+		island = " (island)";
+	}
 	BWAPI::Broodwar->drawTextScreen(x, y, "\x04Map:");
-	BWAPI::Broodwar->drawTextScreen(x+50, y, "\x03%s", BWAPI::Broodwar->mapFileName().c_str());
+	BWAPI::Broodwar->drawTextScreen(x+50, y, "%c%s%c%s", yellow, BWAPI::Broodwar->mapFileName().c_str(), orange, island.c_str());
 	BWAPI::Broodwar->setTextSize();
 	y += 12;
 
@@ -251,10 +257,11 @@ void GameCommander::setValidUnits()
 void GameCommander::setScoutUnits()
 {
 	// If we're zerg, assign the first overlord to scout.
-	// But not if the enemy is terran: We have no evasion skills, we'll lose the overlord.
+	// But (except for island maps) not if the enemy is terran: We have no evasion skills,
+	// we'll lose the overlord.
 	if (BWAPI::Broodwar->getFrameCount() == 0 &&
 		BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg &&
-		BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran)
+		(BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran || Bases::Instance().isIslandStart()))
 	{
 		for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		{
@@ -270,7 +277,7 @@ void GameCommander::setScoutUnits()
     // Send a scout worker if we haven't yet and should.
 	if (!_initialScoutTime)
     {
-		if (ScoutManager::Instance().shouldScout())
+		if (ScoutManager::Instance().shouldScout() && !Bases::Instance().isIslandStart())
 		{
 			BWAPI::Unit workerScout = getAnyFreeWorker();
 

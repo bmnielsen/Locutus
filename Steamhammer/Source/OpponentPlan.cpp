@@ -1,5 +1,6 @@
 #include "OpponentPlan.h"
 
+#include "Bases.h"
 #include "InformationManager.h"
 #include "PlayerSnapshot.h"
 
@@ -98,6 +99,13 @@ bool OpponentPlan::recognizeFactoryTech()
 
 void OpponentPlan::recognize()
 {
+	// Don't recognize island plans.
+	// The regular plans or reactions do not make sense for island maps.
+	if (Bases::Instance().isIslandStart())
+	{
+		return;
+	}
+
 	// Recognize fast plans first, slow plans below.
 
 	// Recognize in-base proxy buildings. Info manager does it for us.

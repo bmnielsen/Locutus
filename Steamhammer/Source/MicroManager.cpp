@@ -1,4 +1,7 @@
 #include "MicroManager.h"
+
+#include "Micro.h"
+#include "MapGrid.h"
 #include "MapTools.h"
 #include "UnitUtil.h"
 
@@ -11,25 +14,6 @@ MicroManager::MicroManager()
 void MicroManager::setUnits(const BWAPI::Unitset & u) 
 { 
 	_units = u; 
-}
-
-BWAPI::Position MicroManager::calcCenter() const
-{
-    if (_units.empty())
-    {
-        if (Config::Debug::DrawSquadInfo)
-        {
-            BWAPI::Broodwar->printf("calcCenter() called on empty squad");
-        }
-        return BWAPI::Position(0,0);
-    }
-
-	BWAPI::Position accum(0,0);
-	for (const auto unit : _units)
-	{
-		accum += unit->getPosition();
-	}
-	return BWAPI::Position(accum.x / _units.size(), accum.y / _units.size());
 }
 
 void MicroManager::setOrder(const SquadOrder & inputOrder)
@@ -53,22 +37,81 @@ void MicroManager::execute()
 		return;
 	}
 
-	// Discover enemies within the region of interest.
-	BWAPI::Unitset nearbyEnemies;
+	// What the micro managers have available to shoot at.
+	BWAPI::Unitset targets;
 
-	// Always include enemies in the radius of the order.
-	MapGrid::Instance().getUnits(nearbyEnemies, order.getPosition(), order.getRadius(), false, true);
-
-	// For some orders, add enemies which are near our units.
-	if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
+	if (order.getType() == SquadOrderTypes::DestroyNeutral)
 	{
-		for (const auto unit : _units) 
+		// An order to destroy neutral units at a given location.
+		for (BWAPI::Unit unit : BWAPI::Broodwar->getStaticNeutralUnits())
 		{
-			MapGrid::Instance().getUnits(nearbyEnemies, unit->getPosition(), unit->getType().sightRange(), false, true);
+			if (!unit->getType().canMove() &&
+				!unit->isInvincible() &&
+				!unit->isFlying() &&
+				order.getPosition().getDistance(unit->getInitialPosition()) < 4.5 * 32)
+			{
+				targets.insert(unit);
+			}
+		}
+		destroyNeutralTargets(targets);
+	}
+	else
+	{
+		// An order to fight enemies.
+		// Always include enemies in the radius of the order.
+		MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
+
+		// For some orders, add enemies which are near our units.
+		if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
+		{
+			for (const auto unit : _units)
+			{
+				MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
+			}
+		}
+		executeMicro(targets);
+	}
+}
+
+// The order is DestroyNeutral. Carry it out.
+void MicroManager::destroyNeutralTargets(const BWAPI::Unitset & targets)
+{
+	// Is any target in sight? We only need one.
+	BWAPI::Unit visibleTarget = nullptr;
+	for (BWAPI::Unit target : targets)
+	{
+		if (target->exists() &&
+			target->isTargetable() &&
+			target->isDetected())			// not e.g. a neutral egg under a neutral arbiter
+		{
+			visibleTarget = target;
+			break;
 		}
 	}
 
-	executeMicro(nearbyEnemies);
+	for (const auto unit : _units)
+	{
+		if (visibleTarget)
+		{
+			// We see a target, so we can issue attack orders to units that can attack.
+			if (UnitUtil::CanAttackGround(unit) && unit->canAttack())
+			{
+				Micro::AttackUnit(unit, visibleTarget);
+			}
+			else if (unit->canMove())
+			{
+				Micro::Move(unit, order.getPosition());
+			}
+		}
+		else
+		{
+			// No visible targets. Move units toward the order position.
+			if (unit->canMove())
+			{
+				Micro::Move(unit, order.getPosition());
+			}
+		}
+	}
 }
 
 const BWAPI::Unitset & MicroManager::getUnits() const

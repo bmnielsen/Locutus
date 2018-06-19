@@ -5,7 +5,6 @@
 
 namespace UAlbertaBot
 {
-
 namespace BuildingStatus
 {
     enum { Unassigned = 0, Assigned = 1, UnderConstruction = 2, Size = 3 };
@@ -50,7 +49,7 @@ public:
 	Building(BWAPI::UnitType t, BWAPI::TilePosition desired)
 		: macroLocation		(MacroLocation::Anywhere)
 		, desiredPosition	(desired)
-		, finalPosition		(0, 0)
+		, finalPosition		(BWAPI::TilePositions::None)
         , type              (t)
         , buildingUnit      (nullptr)
         , builderUnit       (nullptr)
@@ -70,19 +69,4 @@ public:
 	}
 };
 
-class BuildingData 
-{
-    std::vector<Building> _buildings;
-
-public:
-
-	BuildingData();
-	
-    std::vector<Building> & getBuildings();
-
-	void        addBuilding(const Building & b);
-	void        removeBuilding(const Building & b);
-    void        removeBuildings(const std::vector<Building> & buildings);
-	bool        isBeingBuilt(BWAPI::UnitType type) const;
-};
 }

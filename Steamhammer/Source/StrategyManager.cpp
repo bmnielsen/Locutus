@@ -1,5 +1,6 @@
 #include "StrategyManager.h"
 #include "CombatCommander.h"
+#include "MapTools.h"
 #include "OpponentModel.h"
 #include "ProductionManager.h"
 #include "StrategyBossZerg.h"
@@ -811,7 +812,7 @@ bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 	// To work around it, add up the supply by hand, including hatcheries.
 	if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg) {
 		supplyAvailable = -BWAPI::Broodwar->self()->supplyUsed();
-		for (auto & unit : BWAPI::Broodwar->self()->getUnits())
+		for (auto unit : BWAPI::Broodwar->self()->getUnits())
 		{
 			if (unit->getType() == BWAPI::UnitTypes::Zerg_Overlord)
 			{

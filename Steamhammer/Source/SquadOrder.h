@@ -4,25 +4,25 @@
 
 namespace UAlbertaBot
 {
-
 namespace SquadOrderTypes
 {
     enum {
 		None,
-		Idle,      // workers, overlords with no other job
-		Attack,    // go attack
-		Defend,    // defend a base (automatically disbanded when enemy is gone)
-		Hold,      // hold ground, stand ready to defend until needed
-		Load,      // load into a transport (Drop squad)
-		Drop,      // go drop on the enemy (Drop squad)
+		Idle,			// workers, overlords with no other job
+		Attack,			// go attack
+		Defend,			// defend a base (automatically disbanded when enemy is gone)
+		Hold,			// hold ground, stand ready to defend until needed
+		Load,			// load into a transport (Drop squad)
+		Drop,			// go drop on the enemy (Drop squad)
+		DestroyNeutral,	// destroy neutral units by attack (e.g. destroy blocking buildings)
 	};
 }
 
 class SquadOrder
 {
     size_t              _type;
-    int                 _radius;
-    BWAPI::Position     _position;
+	BWAPI::Position     _position;
+	int                 _radius;
     std::string         _status;
 
 public:
@@ -36,7 +36,7 @@ public:
 	SquadOrder(int type, BWAPI::Position position, int radius, std::string status = "Default") 
 		: _type(type)
 		, _position(position)
-		, _radius(radius) 
+		, _radius(radius)
 		, _status(status)
 	{
 	}
@@ -65,13 +65,14 @@ public:
 	{
 		switch (_type)
 		{
-			case SquadOrderTypes::None:    return '-';
-			case SquadOrderTypes::Idle:    return 'I';
-			case SquadOrderTypes::Attack:  return 'a';
-			case SquadOrderTypes::Defend:  return 'd';
-			case SquadOrderTypes::Hold:    return 'H';
-			case SquadOrderTypes::Load:    return 'L';
-			case SquadOrderTypes::Drop:    return 'D';
+			case SquadOrderTypes::None:				return '-';
+			case SquadOrderTypes::Idle:				return 'I';
+			case SquadOrderTypes::Attack:			return 'a';
+			case SquadOrderTypes::Defend:			return 'd';
+			case SquadOrderTypes::Hold:				return 'H';
+			case SquadOrderTypes::Load:				return 'L';
+			case SquadOrderTypes::Drop:				return 'D';
+			case SquadOrderTypes::DestroyNeutral:	return 'N';
 		}
 		return '?';
 	}
@@ -83,7 +84,8 @@ public:
 			_type == SquadOrderTypes::Attack ||
 			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::Hold ||
-			_type == SquadOrderTypes::Drop;
+			_type == SquadOrderTypes::Drop ||
+			_type == SquadOrderTypes::DestroyNeutral;
 	}
 
 	// These orders use the regrouping mechanism to retreat when facing superior enemies.
@@ -91,7 +93,8 @@ public:
 	bool isRegroupableOrder() const
 	{
 		return
-			_type == SquadOrderTypes::Attack;
+			_type == SquadOrderTypes::Attack ||
+			_type == SquadOrderTypes::DestroyNeutral;
 	}
 
 };

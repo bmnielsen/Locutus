@@ -1,6 +1,10 @@
 #include "Squad.h"
 
+#include "Bases.h"
+#include "MapTools.h"
+#include "Micro.h"
 #include "ScoutManager.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -19,7 +23,7 @@ Squad::Squad()
     , _lastRetreatSwitchVal(false)
     , _priority(0)
 {
-    int a = 10;   // only you can prevent linker errors
+	int a = 10;		// work around linker error
 }
 
 // A "combat" squad is any squad except the Idle squad, which is full of workers
@@ -127,6 +131,7 @@ void Squad::update()
 
 		// Detectors.
 		_microDetectors.setUnitClosestToEnemy(vanguard);
+		_microDetectors.setSquadSize(_units.size());
 		_microDetectors.execute();
 	}
 }
@@ -424,15 +429,34 @@ bool Squad::unitNearEnemy(BWAPI::Unit unit)
 	return enemyNear.size() > 0;
 }
 
-BWAPI::Position Squad::calcCenter()
+// What map partition is the squad on?
+// Not an easy question. The different units might be on different partitions.
+// We simply pick a unit, any unit, and assume that that gives the partition.
+int Squad::mapPartition() const
+{
+	// Default to our starting position.
+	BWAPI::Position pos = Bases::Instance().myStartingBase()->getPosition();
+
+	// Pick any unit with a position on the map (not, for example, in a bunker).
+	for (BWAPI::Unit unit : _units)
+	{
+		if (unit->getPosition().isValid())
+		{
+			pos = unit->getPosition();
+			break;
+		}
+	}
+
+	return The::Root().partitions.id(pos);
+}
+
+// NOTE The squad center is a geometric center. It ignores terrain.
+// The center might be on unwalkable ground, or even on a different island.
+BWAPI::Position Squad::calcCenter() const
 {
     if (_units.empty())
     {
-        if (Config::Debug::DrawSquadInfo)
-        {
-            BWAPI::Broodwar->printf("Squad::calcCenter() of empty squad");
-        }
-        return BWAPI::Position(0,0);
+        return Bases::Instance().myStartingBase()->getPosition();
     }
 
 	BWAPI::Position accum(0,0);
@@ -480,7 +504,7 @@ BWAPI::Position Squad::calcRegroupPosition()
 	}
 
 	// Failing that, retreat to a base we own.
-	if (regroup == BWAPI::Position(0,0))
+	if (regroup == BWAPI::Positions::Origin)
 	{
 		// Retreat to the main base (guaranteed not null, even if the buildings were destroyed).
 		BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
@@ -580,13 +604,16 @@ void Squad::removeUnit(BWAPI::Unit u)
 // Remove all workers from the squad, releasing them back to WorkerManager.
 void Squad::releaseWorkers()
 {
-	UAB_ASSERT(_combatSquad, "Idle squad should not release workers");
-
-	for (const auto unit : _units)
+	for (auto it = _units.begin(); it != _units.end(); )
 	{
-		if (unit->getType().isWorker())
+		if (_combatSquad && (*it)->getType().isWorker())
 		{
-			removeUnit(unit);
+			WorkerManager::Instance().finishedWithWorker(*it);
+			it = _units.erase(it);
+		}
+		else
+		{
+			++it;
 		}
 	}
 }

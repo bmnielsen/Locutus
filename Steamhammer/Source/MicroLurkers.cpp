@@ -1,3 +1,5 @@
+#include "Micro.h"
+#include "MicroManager.h"
 #include "MicroLurkers.h"
 #include "MapTools.h"
 #include "UnitUtil.h"

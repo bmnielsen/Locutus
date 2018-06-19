@@ -270,6 +270,7 @@ BWAPI::WeaponType UnitUtil::GetWeapon(BWAPI::UnitType attacker, BWAPI::UnitType 
 	return target.isFlyer() ? attacker.airWeapon() : attacker.groundWeapon();
 }
 
+// Weapon range in pixels.
 // Tries to take possible range upgrades into account, making pessimistic assumptions about the enemy.
 // Returns 0 if the attacker does not have a way to attack the target.
 // NOTE Does not check whether our reaver, carrier, or bunker has units inside that can attack.
@@ -278,11 +279,11 @@ int UnitUtil::GetAttackRange(BWAPI::Unit attacker, BWAPI::Unit target)
 	// Reavers, carriers, and bunkers have "no weapon" but still have an attack range.
 	if (attacker->getType() == BWAPI::UnitTypes::Protoss_Reaver && !target->isFlying())
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker->getType() == BWAPI::UnitTypes::Protoss_Carrier)
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker->getType() == BWAPI::UnitTypes::Terran_Bunker)
 	{
@@ -342,17 +343,18 @@ int UnitUtil::GetAttackRange(BWAPI::Unit attacker, BWAPI::Unit target)
     return range;
 }
 
+// Weapon range in pixels.
 // Range is zero if the attacker cannot attack the target at all.
 int UnitUtil::GetAttackRangeAssumingUpgrades(BWAPI::UnitType attacker, BWAPI::UnitType target)
 {
 	// Reavers, carriers, and bunkers have "no weapon" but still have an attack range.
 	if (attacker == BWAPI::UnitTypes::Protoss_Reaver && !target.isFlyer())
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker == BWAPI::UnitTypes::Protoss_Carrier)
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker == BWAPI::UnitTypes::Terran_Bunker)
 	{
@@ -388,6 +390,7 @@ int UnitUtil::GetAttackRangeAssumingUpgrades(BWAPI::UnitType attacker, BWAPI::Un
 	return range;
 }
 
+// Weapon range in pixels.
 // The longest range at which the unit type is able to make a regular attack, assuming upgrades.
 // This ignores spells--for example, yamato cannon has a longer range.
 // Used in selecting enemy units for the combat sim.

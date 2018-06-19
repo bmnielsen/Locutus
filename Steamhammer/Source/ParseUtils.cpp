@@ -1,6 +1,7 @@
 #include "ParseUtils.h"
 #include "JSONTools.h"
 
+#include "Bases.h"
 #include "BuildOrder.h"
 #include "OpponentModel.h"
 #include "Random.h"
@@ -103,8 +104,6 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
     if (doc.HasMember("Debug") && doc["Debug"].IsObject())
     {
         const rapidjson::Value & debug = doc["Debug"];
-        JSONTools::ReadString("ErrorLogFilename", debug, Config::Debug::ErrorLogFilename);
-        JSONTools::ReadBool("LogAssertToErrorFile", debug, Config::Debug::LogAssertToErrorFile);
         JSONTools::ReadBool("DrawGameInfo", debug, Config::Debug::DrawGameInfo);
 		JSONTools::ReadBool("DrawBuildOrderSearchInfo", debug, Config::Debug::DrawBuildOrderSearchInfo);
 		JSONTools::ReadBool("DrawQueueFixInfo", debug, Config::Debug::DrawQueueFixInfo);
@@ -142,6 +141,9 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 	if (doc.HasMember("IO") && doc["IO"].IsObject())
 	{
 		const rapidjson::Value & io = doc["IO"];
+
+		JSONTools::ReadString("ErrorLogFilename", io, Config::IO::ErrorLogFilename);
+		JSONTools::ReadBool("LogAssertToErrorFile", io, Config::IO::LogAssertToErrorFile);
 
 		JSONTools::ReadString("ReadDirectory", io, Config::IO::ReadDir);
 		JSONTools::ReadString("WriteDirectory", io, Config::IO::WriteDir);
@@ -252,9 +254,23 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 			}
 		}
 
+		// 0.5 TEMPORARY SPECIAL CASE FOR AIST S1
+		// On the map Sparkle, play a Sparkle opening.
+		if (BWAPI::Broodwar->mapFileName().find("Sparkle") != std::string::npos)
+		{
+			std::string strategyName;
+
+			if (strategy.HasMember("Sparkle") && _ParseStrategy(strategy["Sparkle"], strategyName, mapWeightString, ourRaceStr, strategyCombos))
+			{
+				Config::Strategy::StrategyName = strategyName;
+				openingStrategyDecided = true;
+			}
+		}
+
 		// 1. Should we use a special strategy against this specific enemy?
 		JSONTools::ReadBool("UseEnemySpecificStrategy", strategy, Config::Strategy::UseEnemySpecificStrategy);
-		if (Config::Strategy::UseEnemySpecificStrategy &&
+		if (!openingStrategyDecided &&
+			Config::Strategy::UseEnemySpecificStrategy &&
 			strategy.HasMember("EnemySpecificStrategy") &&
 			strategy["EnemySpecificStrategy"].IsObject())
 		{
@@ -345,7 +361,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 			}
 		}
 
-		// 3. If we don't have a strategy for this enemy, fall back on a more general strategy.
+		// 3. If we don't have a strategy yet, fall back on a more general strategy.
 		if (!openingStrategyDecided)
 		{
 			std::string strategyName;
@@ -403,12 +419,14 @@ void ParseUtils::ParseTextCommand(const std::string & commandString)
         else if (variableName == "pylonspacing") { Config::Macro::PylonSpacing = GetIntFromString(val); }
 
         // Debug Options
-        else if (variableName == "errorlogfilename") { Config::Debug::ErrorLogFilename = val; }
+        else if (variableName == "errorlogfilename") { Config::IO::ErrorLogFilename = val; }
 		else if (variableName == "drawgameinfo") { Config::Debug::DrawGameInfo = GetBoolFromString(val); }
 		else if (variableName == "drawunithealthbars") { Config::Debug::DrawUnitHealthBars = GetBoolFromString(val); }
 		else if (variableName == "drawproductioninfo") { Config::Debug::DrawProductionInfo = GetBoolFromString(val); }
 		else if (variableName == "drawbuildordersearchinfo") { Config::Debug::DrawBuildOrderSearchInfo = GetBoolFromString(val); }
-        else if (variableName == "drawenemyunitinfo") { Config::Debug::DrawEnemyUnitInfo = GetBoolFromString(val); }
+		else if (variableName == "drawscoutinfo") { Config::Debug::DrawScoutInfo = GetBoolFromString(val); }
+		else if (variableName == "drawqueuefixinfo") { Config::Debug::DrawQueueFixInfo = GetBoolFromString(val); }
+		else if (variableName == "drawenemyunitinfo") { Config::Debug::DrawEnemyUnitInfo = GetBoolFromString(val); }
         else if (variableName == "drawmoduletimers") { Config::Debug::DrawModuleTimers = GetBoolFromString(val); }
         else if (variableName == "drawresourceinfo") { Config::Debug::DrawResourceInfo = GetBoolFromString(val); }
         else if (variableName == "drawcombatsiminfo") { Config::Debug::DrawCombatSimulationInfo = GetBoolFromString(val); }
@@ -500,10 +518,13 @@ bool ParseUtils::_ParseStrategy(
 			int totalWeight = 0;                    // cumulative weight of last strategy (so far)
 
 			// 1. Collect the weights and strategies.
+			// Skip choices which are not allowed by a Requires: declaration.
 			for (size_t i(0); i < mix.Size(); ++i)
 			{
+				// BWAPI::Broodwar->printf("at %s", mix[i]["Strategy"].GetString());
 				if (mix[i].IsObject() &&
-					mix[i].HasMember("Strategy") && mix[i]["Strategy"].IsString())
+					mix[i].HasMember("Strategy") && mix[i]["Strategy"].IsString() &&
+					_MeetsRequirements(mix[i]["Strategy"].GetString(), strategyCombos))
 				{
 					int weight;
 					if (mix[i].HasMember(mapWeightString.c_str()) && mix[i][mapWeightString.c_str()].IsInt())
@@ -529,6 +550,8 @@ bool ParseUtils::_ParseStrategy(
 			}
 
 			// 2. Choose a strategy at random by weight.
+			// If none met their requirements, we'll fall through and fail.
+			// BWAPI::Broodwar->printf("mix %d, weights %d", mix.Size(), weights.size());
 			int w = Random::Instance().index(totalWeight);
 			for (size_t i = 0; i < weights.size(); ++i)
 			{
@@ -557,21 +580,61 @@ bool ParseUtils::_LookUpStrategyCombo(
 {
 	if (strategyCombos && strategyCombos->HasMember(stratName.c_str()))
 	{
-		if ((*strategyCombos)[stratName.c_str()].IsString())
+		const rapidjson::Value & combo = (*strategyCombos)[stratName.c_str()];
+
+		if (combo.IsString())
 		{
 			stratName = (*strategyCombos)[stratName.c_str()].GetString();
 			return true;
 		}
-		if ((*strategyCombos)[stratName.c_str()].IsObject())
+		if (combo.IsObject())
 		{
-			return _ParseStrategy((*strategyCombos)[stratName.c_str()], stratName, mapWeightString, raceString, strategyCombos);
+			return _ParseStrategy(combo, stratName, mapWeightString, raceString, strategyCombos);
 		}
-		// If it's neither of those things, complain.
+		// If it failed its requirements, or if it's neither of those things, complain.
 		return false;
 	}
 
 	// No need for further lookup. What we have is what we want.
 	return true;
+}
+
+// The strategy meets its Require: requirements (if it has any).
+// The strategy here may be either an opening object or a strategy combo, but
+// in practice this check is made only for a strategy combo.
+// Either may have Require:. 
+bool ParseUtils::_MeetsRequirements(
+	const std::string & itemName,
+	const rapidjson::Value * strategyCombos)
+{
+	return true;
+
+	/*
+	bool isCombo =
+		strategyCombos &&
+		strategyCombos->HasMember(itemName.c_str()) &&
+		(*strategyCombos)[itemName.c_str()].IsObject();
+	const rapidjson::Value & combo = (*strategyCombos)[itemName.c_str()];
+	
+	const rapidjson::Value * item = isCombo
+		? &(*strategyCombos)[itemName.c_str()]
+		: nullptr;
+
+	const bool hasRequirements = item && item->IsObject() && item->HasMember("Require") && (*item)["Require"].IsObject();
+	const bool hasIslandRequirement = hasRequirements &&
+		(*item)["Require"].HasMember("island") && (*item)["Require"]["island"].IsBool();
+	const bool requiresIsland = hasIslandRequirement && (*item)["Require"]["island"].GetBool();
+	const bool isIsland = Bases::Instance().isIslandStart();
+	if (isIsland && !requiresIsland)
+	{
+		BWAPI::Broodwar->printf("failed requirements for %s", itemName.c_str());
+		return false;
+	}
+
+	// No requirements failed (possibly because no requirements exist). All good.
+	BWAPI::Broodwar->printf("passed requirements for %s", itemName.c_str());
+	return true;
+	*/
 }
 
 bool ParseUtils::GetBoolFromString(const std::string & str)

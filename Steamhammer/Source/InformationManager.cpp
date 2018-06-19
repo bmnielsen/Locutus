@@ -950,20 +950,20 @@ void InformationManager::drawBaseInformation(int x, int y)
 
 	BWAPI::Broodwar->drawTextScreen(x, yy, "%cBases", white);
 
-	for (auto * base : BWTA::getBaseLocations())
+	for (Base * base : Bases::Instance().getBases())
 	{
 		yy += 10;
 
 		char color = gray;
 
 		char reservedChar = ' ';
-		if (_theBases[base]->reserved)
+		if (base->isReserved())
 		{
 			reservedChar = '*';
 		}
 
 		char inferredChar = ' ';
-		BWAPI::Player player = _theBases[base]->owner;
+		BWAPI::Player player = base->owner;
 		if (player == _self)
 		{
 			color = green;
@@ -971,25 +971,37 @@ void InformationManager::drawBaseInformation(int x, int y)
 		else if (player == _enemy)
 		{
 			color = orange;
-			if (_theBases[base]->resourceDepot == nullptr)
+			if (base->resourceDepot == nullptr)
 			{
 				inferredChar = '?';
 			}
 		}
 
+		BWAPI::TilePosition pos = base->getTilePosition();
 		char baseCode = ' ';
-		if (base == getMyMainBaseLocation())
+		if (base == Bases::Instance().myStartingBase())
+		{
+			baseCode = 'S';		// sometimes overwritten by 'M' below
+		}
+		if (pos == getMyMainBaseLocation()->getTilePosition())
 		{
 			baseCode = 'M';
 		}
-		else if (base == _myNaturalBaseLocation)
+		else if (_myNaturalBaseLocation && pos == _myNaturalBaseLocation->getTilePosition())
 		{
 			baseCode = 'N';
 		}
 
-		BWAPI::TilePosition pos = base->getTilePosition();
 		BWAPI::Broodwar->drawTextScreen(x-8, yy, "%c%c", white, reservedChar);
 		BWAPI::Broodwar->drawTextScreen(x, yy, "%c%d, %d%c%c", color, pos.x, pos.y, inferredChar, baseCode);
+	}
+}
+
+void InformationManager::maybeClearNeutral(BWAPI::Unit unit)
+{
+	if (unit && unit->getPlayer() == BWAPI::Broodwar->neutral() && unit->getType().isBuilding())
+	{
+		Bases::Instance().clearNeutral(unit);
 	}
 }
 
@@ -1026,6 +1038,11 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
 		{
 			_staticDefense.erase(unit);
 		}
+	}
+	else if (unit->getType().isBuilding())
+	{
+		// Should be neutral.
+		Bases::Instance().clearNeutral(unit);
 	}
 }
 
@@ -1081,33 +1098,33 @@ const UnitData & InformationManager::getUnitData(BWAPI::Player player) const
     return _unitData.find(player)->second;
 }
 
-bool InformationManager::isBaseReserved(BWTA::BaseLocation * base)
+bool InformationManager::isBaseReserved(Base * base)
 {
-	return _theBases[base]->reserved;
+	return base->isReserved();
 }
 
-void InformationManager::reserveBase(BWTA::BaseLocation * base)
+void InformationManager::reserveBase(Base * base)
 {
-	_theBases[base]->reserved = true;
+	base->reserve();
 }
 
-void InformationManager::unreserveBase(BWTA::BaseLocation * base)
+void InformationManager::unreserveBase(Base * base)
 {
-	_theBases[base]->reserved = false;
+	base->unreserve();
 }
 
 void InformationManager::unreserveBase(BWAPI::TilePosition baseTilePosition)
 {
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+	for (Base * base : Bases::Instance().getBases())
 	{
 		if (closeEnough(base->getTilePosition(), baseTilePosition))
 		{
-			_theBases[base]->reserved = false;
+			base->unreserve();
 			return;
 		}
 	}
 
-	UAB_ASSERT(false,"trying to unreserve a non-base");
+	UAB_ASSERT(false, "trying to unreserve a non-base @ %d,%d", baseTilePosition.x, baseTilePosition.y);
 }
 
 // We have complated combat units (excluding workers).

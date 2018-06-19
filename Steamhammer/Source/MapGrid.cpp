@@ -1,5 +1,7 @@
 #include "Common.h"
 #include "MapGrid.h"
+#include "Bases.h"
+#include "The.h"
 
 using namespace UAlbertaBot;
 
@@ -9,10 +11,13 @@ MapGrid & MapGrid::Instance()
 	return instance;
 }
 
-MapGrid::MapGrid() {}
+MapGrid::MapGrid()
+	: the(The::Root())
+{}
 
 MapGrid::MapGrid(int mapWidth, int mapHeight, int cellSize) 
-	: mapWidth(mapWidth)
+	: the(The::Root())
+	, mapWidth(mapWidth)
 	, mapHeight(mapHeight)
 	, cellSize(cellSize)
 	, cols((mapWidth + cellSize - 1) / cellSize)
@@ -25,15 +30,17 @@ MapGrid::MapGrid(int mapWidth, int mapHeight, int cellSize)
 
 // Return the first of:
 // 1. Any starting base location that has not been explored.
-// 2. The least-recently explored cell accessible by land.
+// 2. The least-recently explored accessible cell (with attention to byGround).
 // Item 1 ensures that, if early game scouting failed, we scout with force.
-// If byGround, only locations that are accessible by ground from our start location.
-BWAPI::Position MapGrid::getLeastExplored(bool byGround) 
+// If byGround, only locations that are accessible by ground from the given location.
+// If not byGround, the location fromHere is not used.
+BWAPI::Position MapGrid::getLeastExplored(bool byGround, int partition) 
 {
 	// 1. Any starting location that has not been explored.
 	for (BWAPI::TilePosition tile : BWAPI::Broodwar->getStartLocations())
 	{
-		if (!BWAPI::Broodwar->isExplored(tile))
+		if (!BWAPI::Broodwar->isExplored(tile) &&
+			(!byGround || partition == the.partitions.id(tile)))
 		{
 			return BWAPI::Position(tile);
 		}
@@ -51,9 +58,8 @@ BWAPI::Position MapGrid::getLeastExplored(bool byGround)
 			// get the center of this cell
 			BWAPI::Position cellCenter = getCellCenter(r,c);
 
-			// don't worry about places that aren't connected to our start location
-			if (byGround &&
-				!BWTA::isConnected(BWAPI::TilePosition(cellCenter), BWAPI::Broodwar->self()->getStartLocation()))
+			// Skip places that we can't get to.
+			if (byGround && partition != the.partitions.id(cellCenter))
 			{
 				continue;
 			}

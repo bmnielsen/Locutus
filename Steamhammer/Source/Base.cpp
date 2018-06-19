@@ -1,3 +1,4 @@
+#include "Common.h"
 #include "Base.h"
 
 using namespace UAlbertaBot;
@@ -12,9 +13,9 @@ Base::Base(BWAPI::TilePosition pos)
 	: id(BaseID)
 	, tilePosition(pos)
 	, distances(pos)
+	, reserved(false)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
-	, reserved(false)
 {
 	++BaseID;
 }
@@ -29,7 +30,9 @@ Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
 	, owner(BWAPI::Broodwar->neutral())
 	, reserved(false)
 {
-	DistanceMap resourceDistances(pos, BaseResourceRange, false);
+	++BaseID;
+
+	GridDistances resourceDistances(pos, BaseResourceRange, false);
 
 	for (BWAPI::Unit resource : availableResources)
 	{
@@ -46,8 +49,29 @@ Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
 		}
 	}
 
-	++BaseID;
+	// Fill in the set of blockers, destructible neutral units that are very close to the base
+	// and may interfere with its operation.
+	// This does not include the minerals to mine!
+	for (const auto unit : BWAPI::Broodwar->getStaticNeutralUnits())
+	{
+		// NOTE Khaydarin crystals are not destructible, and I don't know any way
+		// to find that out other than to check the name explicitly. Is there a way?
+		if (!unit->getType().canMove() &&
+			!unit->isInvincible() &&
+			unit->isTargetable() &&
+			!unit->isFlying() &&
+			unit->getType().getName().find("Khaydarin") == std::string::npos)
+		{
+			int dist = resourceDistances.getStaticUnitDistance(unit);
+			if (dist >= 0 && dist <= 9)
+			{
+				blockers.insert(unit);
+			}
+		}
+	}
 }
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 // Called from InformationManager to work around a bug related to BWAPI 4.1.2.
 // TODO is this still needed and correct?
@@ -93,10 +117,13 @@ int Base::getInitialGas() const
 	return total;
 }
 
+void Base::clearBlocker(BWAPI::Unit blocker)
+{
+	blockers.erase(blocker);
+}
+
 void Base::drawBaseInfo() const
 {
-	// DistanceMap d(tilePosition, BaseResourceRange, false);
-
 	BWAPI::Position offset(-16, -6);
 	for (BWAPI::Unit min : minerals)
 	{
@@ -108,12 +135,27 @@ void Base::drawBaseInfo() const
 		BWAPI::Broodwar->drawTextMap(gas->getInitialPosition() + offset, "%cgas %d", cyan, id);
 		// BWAPI::Broodwar->drawTextMap(gas->getInitialPosition() + BWAPI::Position(-18, 4), "%cgas %d", yellow, d.getStaticUnitDistance(gas));
 	}
+	for (BWAPI::Unit blocker : blockers)
+	{
+		BWAPI::Position pos = blocker->getInitialPosition();
+		BWAPI::UnitType type = blocker->getInitialType();
+		BWAPI::Broodwar->drawBoxMap(
+			pos - BWAPI::Position(type.dimensionLeft(), type.dimensionUp()),
+			pos + BWAPI::Position(type.dimensionRight(), type.dimensionDown()),
+			BWAPI::Colors::Red);
+	}
 
 	BWAPI::Broodwar->drawBoxMap(
 		BWAPI::Position(tilePosition),
 		BWAPI::Position(tilePosition + BWAPI::TilePosition(4, 3)),
 		BWAPI::Colors::Cyan, false);
-	BWAPI::Broodwar->drawTextMap(BWAPI::Position(tilePosition) + BWAPI::Position(40,40),
+	BWAPI::Broodwar->drawTextMap(BWAPI::Position(tilePosition) + BWAPI::Position(40, 40),
 		"%c%d (%d,%d)",
 		cyan, id, tilePosition.x, tilePosition.y);
+	if (blockers.size() > 0)
+	{
+		BWAPI::Broodwar->drawTextMap(BWAPI::Position(tilePosition) + BWAPI::Position(40, 52),
+			"%cblockers: %c%d",
+			red, cyan, blockers.size());
+	}
 }

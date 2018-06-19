@@ -130,7 +130,6 @@
       <Filter>util</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MacroAct.cpp" />
-    <ClCompile Include="..\Source\BuildingData.cpp" />
     <ClCompile Include="..\Source\StrategyBossZerg.cpp" />
     <ClCompile Include="..\Source\MicroTanks.cpp" />
     <ClCompile Include="..\Source\MicroDetectors.cpp" />
@@ -149,8 +148,12 @@
     <ClCompile Include="..\Source\MicroAirToAir.cpp" />
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
-    <ClCompile Include="..\Source\DistanceMap.cpp" />
     <ClCompile Include="..\Source\ProductionGoal.cpp" />
+    <ClCompile Include="..\Source\MapPartitions.cpp" />
+    <ClCompile Include="..\Source\The.cpp" />
+    <ClCompile Include="..\Source\Grid.cpp" />
+    <ClCompile Include="..\Source\GridDistances.cpp" />
+    <ClCompile Include="..\Source\GridAttacks.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -267,7 +270,11 @@
     <ClInclude Include="..\Source\MicroAirToAir.h" />
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\Bases.h" />
-    <ClInclude Include="..\Source\DistanceMap.h" />
     <ClInclude Include="..\Source\ProductionGoal.h" />
+    <ClInclude Include="..\Source\MapPartitions.h" />
+    <ClInclude Include="..\Source\The.h" />
+    <ClInclude Include="..\Source\Grid.h" />
+    <ClInclude Include="..\Source\GridDistances.h" />
+    <ClInclude Include="..\Source\GridAttacks.h" />
   </ItemGroup>
 </Project>

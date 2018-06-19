@@ -1,23 +1,23 @@
 #pragma once
 
 #include <BWAPI.h>
-#include "GameCommander.h"
 #include <iostream>
 #include <fstream>
+#include "rapidjson\document.h"
+
+#include "Config.h"
+#include "GameCommander.h"
 #include "Logger.h"
 #include "MapTools.h"
-#include "Config.h"
-
-#include "rapidjson\document.h"
+//#include "The.h"
 
 namespace UAlbertaBot
 {
-
 class UAlbertaBotModule : public BWAPI::AIModule
 {
-
+	The & the;
 public:
-
+	UAlbertaBotModule();
 	void	onStart();
 	void	onFrame();
 	void	onEnd(bool isWinner);

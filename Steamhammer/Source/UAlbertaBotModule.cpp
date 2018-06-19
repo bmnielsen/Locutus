@@ -16,9 +16,16 @@
 
 using namespace UAlbertaBot;
 
+UAlbertaBotModule::UAlbertaBotModule()
+	: the(The::Root())
+{
+}
+
 // This gets called when the bot starts.
 void UAlbertaBotModule::onStart()
 {
+	the.initialize();
+
     // Initialize BOSS, the Build Order Search System
     BOSS::init();
 

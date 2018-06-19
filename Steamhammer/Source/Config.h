@@ -21,6 +21,9 @@ namespace Config
 
 	namespace IO
 	{
+		extern std::string ErrorLogFilename;
+		extern bool LogAssertToErrorFile;
+
 		extern std::string ReadDir;
 		extern std::string WriteDir;
 		extern int MaxGameRecords;
@@ -78,9 +81,6 @@ namespace Config
         extern bool DrawBuildingInfo;
 		extern bool DrawReservedBuildingTiles;
 		extern bool DrawBOSSStateInfo;
-
-        extern std::string ErrorLogFilename;
-        extern bool LogAssertToErrorFile;
 
         extern BWAPI::Color ColorLineTarget;
         extern BWAPI::Color ColorLineMineral;

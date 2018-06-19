@@ -3,6 +3,7 @@
 #include "CombatCommander.h"
 
 #include "Bases.h"
+#include "Micro.h"
 #include "Random.h"
 #include "UnitUtil.h"
 
@@ -17,6 +18,7 @@ const size_t ScoutDefensePriority = 4;
 const size_t DropPriority = 5;         // don't steal from Drop squad for Defense squad
 
 // The attack squads.
+const int DefendFrontRadius = 400;
 const int AttackRadius = 800;
 
 // Reconnaissance squad.
@@ -24,7 +26,8 @@ const int ReconTargetTimeout = 40 * 24;
 const int ReconRadius = 400;
 
 CombatCommander::CombatCommander() 
-    : _initialized(false)
+	: the(The::Root())
+	, _initialized(false)
 	, _goAggressive(true)
 	, _reconTarget(BWAPI::Positions::Invalid)   // it will be changed later
 	, _lastReconTargetChange(0)
@@ -40,11 +43,11 @@ void CombatCommander::initializeSquads()
 	_squadData.addSquad(Squad("Idle", idleOrder, IdlePriority));
 
     // The ground squad will pressure an enemy base.
-    SquadOrder mainAttackOrder(SquadOrderTypes::Attack, getAttackLocation(nullptr), AttackRadius, "Attack enemy base");
-	_squadData.addSquad(Squad("Ground", mainAttackOrder, AttackPriority));
+	SquadOrder attackOrder(getAttackOrder(nullptr));
+	_squadData.addSquad(Squad("Ground", attackOrder, AttackPriority));
 
 	// The flying squad separates air units so they can act independently.
-	_squadData.addSquad(Squad("Flying", mainAttackOrder, AttackPriority));
+	_squadData.addSquad(Squad("Flying", attackOrder, AttackPriority));
 
 	// The recon squad carries out reconnaissance in force to deny enemy bases.
 	// It is filled in when enough units are available.
@@ -69,8 +72,6 @@ void CombatCommander::initializeSquads()
 		SquadOrder doDrop(SquadOrderTypes::Hold, ourBasePosition, AttackRadius, "Wait for transport");
 		_squadData.addSquad(Squad("Drop", doDrop, DropPriority));
     }
-
-    _initialized = true;
 }
 
 void CombatCommander::update(const BWAPI::Unitset & combatUnits)
@@ -78,7 +79,8 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
     if (!_initialized)
     {
         initializeSquads();
-    }
+		_initialized = true;
+	}
 
     _combatUnits = combatUnits;
 
@@ -133,6 +135,28 @@ void CombatCommander::updateReconSquad()
 	if (!_reconTarget.isValid())
 	{
 		reconSquad.clear();
+		return;
+	}
+
+	// Issue the order.
+	SquadOrder reconOrder(SquadOrderTypes::Attack, _reconTarget, ReconRadius, "Reconnaissance in force");
+	reconSquad.setSquadOrder(reconOrder);
+
+	// Special case: If we started on an island, then the recon squad consists
+	// entirely of one flying detector. (Life is easy for zerg, hard for terran.)
+	if (Bases::Instance().isIslandStart())
+	{
+		if (reconSquad.getUnits().size() == 0)
+		{
+			for (const auto unit : _combatUnits)
+			{
+				if (unit->getType().isDetector() && _squadData.canAssignUnitToSquad(unit, reconSquad))
+				{
+					_squadData.assignUnitToSquad(unit, reconSquad);
+					break;
+				}
+			}
+		}
 		return;
 	}
 
@@ -240,10 +264,6 @@ void CombatCommander::updateReconSquad()
 			}
 		}
 	}
-
-	// Finally, issue the order.
-	SquadOrder reconOrder(SquadOrderTypes::Attack, _reconTarget, ReconRadius, "Reconnaissance in force");
-	reconSquad.setSquadOrder(reconOrder);
 }
 
 // The recon squad is allowed up to a certain "weight" of units.
@@ -288,7 +308,7 @@ void CombatCommander::chooseReconTarget()
 		change = true;
 	}
 
-	// If we have spent too long on one target, then probably the path is impassible.
+	// If we have spent too long on one target, then probably we haven't been able to reach it.
 	else if (BWAPI::Broodwar->getFrameCount() - _lastReconTargetChange >= ReconTargetTimeout)
 	{
 		change = true;
@@ -328,19 +348,22 @@ void CombatCommander::chooseReconTarget()
 // Called only by setReconTarget().
 BWAPI::Position CombatCommander::getReconLocation() const
 {
-	std::vector<BWTA::BaseLocation *> choices;
+	std::vector<Base *> choices;
 
-	BWAPI::Position mainPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
+	BWAPI::Position startPosition = Bases::Instance().myStartingBase()->getPosition();
 
 	// The choices are neutral bases reachable by ground.
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+	// Or, if we started on an island, the choices are neutral bases anywhere.
+	for (Base * base : Bases::Instance().getBases())
 	{
-		if (InformationManager::Instance().getBaseOwner(base) == BWAPI::Broodwar->neutral() &&
-			MapTools::Instance().getGroundTileDistance(base->getPosition(), mainPosition) != -1)
+		if (base->owner == BWAPI::Broodwar->neutral() &&
+			(Bases::Instance().isIslandStart() || Bases::Instance().connectedToStart(base->getTilePosition())))
 		{
 			choices.push_back(base);
 		}
 	}
+
+	// BWAPI::Broodwar->printf("%d recon squad choices", choices.size());
 
 	// If there are none, return an invalid position.
 	if (choices.empty())
@@ -351,7 +374,7 @@ BWAPI::Position CombatCommander::getReconLocation() const
 	// Choose randomly.
 	// We may choose the same target we already have. That's OK; if there's another choice,
 	// we'll probably switch to it soon.
-	BWTA::BaseLocation * base = choices.at(Random::Instance().index(choices.size()));
+	Base * base = choices.at(Random::Instance().index(choices.size()));
 	return base->getPosition();
 }
 
@@ -443,10 +466,10 @@ void CombatCommander::updateAttackSquads()
 		}
 	}
 
-	SquadOrder groundAttackOrder(SquadOrderTypes::Attack, getAttackLocation(&groundSquad), AttackRadius, "Attack enemy");
+	SquadOrder groundAttackOrder(getAttackOrder(&groundSquad));
 	groundSquad.setSquadOrder(groundAttackOrder);
 
-	SquadOrder flyingAttackOrder(SquadOrderTypes::Attack, getAttackLocation(&flyingSquad), AttackRadius, "Attack enemy");
+	SquadOrder flyingAttackOrder(getAttackOrder(&flyingSquad));
 	flyingSquad.setSquadOrder(flyingAttackOrder);
 }
 
@@ -1072,40 +1095,99 @@ void CombatCommander::drawSquadInformation(int x, int y)
 	_squadData.drawSquadInformation(x, y);
 }
 
-// Choose a point of attack for the given squad (which may be null).
-BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
+// Create an attack order for the given squad (which may be null).
+// For a squad with ground units, ignore targets which are not accessible by ground.
+SquadOrder CombatCommander::getAttackOrder(const Squad * squad)
 {
-	// 0. If we're defensive, look for a front line to hold. No attacks.
-	if (!_goAggressive)
+	// 1. Clear any obstacles around our bases.
+	// Most maps don't have any such thing, but see e.g. Arkanoid and Sparkle.
+	// Only ground squads are sent to clear obstacles.
+	if (squad && squad->getUnits().size() > 0 && squad->hasGround() && squad->canAttackGround())
 	{
-		return getDefenseLocation();
+		// We check our current bases (formerly plus 2 bases we may want to take next).
+		/*
+		Base * baseToClear1 = nullptr;
+		Base * baseToClear2 = nullptr;
+		BWAPI::TilePosition nextBasePos = MapTools::Instance().getNextExpansion(false, true, false);
+		if (nextBasePos.isValid())
+		{
+			// The next mineral-optional expansion.
+			baseToClear1 = Bases::Instance().getBaseAtTilePosition(nextBasePos);
+		}
+		nextBasePos = MapTools::Instance().getNextExpansion(false, true, true);
+		if (nextBasePos.isValid())
+		{
+			// The next gas expansion.
+			baseToClear2 = Bases::Instance().getBaseAtTilePosition(nextBasePos);
+		}
+		*/
+
+		// Then pick any base with blockers and clear it.
+		// The blockers are neutral buildings, and we can get their initial positions.
+		// || base == baseToClear1 || base == baseToClear2
+		const int squadPartition = squad->mapPartition();
+		for (Base * base : Bases::Instance().getBases())
+		{
+			if (base->getBlockers().size() > 0 &&
+				(base->getOwner() == BWAPI::Broodwar->self()) &&
+				squadPartition == the.partitions.id(base->getPosition()))
+			{
+				BWAPI::Unit target = *(base->getBlockers().begin());
+				return SquadOrder(SquadOrderTypes::DestroyNeutral, target->getInitialPosition(), 256, "Destroy neutrals");
+			}
+		}
 	}
 
-	// Otherwise we are aggressive. Look for a spot to attack.
+	// 2. If we're defensive, look for a front line to hold. No attacks.
+	if (!_goAggressive)
+	{
+		return SquadOrder(SquadOrderTypes::Attack, getDefenseLocation(), DefendFrontRadius, "Defend front");
+	}
+
+	// 3. Otherwise we are aggressive. Look for a spot to attack.
+	return SquadOrder(SquadOrderTypes::Attack, getAttackLocation(squad), AttackRadius, "Attack enemy");
+}
+
+// Choose a point of attack for the given squad (which may be null).
+// For a squad with ground units, ignore targets which are not accessible by ground.
+BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
+{
+	// Know where the squad is. If it's empty or unknown, assume it is at our start position.
+	// NOTE In principle, different members of the squad may be in different map partitions,
+	// unable to reach each others' positions by ground. We ignore that complication.
+	const int squadPartition = squad
+		? squad->mapPartition()
+		: the.partitions.id(Bases::Instance().myStartingBase()->getTilePosition());
 
 	// Ground and air considerations.
 	bool hasGround = true;
 	bool hasAir = false;
-	bool canAttackAir = false;
 	bool canAttackGround = true;
+	bool canAttackAir = false;
 	if (squad)
 	{
 		hasGround = squad->hasGround();
 		hasAir = squad->hasAir();
-		canAttackAir = squad->canAttackAir();
 		canAttackGround = squad->canAttackGround();
+		canAttackAir = squad->canAttackAir();
 	}
 
 	// 1. Attack the enemy base with the weakest static defense.
 	// Only if the squad can attack ground. Lift the command center and it is no longer counted as a base.
 	if (canAttackGround)
 	{
-		BWTA::BaseLocation * targetBase = nullptr;
+		Base * targetBase = nullptr;
 		int bestScore = -99999;
-		for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+		for (Base * base : Bases::Instance().getBases())
 		{
-			if (InformationManager::Instance().getBaseOwner(base) == BWAPI::Broodwar->enemy())
+			if (base->getOwner() == BWAPI::Broodwar->enemy())
 			{
+				// Ground squads ignore enemy bases which they cannot reach.
+				if (hasGround && squadPartition != the.partitions.id(base->getTilePosition()))
+				{
+					continue;
+				}
+
 				int score = 0;     // the final score will be 0 or negative
 				std::vector<UnitInfo> enemies;
 				InformationManager::Instance().getNearbyForce(enemies, base->getPosition(), BWAPI::Broodwar->enemy(), 600);
@@ -1137,16 +1219,6 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 		}
 		if (targetBase)
 		{
-			// TODO debugging occasional wrong targets
-			if (false && squad && squad->getSquadOrder().getPosition() != targetBase->getPosition())
-			{
-				BWAPI::Broodwar->printf("redirecting %s to %d,%d priority %d [ %s%shits %s%s]",
-					squad->getName().c_str(), targetBase->getTilePosition().x, targetBase->getTilePosition().y, bestScore,
-					(hasGround ? "ground " : ""),
-					(hasAir ? "air " : ""),
-					(canAttackGround ? "ground " : ""),
-					(canAttackAir ? "air " : ""));
-			}
 			return targetBase->getPosition();
 		}
 	}
@@ -1159,21 +1231,52 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 		{
 			const UnitInfo & ui = kv.second;
 
-			if (ui.type.isBuilding() && ui.lastPosition.isValid() && !ui.goneFromLastPosition)
+			// 1. Special case for refinery buildings because their ground reachability is tricky to check.
+			// 2. We only know that a building is lifted while it is in sight. That can cause oscillatory
+			// behavior--we move away, can't see it, move back because now we can attack it, see it is lifted, ....
+			if (ui.type.isBuilding() &&
+				ui.lastPosition.isValid() &&
+				!ui.goneFromLastPosition &&
+				(!hasGround || (!ui.type.isRefinery() && squadPartition == the.partitions.id(ui.lastPosition))))
 			{
-				return ui.lastPosition;
+				if (ui.unit->exists() && ui.unit->isLifted())
+				{
+					// The building is lifted. Only if the squad can hit it.
+					if (canAttackAir)
+					{
+						return ui.lastPosition;
+					}
+				}
+				else
+				{
+					// The building is not known for sure to be lifted.
+					return ui.lastPosition;
+				}
 			}
 		}
 	}
 
 	// 3. Attack visible enemy units.
-	// TODO score the units and attack the most important
+	// TODO score the units and attack the most important / most vulnerable
+	const BWAPI::Position squadCenter = squad
+		? squad->calcCenter()
+		: Bases::Instance().myStartingBase()->getPosition();
 	for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
 	{
 		if (unit->getType() == BWAPI::UnitTypes::Zerg_Larva ||
 			!unit->exists() ||
 			!unit->isDetected() ||
 			!unit->getPosition().isValid())
+		{
+			continue;
+		}
+
+		// Ground squads ignore enemy units which are not accessible by ground, except when nearby.
+		// The "when nearby" exception allows a chance to attack enemies that are in range,
+		// even if they are beyond a barrier. It's very rough.
+		if (hasGround &&
+			squadPartition != the.partitions.id(unit->getPosition()) &&
+			unit->getDistance(squadCenter) > 300)
 		{
 			continue;
 		}
@@ -1185,7 +1288,7 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 	}
 
 	// 4. We can't see anything, so explore the map until we find something.
-	return MapGrid::Instance().getLeastExplored(hasGround && !hasAir);
+	return MapGrid::Instance().getLeastExplored(hasGround && !hasAir, squadPartition);
 }
 
 // Choose a point of attack for the given drop squad.
@@ -1250,7 +1353,7 @@ BWAPI::Position CombatCommander::getDropLocation(const Squad & squad)
 	}
 
 	// 4. We can't see anything, so explore the map until we find something.
-	return MapGrid::Instance().getLeastExplored(false);
+	return MapGrid::Instance().getLeastExplored();
 }
 
 // We're being defensive. Get the location to defend.

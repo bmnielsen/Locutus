@@ -1,14 +1,9 @@
 #pragma once
 
-#include "Common.h"
-#include "MapGrid.h"
 #include "SquadOrder.h"
-#include "InformationManager.h"
-#include "Micro.h"
 
 namespace UAlbertaBot
 {
-
 class MicroManager
 {
 	BWAPI::Unitset		_units;
@@ -18,6 +13,7 @@ protected:
 	SquadOrder			order;
 
 	virtual void        executeMicro(const BWAPI::Unitset & targets) = 0;
+	void				destroyNeutralTargets(const BWAPI::Unitset & targets);
 	bool				buildScarabOrInterceptor(BWAPI::Unit u) const;
 	bool                checkPositionWalkable(BWAPI::Position pos);
 	bool                unitNearEnemy(BWAPI::Unit unit);
@@ -37,7 +33,6 @@ public:
 
 	const BWAPI::Unitset & getUnits() const;
 	bool				containsType(BWAPI::UnitType type) const;
-	BWAPI::Position     calcCenter() const;
 
 	void				setUnits(const BWAPI::Unitset & u);
 	void				setOrder(const SquadOrder & inputOrder);

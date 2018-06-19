@@ -1,22 +1,73 @@
 #include "Bases.h"
 
 #include "MapTools.h"
+#include "InformationManager.h"		// temporary until stuff is moved into this class
+#include "The.h"
 
 namespace UAlbertaBot
 {
-// Empty constructor. Initialization happens in initialize() below.
+// These numbers are in tiles.
+const int BaseResourceRange = 22;   // max distance of one resource from another
+const int BasePositionRange = 15;   // max distance of the base location from the start point
+const int DepotTileWidth = 4;
+const int DepotTileHeight = 3;
+
+// Each base much meet at least one of these minimum limits to be worth keeping.
+const int MinTotalMinerals = 500;
+const int MinTotalGas = 500;
+
+// Empty constructor, except for remembering the instance.
+// Initialization happens in initialize() below.
 Bases::Bases()
+	: the(The::Root())
+
+	// These are set to their final values in initialize().
+	, startingBase(nullptr)
+	, islandStart(false)
 {
 }
 
-// Given a set of resources, remove any that are used in the base.
-void Bases::removeUsedResources(BWAPI::Unitset & resources, const Base & base) const
+// Figure out whether we are starting on an island.
+bool Bases::checkIslandMap() const
 {
-	for (BWAPI::Unit mins : base.getMinerals())
+	UAB_ASSERT(startingBase, "our base is unknown");
+
+	int ourPartition = the.partitions.id(startingBase->getTilePosition());
+
+	for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
+	{
+		// Is any other start position reachable from here by ground?
+		if (pos != startingBase->getTilePosition() && ourPartition == the.partitions.id(pos))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+// Each base finds and remembers a set of blockers, neutral units that should be destroyed
+// to make best use of the base. Here we create the reverse map blockers -> bases.
+void Bases::rememberBaseBlockers()
+{
+	for (Base * base : bases)
+	{
+		for (BWAPI::Unit blocker : base->getBlockers())
+		{
+			baseBlockers[blocker] = base;
+		}
+	}
+}
+
+// Given a set of resources, remove any that are used in the base.
+void Bases::removeUsedResources(BWAPI::Unitset & resources, const Base * base) const
+{
+	UAB_ASSERT(base, "bad base");
+	for (BWAPI::Unit mins : base->getMinerals())
 	{
 		resources.erase(mins);
 	}
-	for (BWAPI::Unit gas : base.getGeysers())
+	for (BWAPI::Unit gas : base->getGeysers())
 	{
 		resources.erase(gas);
 	}
@@ -60,7 +111,7 @@ BWAPI::TilePosition Bases::findBasePosition(BWAPI::Unitset resources)
 
 	potentialBases.push_back(PotentialBase(left, right, top, bottom, centerOfResources));
 
-	DistanceMap distances(centerOfResources, BasePositionRange, false);
+	GridDistances distances(centerOfResources, BasePositionRange, false);
 
 	int bestScore = 999999;               // smallest is best
 	BWAPI::TilePosition bestTile = BWAPI::TilePositions::Invalid;
@@ -140,6 +191,8 @@ bool Bases::closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition b)
 	return abs(a.x - b.x) <= 8 && abs(a.y - b.y) <= 8;
 }
 
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
 // Find the bases on the map at the beginning of the game.
 void Bases::initialize()
 {
@@ -170,10 +223,15 @@ void Bases::initialize()
 	// Remove their resources from the list.
 	for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
 	{
-		bases.push_back(new Base(pos, resources));
-		const Base * base = bases.back();
+		Base * base = new Base(pos, resources);
+		bases.push_back(base);
+		startingBases.push_back(base);
+		removeUsedResources(resources, base);
 
-		removeUsedResources(resources, *base);
+		if (pos == BWAPI::Broodwar->self()->getStartLocation())
+		{
+			startingBase = base;
+		}
 	}
 
 	// Add the remaining bases.
@@ -182,7 +240,7 @@ void Bases::initialize()
 	{
 		// 1. Choose a resource, any resource. We'll use ground distances from it.
 		BWAPI::Unit startResource = *(resources.begin());
-		DistanceMap fromStart(startResource->getInitialTilePosition(), BaseResourceRange, false);
+		GridDistances fromStart(startResource->getInitialTilePosition(), BaseResourceRange, false);
 
 		// 2. Form a group of nearby resources that are candidates for placing a base near.
 		//    Keep track of how much stuff gets included in the group.
@@ -210,38 +268,41 @@ void Bases::initialize()
 		{
 			basePosition = findBasePosition(resourceGroup);
 		}
-		if (basePosition == BWAPI::TilePositions::Invalid)
+
+		Base * base = nullptr;
+
+		if (basePosition.isValid())
 		{
-			// It's not worth it to make the base, or not possible.
+			// Make the base. The data structure lifetime is normally the rest of the runtime.
+			base = new Base(basePosition, resources);
+
+			// Check whether the base actually grabbed enough resources to be useful.
+			if (base->getInitialMinerals() >= MinTotalMinerals || base->getInitialGas() >= MinTotalGas)
+			{
+				removeUsedResources(resources, base);
+				bases.push_back(base);
+			}
+			else
+			{
+				// No good. Drop the base after all.
+				// This can happen when resources exist but are (or seem) inaccessible.
+				delete base;
+				base = nullptr;
+			}
+		}
+
+		if (!base)
+		{
+			// It's not possible to make the base, or not worth it.
+			// All resources in the group should be considered "used up" or "assigned to nothing".
 			nonbases.push_back(resourceGroup);
 			for (BWAPI::Unit resource : resourceGroup)
 			{
 				resources.erase(resource);
 			}
 		}
-		else
-		{
-			// Make the base. The data structure lifetime is normally the rest of the runtime.
-			Base * base = new Base(basePosition, resources);
 
-			// Check whether the base actually grabbed enough resources to be useful.
-			if (base->getInitialMinerals() >= MinTotalMinerals || base->getInitialGas() >= MinTotalGas)
-			{
-				bases.push_back(base);
-			}
-			else
-			{
-				// No good. Drop the base after all.
-				// This should not happen in practice, so complain.
-				delete base;
-				UAB_ASSERT(false, "inadequate base");
-			}
-
-			// In either case, the resources of the base are no longer available for other bases.
-			removeUsedResources(resources, *base);
-		}
-
-		// Error check.
+		// Error check. This should never happen.
 		if (resources.size() >= priorResourceSize)
 		{
 			BWAPI::Broodwar->printf("failed to remove any resources");
@@ -249,10 +310,20 @@ void Bases::initialize()
 		}
 		priorResourceSize = resources.size();
 	}
+
+	// Fill in other map properties we want to remember.
+	islandStart = checkIslandMap();
+	rememberBaseBlockers();
 }
 
 void Bases::drawBaseInfo() const
 {
+	//the.partitions.drawWalkable();
+
+	//the.partitions.drawPartition(
+	//	the.partitions.id(InformationManager::Instance().getMyMainBaseLocation()->getPosition()),
+	//	BWAPI::Colors::Teal);
+
 	for (const Base * base : bases)
 	{
 		base->drawBaseInfo();
@@ -276,9 +347,24 @@ void Bases::drawBaseInfo() const
 
 	for (const auto & potential : potentialBases)
 	{
+		// THe bounding box of the resources.
 		BWAPI::Broodwar->drawBoxMap(BWAPI::Position(potential.left, potential.top), BWAPI::Position(potential.right, potential.bottom), BWAPI::Colors::Yellow);
-		BWAPI::Broodwar->drawBoxMap(BWAPI::Position(potential.startTile), BWAPI::Position(potential.startTile)+BWAPI::Position(31,31), BWAPI::Colors::Yellow);
+
+		// The starting tile for base placement.
+		//BWAPI::Broodwar->drawBoxMap(BWAPI::Position(potential.startTile), BWAPI::Position(potential.startTile)+BWAPI::Position(31,31), BWAPI::Colors::Yellow);
 	}
+}
+
+// The given position is reachable by ground from our starting base.
+bool Bases::connectedToStart(const BWAPI::Position & pos) const
+{
+	return the.partitions.id(pos) == the.partitions.id(startingBase->getTilePosition());
+}
+
+// The given tile is reachable by ground from our starting base.
+bool Bases::connectedToStart(const BWAPI::TilePosition & tile) const
+{
+	return the.partitions.id(tile) == the.partitions.id(startingBase->getTilePosition());
 }
 
 // Return the base at or close to the given position, or null if none.
@@ -293,6 +379,24 @@ Base * Bases::getBaseAtTilePosition(BWAPI::TilePosition pos)
 	}
 
 	return nullptr;
+}
+
+// A neutral building has been destroyed.
+// If it was a base blocker, forget it so that we don't try (again) to destroy it.
+// This should be easy to eztend to the case of clearing a blocking building or mineral patch.
+void Bases::clearNeutral(BWAPI::Unit unit)
+{
+	if (unit &&
+		unit->getPlayer() == BWAPI::Broodwar->neutral() &&
+		unit->getType().isBuilding())
+	{
+		auto it = baseBlockers.find(unit);
+		if (it != baseBlockers.end())
+		{
+			it->second->clearBlocker(unit);
+			(void)baseBlockers.erase(it);
+		}
+	}
 }
 
 Bases & Bases::Instance()

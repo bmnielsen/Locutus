@@ -1,10 +1,11 @@
 #pragma once
 
-#include <Common.h>
+#include "Common.h"
 #include "MicroManager.h"
 
 namespace UAlbertaBot
 {
+class The;
 
 class GridCell
 {
@@ -28,11 +29,12 @@ public:
     }
 };
 
-
 class MapGrid 
 {
 	MapGrid();
 	MapGrid(int mapWidth, int mapHeight, int cellSize);
+
+	The &						the;
 
 	int							cellSize;
 	int							mapWidth, mapHeight;
@@ -53,7 +55,8 @@ public:
 
 	void				update();
 	void				getUnits(BWAPI::Unitset & units, BWAPI::Position center, int radius, bool ourUnits, bool oppUnits);
-	BWAPI::Position		getLeastExplored(bool byGround);
+	BWAPI::Position		getLeastExplored() { return getLeastExplored(false, 1); };
+	BWAPI::Position		getLeastExplored(bool byGround, int mapPartition);
 
 	GridCell & getCellByIndex(int r, int c)		{ return cells[r*cols + c]; }
 	GridCell & getCell(BWAPI::Position pos)		{ return getCellByIndex(pos.y / cellSize, pos.x / cellSize); }

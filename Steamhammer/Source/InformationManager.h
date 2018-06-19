@@ -51,6 +51,8 @@ class InformationManager
 	bool					closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition b);
 	void					chooseNewMainBase();
 
+	void					maybeClearNeutral(BWAPI::Unit unit);
+
 	void					maybeAddStaticDefense(BWAPI::Unit unit);
 
 	void                    updateUnit(BWAPI::Unit unit);
@@ -71,7 +73,7 @@ public:
 	void					onUnitCreate(BWAPI::Unit unit)		{ updateUnit(unit); maybeAddBase(unit); }
 	void					onUnitComplete(BWAPI::Unit unit)    { updateUnit(unit); maybeAddStaticDefense(unit); }
 	void					onUnitMorph(BWAPI::Unit unit)       { updateUnit(unit); maybeAddBase(unit); }
-    void					onUnitRenegade(BWAPI::Unit unit)    { updateUnit(unit); }
+	void					onUnitRenegade(BWAPI::Unit unit)    { updateUnit(unit); maybeClearNeutral(unit); }
     void					onUnitDestroy(BWAPI::Unit unit);
 
 	bool					isEnemyBuildingInRegion(BWTA::Region * region);
@@ -101,9 +103,9 @@ public:
 
 	void					maybeChooseNewMainBase();
 
-	bool					isBaseReserved(BWTA::BaseLocation * base);
-	void					reserveBase(BWTA::BaseLocation * base);
-	void					unreserveBase(BWTA::BaseLocation * base);
+	bool					isBaseReserved(Base * base);
+	void					reserveBase(Base * base);
+	void					unreserveBase(Base * base);
 	void					unreserveBase(BWAPI::TilePosition baseTilePosition);
 
 	int						getAir2GroundSupply(BWAPI::Player player) const;

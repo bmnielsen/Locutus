@@ -1,9 +1,35 @@
+#include "Micro.h"
+#include "MicroManager.h"
 #include "MicroDetectors.h"
+#include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
+// Clip (x,y) to the bounds of the map.
+void MicroDetectors::clipToMap(BWAPI::Position & pos) const
+{
+	if (pos.x < 0)
+	{
+		pos.x = 0;
+	}
+	else if (pos.x >= 32 * BWAPI::Broodwar->mapWidth())
+	{
+		pos.x = 32 * BWAPI::Broodwar->mapWidth() - 1;
+	}
+
+	if (pos.y < 0)
+	{
+		pos.y = 0;
+	}
+	else if (pos.y >= 32 * BWAPI::Broodwar->mapHeight())
+	{
+		pos.y = 32 * BWAPI::Broodwar->mapHeight() - 1;
+	}
+}
+
 MicroDetectors::MicroDetectors()
-	: unitClosestToEnemy(nullptr)
+	: squadSize(0)
+	, unitClosestToEnemy(nullptr)
 {
 }
 
@@ -16,71 +42,58 @@ void MicroDetectors::executeMicro(const BWAPI::Unitset & targets)
 		return;
 	}
 
-	// NOTE targets is a list of nearby enemies.
-	// Currently unused. Could use it to avoid enemy fire, among other possibilities.
-	for (size_t i(0); i<targets.size(); ++i)
-	{
-		// do something here if there are targets
-	}
+	// Look through the targets to find those which we want to seek or to avoid.
+	BWAPI::Unitset cloakedTargets;
+	BWAPI::Unitset enemies;
+	int nAirThreats = 0;
 
-	cloakedUnitMap.clear();
-	BWAPI::Unitset cloakedUnits;
-
-	// Find enemy cloaked units.
-	// NOTE This code is unused, but it is potentially useful.
-	for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
+	for (const BWAPI::Unit target : targets)
 	{
-		if (unit->getType().hasPermanentCloak() ||     // dark templar, observer
-			unit->getType().isCloakable() ||           // wraith, ghost
-			unit->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
-			unit->getType() == BWAPI::UnitTypes::Zerg_Lurker ||
-			unit->isBurrowed() ||
-			(unit->isVisible() && !unit->isDetected()))
+		// 1. Find cloaked units. Keep them in detection range.
+		if (target->getType().hasPermanentCloak() ||     // dark templar, observer
+			target->getType().isCloakable() ||           // wraith, ghost
+			target->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
+			target->getType() == BWAPI::UnitTypes::Zerg_Lurker ||
+			target->isBurrowed())
 		{
-			cloakedUnits.insert(unit);
-			cloakedUnitMap[unit] = false;
+			cloakedTargets.insert(target);
 		}
-	}
 
-	for (const auto detectorUnit : detectorUnits)
-	{
-		// Move the detector toward the squadmate closest to the enemy.
-		if (unitClosestToEnemy && unitClosestToEnemy->getPosition().isValid())
+		if (UnitUtil::CanAttackAir(target))
 		{
-			Micro::Move(detectorUnit, unitClosestToEnemy->getPosition());
-		}
-		// otherwise there is no unit closest to enemy so we don't want our detectorUnit to die
-		// send it to scout around the map
-		/* no, don't - not so smart for overlords
-		else
-		{
-			BWAPI::Position explorePosition = MapGrid::Instance().getLeastExplored();
-			Micro::Move(detectorUnit, explorePosition);
-		}
-		*/
-	}
-}
+			// 2. Find threats. Keep away from them.
+			enemies.insert(target);
 
-// NOTE Unused but potentially useful.
-BWAPI::Unit MicroDetectors::closestCloakedUnit(const BWAPI::Unitset & cloakedUnits, BWAPI::Unit detectorUnit)
-{
-	BWAPI::Unit closestCloaked = nullptr;
-	double closestDist = 100000;
-
-	for (const auto unit : cloakedUnits)
-	{
-		// if we haven't already assigned an detectorUnit to this cloaked unit
-		if (!cloakedUnitMap[unit])
-		{
-			int dist = unit->getDistance(detectorUnit);
-
-			if (dist < closestDist)
+			// 3. Count air threats. Stay near anti-air units.
+			if (target->isFlying())
 			{
-				closestCloaked = unit;
-				closestDist = dist;
+				++nAirThreats;
 			}
 		}
 	}
 
-	return closestCloaked;
+	// Anti-air units that can fire on air attackers, including static defense.
+	// TODO not yet implemented
+	// BWAPI::Unitset defenders;
+
+	// For each detector.
+	// In Steamhammer, detectors in the squad are normally zero or one.
+	for (const BWAPI::Unit detectorUnit : detectorUnits)
+	{
+		if (squadSize == 1)
+		{
+			// The detector is alone in the squad. Move to the order position.
+			// This allows the Recon squad to scout with a detector on island maps.
+			Micro::Move(detectorUnit, order.getPosition());
+			return;
+		}
+
+		BWAPI::Position destination = detectorUnit->getPosition();
+		if (unitClosestToEnemy && unitClosestToEnemy->getPosition().isValid())
+		{
+			destination = unitClosestToEnemy->getPosition();
+			// clipToMap(destination);
+			Micro::Move(detectorUnit, destination);
+		}
+	}
 }

@@ -1,10 +1,19 @@
 #include "OpponentModel.h"
+
+#include "Bases.h"
 #include "Random.h"
 
 using namespace UAlbertaBot;
 
 OpeningPlan OpponentModel::predictEnemyPlan() const
 {
+	// Don't bother to predict on island maps.
+	// Data from other maps will only be misleading.
+	if (Bases::Instance().isIslandStart())
+	{
+		return OpeningPlan::Unknown;
+	}
+
 	struct PlanInfoType
 	{
 		int wins;

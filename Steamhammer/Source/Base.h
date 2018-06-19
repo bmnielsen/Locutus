@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Common.h"
-#include "DistanceMap.h"
+#include "GridDistances.h"
 
 namespace UAlbertaBot
 {
@@ -18,17 +17,15 @@ private:
 	BWAPI::TilePosition	tilePosition;		// upper left corner of the resource depot spot
 	BWAPI::Unitset		minerals;			// the associated mineral patches
 	BWAPI::Unitset		geysers;			// the base's associated geysers
-	DistanceMap			distances;			// ground distances from tilePosition
+	BWAPI::Unitset		blockers;			// destructible neutral units that may be in the way
+	GridDistances		distances;			// ground distances from tilePosition
 
-	// TODO
-	// bool isIsland;
-	// std::vector<BWAPI::Unit> blockingMinerals;	// must clear these before you can place the base
+	bool				reserved;			// if this is a planned expansion
 
 public:
 
 	BWAPI::Unit		resourceDepot;		// hatchery, etc., or null if none
 	BWAPI::Player	owner;              // self, enemy, neutral
-	bool			reserved;			// if this is a planned expansion
 
 	BWAPI::Unit		getDepot() const { return resourceDepot; };
 	BWAPI::Player	getOwner() const { return owner; };
@@ -49,10 +46,17 @@ public:
 	// The mineral patch units and geyser units.
 	const BWAPI::Unitset & getMinerals() const { return minerals; };
 	const BWAPI::Unitset & getGeysers() const { return geysers; };
+	const BWAPI::Unitset & getBlockers() const { return blockers; }
 
 	// The sum of resources available.
 	int getInitialMinerals() const;
 	int getInitialGas() const;
+
+	bool isReserved() const { return reserved; };
+	void reserve() { reserved = true; };
+	void unreserve() { reserved = false; };
+
+	void clearBlocker(BWAPI::Unit blocker);
 
 	void drawBaseInfo() const;
 };

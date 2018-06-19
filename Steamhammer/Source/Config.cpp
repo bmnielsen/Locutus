@@ -12,11 +12,14 @@ namespace Config
     {
         bool ConfigFileFound                = false;
         bool ConfigFileParsed               = false;
-        std::string ConfigFileLocation      = "bwapi-data/AI/Steamhammer_1.4.2.json";
+        std::string ConfigFileLocation      = "bwapi-data/AI/Steamhammer_1.4.4.json";
     }
 
 	namespace IO
 	{
+		std::string ErrorLogFilename		= "Steamhammer_ErrorLog.txt";
+		bool LogAssertToErrorFile			= false;
+
 		std::string ReadDir					= "bwapi-data/read/";
 		std::string WriteDir				= "bwapi-data/write/";
 		int MaxGameRecords					= 0;
@@ -84,9 +87,6 @@ namespace Config
 		bool DrawUnitOrders					= false;
         bool DrawSquadInfo                  = false;
         bool DrawBOSSStateInfo              = false;
-
-        std::string ErrorLogFilename        = "Steamhammer_ErrorLog.txt";
-        bool LogAssertToErrorFile           = false;
 
         BWAPI::Color ColorLineTarget        = BWAPI::Colors::White;
         BWAPI::Color ColorLineMineral       = BWAPI::Colors::Cyan;
