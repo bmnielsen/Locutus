@@ -255,9 +255,41 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 
 		auto& strategyWeightFactors = OpponentModel::Instance().getStrategyWeightFactors();
 
+        // 0.5. Check for map-specific strategies
+        if (strategy.HasMember("MapSpecificStrategy") &&
+            strategy["MapSpecificStrategy"].IsObject())
+        {
+            const rapidjson::Value & specific = strategy["MapSpecificStrategy"];
+
+            // Check for a race-specific strategy for this map
+            std::string mapSpecificVersus = BWAPI::Broodwar->mapHash() + " v" + RaceChar(BWAPI::Broodwar->enemy()->getRace());
+            if (specific.HasMember(mapSpecificVersus.c_str()))
+            {
+                std::string strategyName;
+                if (_ParseStrategy(specific[mapSpecificVersus.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
+                {
+                    Config::Strategy::StrategyName = strategyName;
+                    Config::Strategy::FoundMapSpecificStrategy = true;   // defaults to false; see Config.cpp
+                    openingStrategyDecided = true;
+                }
+            }
+
+            // Otherwise check for a general counter
+            else if (specific.HasMember(BWAPI::Broodwar->mapHash().c_str()))
+            {
+                std::string strategyName;
+                if (_ParseStrategy(specific[BWAPI::Broodwar->mapHash().c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
+                {
+                    Config::Strategy::StrategyName = strategyName;
+                    Config::Strategy::FoundMapSpecificStrategy = true;   // defaults to false; see Config.cpp
+                    openingStrategyDecided = true;
+                }
+            }
+        }
+
 		// 1. Should we use a special strategy against this specific enemy?
 		JSONTools::ReadBool("UseEnemySpecificStrategy", strategy, Config::Strategy::UseEnemySpecificStrategy);
-		if (Config::Strategy::UseEnemySpecificStrategy &&
+		if (!openingStrategyDecided && Config::Strategy::UseEnemySpecificStrategy &&
 			strategy.HasMember("EnemySpecificStrategy") &&
 			strategy["EnemySpecificStrategy"].IsObject())
 		{

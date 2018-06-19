@@ -122,6 +122,26 @@
         {
 			"locutus": "TestWall"
 		},
+		
+		"MapSpecificStrategy" :
+		{
+			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vT" : { "Protoss" : [
+				{ "Weight" : 45, "Strategy" : "10-15GateGoon" },
+				{ "Weight" : 35, "Strategy" : "DTDrop" }
+			]},
+			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vP" : { "Protoss" : [
+				{ "Weight" : 35, "Strategy" : "4GateGoon" },
+				{ "Weight" : 25, "Strategy" : "2GateDTExpo" }
+			]},
+			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vZ" : { "Protoss" : [
+				{ "Weight" : 60, "Strategy" : "9-9Gate" },
+				{ "Weight" : 40, "Strategy" : "4GateGoon" }
+			]},
+			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vU" : { "Protoss" : [
+				{ "Weight" : 60, "Strategy" : "9-9Gate" },
+				{ "Weight" : 40, "Strategy" : "4GateGoon" }
+			]}
+		},
 
 		"CounterStrategies" :
 		{
@@ -179,7 +199,7 @@
 				["go defensive", "4 x probe", "pylon @ wall then go scout while safe", "probe", "gateway @ wall", "probe", "forge @ wall", "probe", "zealot", "photon cannon @ wall", "probe", "photon cannon @ wall", "probe", "pylon", "zealot", "photon cannon @ wall", "probe", "zealot", "probe", "assimilator", "cybernetics core", "probe", "pylon", "2 x probe", "dragoon", "probe", "nexus @ natural", "probe", "dragoon", "probe", "singularity charge then go aggressive", "pylon", "dragoon", "probe", "gateway", "2 x probe", "dragoon", "2 x probe", "gateway", "pylon", "3 x probe", "2 x dragoon", "2 x probe", "pylon", "dragoon", "2 x probe", "2 x dragoon"]},
 
 			"9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
-				["4 x probe", "pylon then go scout while safe", "probe", "2 x gateway", "2 x probe", "zealot", "pylon", "2 x zealot",  "probe", "2 x zealot", "probe", "pylon", "zealot", "gateway", "probe", "pylon", "probe", "zealot", "probe", "4 x zealot", "pylon", "probe", "3 x zealot" ]},
+				["4 x probe", "pylon then go scout while safe", "probe", "2 x gateway", "2 x probe", "zealot", "pylon", "2 x zealot",  "probe", "2 x zealot", "probe", "zealot", "pylon", "probe", "2 x zealot" ]},
 			"10-12Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
 				["go defensive", "4 x probe", "pylon then go scout while safe", "probe", "probe", "gateway", "2 x probe", "gateway", "probe", "zealot", "pylon", "probe", "2 x probe", "zealot", "pylon", "zealot", "probe", "probe", "gateway", "zealot", "probe", "zealot", "pylon", "go aggressive", "probe", "zealot", "probe", "2 x zealot", "pylon", "zealot", "probe"]},
 			"NoZealotCore"			: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :

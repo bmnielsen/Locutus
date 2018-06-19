@@ -38,6 +38,7 @@ namespace Config
 		extern bool SurrenderWhenHopeIsLost;
         extern bool UseEnemySpecificStrategy;
         extern bool FoundEnemySpecificStrategy;
+        extern bool FoundMapSpecificStrategy;
     }
 
     namespace BWAPIOptions

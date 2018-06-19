@@ -37,6 +37,7 @@ namespace Config
 		bool SurrenderWhenHopeIsLost        = true;
         bool UseEnemySpecificStrategy       = true;
         bool FoundEnemySpecificStrategy     = false;
+        bool FoundMapSpecificStrategy       = false;
     }
 
     namespace BotInfo

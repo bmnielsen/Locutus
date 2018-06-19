@@ -170,6 +170,7 @@ void GameCommander::drawGameInformation(int x, int y)
 	if (openingGroup != "") strategy << " (" << openingGroup << ")";
 	if (gasSteal) strategy << " + steal gas";
 	if (Config::Strategy::FoundEnemySpecificStrategy) strategy << " - enemy specific";
+	if (Config::Strategy::FoundMapSpecificStrategy) strategy << " - map specific";
 
 	if (strategy.str() != _lastStrategyInfo)
 	{
