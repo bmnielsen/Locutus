@@ -529,20 +529,23 @@ namespace BWEB
 
 	void Map::setStartTile()
 	{
-		auto distBest = DBL_MAX;
-		if (!mapBWEM.GetArea(startTile) || !isWalkable(startTile)) {
-			for (auto x = startTile.x - 2; x < startTile.x + 2; x++) {
-				for (auto y = startTile.y - 2; y < startTile.y + 2; y++) {
-					TilePosition t(x, y);
-					const auto dist = t.getDistance(endTile);
-					if (overlapsCurrentWall(t) != UnitTypes::None)
-						continue;
+        if (mapBWEM.GetArea(startTile) && isWalkable(startTile)) return;
 
-					if (mapBWEM.GetArea(t) == area && dist < distBest)
-						startTile = TilePosition(x, y), distBest = dist;
-				}
+        BWAPI::TilePosition tileBest = BWAPI::TilePositions::Invalid;
+		auto distBest = DBL_MAX;
+		for (auto x = startTile.x - 2; x < startTile.x + 2; x++) {
+			for (auto y = startTile.y - 2; y < startTile.y + 2; y++) {
+				TilePosition t(x, y);
+				const auto dist = t.getDistance(endTile);
+				if (overlapsCurrentWall(t) != UnitTypes::None)
+					continue;
+
+				if (mapBWEM.GetArea(t) == area && dist < distBest)
+                    tileBest = TilePosition(x, y), distBest = dist;
 			}
 		}
+
+        if (tileBest.isValid()) startTile = tileBest;
 	}
 
 	void Map::setEndTile()

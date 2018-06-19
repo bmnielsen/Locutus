@@ -1181,9 +1181,9 @@ namespace UAlbertaBot
         }
 
         // Initialize pathfinding tiles
+        initializeEndTile();
         bwebMap.startTile = (BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + bwebMap.naturalTile) / 4;
         bwebMap.setStartTile();
-        initializeEndTile();
 
         // Create the wall
 		Log().Debug() << "Creating wall; tight=" << tight;
