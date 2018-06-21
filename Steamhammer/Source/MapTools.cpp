@@ -261,9 +261,8 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 	BWTA::BaseLocation * bestBase = nullptr;
 	double bestScore = -999999.0;
 	
-	BWAPI::TilePosition homeTile = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
-	BWAPI::Position myBasePosition(homeTile);
-	BWTA::BaseLocation * enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();  // may be null
+    auto myBases = InformationManager::Instance().getMyBases();
+    auto enemyBases = InformationManager::Instance().getEnemyBases(); // may be empty
 
     for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
     {
@@ -326,7 +325,7 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
         }
 
         // Want to be close to our own base (unless this is to be a hidden base).
-		double distanceFromUs = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), myBasePosition);
+        double distanceFromUs = closestBaseDistance(base, myBases);
 
         // if it is not connected, continue
 		if (distanceFromUs < 0)
@@ -335,18 +334,10 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
         }
 
 		// Want to be far from the enemy base.
-		double distanceFromEnemy = 0.0;
-		if (enemyBase) {
-			BWAPI::TilePosition enemyTile = enemyBase->getTilePosition();
-			distanceFromEnemy = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), BWAPI::Position(enemyTile));
-			if (distanceFromEnemy < 0)        // no ground connection between the locations
-			{
-				distanceFromEnemy = 0.0;
-			}
-		}
+        double distanceFromEnemy = std::max(0, closestBaseDistance(base, enemyBases));
 
 		// Add up the score.
-		score = hidden ? (distanceFromEnemy + distanceFromUs / 2.0) : (distanceFromEnemy / 2.0 - distanceFromUs);
+		score = hidden ? (distanceFromEnemy + distanceFromUs / 2.0) : (distanceFromEnemy / 1.5 - distanceFromUs);
 
 		// More resources -> better.
 		if (wantMinerals)
@@ -381,6 +372,19 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 		return nextExpansion(hidden, true, false);
 	}
 	return nullptr;
+}
+
+int MapTools::closestBaseDistance(BWTA::BaseLocation * base, std::vector<BWTA::BaseLocation*> bases)
+{
+    int closestDistance = -1;
+    for (auto other : bases)
+    {
+        int dist = getGroundTileDistance(base->getPosition(), other->getPosition());
+        if (dist >= 0 && (dist < closestDistance || closestDistance == -1))
+            closestDistance = dist;
+    }
+
+    return closestDistance;
 }
 
 BWAPI::TilePosition MapTools::getNextExpansion(bool hidden, bool wantMinerals, bool wantGas)

@@ -32,6 +32,7 @@ class MapTools
     void				setBWAPIMapData();					// reads in the map data from bwapi and stores it in our map format
 
 	BWTA::BaseLocation *nextExpansion(bool hidden, bool wantMinerals, bool wantGas);
+    int closestBaseDistance(BWTA::BaseLocation * base, std::vector<BWTA::BaseLocation*> bases);
 
 public:
 

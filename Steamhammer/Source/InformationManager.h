@@ -106,7 +106,9 @@ public:
 	BWAPI::Player			getBaseOwner(BWTA::BaseLocation * base);
 	BWAPI::Unit 			getBaseDepot(BWTA::BaseLocation * base);
 	BWTA::BaseLocation *	getMyNaturalLocation();
-    std::vector<BWTA::BaseLocation *> getMyBases();
+    std::vector<BWTA::BaseLocation *> getBases(BWAPI::Player player);
+    std::vector<BWTA::BaseLocation *> getMyBases() { return getBases(BWAPI::Broodwar->self()); }
+    std::vector<BWTA::BaseLocation *> getEnemyBases() { return getBases(BWAPI::Broodwar->enemy()); }
 	int						getTotalNumBases() const;
 	int						getNumBases(BWAPI::Player player);
 	int						getNumFreeLandBases();

@@ -721,12 +721,12 @@ BWTA::BaseLocation * InformationManager::getMyNaturalLocation()
 }
 
 // All bases owned by me.
-std::vector<BWTA::BaseLocation *> InformationManager::getMyBases()
+std::vector<BWTA::BaseLocation *> InformationManager::getBases(BWAPI::Player player)
 {
     std::vector<BWTA::BaseLocation *> result;
     for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
     {
-        if (_theBases[base]->owner == BWAPI::Broodwar->self())
+        if (_theBases[base]->owner == player)
         {
             result.push_back(base);
         }
