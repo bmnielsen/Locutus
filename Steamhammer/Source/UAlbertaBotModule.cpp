@@ -33,9 +33,6 @@ void UAlbertaBotModule::onStart()
 	BWTA::readMap();
 	BWTA::analyze();
 
-	// Our own map analysis.
-	Bases::Instance().initialize();
-
 	// BWEM map init
 	bwemMap.Initialize(BWAPI::BroodwarPtr);
 	bwemMap.EnableAutomaticPathAnalysis();
@@ -44,6 +41,9 @@ void UAlbertaBotModule::onStart()
 
     // BWEB map init
     BuildingPlacer::Instance().initializeBWEB();
+
+    // Our own map analysis.
+    Bases::Instance().initialize();
 
     // Parse the bot's configuration file.
 	// Change this file path to point to your config file.

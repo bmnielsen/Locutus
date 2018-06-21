@@ -454,7 +454,7 @@ void ScoutManager::followPerimeter()
 		}
 	}
 
-	Micro::Move(_workerScout, fleeTo);
+    InformationManager::Instance().getLocutusUnit(_workerScout).moveTo(fleeTo);
 }
 
 // Called only when a gas steal is requested.

@@ -11,6 +11,17 @@
 namespace UAlbertaBot
 {
 
+struct MineralWalkChoke
+{
+    BWAPI::Unit firstMineralPatch;
+    BWAPI::Unit secondMineralPatch;
+
+    MineralWalkChoke(BWAPI::Unit _firstMineralPatch, BWAPI::Unit _secondMineralPatch) 
+        : firstMineralPatch(_firstMineralPatch)
+        , secondMineralPatch(_secondMineralPatch)
+    {};
+};
+
 class MapTools
 {
 	const size_t allMapsSize = 40;			// store this many distance maps in _allMaps

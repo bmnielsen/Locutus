@@ -3,6 +3,8 @@
 #include "BuildingPlacer.h"
 #include "InformationManager.h"
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 MapTools & MapTools::Instance()
@@ -25,6 +27,59 @@ MapTools::MapTools()
 			break;
 		}
 	}
+
+    // On Plasma, we want to enrich the BWEM chokepoints with data about mineral walking
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67")
+    {
+        // Get all of the chokepoints
+        std::set<const BWEM::ChokePoint*> chokes;
+        for (const auto & area : bwemMap.Areas())
+            for (const BWEM::ChokePoint * choke : area.ChokePoints())
+                chokes.insert(choke);
+
+        // Process each choke
+        for (const BWEM::ChokePoint * choke : chokes)
+        {
+            BWAPI::Position chokeCenter(choke->Center());
+
+            // Determine if the choke is blocked by eggs, and grab the close mineral patches
+            bool blockedByEggs = false;
+            BWAPI::Unit closestMineralPatch = nullptr;
+            BWAPI::Unit secondClosestMineralPatch = nullptr;
+            int closestMineralPatchDist = INT_MAX;
+            int secondClosestMineralPatchDist = INT_MAX;
+            for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())
+            {
+                if (!blockedByEggs && staticNeutral->getType() == BWAPI::UnitTypes::Zerg_Egg &&
+                    staticNeutral->getDistance(chokeCenter) < 100)
+                {
+                    blockedByEggs = true;
+                }
+
+                if (staticNeutral->getType() == BWAPI::UnitTypes::Resource_Mineral_Field &&
+                    staticNeutral->getResources() == 32)
+                {
+                    int dist = staticNeutral->getDistance(chokeCenter);
+                    if (dist <= closestMineralPatchDist)
+                    {
+                        secondClosestMineralPatchDist = closestMineralPatchDist;
+                        closestMineralPatchDist = dist;
+                        secondClosestMineralPatch = closestMineralPatch;
+                        closestMineralPatch = staticNeutral;
+                    }
+                    else if (dist < secondClosestMineralPatchDist)
+                    {
+                        secondClosestMineralPatchDist = dist;
+                        secondClosestMineralPatch = staticNeutral;
+                    }
+                }
+            }
+
+            if (!blockedByEggs) continue;
+
+            choke->SetExt(new MineralWalkChoke(closestMineralPatch, secondClosestMineralPatch));
+        }
+    }
 
 	// TODO testing
 	//BWAPI::TilePosition homePosition = BWAPI::Broodwar->self()->getStartLocation();
@@ -56,18 +111,22 @@ void MapTools::setBWAPIMapData()
 			bool walkable = true;
 
 			// Check each 8x8 walk tile within this 32x32 TilePosition.
-			for (int i = 0; i < 4 && walkable; ++i)
+            int walkableWalkPositions = 0;
+			for (int i = 0; i < 4; ++i)
 			{
-				for (int j = 0; j < 4 && walkable; ++j)
+				for (int j = 0; j < 4; ++j)
 				{
-					if (!BWAPI::Broodwar->isWalkable(x * 4 + i, y * 4 + j))
-					{
-						walkable = false;   // break out of both loops
-						_terrainWalkable[x][y] = false;
-						_walkable[x][y] = false;
-					}
+                    if (BWAPI::Broodwar->isWalkable(x * 4 + i, y * 4 + j)) walkableWalkPositions++;
 				}
 			}
+
+            // On Plasma, consider the tile walkable if at least 10 walk positions are walkable
+            if (walkableWalkPositions < 16 &&
+                (BWAPI::Broodwar->mapHash() != "6f5295624a7e3887470f3f2e14727b1411321a67" || walkableWalkPositions < 10))
+            {
+                _terrainWalkable[x][y] = false;
+                _walkable[x][y] = false;
+            }
 		}
 	}
 
@@ -75,6 +134,11 @@ void MapTools::setBWAPIMapData()
 	// This affects _walkable but not _terrainWalkable. We don't update buildability here.
 	for (const auto unit : BWAPI::Broodwar->getStaticNeutralUnits())
 	{
+        // Ignore the eggs on Plasma
+        if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
+            unit->getType() == BWAPI::UnitTypes::Zerg_Egg)
+            continue;
+
 		// The neutral units may include moving critters which do not permanently block tiles.
 		// Something immobile blocks tiles it occupies until it is destroyed. (Are there exceptions?)
 		if (!unit->getType().canMove() && !unit->isFlying())
