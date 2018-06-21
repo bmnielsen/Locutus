@@ -768,8 +768,14 @@ void PullToTopOrQueue(BuildOrderQueue & queue, BWAPI::UnitType unitType)
 }
 
 
-void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
+void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue, int recursions = 1)
 {
+    if (recursions > 10)
+    {
+        Log().Get() << "ERROR: QueueUrgentItem went over 10 recursions, this item is " << type;
+        return;
+    }
+
 	// Do nothing if we are already building it
 	if (UnitUtil::GetAllUnitCount(type) > 0 || (type.isBuilding() && BuildingManager::Instance().isBeingBuilt(type)))
 		return;
@@ -778,7 +784,7 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
     if (type.gasPrice() > BWAPI::Broodwar->self()->gas() 
         && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Assimilator) < 1)
     {
-        QueueUrgentItem(BWAPI::UnitTypes::Protoss_Assimilator, queue);
+        QueueUrgentItem(BWAPI::UnitTypes::Protoss_Assimilator, queue, recursions + 1);
         return;
     }
 
@@ -786,7 +792,7 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
 	for (auto const & req : type.requiredUnits())
 		if (UnitUtil::GetCompletedUnitCount(req.first) < req.second)
 		{
-			QueueUrgentItem(req.first, queue);
+			QueueUrgentItem(req.first, queue, recursions + 1);
 			return;
 		}
 
@@ -794,7 +800,7 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue)
 	if (type.whatBuilds().first.isBuilding()
 		&& UnitUtil::GetCompletedUnitCount(type.whatBuilds().first) < type.whatBuilds().second)
 	{
-		QueueUrgentItem(type.whatBuilds().first, queue);
+		QueueUrgentItem(type.whatBuilds().first, queue, recursions + 1);
 		return;
 	}
 
@@ -1060,16 +1066,36 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			return;
 		}
 
-		// If there are no workers, many reactions can't happen.
-		const bool anyWorkers =
-			UnitUtil::GetAllUnitCount(_selfRace == BWAPI::Races::Terran
-			? BWAPI::UnitTypes::Terran_SCV
-			: BWAPI::UnitTypes::Protoss_Probe) > 0;
-
         const MacroAct * nextInQueuePtr = queue.isEmpty() ? nullptr : &(queue.getHighestPriorityItem().macroAct);
 
+        // If we need gas, make sure it is turned on.
+        int gas = BWAPI::Broodwar->self()->gas();
+        if (nextInQueuePtr)
+        {
+            if (nextInQueuePtr->gasPrice() > gas)
+            {
+                WorkerManager::Instance().setCollectGas(true);
+            }
+        }
+
+        // If we have collected too much gas, turn it off.
+        if (ProductionManager::Instance().isOutOfBook() &&
+            gas > 400 &&
+            gas > 4 * BWAPI::Broodwar->self()->minerals())
+        {
+            int queueMinerals, queueGas;
+            queue.totalCosts(queueMinerals, queueGas);
+            if (gas >= queueGas)
+            {
+                WorkerManager::Instance().setCollectGas(false);
+            }
+        }
+
+        // Everything below this requires workers, so break now if we have none
+        if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe) < 1) return;
+
 		// detect if there's a supply block once per second
-		if ((BWAPI::Broodwar->getFrameCount() % 24 == 1) && detectSupplyBlock(queue) && anyWorkers)
+		if ((BWAPI::Broodwar->getFrameCount() % 24 == 1) && detectSupplyBlock(queue))
 		{
 			if (Config::Debug::DrawBuildOrderSearchInfo)
 			{
@@ -1078,16 +1104,6 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
             PullToTopOrQueue(queue, BWAPI::Broodwar->self()->getRace().getSupplyProvider());
 			return;
-		}
-
-		// If we need gas, make sure it is turned on.
-		int gas = BWAPI::Broodwar->self()->gas();
-		if (nextInQueuePtr)
-		{
-			if (nextInQueuePtr->gasPrice() > gas)
-			{
-				WorkerManager::Instance().setCollectGas(true);
-			}
 		}
 
 		// If we're protoss and building is stalled for lack of space,
@@ -1100,19 +1116,6 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			{
                 PullToTopOrQueue(queue, BWAPI::UnitTypes::Protoss_Pylon);
 				return;				// and call it a day
-			}
-		}
-
-		// If we have collected too much gas, turn it off.
-		if (ProductionManager::Instance().isOutOfBook() &&
-			gas > 400 &&
-			gas > 4 * BWAPI::Broodwar->self()->minerals())
-		{
-			int queueMinerals, queueGas;
-			queue.totalCosts(queueMinerals, queueGas);
-			if (gas >= queueGas)
-			{
-				WorkerManager::Instance().setCollectGas(false);
 			}
 		}
 
@@ -1209,44 +1212,6 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		// This is the enemy plan that we have seen, or if none yet, the expected enemy plan.
 		// Some checks can use the expected plan, some are better with the observed plan.
 		OpeningPlan likelyEnemyPlan = OpponentModel::Instance().getBestGuessEnemyPlan();
-
-		// If the opponent is rushing, make some defense.
-		if (likelyEnemyPlan == OpeningPlan::Proxy ||
-			likelyEnemyPlan == OpeningPlan::WorkerRush ||
-			likelyEnemyPlan == OpeningPlan::FastRush ||
-			enemyPlan == OpeningPlan::HeavyRush)           // we can react later to this
-		{
-			// If we are terran and have marines, make a bunker.
-			if (_selfRace == BWAPI::Races::Terran)
-			{
-				if (!queue.anyInQueue(BWAPI::UnitTypes::Terran_Bunker) &&
-					UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Marine) > 0 &&          // usefulness requirement
-					UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Terran_Barracks) > 0 &&  // tech requirement for a bunker
-					UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Bunker) == 0 &&
-					!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Bunker) &&
-					anyWorkers)
-				{
-					queue.queueAsHighestPriority(BWAPI::UnitTypes::Terran_Bunker);
-				}
-			}
-
-			// If we are protoss, make a shield battery.
-			// NOTE This works, but is turned off because protoss can't use the battery yet.
-			/*
-			else if (_selfRace == BWAPI::Races::Protoss)
-			{
-			if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Pylon) > 0 &&    // tech requirement
-			UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway) > 0 &&  // tech requirement
-			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Shield_Battery) == 0 &&
-			!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Shield_Battery) &&
-			!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Shield_Battery) &&
-			anyWorkers)
-			{
-			queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Shield_Battery);
-			}
-			}
-			*/
-		}
 
         // Set wall cannon count vs. zerg depending on the enemy plan
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
@@ -1381,7 +1346,6 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		// This should be after other rules that may add something, so that no other emegency reaction
 		// pushes down the resource depot in the queue. Otherwise the rule will fire repeatedly.
 		if (makeResourceDepot &&
-			anyWorkers &&
 			(!nextInQueuePtr || !nextInQueuePtr->isUnit() || nextInQueuePtr->getUnitType() != resourceDepotType) &&
 			!BuildingManager::Instance().isBeingBuilt(resourceDepotType))
 		{
