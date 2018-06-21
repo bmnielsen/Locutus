@@ -72,7 +72,7 @@ public:
 			void					handleUrgentProductionIssues(BuildOrderQueue & queue);
 			void					handleMacroProduction(BuildOrderQueue & queue);
 			void					freshProductionPlan();
-            double                  getGatewaySaturation() const;
+            double                  getProductionSaturation(BWAPI::UnitType producer) const;
 
 			bool					dropIsPlanned() const;
 			bool					hasDropTech();

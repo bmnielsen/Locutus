@@ -134,37 +134,52 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 	// Look up capacity of various producers
     int numGateways = 0;
+    int numStargates = 0;
     int numForges = 0;
     int idleGateways = 0;
+    int idleStargates = 0;
 	int idleRoboFacilities = 0;
 	int idleForges = 0;
+	int idleCyberCores = 0;
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		if (unit->isCompleted()
 			&& (!unit->getType().requiresPsi() || unit->isPowered()))
 		{
             if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway)
                 numGateways++;
+            else if (unit->getType() == BWAPI::UnitTypes::Protoss_Stargate)
+                numStargates++;
             else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge)
                 numForges++;
 
 			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway
 				&& unit->getRemainingTrainTime() < 48)
 				idleGateways++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Stargate
+				&& unit->getRemainingTrainTime() < 48)
+				idleStargates++;
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Robotics_Facility
 				&& unit->getRemainingTrainTime() < 48)
 				idleRoboFacilities++;
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge
 				&& unit->getRemainingUpgradeTime() < 48)
 				idleForges++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Cybernetics_Core
+				&& unit->getRemainingUpgradeTime() < 48)
+                idleCyberCores++;
 		}
 
-    double gatewaySaturation = getGatewaySaturation();
+    double gatewaySaturation = getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway);
 
 	// Look up whether we are already building various tech prerequisites
 	bool startedForge = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
 	bool startedCyberCore = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0 
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Cybernetics_Core);
+	bool startedStargate = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Stargate);
+	bool startedFleetBeacon = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Fleet_Beacon);
 	bool startedCitadel = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0 
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Citadel_of_Adun);
 	bool startedTemplarArchives = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0 
@@ -176,9 +191,13 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 	BWAPI::Player self = BWAPI::Broodwar->self();
 
+    bool buildGround = true;
+    bool buildCarriers = false;
 	bool getGoonRange = false;
 	bool getZealotSpeed = false;
 	bool upgradeGround = false;
+	bool upgradeAir = false;
+    bool getCarrierCapacity = false;
 	bool buildDarkTemplar = false;
 	bool buildReaver = false;
 	bool buildObserver = InformationManager::Instance().enemyHasMobileCloakTech(); // Really cloaked combat units
@@ -204,57 +223,75 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         // We use dark templar primarily for harassment, so don't build too many of them
         if (numDarkTemplar < 8) buildDarkTemplar = true;
     }
+    else if (_openingGroup == "carriers")
+    {
+        upgradeAir = true;
+        getCarrierCapacity = true;
+        buildGround = false;
+        buildCarriers = true;
+    }
 	else
 	{
 		UAB_ASSERT_WARNING(false, "Unknown Opening Group: %s", _openingGroup.c_str());
 		_openingGroup = "dragoons";    // we're misconfigured, but try to do something
 	}
 
-	// Switch to goons if the enemy has air units
-	if (InformationManager::Instance().enemyHasAirCombatUnits())
-	{
-		getGoonRange = true;
-		goonRatio = 1.0;
-		zealotRatio = 0.0;
-	}
-
-    // Mix in speedlots if the enemy has siege tanks
-    if (InformationManager::Instance().enemyHasSiegeTech())
+    // Adjust ground unit ratios
+    if (buildGround)
     {
-        getZealotSpeed = true;
-
-        // Keep the zealot:goon ratio at about 1:1, but keep training both
-        if (numZealots < numDragoons)
+        // Switch to goons if the enemy has air units
+        if (InformationManager::Instance().enemyHasAirCombatUnits())
         {
+            getGoonRange = true;
+            goonRatio = 1.0;
+            zealotRatio = 0.0;
+        }
+
+        // Mix in speedlots if the enemy has siege tanks
+        if (InformationManager::Instance().enemyHasSiegeTech())
+        {
+            getZealotSpeed = true;
+
+            // Keep the zealot:goon ratio at about 1:1, but keep training both
+            if (numZealots < numDragoons)
+            {
+                zealotRatio = 0.7;
+                goonRatio = 0.3;
+            }
+            else
+            {
+                zealotRatio = 0.3;
+                goonRatio = 0.7;
+            }
+        }
+
+        // If we are currently gas blocked, train some zealots
+        if (zealotRatio < 0.5 && idleGateways > 2 && self->gas() < 400 && self->minerals() > 700 && self->minerals() > self->gas() * 3)
+        {
+            // Get zealot speed if we have a lot of zealots
+            if (numZealots > 5) getZealotSpeed = true;
             zealotRatio = 0.7;
             goonRatio = 0.3;
         }
-        else
+
+        // After getting third and a large army, build a fixed number of DTs unless many are dying
+        if ((numZealots + numDragoons) > 20
+            && numNexusAll >= 3
+            && self->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) < 3
+            && numDarkTemplar < 3)
+            buildDarkTemplar = true;
+
+        // If we don't have a cyber core, only build zealots
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) == 0)
         {
-            zealotRatio = 0.3;
-            goonRatio = 0.7;
+            zealotRatio = 1.0;
+            goonRatio = 0.0;
         }
+
+        // Upgrade when we have at least two bases, a reasonable army size, and our gateways are busy
+        upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) >= 10 &&
+            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.5);
     }
-
-	// If we are currently gas blocked, train some zealots
-	if (zealotRatio < 0.5 && idleGateways > 2 && self->gas() < 400 && self->minerals() > 700 && self->minerals() > self->gas() * 3)
-	{
-		// Get zealot speed if we have a lot of zealots
-		if (numZealots > 5) getZealotSpeed = true;
-		zealotRatio = 0.7;
-		goonRatio = 0.3;
-	}
-
-	// After getting third and a large army, build a fixed number of DTs unless many are dying
-	if ((numZealots + numDragoons) > 20
-		&& numNexusAll >= 3
-		&& self->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) < 3
-		&& numDarkTemplar < 3)
-		buildDarkTemplar = true;
-
-	// Upgrade when we have at least two bases, a reasonable army size, and our gateways are busy
-    upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) >= 10 && 
-        ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.5);
 
 	// Build reavers when we have 2 or more bases
 	// Disabled until we can micro reavers better
@@ -277,68 +314,112 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			goal.push_back(MetaPair(BWAPI::UpgradeTypes::Leg_Enhancements, 1));
 	}
 
-	if (upgradeGround)
-	{
-		if (!startedForge) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 1));
+    if (getCarrierCapacity)
+    {
+        if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+            && !startedStargate) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0
+            && !startedFleetBeacon) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Fleet_Beacon, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0)
+            goal.push_back(MetaPair(BWAPI::UpgradeTypes::Carrier_Capacity, 1));
+    }
 
-        // Get a second forge and a templar archives when we are on 3 or more bases
-        // This will let us efficiently upgrade both weapons and armor to 3
-        if (numNexusCompleted >= 3)
+	if (upgradeGround || upgradeAir)
+	{
+        bool upgradeShields = self->minerals() > 2000 && self->gas() > 1000;
+
+        if (upgradeGround)
         {
-            if (numForges < 2)
+            if (!startedForge) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 1));
+
+            // Get a second forge and a templar archives when we are on 3 or more bases
+            // This will let us efficiently upgrade both weapons and armor to 3
+            if (numNexusCompleted >= 3)
             {
-                goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 2));
+                if (numForges < 2)
+                {
+                    goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 2));
+                }
+
+                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) < 1)
+                {
+                    if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+
+                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+                        && !startedCitadel)
+                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
+
+                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
+                        && !startedTemplarArchives)
+                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
+                }
             }
 
-            if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) < 1)
+            // Weapon to 1, armor to 1, weapon to 3, armor to 3
+            int weaponsUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Weapons);
+            int armorUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Armor);
+
+            if ((weaponsUps < 3 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons)) ||
+                (armorUps < 3 && !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor)))
+                upgradeShields = false;
+
+            bool canUpgradeBeyond1 = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0;
+
+            if (idleForges > 0 &&
+                !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons) &&
+                weaponsUps < 3 &&
+                (weaponsUps == 0 || canUpgradeBeyond1) &&
+                (weaponsUps == 0 || armorUps > 0 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor)))
             {
-                if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+                goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Weapons, weaponsUps + 1));
+                idleForges--;
+            }
 
-                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
-                    && !startedCitadel)
-                    goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
-
-                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
-                    && !startedTemplarArchives)
-                    goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
+            if (idleForges > 0 &&
+                !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor) &&
+                armorUps < 3 &&
+                (armorUps == 0 || canUpgradeBeyond1))
+            {
+                goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Armor, armorUps + 1));
+                idleForges--;
             }
         }
 
-		// Weapon to 1, armor to 1, weapon to 3, armor to 3
-		int weaponsUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Weapons);
-		int armorUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Ground_Armor);
+        if (upgradeAir)
+        {
+            if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
 
-		bool canUpgradeBeyond1 = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0;
+            // Weapon to 1, armor to 1, weapon to 3, armor to 3
+            int weaponsUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Air_Weapons);
+            int armorUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Air_Armor);
 
-		if (idleForges > 0 && 
-            !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons) &&
-            weaponsUps < 3 && 
-            (weaponsUps == 0 || canUpgradeBeyond1) &&
-            (weaponsUps == 0 || armorUps > 0 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor)))
-		{
-			goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Weapons, weaponsUps + 1));
-			idleForges--;
-		}
+            if (idleCyberCores > 0 &&
+                !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Air_Weapons) &&
+                weaponsUps < 3 &&
+                (weaponsUps == 0 || armorUps > 0 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Air_Armor)))
+            {
+                goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Air_Weapons, weaponsUps + 1));
+                idleCyberCores--;
+            }
 
-		if (idleForges > 0 &&
-            !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor) &&
-            armorUps < 3 &&
-            (armorUps == 0 || canUpgradeBeyond1))
-		{
-			goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Ground_Armor, armorUps + 1));
-			idleForges--;
-		}
+            if (idleCyberCores > 0 &&
+                !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Air_Armor) &&
+                armorUps < 3)
+            {
+                goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Air_Armor, armorUps + 1));
+                idleCyberCores--;
+            }
+        }
 
         // Get shields if other upgrades are done or running and we have money to burn
         // This will typically happen when we are maxed
-        if ((weaponsUps >= 3 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Weapons)) &&
-            (armorUps >= 3 || self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Ground_Armor)) &&
-            self->minerals() > 2000 && self->gas() > 1000)
+        if (upgradeShields)
         {
             if (idleForges > 0)
             {
                 int shieldUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Plasma_Shields);
-                if (shieldUps == 0 || (shieldUps < 3 && canUpgradeBeyond1))
+                if (shieldUps < 3)
                     goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Plasma_Shields, shieldUps + 1));
             }
             else
@@ -369,14 +450,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	}
 
 	// Normal gateway units
-	if (idleGateways > 0)
+	if (buildGround && idleGateways > 0)
 	{
-		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) == 0)
-		{
-			zealotRatio = 1.0;
-			goonRatio = 0.0;
-		}
-
 		int zealots = std::round(zealotRatio * idleGateways);
 		int goons = idleGateways - zealots;
 
@@ -385,6 +460,12 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		if (goons > 0)
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + goons));
 	}
+
+    // Carriers
+    if (buildCarriers && idleStargates > 0)
+    {
+        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Carrier, numCarriers + idleStargates));
+    }
 
 	// Handle units produced by robo bay
 	if (buildReaver || buildObserver)
@@ -425,9 +506,18 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
     // Queue a gateway if we have no idle gateways and enough minerals for it
     // If we queue too many, the production manager will cancel them
-    if (idleGateways == 0 && self->minerals() >= 150)
+    if (buildGround && idleGateways == 0 && self->minerals() >= 150)
     {
         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 1));
+    }
+
+    // Queue a stargate if we have no idle stargates and enough resources for it
+    // If we queue too many, the production manager will cancel them
+    if (buildCarriers && idleStargates == 0 &&
+        self->minerals() >= BWAPI::UnitTypes::Protoss_Stargate.mineralPrice() &&
+        self->gas() >= BWAPI::UnitTypes::Protoss_Stargate.gasPrice())
+    {
+        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, numStargates + 1));
     }
 
 	// If we're doing a corsair thing and it's still working, slowly add more.
@@ -1365,10 +1455,13 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // First, let's try to figure out if it is safe to expand or not
     // We consider ourselves safe if we have units in our attack squad and it isn't close to our base
     auto& groundSquad = CombatCommander::Instance().getSquadData().getSquad("Ground");
+    auto& flyingSquad = CombatCommander::Instance().getSquadData().getSquad("Flying");
     bool safeToExpand =
         CombatCommander::Instance().getAggression() &&
-        groundSquad.hasCombatUnits() &&
-        groundSquad.calcCenter().getApproxDistance(InformationManager::Instance().getMyMainBaseLocation()->getPosition()) > 1500;
+        ((groundSquad.hasCombatUnits() &&
+            groundSquad.calcCenter().getApproxDistance(InformationManager::Instance().getMyMainBaseLocation()->getPosition()) > 1500) ||
+            (flyingSquad.hasCombatUnits() &&
+                flyingSquad.calcCenter().getApproxDistance(InformationManager::Instance().getMyMainBaseLocation()->getPosition()) > 1500));
 
     // Count how many active mineral patches we have
     // We don't count patches that are close to being mined out
@@ -1451,11 +1544,11 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     }
 
     // If we are safe and have a forge, make sure our bases are fortified
-    // This should not take priority over training units though, so make sure our gateways are busy first and don't queue too much at a time
+    // This should not take priority over training units though, so make sure our gateways or stargates are busy first and don't queue too much at a time
     if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
         safeToExpand &&
         UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
-        getGatewaySaturation() > 0.5)
+        (getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) > 0.5 || getProductionSaturation(BWAPI::UnitTypes::Protoss_Stargate) > 0.5))
     {
         int totalQueued = 0;
 
@@ -1658,25 +1751,25 @@ bool StrategyManager::hasDropTech()
 	return false;
 }
 
-// Returns the percentage of our gateways that are currently training something
-double StrategyManager::getGatewaySaturation() const
+// Returns the percentage of our production facilities that are currently training something
+double StrategyManager::getProductionSaturation(BWAPI::UnitType producer) const
 {
-    // Special case: if we are close to maxed, always count the gateways as busy
+    // Special case: if we are close to maxed, always count them as busy
     if (BWAPI::Broodwar->self()->supplyUsed() > 300) return 1.0;
 
-    // Look up capacity of various producers
-    int numGateways = 0;
-    int idleGateways = 0;
+    // Look up overall count and idle count
+    int numFacilities = 0;
+    int idleFacilities = 0;
     for (const auto unit : BWAPI::Broodwar->self()->getUnits())
-        if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway 
+        if (unit->getType() == producer
             && unit->isCompleted()
             && unit->isPowered())
         {
-            numGateways++;
-            if (unit->getRemainingTrainTime() < 48) idleGateways++;
+            numFacilities++;
+            if (unit->getRemainingTrainTime() < 48) idleFacilities++;
         }
 
-    if (numGateways == 0) return 1.0;
+    if (numFacilities == 0) return 0.0;
 
-    return (double)(numGateways - idleGateways) / (double)numGateways;
+    return (double)(numFacilities - idleFacilities) / (double)numFacilities;
 }
