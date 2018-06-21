@@ -976,6 +976,10 @@ int WorkerManager::getNumIdleWorkers() const
 // May not exceed Config::Macro::AbsoluteMaxWorkers.
 int WorkerManager::getMaxWorkers() const
 {
+    // We now handle counting patches in StrategyManager
+    return Config::Macro::AbsoluteMaxWorkers;
+
+    /*
 	int patches = InformationManager::Instance().getMyNumMineralPatches();
 	int refineries, geysers;
 	InformationManager::Instance().getMyGasCounts(refineries, geysers);
@@ -986,6 +990,7 @@ int WorkerManager::getMaxWorkers() const
 			Config::Macro::AbsoluteMaxWorkers,
 			1 + int(std::round(Config::Macro::WorkersPerPatch * patches + Config::Macro::WorkersPerRefinery * refineries))
 		);
+    */
 }
 
 // Mine out any blocking minerals that the worker runs headlong into.
