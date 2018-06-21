@@ -43,7 +43,7 @@ namespace BWEB
 			for (auto y = mainTile.y; y < mainTile.y + 3; y++)
 				overlapGrid[x][y] = 0;
 
-		TilePosition tileBest;
+		TilePosition tileBest = BWAPI::TilePositions::Invalid;
 		int poweredDefensesBest = 0;
 		auto distBest = DBL_MAX;
 		for (auto x = mainTile.x - 9; x <= mainTile.x + 6; x++) {

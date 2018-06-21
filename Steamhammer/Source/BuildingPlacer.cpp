@@ -420,6 +420,10 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
 		double distBestPowersMedium = DBL_MAX;
 		BWAPI::TilePosition tileBestPowersMedium = BWAPI::TilePositions::Invalid;
 
+		// Best in blocks that power at least one of each type of tile
+		double distBestPowersBoth = DBL_MAX;
+		BWAPI::TilePosition tileBestPowersBoth = BWAPI::TilePositions::Invalid;
+
 		// The total number of powered large and medium tiles
 		int poweredLarge = 0;
 		int poweredMedium = 0;
@@ -470,20 +474,31 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
 
 			if (powersMedium && distToPos < distBestPowersMedium)
 				distBestPowersMedium = distToPos, tileBestPowersMedium = bestTile;
+
+			if (powersLarge && powersMedium && distToPos < distBestPowersBoth)
+				distBestPowersBoth = distToPos, tileBestPowersBoth = bestTile;
 		}
 
 		// Short-circuit if there are no valid tiles
 		if (!tileBest.isValid()) return tileBest;
 
 		// If we have no powered medium or large locations, return them no matter how far away they are
-		if (poweredMedium == 0 && tileBestPowersMedium.isValid()) return tileBestPowersMedium;
-		if (poweredLarge == 0 && tileBestPowersLarge.isValid()) return tileBestPowersLarge;
+        if (poweredMedium == 0 && poweredLarge == 0 && tileBestPowersBoth.isValid()) return tileBestPowersBoth;
+        if (poweredLarge == 0 && tileBestPowersLarge.isValid()) return tileBestPowersLarge;
+        if (poweredMedium == 0 && tileBestPowersMedium.isValid()) return tileBestPowersMedium;
 
-		// Invalidate the medium and large powering tiles if they are in a different area from the best tile
-		if (tileBestPowersMedium.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersMedium)) tileBestPowersMedium = BWAPI::TilePositions::Invalid;
-		if (tileBestPowersLarge.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersLarge)) tileBestPowersLarge = BWAPI::TilePositions::Invalid;
+		// Invalidate tiles in a different area if we have enough powered tiles
+        if (BWTA::getRegion(tileBest) == BWTA::getRegion(closeTo))
+        {
+            if (poweredMedium > 1 && poweredLarge > 2 && tileBestPowersBoth.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersBoth)) tileBestPowersBoth = BWAPI::TilePositions::Invalid;
+            if (poweredLarge > 2 && tileBestPowersLarge.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersLarge)) tileBestPowersLarge = BWAPI::TilePositions::Invalid;
+            if (poweredMedium > 1 && tileBestPowersMedium.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersMedium)) tileBestPowersMedium = BWAPI::TilePositions::Invalid;
+        }
 
-		// Return the medium tile if it is valid and we have more use for it than the large tile
+        // Prefer powering both
+        if (tileBestPowersBoth.isValid()) return tileBestPowersBoth;
+
+		// Otherwise prefer medium if there is only one, or if there are already many powered large
 		if (tileBestPowersMedium.isValid())
 		{
 			if (!tileBestPowersLarge.isValid()) return tileBestPowersMedium;
