@@ -61,10 +61,13 @@ void CombatCommander::initializeSquads()
 
 	// The recon squad carries out reconnaissance in force to deny enemy bases.
 	// It is filled in when enough units are available.
-	Squad & reconSquad = Squad("Recon", idleOrder, ReconPriority);
-	reconSquad.setCombatSimRadius(200);  // combat sim includes units in a smaller radius than for a combat squad
-	reconSquad.setFightVisible(true);    // combat sim sees only visible enemy units (not all known enemies)
-	_squadData.addSquad(reconSquad);
+    if (BWAPI::Broodwar->mapHash() != "6f5295624a7e3887470f3f2e14727b1411321a67") // disabled on Plasma
+    {
+        Squad & reconSquad = Squad("Recon", idleOrder, ReconPriority);
+        reconSquad.setCombatSimRadius(200);  // combat sim includes units in a smaller radius than for a combat squad
+        reconSquad.setFightVisible(true);    // combat sim sees only visible enemy units (not all known enemies)
+        _squadData.addSquad(reconSquad);
+    }
 
 	BWAPI::Position ourBasePosition = BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation());
 
@@ -187,6 +190,8 @@ void CombatCommander::updateHarassSquad()
 // Weights sum to no more than maxWeight, set below.
 void CombatCommander::updateReconSquad()
 {
+    if (!_squadData.squadExists("Recon")) return;
+
 	const int maxWeight = 12;
 	Squad & reconSquad = _squadData.getSquad("Recon");
 
