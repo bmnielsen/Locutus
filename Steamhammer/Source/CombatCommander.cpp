@@ -531,33 +531,49 @@ void CombatCommander::updateAttackSquads()
 	}
 	else
 	{
-		BWAPI::Position defendPosition;
 		int radius = DefensivePositionRadius;
 
-		// We are guaranteed to always have a main base location, even if it has been destroyed.
-		BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
-        if (bwebMap.mainChoke)
-            defendPosition = BWAPI::Position(bwebMap.mainChoke->Center());
-        else
-            defendPosition = base->getPosition();
+        // Determine the position to defend
+        LocutusWall& wall = BuildingPlacer::Instance().getWall();
+        BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+        BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
 
-		// We may have taken our natural. If so, call that the front line.
-		BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
-		if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
-		{
+        BWAPI::Position defendPosition;
+
+        // If we have a wall at the natural, defend it
+        if (wall.exists())
+        {
+            defendPosition = wall.gapCenter;
+            radius /= 4;
+        }
+
+        // If we have taken the natural, defend it
+        else if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
+        {
             if (bwebMap.naturalChoke)
                 defendPosition = BWAPI::Position(bwebMap.naturalChoke->Center());
             else
                 defendPosition = natural->getPosition();
-		}
+        }
 
-		// We may have a wall at the natural. If so, guard it.
-		LocutusWall& wall = BuildingPlacer::Instance().getWall();
-		if (wall.exists())
-		{
-			defendPosition = wall.gapCenter;
-			radius /= 4;
-		}
+        // Otherwise defend the main
+        else
+        {
+            defendPosition = base->getPosition();
+
+            // Defend the main choke if it is the only non-blocked choke out of the main
+            // On maps like Alchemist we would rather defend close to the mineral line
+            if (bwebMap.mainChoke && bwebMap.mainArea)
+            {
+                int mainChokes = 0;
+                for (auto choke : bwebMap.mainArea->ChokePoints())
+                    if (!choke->Blocked())
+                        mainChokes++;
+
+                if (mainChokes == 1)
+                    defendPosition = BWAPI::Position(bwebMap.mainChoke->Center());
+            }
+        }
 
 		SquadOrder mainDefendOrder(wall.exists() ? SquadOrderTypes::HoldWall : SquadOrderTypes::Hold, defendPosition, radius, "Hold the wall");
 		groundSquad.setSquadOrder(mainDefendOrder);
