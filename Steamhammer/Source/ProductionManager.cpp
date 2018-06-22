@@ -255,25 +255,62 @@ void ProductionManager::manageBuildOrderQueue()
 			continue;
 		}
 
-		// More BOSS workarounds:
-        // - don't build gateways or stargates if the ones we have aren't in use
-		// - only build at most two gateways or stargates at a time
-		// - cap of 3 gateways per nexus
-        // - cap of 2 stargates per nexus
-		// - cap of one forge per 3 nexus
-		// - cap of one robotics facility per 3 nexus
-		if (_outOfBook)
+        // BOSS queues too many of some units, so cancel this one if we don't want it
+		if (_outOfBook && currentItem.macroAct.isUnit())
 		{
-			int gateways = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
-			int stargates = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Stargate);
-			int forges = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
-			int robos = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Robotics_Facility);
-			int nexuses = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
-			if (currentItem.macroAct.isUnit() && (
-				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Gateway && (StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 || gateways > nexuses * 3 || BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway) >= 2)) ||
-				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Stargate && (StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Stargate) < 0.76 || stargates > nexuses * 2 || BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Stargate) >= 2)) ||
-				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Forge && forges * 3 >= nexuses) ||
-				(currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Robotics_Facility && robos * 3 >= nexuses)))
+            int nexuses = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
+            BWAPI::UnitType type = currentItem.macroAct.getUnitType();
+            bool skipThisItem = false;
+
+            // Rules for gateways:
+            // - Gateways we have must be in use
+            // - Only build at most 2 at a time
+            // - Only build at most 3 per nexus
+            if (type == BWAPI::UnitTypes::Protoss_Gateway)
+            {
+                int gatewaysBuilding = BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
+                int gateways = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway) + gatewaysBuilding;
+                
+                skipThisItem = gateways > 0 && (
+                    StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 ||
+                    gateways > nexuses * 3 ||
+                    gatewaysBuilding >= 2);
+            }
+
+            // Rules for stargates:
+            // - Stargates we have must be in use
+            // - Only build at most 2 at a time
+            // - Only build at most 3 per nexus
+            else if (type == BWAPI::UnitTypes::Protoss_Stargate)
+            {
+                int stargatesBuilding = BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Stargate);
+                int stargates = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) + stargatesBuilding;
+
+                skipThisItem = stargates > 0 && (
+                    StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Stargate) < 0.76 ||
+                    stargates > nexuses * 2 ||
+                    stargatesBuilding >= 2);
+            }
+
+            // Rules for forges:
+            // - Only build at most one per 3 nexuses
+            else if (type == BWAPI::UnitTypes::Protoss_Forge)
+            {
+                int forges = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
+
+                skipThisItem = forges * 3 >= nexuses;
+            }
+
+            // Rules for robotics facilities:
+            // - Only build at most one per 3 nexuses
+            else if (type == BWAPI::UnitTypes::Protoss_Robotics_Facility)
+            {
+                int robos = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Robotics_Facility);
+
+                skipThisItem = robos * 3 >= nexuses;
+            }
+
+            if (skipThisItem)
 			{
 				_queue.doneWithHighestPriorityItem();
 				_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
