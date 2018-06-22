@@ -28,15 +28,23 @@ MapTools::MapTools()
 		}
 	}
 
-    // On Plasma, we want to enrich the BWEM chokepoints with data about mineral walking
+    // Get all of the BWEM chokepoints
+    std::set<const BWEM::ChokePoint*> chokes;
+    for (const auto & area : bwemMap.Areas())
+        for (const BWEM::ChokePoint * choke : area.ChokePoints())
+            chokes.insert(choke);
+
+    // Store the width of each chokepoint in its data field
+    for (const BWEM::ChokePoint * choke : chokes)
+    {
+        // Because the ends are themselves walkable tiles, we need to add a bit of padding to estimate the actual walkable width of the choke
+        int width = BWAPI::Position(choke->Pos(choke->end1)).getApproxDistance(BWAPI::Position(choke->Pos(choke->end2))) + 15;
+        choke->SetData(width);
+    }
+
+    // On Plasma, we enrich the BWEM chokepoints with data about mineral walking
     if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67")
     {
-        // Get all of the chokepoints
-        std::set<const BWEM::ChokePoint*> chokes;
-        for (const auto & area : bwemMap.Areas())
-            for (const BWEM::ChokePoint * choke : area.ChokePoints())
-                chokes.insert(choke);
-
         // Process each choke
         for (const BWEM::ChokePoint * choke : chokes)
         {

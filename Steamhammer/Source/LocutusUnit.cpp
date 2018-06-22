@@ -71,17 +71,38 @@ bool LocutusUnit::moveTo(BWAPI::Position position)
     auto& path = bwemMap.GetPath(unit->getPosition(), position);
     if (path.empty()) return false;
 
-    // Push the waypoints
+    // Detect when we can't use the BWEM path:
+    // - One or more chokepoints require mineral walking and our unit is not a worker
+    // - One or more chokepoints are narrower than the unit width
+    bool bwemPathValid = true;
     for (const BWEM::ChokePoint * chokepoint : path)
     {
-        // If the choke needs to be mineral walked and we aren't a worker, give up
-        if (chokepoint->Ext() && !unit->getType().isWorker()) return false;
+        // Mineral walking data is stored in Ext, choke width is stored in Data (see MapTools)
+        if ((chokepoint->Ext() && !unit->getType().isWorker()) ||
+            (chokepoint->Data() < unit->getType().width()))
+        {
+            bwemPathValid = false;
+            break;
+        }
 
+        // Push the waypoints on this pass on the assumption that we can use them
         waypoints.push_back(chokepoint);
     }
-    targetPosition = position;
+
+    // If we can't use the BWEM path, attempt to generate one avoiding the unusable chokes
+    if (!bwemPathValid)
+    {
+        waypoints.clear();
+
+        auto alternatePath = pathAvoidingUnusableChokes(unit->getPosition(), position, unit->getType().width());
+        if (alternatePath.empty()) return false;
+
+        for (const BWEM::ChokePoint * chokepoint : alternatePath)
+            waypoints.push_back(chokepoint);
+    }
 
     // Start moving
+    targetPosition = position;
     moveToNextWaypoint();
     return true;
 }
@@ -243,8 +264,79 @@ void LocutusUnit::mineralWalk()
     Micro::Move(unit, bestPos);
     lastMoveFrame = BWAPI::Broodwar->getFrameCount();
 }
+
 bool LocutusUnit::isStuck() const
 {
     return potentiallyStuckSince > 0 &&
         potentiallyStuckSince < (BWAPI::Broodwar->getFrameCount() - BWAPI::Broodwar->getLatencyFrames() - 10);
+}
+
+// Basically BWEB's path find alorithm modified to use BWEM chokepoints
+std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(BWAPI::Position start, BWAPI::Position target, int minChokeWidth)
+{
+    const BWEM::Area * startArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(start));
+    const BWEM::Area * targetArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(target));
+
+    struct Node {
+        Node(const BWEM::ChokePoint * choke, int const dist, const BWEM::Area * toArea, const BWEM::ChokePoint * parent) 
+            : choke{ choke }, dist{ dist }, toArea{ toArea }, parent{ parent } { }
+        mutable const BWEM::ChokePoint * choke;
+        mutable int dist;
+        mutable const BWEM::Area * toArea;
+        mutable const BWEM::ChokePoint * parent = nullptr;
+    };
+
+    const auto validChoke = [](const BWEM::ChokePoint * choke, int minChokeWidth) {
+        return !choke->Blocked() && !choke->Ext() && choke->Data() >= minChokeWidth;
+    };
+
+    const auto chokeTo = [](const BWEM::ChokePoint * choke, const BWEM::Area * from) {
+        return (from == choke->GetAreas().first)
+            ? choke->GetAreas().second
+            : choke->GetAreas().first;
+    };
+
+    const auto createPath = [](const Node& node, std::map<const BWEM::ChokePoint *, const BWEM::ChokePoint *> & parentMap) {
+        std::vector<const BWEM::ChokePoint *> path;
+        const BWEM::ChokePoint * current = node.choke;
+
+        while (current)
+        {
+            path.push_back(current);
+            current = parentMap[current];
+        }
+
+        std::reverse(path.begin(), path.end());
+
+        return path;
+    };
+
+    auto cmp = [](Node left, Node right) { return left.dist > right.dist; };
+    std::priority_queue<Node, std::vector<Node>, decltype(cmp)> nodeQueue(cmp);
+    for (auto choke : startArea->ChokePoints())
+        if (validChoke(choke, minChokeWidth))
+            nodeQueue.emplace(choke, start.getApproxDistance(BWAPI::Position(choke->Center())), chokeTo(choke, startArea), nullptr);
+
+    std::map<const BWEM::ChokePoint *, const BWEM::ChokePoint *> parentMap;
+
+    while (!nodeQueue.empty()) {
+        auto const current = nodeQueue.top();
+        nodeQueue.pop();
+
+        // Set parent
+        parentMap[current.choke] = current.parent;
+
+        // If at target, return path
+        // We're ignoring the distance from this last choke to the target position; it's an unlikely
+        // edge case that there is an alternate choke giving a significantly better result
+        if (current.toArea == targetArea)
+            return createPath(current, parentMap);
+
+        // Add valid connected chokes we haven't visited yet
+        for (auto choke : current.toArea->ChokePoints())
+            if (validChoke(choke, minChokeWidth) && parentMap.find(choke) == parentMap.end())
+                nodeQueue.emplace(choke, current.dist + choke->DistanceFrom(current.choke), chokeTo(choke, current.toArea), current.choke);
+    }
+
+    return {};
 }
