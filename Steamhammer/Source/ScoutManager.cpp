@@ -141,6 +141,14 @@ void ScoutManager::update()
 		_overlordScout = nullptr;
 	}
 
+    // If we have scouted an enemy fast rush, get the worker back to base ASAP
+    if (_scoutCommand == MacroCommandType::ScoutWhileSafe &&
+        OpponentModel::Instance().getEnemyPlan() == OpeningPlan::FastRush)
+    {
+        Log().Debug() << "Fast rush detected, aborting scouting";
+        _scoutCommand = MacroCommandType::ScoutLocation;
+    }
+
 	// Find out if the opponent model wants us to steal gas.
 	if (_workerScout && OpponentModel::Instance().getRecommendGasSteal())
 	{
