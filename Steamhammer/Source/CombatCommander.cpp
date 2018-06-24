@@ -1375,27 +1375,26 @@ void CombatCommander::cancelDyingItems()
 {
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
-		BWAPI::UnitType type = unit->getType();
-		if (unit->isUnderAttack() &&
-			(	type.isBuilding() && !unit->isCompleted() ||
-				type == BWAPI::UnitTypes::Zerg_Egg ||
-				type == BWAPI::UnitTypes::Zerg_Lurker_Egg ||
-				type == BWAPI::UnitTypes::Zerg_Cocoon
-			) &&
-			(	unit->getHitPoints() < 30 ||
-				type == BWAPI::UnitTypes::Zerg_Sunken_Colony && unit->getHitPoints() < 130 && unit->getRemainingBuildTime() < 24
-			) && type != BWAPI::UnitTypes::Protoss_Photon_Cannon) // Hack to stop cancelling wall cannons when attacked by a worker scout
-		{
-			if (unit->canCancelMorph())
-			{
-				unit->cancelMorph();
-			}
-			else if (unit->canCancelConstruction())
-			{
-				BuildingPlacer::Instance().freeTiles(unit->getTilePosition(), unit->getType().width(), unit->getType().height());
-				unit->cancelConstruction();
-			}
-		}
+        if (!unit->isUnderAttack()) continue;
+        if (!unit->getType().isBuilding()) continue;
+        if (unit->isCompleted()) continue;
+        if (!unit->canCancelConstruction()) continue;
+        if ((unit->getShields() + unit->getHitPoints()) >= 20) continue;
+
+        // Don't cancel buildings being attacked by a single worker
+        int workersAttacking = 0;
+        bool nonWorkersAttacking = false;
+        for (const auto enemyUnit : BWAPI::Broodwar->enemy()->getUnits())
+            if (enemyUnit->getOrderTarget() == unit)
+            {
+                if (enemyUnit->getType().isWorker()) workersAttacking++;
+                else nonWorkersAttacking = true;
+            }
+        if (workersAttacking <= 1 && !nonWorkersAttacking) continue;
+
+        Log().Get() << "Cancelling dying " << unit->getType() << " @ " << unit->getTilePosition();
+        BuildingPlacer::Instance().freeTiles(unit->getTilePosition(), unit->getType().width(), unit->getType().height());
+		unit->cancelConstruction();
 	}
 }
 
