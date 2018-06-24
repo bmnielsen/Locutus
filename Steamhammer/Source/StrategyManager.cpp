@@ -247,6 +247,16 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             zealotRatio = 0.0;
         }
 
+        // Switch to goons on two bases unless our opponent is zerg
+        // This is our transition out of a rush build
+        if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
+            numNexusCompleted >= 2)
+        {
+            getGoonRange = true;
+            goonRatio = 1.0;
+            zealotRatio = 0.0;
+        }
+
         // Mix in speedlots if the enemy has siege tanks
         if (InformationManager::Instance().enemyHasSiegeTech())
         {
