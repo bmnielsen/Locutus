@@ -1490,16 +1490,8 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Don't do anything if we are in the opening book
     if (!ProductionManager::Instance().isOutOfBook()) return;
 
-    // First, let's try to figure out if it is safe to expand or not
-    // We consider ourselves safe if we have units in our attack squad and it isn't close to our base
-    auto& groundSquad = CombatCommander::Instance().getSquadData().getSquad("Ground");
-    auto& flyingSquad = CombatCommander::Instance().getSquadData().getSquad("Flying");
-    bool safeToExpand =
-        CombatCommander::Instance().getAggression() &&
-        ((groundSquad.hasCombatUnits() &&
-            groundSquad.calcCenter().getApproxDistance(InformationManager::Instance().getMyMainBaseLocation()->getPosition()) > 1500) ||
-            (flyingSquad.hasCombatUnits() &&
-                flyingSquad.calcCenter().getApproxDistance(InformationManager::Instance().getMyMainBaseLocation()->getPosition()) > 1500));
+    // Only expand if we aren't on the defensive
+    bool safeToMacro = !CombatCommander::Instance().onTheDefensive();
 
     // Count how many active mineral patches we have
     // We don't count patches that are close to being mined out
@@ -1523,7 +1515,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // - it is safe to do so
     // - we don't already have one queued
     // - we want more active mineral patches than we currently have
-    if (safeToExpand && 
+    if (safeToMacro &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
         mineralPatches < desiredMineralPatches)
@@ -1591,7 +1583,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // - we are close to maxed
     // - we have a large mineral bank
     if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
-        safeToExpand &&
+        safeToMacro &&
         UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
         (BWAPI::Broodwar->self()->minerals() > 1500 ||
             BWAPI::Broodwar->self()->supplyUsed() > 350 || 

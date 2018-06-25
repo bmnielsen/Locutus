@@ -198,7 +198,7 @@ void CombatCommander::updateReconSquad()
 	Squad & reconSquad = _squadData.getSquad("Recon");
 
 	// Don't do recon while we're defensive
-	if (!_goAggressive)
+	if (onTheDefensive())
 	{
 		reconSquad.clear();
 		return;
@@ -1453,6 +1453,28 @@ void CombatCommander::releaseWorkers()
 {
 	Squad & groundSquad = _squadData.getSquad("Ground");
 	groundSquad.releaseWorkers();
+}
+
+// Whether we are currently on the defensive
+// This may be because we haven't gone aggressive yet, or if our squads have been pushed back close to our base
+bool CombatCommander::onTheDefensive()
+{
+    if (!_goAggressive) return true;
+
+    auto base = InformationManager::Instance().getMyNaturalLocation()
+        ? InformationManager::Instance().getMyNaturalLocation()
+        : InformationManager::Instance().getMyMainBaseLocation();
+
+    auto& groundSquad = CombatCommander::Instance().getSquadData().getSquad("Ground");
+    if (groundSquad.hasCombatUnits())
+    {
+        int distanceFromNatural;
+        bwemMap.GetPath(groundSquad.calcCenter(), base->getPosition(), &distanceFromNatural);
+        if (distanceFromNatural > 1500) return false;
+    }
+
+    auto& flyingSquad = CombatCommander::Instance().getSquadData().getSquad("Flying");
+    return !flyingSquad.hasCombatUnits() || flyingSquad.calcCenter().getApproxDistance(base->getPosition()) <= 1500;
 }
 
 void CombatCommander::drawSquadInformation(int x, int y)

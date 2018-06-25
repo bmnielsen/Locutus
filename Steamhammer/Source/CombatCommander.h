@@ -99,6 +99,8 @@ public:
 	
 	void pullWorkers(int n);
 	void releaseWorkers();
+
+    bool onTheDefensive();
 	
 	void drawSquadInformation(int x, int y);
 
