@@ -39,6 +39,10 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 	{
 		return MacroLocation::Center;
 	}
+	if (s == "proxy")
+	{
+		return MacroLocation::Proxy;
+	}
 
 	UAB_ASSERT(false, "config file - bad location '@ %s'", s.c_str());
 

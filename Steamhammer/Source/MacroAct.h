@@ -16,6 +16,7 @@ enum class MacroLocation
 	, Natural      // "natural" first expansion base
 	, Wall         // wall at choke of "natural" first expansion base
 	, Center       // middle of the map
+	, Proxy        // somewhere out on the map close to where the enemy base might be
 	};
 
 namespace MacroActs

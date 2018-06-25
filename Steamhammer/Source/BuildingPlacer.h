@@ -22,7 +22,8 @@ class BuildingPlacer
     int	    _boxRight;
 
 	// BWEB-related stuff
-	LocutusWall		_wall;
+	LocutusWall		    _wall;
+    const BWEB::Block * _proxyBlock;
 
 public:
 
@@ -52,7 +53,7 @@ public:
 
 	// BWEB-related stuff
 	void				initializeBWEB();
-	BWAPI::TilePosition placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo);
+	BWAPI::TilePosition placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation);
 	void				reserveWall(const BuildOrder & buildOrder);
 	LocutusWall&		getWall() {	return _wall; }
 

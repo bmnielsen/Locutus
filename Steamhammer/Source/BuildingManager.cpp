@@ -753,7 +753,7 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 		// Else if it's a macro hatchery, treat it like any other building.
 	}
 	
-	BWAPI::TilePosition bwebPosition = BuildingPlacer::Instance().placeBuildingBWEB(b.type, b.desiredPosition);
+	BWAPI::TilePosition bwebPosition = BuildingPlacer::Instance().placeBuildingBWEB(b.type, b.desiredPosition, b.macroLocation);
 	if (bwebPosition != BWAPI::TilePositions::Invalid)
 		return bwebPosition;
 

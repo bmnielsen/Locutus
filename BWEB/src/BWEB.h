@@ -178,7 +178,7 @@ namespace BWEB
 		vector<Wall> getWalls() const { return walls; }
 
 		/// <summary> Returns a vector containing every BWEB::Block </summary>
-		vector<Block> Blocks() const { return blocks; }
+		const vector<Block> & Blocks() const { return blocks; }
 
 		/// <summary> Returns a vector containing every BWEB::Station </summary>
 		const vector<Station> & Stations() const { return stations; }

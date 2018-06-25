@@ -5,6 +5,7 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 BuildingPlacer::BuildingPlacer()
@@ -12,6 +13,7 @@ BuildingPlacer::BuildingPlacer()
     , _boxBottom    (std::numeric_limits<int>::lowest())
     , _boxLeft      (std::numeric_limits<int>::max())
     , _boxRight     (std::numeric_limits<int>::lowest())
+    , _proxyBlock   (nullptr)
 {
     _reserveMap = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(),std::vector<bool>(BWAPI::Broodwar->mapHeight(),false));
 
@@ -390,7 +392,7 @@ void BuildingPlacer::initializeBWEB()
     bwebMap.findBlocks();
 }
 
-BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo)
+BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation)
 {
 	if (type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
 	{
@@ -401,6 +403,55 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
 
 		return BWAPI::TilePositions::Invalid;
 	}
+
+    if (macroLocation == MacroLocation::Proxy)
+    {
+        // Set the proxy block if it is not already
+        if (!_proxyBlock)
+        {
+            BWAPI::Position proxyCloseTo = BWAPI::Positions::Invalid;
+            auto _enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
+            if (_enemyBase)
+            {
+                proxyCloseTo = _enemyBase->getPosition();
+            }
+            else
+            {
+                proxyCloseTo = BWAPI::Position(0, 0);
+                for (auto base : BWTA::getStartLocations())
+                {
+                    if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
+                    proxyCloseTo = proxyCloseTo + base->getPosition();
+                }
+                proxyCloseTo = proxyCloseTo / (BWTA::getStartLocations().size() - 1);
+            }
+
+            // Find the closest block that powers two large buildings
+            int distBest = INT_MAX;
+            for (auto &block : bwebMap.Blocks())
+            {
+                if (block.LargeTiles().size() < 2) continue;
+                if (_enemyBase && BWTA::getRegion(block.Location()) == _enemyBase->getRegion()) continue;
+
+                BWAPI::Position blockCenter =
+                    BWAPI::Position(block.Location()) + BWAPI::Position(block.width() * 16, block.height() * 16);
+
+                int dist;
+                bwemMap.GetPath(blockCenter, proxyCloseTo, &dist);
+                if (dist < distBest)
+                {
+                    _proxyBlock = &block;
+                    distBest = dist;
+                }
+            }
+        }
+
+        if (_proxyBlock)
+        {
+            // Default BWEB selection will do fine here
+            return bwebMap.getBuildPosition(type, _proxyBlock->Location() + BWAPI::TilePosition(_proxyBlock->width() / 2, _proxyBlock->height() / 2));
+        }
+    }
 
 	if (type == BWAPI::UnitTypes::Protoss_Pylon)
 	{
