@@ -208,9 +208,10 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	// Initial ratios
 	if (_openingGroup == "zealots")
 	{
-		getZealotSpeed = true;
 		zealotRatio = 1.0;
-	}
+        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+            getZealotSpeed = true;
+    }
 	else if (_openingGroup == "dragoons" || _openingGroup == "drop")
 	{
 		getGoonRange = true;
@@ -1556,6 +1557,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // They usually get ordered automatically, so don't do this too often
     if (BWAPI::Broodwar->getFrameCount() % (30 * 24) == 0 &&
         WorkerManager::Instance().isCollectingGas() &&
+        UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) > 1 &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Assimilator) &&
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Assimilator) < 1)
     {
