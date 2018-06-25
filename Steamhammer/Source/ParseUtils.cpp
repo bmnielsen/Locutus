@@ -555,9 +555,14 @@ bool ParseUtils::_ParseStrategy(
 						continue;
 					}
 
+                    // If we've used this strategy before, adjust the weight based on the result
 					std::string strategy = mix[i]["Strategy"].GetString();
-					if (strategyWeightFactors.find(strategy) != strategyWeightFactors.end())
-						weight *= strategyWeightFactors[strategy];
+                    if (strategyWeightFactors.find(strategy) != strategyWeightFactors.end())
+                        weight *= strategyWeightFactors[strategy];
+
+                    // Otherwise give it an artificial boost to make sure we try it when other strategies lose
+                    else
+                        weight *= 50;
 
                     weight = std::max(1, weight);
 

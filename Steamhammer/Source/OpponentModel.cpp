@@ -655,19 +655,18 @@ OpeningPlan OpponentModel::getBestGuessEnemyPlan() const
 	return _expectedEnemyPlan;
 }
 
-// Look through recent games and adjust our strategy weights appropriately
+// Look through past games and adjust our strategy weights appropriately
 std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 {
 	std::map<std::string, double> result;
 	std::map<std::string, int> strategyCount;
+	std::map<std::string, int> strategyLosses;
 
-	int count = 0;
-
-	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 20; it++)
+    // Compute a factor to adjust the weight for each strategy
+    // More recent results are weighted more heavily
+	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend(); it++)
 	{
 		if (!_gameRecord.sameMatchup(**it)) continue;
-
-		count++;
 
 		auto& strategy = (*it)->getOpeningName();
 
@@ -675,6 +674,7 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 		{
 			result[strategy] = 1.0;
 			strategyCount[strategy] = 0;
+            strategyLosses[strategy] = 0;
 		}
 
 		double factor = result[strategy];
@@ -682,11 +682,25 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 
 		if ((*it)->getWin())
 			factor *= 1.0 + 1.6 / strategyCount[strategy];
-		else
-			factor *= 1.0 - 0.6 / strategyCount[strategy];
+        else
+        {
+            factor *= 1.0 - 0.6 / strategyCount[strategy];
+            strategyLosses[strategy] = strategyLosses[strategy] + 1;
+        }
 
 		result[strategy] = factor;
 	}
+
+    // Any strategies that have never lost are given a large boost
+    // A similar boost is given to strategies that haven't been played in ParseUtils
+    // This should allow us to avoid getting stuck on a strategy that wins 90% of the time,
+    // if another strategy wins 100% of the time
+    for (auto it = strategyLosses.begin(); it != strategyLosses.end(); it++)
+    {
+        if (it->second > 0) continue;
+
+        result[it->first] = result[it->first] * 100;
+    }
 
 	return result;
 }
