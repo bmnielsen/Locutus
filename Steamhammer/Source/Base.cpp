@@ -15,6 +15,7 @@ Base::Base(BWAPI::TilePosition pos)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
 	, ownedSince(0)
+	, lastScouted(0)
 	, reserved(false)
 {
 	++BaseID;
@@ -29,6 +30,7 @@ Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
     , ownedSince(0)
+    , lastScouted(0)
     , reserved(false)
 {
 	DistanceMap resourceDistances(pos, BaseResourceRange, false);

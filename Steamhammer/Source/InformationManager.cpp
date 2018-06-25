@@ -500,6 +500,8 @@ void InformationManager::updateTheBases()
 		// If we can see the tile where the resource depot would be.
 		if (BWAPI::Broodwar->isVisible(base->getTilePosition()))
 		{
+            _theBases[base]->lastScouted = BWAPI::Broodwar->getFrameCount();
+
 			BWAPI::Unitset units = BWAPI::Broodwar->getUnitsOnTile(base->getTilePosition());
 			BWAPI::Unit depot = nullptr;
 			for (const auto unit : units)
@@ -709,6 +711,12 @@ BWAPI::Player InformationManager::getBaseOwner(BWTA::BaseLocation * base)
 int InformationManager::getBaseOwnedSince(BWTA::BaseLocation * base)
 {
     return _theBases[base]->ownedSince;
+}
+
+// Frame the base was last scouted
+int InformationManager::getBaseLastScouted(BWTA::BaseLocation * base)
+{
+    return _theBases[base]->lastScouted;
 }
 
 // If it's the enemy base, the depot will be null if it has not been seen.

@@ -105,6 +105,7 @@ public:
 	const BWEB::Station *	getEnemyMainBaseStation();
 	BWAPI::Player			getBaseOwner(BWTA::BaseLocation * base);
 	int         			getBaseOwnedSince(BWTA::BaseLocation * base);
+	int         			getBaseLastScouted(BWTA::BaseLocation * base);
 	BWAPI::Unit 			getBaseDepot(BWTA::BaseLocation * base);
 	BWTA::BaseLocation *	getMyNaturalLocation();
     std::vector<BWTA::BaseLocation *> getBases(BWAPI::Player player);

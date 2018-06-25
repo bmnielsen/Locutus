@@ -204,6 +204,15 @@ void CombatCommander::updateReconSquad()
 		return;
 	}
 
+    // To avoid weakening our initial push, don't scout immediately.
+    // We start scouting Zerg opponents at frame 12000, others at 15000.
+    if (BWAPI::Broodwar->getFrameCount() <
+        (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg ? 12000 : 15000))
+    {
+        reconSquad.clear();
+        return;
+    }
+
 	chooseReconTarget();
 
 	// If nowhere needs seeing, disband the squad. We're done.
@@ -248,7 +257,7 @@ void CombatCommander::updateReconSquad()
 
 	// The allowed weight of the recon squad. It should steal few units.
 	int weightLimit = availableWeight >= 24
-		? 2 + (availableWeight - 24) / 6
+		? availableWeight / 6
 		: 0;
 	if (weightLimit > maxWeight)
 	{
@@ -411,28 +420,32 @@ BWAPI::Position CombatCommander::getReconLocation() const
 	std::vector<BWTA::BaseLocation *> choices;
 
 	BWAPI::Position mainPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
+    auto enemyBases = InformationManager::Instance().getEnemyBases();
 
-	// The choices are neutral bases reachable by ground.
+    // Score based on two factors: proximity to any known enemy base and time since we've last scouted it
+    BWTA::BaseLocation * bestBase = nullptr;
+    double bestScore = 0.0;
 	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 	{
-		if (InformationManager::Instance().getBaseOwner(base) == BWAPI::Broodwar->neutral() &&
-			MapTools::Instance().getGroundTileDistance(base->getPosition(), mainPosition) != -1)
-		{
-			choices.push_back(base);
-		}
+        if (InformationManager::Instance().getBaseOwner(base) != BWAPI::Broodwar->neutral()) continue; // not neutral
+        if (MapTools::Instance().getGroundTileDistance(base->getPosition(), mainPosition) == -1) continue; // not reachable by ground
+
+        int proximityToEnemyBase = MapTools::Instance().closestBaseDistance(base, enemyBases);
+        double proximityFactor = proximityToEnemyBase > 0 ? proximityToEnemyBase : 1.0;
+
+        int framesSinceScouted = BWAPI::Broodwar->getFrameCount() - InformationManager::Instance().getBaseLastScouted(base);
+        double lastScoutedFactor = std::min(4000.0, (double)framesSinceScouted) / 4000.0;
+
+        double score = (1.0 / proximityFactor) * lastScoutedFactor;
+
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestBase = base;
+        }
 	}
 
-	// If there are none, return an invalid position.
-	if (choices.empty())
-	{
-		return BWAPI::Positions::Invalid;
-	}
-
-	// Choose randomly.
-	// We may choose the same target we already have. That's OK; if there's another choice,
-	// we'll probably switch to it soon.
-	BWTA::BaseLocation * base = choices.at(Random::Instance().index(choices.size()));
-	return base->getPosition();
+    return bestBase ? bestBase->getPosition() : BWAPI::Positions::Invalid;
 }
 
 // Form the ground squad and the flying squad, the main attack squads.

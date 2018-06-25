@@ -43,7 +43,6 @@ class MapTools
     void				setBWAPIMapData();					// reads in the map data from bwapi and stores it in our map format
 
 	BWTA::BaseLocation *nextExpansion(bool hidden, bool wantMinerals, bool wantGas);
-    int closestBaseDistance(BWTA::BaseLocation * base, std::vector<BWTA::BaseLocation*> bases);
 
 public:
 
@@ -52,6 +51,8 @@ public:
 	int		getGroundTileDistance(BWAPI::TilePosition from, BWAPI::TilePosition to);
 	int		getGroundTileDistance(BWAPI::Position from, BWAPI::Position to);
 	int		getGroundDistance(BWAPI::Position from, BWAPI::Position to);
+
+    int     closestBaseDistance(BWTA::BaseLocation * base, std::vector<BWTA::BaseLocation*> bases);
 
 	// Pass only valid tiles to these routines!
 	bool	isTerrainWalkable(BWAPI::TilePosition tile) const { return _terrainWalkable[tile.x][tile.y]; };

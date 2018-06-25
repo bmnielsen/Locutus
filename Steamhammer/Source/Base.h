@@ -29,6 +29,7 @@ public:
 	BWAPI::Unit		resourceDepot;		// hatchery, etc., or null if none
 	BWAPI::Player	owner;              // self, enemy, neutral
     int             ownedSince;         // Frame the base last changed ownership
+    int             lastScouted;        // When we have last seen this base
 	bool			reserved;			// if this is a planned expansion
 
 	BWAPI::Unit		getDepot() const { return resourceDepot; };
