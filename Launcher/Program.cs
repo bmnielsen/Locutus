@@ -42,18 +42,25 @@
         private static readonly List<string> CigMaps = new List<string>
                                                            {
                                                                "cig/(2)BlueStorm1.2.scx",
-                                                               "cig/(2)Hitchhiker1.1.SCX",
+                                                               "cig/(2)Destination1.1.scx",
+                                                               //"cig/(2)Hitchhiker1.1.SCX",
                                                                "cig/(2)MatchPoint1.3.scx",
                                                                "cig/(2)NeoChupungRyeong2.1.scx",
+                                                               "cig/(2)NeoHeartbreakerRidge.scx",
                                                                "cig/(2)RideofValkyries1.0.scx",
                                                                "cig/(3)Alchemist1.0.scm",
                                                                "cig/(3)GreatBarrierReef1.0.scx",
                                                                "cig/(3)NeoAztec2.1.scx",
                                                                "cig/(3)Pathfinder1.0.scx",
                                                                "cig/(3)Plasma1.0.scx",
+                                                               "cig/(3)TauCross1.1.scx",
+                                                               "cig/(4)Andromeda1.0.scx",
                                                                "cig/(4)ArcadiaII2.02.scx",
+                                                               "cig/(4)CircuitBreakers1.0.scx",
+                                                               "cig/(4)FightingSpirit1.3.scx",
                                                                "cig/(4)LunaTheFinal2.3.scx",
-                                                               "cig/(4)NeoSniperRidge2.0.scx"
+                                                               "cig/(4)NeoSniperRidge2.0.scx",
+                                                               "cig/(4)Python1.3.scx"
                                                            };
 
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
