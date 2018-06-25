@@ -193,6 +193,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
     bool buildGround = true;
     bool buildCarriers = false;
+    bool buildCorsairs = false;
 	bool getGoonRange = false;
 	bool getZealotSpeed = false;
 	bool upgradeGround = false;
@@ -229,6 +230,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         getCarrierCapacity = true;
         buildGround = false;
         buildCarriers = true;
+        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+            buildCorsairs = true;
     }
 	else
 	{
@@ -471,10 +474,27 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + goons));
 	}
 
+    // Corsairs
+    if (buildCorsairs && numCorsairs < 6 && idleStargates > 0)
+    {
+        if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+            && !startedStargate) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0)
+            goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
+        idleStargates--;
+    }
+
     // Carriers
     if (buildCarriers && idleStargates > 0)
     {
-        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Carrier, numCarriers + idleStargates));
+        if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+            && !startedStargate) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0
+            && !startedFleetBeacon) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Fleet_Beacon, 1));
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0)
+            goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Carrier, numCarriers + idleStargates));
     }
 
 	// Handle units produced by robo bay
@@ -528,6 +548,13 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         self->gas() >= BWAPI::UnitTypes::Protoss_Stargate.gasPrice())
     {
         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, numStargates + 1));
+    }
+
+    // Make sure we build a forge by the time we are starting our third base
+    // This allows us to defend our expansions
+    if (!startedForge && numNexusAll >= 3)
+    {
+        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 1));
     }
 
 	// If we're doing a corsair thing and it's still working, slowly add more.
@@ -1508,10 +1535,13 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         }
     }
 
-    // Queue a probe unless we are already oversaturated
+    // Queue a probe unless:
+    // - we are already oversaturated
+    // - we are close to maxed and have a large mineral bank
     if (!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Probe)
         && probes < WorkerManager::Instance().getMaxWorkers()
-        && WorkerManager::Instance().getNumIdleWorkers() < 5)
+        && WorkerManager::Instance().getNumIdleWorkers() < 5
+        && (BWAPI::Broodwar->self()->supplyUsed() < 350 || BWAPI::Broodwar->self()->minerals() < 1500))
     {
         bool idleNexus = false;
         for (const auto unit : BWAPI::Broodwar->self()->getUnits())
@@ -1554,19 +1584,28 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     }
 
     // If we are safe and have a forge, make sure our bases are fortified
-    // This should not take priority over training units though, so make sure our gateways or stargates are busy first and don't queue too much at a time
+    // This should not take priority over training units though, so make sure that either:
+    // - our gateways or stargates are busy
+    // - we are close to maxed
+    // - we have a large mineral bank
     if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
         safeToExpand &&
         UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
-        (getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) > 0.5 || getProductionSaturation(BWAPI::UnitTypes::Protoss_Stargate) > 0.5))
+        (BWAPI::Broodwar->self()->minerals() > 1500 ||
+            BWAPI::Broodwar->self()->supplyUsed() > 350 || 
+            getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) > 0.5 || 
+            getProductionSaturation(BWAPI::UnitTypes::Protoss_Stargate) > 0.5))
     {
         int totalQueued = 0;
 
         for (auto base : InformationManager::Instance().getMyBases())
         {
-            if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
-            if (base == InformationManager::Instance().getMyNaturalLocation() &&
-                BuildingPlacer::Instance().getWall().exists()) continue;
+            // We assume the main (and natural, if it has a wall) are well-enough defended
+            // unless the enemy has air combat units
+            if (!InformationManager::Instance().enemyHasAirCombatUnits() &&
+                (base == InformationManager::Instance().getMyMainBaseLocation() ||
+                    (base == InformationManager::Instance().getMyNaturalLocation() &&
+                        BuildingPlacer::Instance().getWall().exists()))) continue;
 
             totalQueued += EnsureCannonsAtBase(base, 2, queue, true);
             if (totalQueued > 2) break;
@@ -1764,9 +1803,6 @@ bool StrategyManager::hasDropTech()
 // Returns the percentage of our production facilities that are currently training something
 double StrategyManager::getProductionSaturation(BWAPI::UnitType producer) const
 {
-    // Special case: if we are close to maxed, always count them as busy
-    if (BWAPI::Broodwar->self()->supplyUsed() > 300) return 1.0;
-
     // Look up overall count and idle count
     int numFacilities = 0;
     int idleFacilities = 0;

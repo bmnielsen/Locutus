@@ -142,7 +142,13 @@
 				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
 				{ "Weight" : 40, "Strategy" : "4GateGoon" }
 			]},
-			"6f5295624a7e3887470f3f2e14727b1411321a67": "Plasma"
+			
+			"6f5295624a7e3887470f3f2e14727b1411321a67" : { "Protoss" : [
+				{ "Weight" : 45, "Strategy" : "PlasmaCarriers" }
+			]},
+			"6f5295624a7e3887470f3f2e14727b1411321a67 vZ" : { "Protoss" : [
+				{ "Weight" : 60, "Strategy" : "PlasmaCorsairsCarriers" }
+			]}
 		},
 
 		"CounterStrategies" :
@@ -227,8 +233,11 @@
 			"ForgeExpand"	        : { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
 				["go defensive", "4 x probe", "pylon @ wall then go scout once around", "probe", "forge @ wall", "probe", "photon cannon @ wall then photon cannon @ wall", "nexus", "2 x probe", "gateway @ wall", "probe", "pylon", "probe", "gateway", "photon cannon @ wall"]},
 				
-			"Plasma": { "Race" : "Protoss", "OpeningGroup" : "carriers", "OpeningBuildOrder" :
-				["4 x probe", "pylon then go scout while safe", "4 x probe", "nexus @ natural", "2 x probe", "assimilator", "probe", "gateway", "probe", "pylon", "3 x probe", "cybernetics core", "6 x probe", "stargate", "protoss air weapons", "pylon", "2 x probe", "assimilator", "nexus", "4 x probe", "stargate", "fleet beacon", "2 x probe", "pylon", "4 x probe", "2 x carrier"]},
+			"PlasmaCarriers": { "Race" : "Protoss", "OpeningGroup" : "carriers", "OpeningBuildOrder" :
+				["4 x probe", "pylon then go scout while safe", "4 x probe", "nexus @ natural", "2 x probe", "gateway", "assimilator", "2 x probe", "pylon", "2 x probe", "cybernetics core", "6 x probe", "stargate", "protoss air weapons", "2 x probe", "assimilator", "2 x probe", "stargate", "nexus", "4 x probe", "pylon", "fleet beacon", "2 x probe", "pylon", "assimilator", "2 x probe", "pylon", "2 x probe", "2 x carrier", "2 x probe", "carrier capacity"]},
+				
+			"PlasmaCorsairsCarriers": { "Race" : "Protoss", "OpeningGroup" : "carriers", "OpeningBuildOrder" :
+				["4 x probe", "pylon then go scout while safe", "4 x probe", "nexus @ natural", "2 x probe", "gateway", "assimilator", "2 x probe", "pylon", "2 x probe", "cybernetics core", "6 x probe", "stargate", "protoss air weapons", "2 x probe", "assimilator", "2 x probe", "stargate", "4 x probe", "pylon", "corsair", "2 x probe", "corsair"]},
 				
 			"TestWall"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
 				["go defensive", "4 x probe", "nexus", "pylon @ wall", "probe", "gateway @ wall", "forge @ wall", "photon cannon @ wall then photon cannon @ wall", "2 x probe", "photon cannon @ wall", "4 x probe", "go away"]},
