@@ -14,6 +14,7 @@ Base::Base(BWAPI::TilePosition pos)
 	, distances(pos)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
+	, ownedSince(0)
 	, reserved(false)
 {
 	++BaseID;
@@ -27,7 +28,8 @@ Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
 	, distances(pos)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
-	, reserved(false)
+    , ownedSince(0)
+    , reserved(false)
 {
 	DistanceMap resourceDistances(pos, BaseResourceRange, false);
 
@@ -69,8 +71,12 @@ void Base::findGeysers()
 void Base::setOwner(BWAPI::Unit depot, BWAPI::Player player)
 {
 	resourceDepot = depot;
-	owner = player;
-	reserved = false;
+    reserved = false;
+    if (player != owner)
+    {
+        owner = player;
+        ownedSince = BWAPI::Broodwar->getFrameCount();
+    }
 }
 
 int Base::getInitialMinerals() const

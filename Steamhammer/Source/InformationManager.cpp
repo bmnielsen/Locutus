@@ -705,6 +705,12 @@ BWAPI::Player InformationManager::getBaseOwner(BWTA::BaseLocation * base)
 	return _theBases[base]->owner;
 }
 
+// Frame the base last changed ownership
+int InformationManager::getBaseOwnedSince(BWTA::BaseLocation * base)
+{
+    return _theBases[base]->ownedSince;
+}
+
 // If it's the enemy base, the depot will be null if it has not been seen.
 // If this is our base, there is still a chance that the depot may be null.
 // And if not null, the depot may be incomplete.

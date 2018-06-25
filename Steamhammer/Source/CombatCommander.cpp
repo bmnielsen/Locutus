@@ -1510,38 +1510,51 @@ Handled earlier in Locutus
 		canAttackGround = squad->canAttackGround();
 	}
 
-	// 1. Attack the enemy base with the weakest static defense.
+	// 1. Attack an enemy base
 	// Only if the squad can attack ground. Lift the command center and it is no longer counted as a base.
 	if (canAttackGround)
 	{
+        // Weight this by:
+        // - How much static defense is at the base
+        // - How long the base has been active (longer -> less important as there will be fewer minerals available)
+
 		BWTA::BaseLocation * targetBase = nullptr;
-		int bestScore = -99999;
+        double bestScore = 0.0;
 		for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 		{
 			if (InformationManager::Instance().getBaseOwner(base) == BWAPI::Broodwar->enemy())
 			{
-				int score = 0;     // the final score will be 0 or negative
+                // Count defenses
+                int defenseCount = 0;
 				std::vector<UnitInfo> enemies;
 				InformationManager::Instance().getNearbyForce(enemies, base->getPosition(), BWAPI::Broodwar->enemy(), 600);
-				for (const auto & enemy : enemies)
-				{
-					// Count enemies that are buildings or slow-moving units good for defense.
-					if (enemy.type.isBuilding() ||
-						enemy.type == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
-						enemy.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
-						enemy.type == BWAPI::UnitTypes::Protoss_Reaver ||
-						enemy.type == BWAPI::UnitTypes::Zerg_Lurker ||
-						enemy.type == BWAPI::UnitTypes::Zerg_Guardian)
-					{
-						// If the unit could attack (some units of) the squad, count it.
-						if (hasGround && UnitUtil::TypeCanAttackGround(enemy.type) ||			// doesn't recognize casters
-							hasAir && UnitUtil::TypeCanAttackAir(enemy.type) ||					// doesn't recognize casters
-							enemy.type == enemy.type == BWAPI::UnitTypes::Protoss_High_Templar)	// spellcaster
-						{
-							--score;
-						}
-					}
-				}
+                for (const auto & enemy : enemies)
+                {
+                    // Count enemies that are buildings or slow-moving units good for defense.
+                    if (enemy.type.isBuilding() ||
+                        enemy.type == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
+                        enemy.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
+                        enemy.type == BWAPI::UnitTypes::Protoss_Reaver ||
+                        enemy.type == BWAPI::UnitTypes::Zerg_Lurker ||
+                        enemy.type == BWAPI::UnitTypes::Zerg_Guardian)
+                    {
+                        // If the unit could attack (some units of) the squad, count it.
+                        if (hasGround && UnitUtil::TypeCanAttackGround(enemy.type) ||			// doesn't recognize casters
+                            hasAir && UnitUtil::TypeCanAttackAir(enemy.type) ||					// doesn't recognize casters
+                            enemy.type == enemy.type == BWAPI::UnitTypes::Protoss_High_Templar)	// spellcaster
+                        {
+                            defenseCount++;
+                        }
+                    }
+                }
+
+                double defenseFactor = defenseCount == 0 ? 1.0 : 1.0 / (1.0 + defenseCount);
+
+                // Importance of the base scales linearly with time, we don't care when it is 10 minutes old
+                int age = BWAPI::Broodwar->getFrameCount() - InformationManager::Instance().getBaseOwnedSince(base);
+                double ageFactor = std::max(0.0, 10000.0 - age) / 10000.0;
+
+                double score = ageFactor * defenseFactor;
 				if (score > bestScore)
 				{
 					targetBase = base;
