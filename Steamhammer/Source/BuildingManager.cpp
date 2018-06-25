@@ -5,6 +5,8 @@
 #include "ScoutManager.h"
 #include "UnitUtil.h"
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 BuildingManager::BuildingManager()
@@ -171,7 +173,9 @@ void BuildingManager::constructAssignedBuildings()
 		}
 		else if (!b.builderUnit->isConstructing())
         {
-			if (!isBuildingPositionExplored(b) || b.builderUnit->getDistance(BWAPI::Position(b.finalPosition)) > 200)
+            int distance;
+            bwemMap.GetPath(b.builderUnit->getPosition(), BWAPI::Position(b.finalPosition), &distance);
+			if (!isBuildingPositionExplored(b) || distance > 200)
             {
 				// We haven't explored the build position. Go there.
                 InformationManager::Instance().getLocutusUnit(b.builderUnit).moveTo(BWAPI::Position(b.finalPosition));
