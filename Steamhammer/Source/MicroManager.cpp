@@ -117,7 +117,7 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
         // We consider ourselves as doing the run-by when either:
         // - We are in firing range of the bunker
         // - We are closer to the bunker than our current run-by position
-        int bunkerRange = InformationManager::Instance().enemyHasMarineRangeUpgrade() ? 6 * 32 : 5 * 32;
+        int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
         auto runByPosition = bunkerRunBySquad->getRunByPosition(combatUnit, order.getPosition());
         int distanceToBunker = combatUnit->getDistance(bunkerRunBySquad->getBunker());
         if (distanceToBunker < (bunkerRange + 32) || distanceToBunker < combatUnit->getDistance(runByPosition))

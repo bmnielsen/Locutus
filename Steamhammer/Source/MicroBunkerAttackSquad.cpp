@@ -322,7 +322,7 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     double healthCutoff = BWAPI::UnitTypes::Protoss_Dragoon.maxHitPoints() + BWAPI::UnitTypes::Protoss_Dragoon.maxShields();
     if (dead < unitsDoingRunBy.size())
         healthCutoff *= 1.5;
-    else if (InformationManager::Instance().enemyHasMarineRangeUpgrade())
+    else if (InformationManager::Instance().enemyHasInfantryRangeUpgrade())
         healthCutoff *= 2.5;
     else
         healthCutoff *= 3.5;

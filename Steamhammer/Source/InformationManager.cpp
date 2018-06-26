@@ -28,7 +28,7 @@ InformationManager::InformationManager()
 	, _enemyHasStaticDetection(false)
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
 	, _enemyHasSiegeTech(false)
-	, _enemyHasMarineRangeUpgrade(false)
+	, _enemyHasInfantryRangeUpgrade(false)
 
 	, _enemyBaseStation(nullptr)
 {
@@ -563,7 +563,7 @@ void InformationManager::updateGoneFromLastPosition()
 // TODO: Use this to implement dodging
 void InformationManager::updateBullets()
 {
-    if (_enemyHasMarineRangeUpgrade || BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran) return;
+    if (_enemyHasInfantryRangeUpgrade || BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran) return;
 
     for (auto& bullet : BWAPI::Broodwar->getBullets())
     {
@@ -618,7 +618,7 @@ void InformationManager::updateBullets()
             if (bulletsSeenAtExtendedMarineRange > 8)
             {
                 Log().Get() << "Detected ranged marines in bunker";
-                _enemyHasMarineRangeUpgrade = true;
+                _enemyHasInfantryRangeUpgrade = true;
                 return;
             }
         }
@@ -1729,23 +1729,22 @@ bool InformationManager::enemyHasSiegeTech()
 	return false;
 }
 
-// Enemy has the marine range upgrade
-bool InformationManager::enemyHasMarineRangeUpgrade()
+// Enemy has upgraded their basic infantry range (marine, hydra, or goon depending on race)
+bool InformationManager::enemyHasInfantryRangeUpgrade()
 {
 	// Latch: Once they're known to have the tech, they always have it.
-	if (_enemyHasMarineRangeUpgrade)
+	if (_enemyHasInfantryRangeUpgrade)
 	{
 		return true;
 	}
 
-    // Only terran can get the marine range upgrade
-    if (_enemy->getRace() != BWAPI::Races::Terran) return false;
-
-    // This will trigger when we first see a marine with the upgrade
-    // TODO: Consider range of bullets from bunkers
-    if (BWAPI::Broodwar->enemy()->getUpgradeLevel(BWAPI::UpgradeTypes::U_238_Shells))
+    // This will trigger when we first see a unit with the upgrade
+    // For marines, we also have logic to infer this from bunker bullets
+    if (BWAPI::Broodwar->enemy()->getUpgradeLevel(BWAPI::UpgradeTypes::U_238_Shells) ||
+        BWAPI::Broodwar->enemy()->getUpgradeLevel(BWAPI::UpgradeTypes::Grooved_Spines) ||
+        BWAPI::Broodwar->enemy()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
     {
-        _enemyHasMarineRangeUpgrade = true;
+        _enemyHasInfantryRangeUpgrade = true;
         return true;
     }
 

@@ -32,7 +32,7 @@ class InformationManager
 	bool			_enemyHasStaticDetection;
 	bool			_enemyHasMobileDetection;
     bool            _enemyHasSiegeTech;
-    bool            _enemyHasMarineRangeUpgrade;
+    bool            _enemyHasInfantryRangeUpgrade;
 
 	std::map<BWAPI::Player, UnitData>                   _unitData;
 	std::map<BWAPI::Player, BWTA::BaseLocation *>       _mainBaseLocations;
@@ -145,7 +145,7 @@ public:
 	bool					enemyHasStaticDetection();
 	bool					enemyHasMobileDetection();
 	bool					enemyHasSiegeTech();
-    bool                    enemyHasMarineRangeUpgrade();
+    bool                    enemyHasInfantryRangeUpgrade();
 
 	void					enemySeenBurrowing() { _enemyHasCloakTech = true; };
 

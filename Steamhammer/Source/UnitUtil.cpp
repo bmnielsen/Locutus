@@ -278,11 +278,11 @@ int UnitUtil::GetAttackRange(BWAPI::Unit attacker, BWAPI::Unit target)
 	// Reavers, carriers, and bunkers have "no weapon" but still have an attack range.
 	if (attacker->getType() == BWAPI::UnitTypes::Protoss_Reaver && !target->isFlying())
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker->getType() == BWAPI::UnitTypes::Protoss_Carrier)
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker->getType() == BWAPI::UnitTypes::Terran_Bunker)
 	{
@@ -348,11 +348,11 @@ int UnitUtil::GetAttackRangeAssumingUpgrades(BWAPI::UnitType attacker, BWAPI::Un
 	// Reavers, carriers, and bunkers have "no weapon" but still have an attack range.
 	if (attacker == BWAPI::UnitTypes::Protoss_Reaver && !target.isFlyer())
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker == BWAPI::UnitTypes::Protoss_Carrier)
 	{
-		return 8;
+		return 8 * 32;
 	}
 	if (attacker == BWAPI::UnitTypes::Terran_Bunker)
 	{
