@@ -376,31 +376,26 @@ bool Squad::needsToRegroup()
 
 	if (!retreat)
 	{
-        // Special case: if our squad is only ranged goons, and the enemy has only a bunker without the range upgrade,
-        // ignore the bunker
-        bool ignoreSolitaryBunker = 
-            BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
-            !InformationManager::Instance().enemyHasMarineRangeUpgrade();
+        // All other checks are done. Finally do the expensive combat simulation.
 
-        // Is our squad all ranged goons?
-        if (ignoreSolitaryBunker)
-            for (auto & unit : _units)
-                if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon)
-                {
-                    ignoreSolitaryBunker = false;
-                    break;
-                }
+        // If we retreated last time, simulate around a point closer to the order position
+        // Otherwise simulate around the closest unit
+        BWAPI::Position simPosition(unitClosest->getPosition());
+        if (_lastRetreatSwitchVal)
+        {
+            BWAPI::Position delta(_order.getPosition() - simPosition);
+            double a = atan2(delta.y, delta.x);
 
-		// All other checks are done. Finally do the expensive combat simulation.
-		CombatSimulation sim;
+            simPosition = BWAPI::Position(
+                simPosition.x + (int)std::round(96 * std::cos(a)),
+                simPosition.y + (int)std::round(96 * std::sin(a)));
+        }
 
-		sim.setCombatUnits(unitClosest->getPosition(), _combatSimRadius, _fightVisibleOnly, ignoreSolitaryBunker);
-		double score = sim.simulateCombat();
+        double score = runCombatSim(simPosition);
 
 		retreat = score < 0;
 		_lastRetreatSwitch = BWAPI::Broodwar->getFrameCount();
 		_lastRetreatSwitchVal = retreat;
-
 	}
 	
 	if (retreat)
@@ -778,6 +773,54 @@ MicroBunkerAttackSquad * Squad::getBunkerRunBySquad(BWAPI::Unit unit)
         if (pair.second.isPerformingRunBy(unit))
             return &pair.second;
     return nullptr;
+}
+
+double Squad::runCombatSim(BWAPI::Position center)
+{
+    // Special case: ignore enemy bunkers if:
+    // - Our squad is entirely ranged goons
+    // - The enemy doesn't have the marine range upgrade
+    // - None of our goons are currently in range of an enemy bunker
+    
+    bool ignoreBunkers = 
+        BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
+        !InformationManager::Instance().enemyHasInfantryRangeUpgrade();
+    if (ignoreBunkers)
+    {
+        // Gather enemy bunker positions
+        std::vector<BWAPI::Unit> bunkers;
+        for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
+        {
+            if (unit->getType() == BWAPI::UnitTypes::Terran_Bunker) bunkers.push_back(unit);
+        }
+        if (!bunkers.empty())
+        {
+            // Make sure all of our units are goons and out of range of the bunker
+            for (auto & unit : _units)
+            {
+                if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon)
+                {
+                    ignoreBunkers = false;
+                    goto breakBunkerCheck;
+                }
+
+                for (auto bunker : bunkers)
+                {
+                    if (bunker->getDistance(unit) <= (5 * 32))
+                    {
+                        ignoreBunkers = false;
+                        goto breakBunkerCheck;
+                    }
+                }
+            }
+        }
+    breakBunkerCheck:;
+    }
+
+    CombatSimulation sim;
+
+    sim.setCombatUnits(center, _combatSimRadius, _fightVisibleOnly, ignoreBunkers);
+    return sim.simulateCombat();
 }
 
 const bool Squad::hasCombatUnits() const

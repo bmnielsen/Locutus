@@ -96,6 +96,7 @@ public:
 
 	int					getCombatSimRadius() const { return _combatSimRadius; };
 	void				setCombatSimRadius(int radius) { _combatSimRadius = radius; };
+    double              runCombatSim(BWAPI::Position center);
 
 	bool				getFightVisible() const { return _fightVisibleOnly; };
 	void				setFightVisible(bool visibleOnly) { _fightVisibleOnly = visibleOnly; };

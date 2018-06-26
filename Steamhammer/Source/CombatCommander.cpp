@@ -565,10 +565,7 @@ void CombatCommander::updateAttackSquads()
         // If we have taken the natural, defend it
         else if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
         {
-            if (bwebMap.naturalChoke)
-                defendPosition = BWAPI::Position(bwebMap.naturalChoke->Center());
-            else
-                defendPosition = natural->getPosition();
+            defendPosition = natural->getPosition();
         }
 
         // Otherwise defend the main
@@ -576,8 +573,9 @@ void CombatCommander::updateAttackSquads()
         {
             defendPosition = base->getPosition();
 
-            // Defend the main choke if it is the only non-blocked choke out of the main
-            // On maps like Alchemist we would rather defend close to the mineral line
+            // Defend the main choke if:
+            // - it is the only non-blocked choke out of the main
+            // - our combat sim says it is safe to do so
             if (bwebMap.mainChoke && bwebMap.mainArea)
             {
                 int mainChokes = 0;
@@ -585,8 +583,11 @@ void CombatCommander::updateAttackSquads()
                     if (!choke->Blocked())
                         mainChokes++;
 
-                if (mainChokes == 1)
+                if (mainChokes == 1 && 
+                    groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) > 0)
+                {
                     defendPosition = BWAPI::Position(bwebMap.mainChoke->Center());
+                }
             }
         }
 
