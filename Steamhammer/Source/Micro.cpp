@@ -54,11 +54,8 @@ void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
         return;
     }
 
-	// Do nothing if we've already issued a command this frame, or the unit is busy attacking.
-	// NOTE A lurker attacking a fixed target is ALWAYS on an attack frame.
-	//      According to Arrak, sunken colonies behave the same.
-    if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() ||
-		(attacker->isAttackFrame() && attacker->getType() != BWAPI::UnitTypes::Zerg_Lurker))
+	// Do nothing if we've already issued a command this frame
+    if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount())
     {
 		return;
     }
@@ -67,7 +64,7 @@ void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
     BWAPI::UnitCommand currentCommand(attacker->getLastCommand());
 
     // if we've already told this unit to attack this target, ignore this command
-    if (currentCommand.getType() == BWAPI::UnitCommandTypes::Attack_Unit &&	currentCommand.getTarget() == target)
+    if (!attacker->isStuck() && currentCommand.getType() == BWAPI::UnitCommandTypes::Attack_Unit &&	currentCommand.getTarget() == target)
     {
 		return;
     }
@@ -149,7 +146,7 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 	}
 
     // if we have issued a command to this unit already this frame, ignore this one
-    if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() || attacker->isAttackFrame())
+    if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount())
     {
         return;
     }
@@ -157,7 +154,10 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
     BWAPI::UnitCommand currentCommand(attacker->getLastCommand());
 
     // if we've already told this unit to move to this position, ignore this command
-    if ((currentCommand.getType() == BWAPI::UnitCommandTypes::Move) && (currentCommand.getTargetPosition() == targetPosition) && attacker->isMoving())
+    if (!attacker->isStuck() && 
+        (currentCommand.getType() == BWAPI::UnitCommandTypes::Move) && 
+        (currentCommand.getTargetPosition() == targetPosition) && 
+        attacker->isMoving())
     {
         return;
     }
@@ -482,72 +482,7 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
 	if (kite)
 	{
-        // Determine the position to move towards
-        // Criteria:
-        // - Walkable and not blocked by a building
-        // - TODO: Not blocking other friendly units from moving into firing position
-        // - TODO: Generally moving us away from nearby enemy units
-        // - TODO: Far from enemy static defense
-
-        // Distance we want to move away from our current position
-        double distance = 32.0;
-        if (speed > 0.1) distance = rangedUnit->getGroundWeaponCooldown() * speed;
-
-        // Our current angle relative to the target
-        BWAPI::Position delta(target->getPosition() - rangedUnit->getPosition());
-        double angleToTarget = atan2(delta.y, delta.x);
-
-        // Score moving at a variety of angles
-        double bestScore = DBL_MAX;
-        BWAPI::Position bestPosition = BWAPI::Positions::Invalid;
-
-        for (int i = -3; i <= 3; i++)
-        {
-            double a = angleToTarget + (i * pi / 6);
-
-            BWAPI::Position position(
-                rangedUnit->getPosition().x - (int)std::round(distance * std::cos(a)),
-                rangedUnit->getPosition().y - (int)std::round(distance * std::sin(a)));
-
-            // Valid and walkable
-            if (!position.isValid() ||
-                !BWAPI::WalkPosition(position).isValid() ||
-                !BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(position)))
-            {
-                continue;
-            }
-
-            // Not blocked by a building
-            if (bwebMap.usedTiles.find(BWAPI::TilePosition(position)) != bwebMap.usedTiles.end())
-            {
-                continue;
-            }
-
-            // Score
-            // TODO: Add more metrics
-            double score = std::abs(a - angleToTarget);
-
-            if (score < bestScore)
-            {
-                bestScore = score;
-                bestPosition = position;
-            }
-        }
-
-        if (bestPosition.isValid())
-        {
-            Micro::Move(rangedUnit, bestPosition);
-        }
-
-        /*
-        // Run away.
-		BWAPI::Position fleePosition(rangedUnit->getPosition() - target->getPosition() + rangedUnit->getPosition());
-		if (Config::Debug::DrawUnitTargetInfo)
-		{
-			BWAPI::Broodwar->drawLineMap(rangedUnit->getPosition(), fleePosition, BWAPI::Colors::Cyan);
-		}
-		Micro::Move(rangedUnit, fleePosition);
-        */
+        InformationManager::Instance().getLocutusUnit(rangedUnit).fleeFrom(target->getPosition());
 	}
 	else
 	{

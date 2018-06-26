@@ -163,6 +163,8 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 {
 	for (const auto unit : _units)
 	{
+        if (!InformationManager::Instance().getLocutusUnit(unit).isReady()) continue;
+
         // Units might get stuck while retreating
         if (unstickStuckUnit(unit)) continue;
 

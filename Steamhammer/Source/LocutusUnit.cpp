@@ -3,13 +3,19 @@
 #include "Micro.h"
 #include "MapTools.h"
 
+const double pi = 3.14159265358979323846;
+
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
 void LocutusUnit::update()
 {
 	if (!unit || !unit->exists()) { return; }
+
+    if (unit->isStartingAttack()) 
+        lastAttackStartedAt = BWAPI::Broodwar->getFrameCount();
 
     // Logic for detecting our own stuck goons
     if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon)
@@ -265,8 +271,65 @@ void LocutusUnit::mineralWalk()
     lastMoveFrame = BWAPI::Broodwar->getFrameCount();
 }
 
+void LocutusUnit::fleeFrom(BWAPI::Position position)
+{
+    // TODO: Use a threat and collision matrix to determine the best position to move to
+
+    // Our current angle relative to the target
+    BWAPI::Position delta(position - unit->getPosition());
+    double angleToTarget = atan2(delta.y, delta.x);
+
+    // Find a valid position to move to that is two tiles further away from the given position
+    // Start by considering fleeing directly away, falling back to other angles if blocked
+    BWAPI::Position bestPosition = BWAPI::Positions::Invalid;
+    for (int i = 0; i <= 3; i++)
+        for (int sign = -1; i == 0 ? sign == -1 : sign <= 1; sign += 2)
+        {
+            // Compute the position two tiles away
+            double a = angleToTarget + (i * sign * pi / 6);
+            BWAPI::Position position(
+                unit->getPosition().x - (int)std::round(64.0 * std::cos(a)),
+                unit->getPosition().y - (int)std::round(64.0 * std::sin(a)));
+            if (!position.isValid()) continue;
+
+            // Sample walk positions to make sure we can move there
+            BWAPI::WalkPosition walk(position);
+            BWAPI::WalkPosition walkHalfway((walk + BWAPI::WalkPosition(unit->getPosition())) / 2);
+            if (!walk.isValid() || !walkHalfway.isValid() ||
+                !BWAPI::Broodwar->isWalkable(walk) || !BWAPI::Broodwar->isWalkable(walkHalfway))
+            {
+                continue;
+            }
+
+            // Not blocked by a building
+            if (bwebMap.usedTiles.find(BWAPI::TilePosition(position)) != bwebMap.usedTiles.end())
+            {
+                continue;
+            }
+
+            bestPosition = position;
+            goto breakOuterLoop;
+        }
+breakOuterLoop:;
+
+    if (bestPosition.isValid())
+    {
+        Micro::Move(unit, bestPosition);
+    }
+}
+
+bool LocutusUnit::isReady() const
+{
+    if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon) return true;
+
+    // Dragoons are given 9 frames (adjusted for latency) to perform their attack before getting another order
+    return BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt > 9 - BWAPI::Broodwar->getLatencyFrames();
+}
+
 bool LocutusUnit::isStuck() const
 {
+    if (unit->isStuck()) return true;
+
     return potentiallyStuckSince > 0 &&
         potentiallyStuckSince < (BWAPI::Broodwar->getFrameCount() - BWAPI::Broodwar->getLatencyFrames() - 10);
 }
