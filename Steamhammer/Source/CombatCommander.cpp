@@ -750,23 +750,29 @@ void CombatCommander::updateScoutDefenseSquad()
     }
 
     // Chase the scout unless there is an enemy unit in the region that isn't a scout
-    bool chaseScout = true;
+    bool hasScout = false;
+    bool hasNonScout = true;
     for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
     {
         if (BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) == myRegion)
         {
-            // If an enemy worker has attacked recently, consider workers to not be scouts
-            if (unit->getType() != BWAPI::UnitTypes::Zerg_Overlord &&
-                (!unit->getType().isWorker() || _enemyWorkerAttackedAt > (BWAPI::Broodwar->getFrameCount() - 120)))
+            // Is this a scout?
+            // Workers are not considered scouts if one has attacked recently
+            if (unit->getType() == BWAPI::UnitTypes::Zerg_Overlord ||
+                (unit->getType().isWorker() && _enemyWorkerAttackedAt < (BWAPI::Broodwar->getFrameCount() - 120)))
             {
-                chaseScout = false;
+                hasScout = true;
+            }
+            else
+            {
+                hasNonScout = true;
                 break;
             }
         }
     }
 
     // If we don't want to chase a scout, disband the squad
-    if (!chaseScout)
+    if (hasNonScout || !hasScout)
     {
         if (!scoutDefenseSquad.isEmpty()) scoutDefenseSquad.clear();
         return;
@@ -864,15 +870,19 @@ void CombatCommander::updateBaseDefenseSquads()
         // - workers 1
         // - zerglings 2
         // - hydras & marines 3
+        // - vultures 4
         // - zealots 5
+        // - shuttle/reaver 12
         // - everything else 6
 
         int flyingDefendersNeeded = 0;
         int groundDefendersNeeded = 0;
         bool preferRangedUnits = false;
         bool needsDetection = false;
+        bool outrangesCannons = false;
 
         bool firstWorker = true;
+        bool hasShuttle = false;
         for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
         {
             // If it's a harmless air unit, don't worry about it for base defense.
@@ -908,6 +918,12 @@ void CombatCommander::updateBaseDefenseSquads()
             // Flag things that affect what units we choose for the squad
             if (unit->getType() == BWAPI::UnitTypes::Terran_Vulture) preferRangedUnits = true;
             if (unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar) needsDetection = true;
+            if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
+                unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
+                unit->getType() == BWAPI::UnitTypes::Protoss_Reaver ||
+                unit->getType() == BWAPI::UnitTypes::Protoss_Shuttle || // assume it carries a reaver
+                unit->getType() == BWAPI::UnitTypes::Zerg_Guardian) outrangesCannons = true;
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Shuttle) hasShuttle = true;
 
             // Fliers are just counted
             if (unit->isFlying())
@@ -923,11 +939,21 @@ void CombatCommander::updateBaseDefenseSquads()
                 groundDefendersNeeded += 2;
             else if (unit->getType() == BWAPI::UnitTypes::Zerg_Hydralisk || unit->getType() == BWAPI::UnitTypes::Terran_Marine)
                 groundDefendersNeeded += 3;
+            else if (unit->getType() == BWAPI::UnitTypes::Terran_Vulture)
+                groundDefendersNeeded += 4;
             else if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot)
                 groundDefendersNeeded += 5;
+            else if (unit->getType() == BWAPI::UnitTypes::Protoss_Shuttle || unit->getType() == BWAPI::UnitTypes::Protoss_Reaver)
+                groundDefendersNeeded += 12;
             else
                 groundDefendersNeeded += 6;
         }
+
+        // If we've seen a shuttle, discount it if we've also seen other units
+        // The idea is to assume it has a reaver in it if there are no other units, but stop counting
+        // it when the reaver is dropped
+        if (hasShuttle && groundDefendersNeeded > 12)
+            groundDefendersNeeded -= 12;
 
         // Count static defenses
         bool staticDefense = false;
@@ -950,10 +976,14 @@ void CombatCommander::updateBaseDefenseSquads()
                 continue;
             }
 
-            // We handle the equivalent of 3 zergings and 2 flying units, scaled by our health
-            double health = (double)(unit->getShields() + unit->getHitPoints()) / (double)(unit->getType().maxShields() + unit->getType().maxHitPoints());
-            groundDefendersNeeded -= (int)std::round(health * 6);
-            flyingDefendersNeeded -= (int)std::round(health * 2);
+            // We handle the equivalent of 3 zergings and 2 flying units, scaled by our health,
+            // unless we are outranged
+            if (!outrangesCannons)
+            {
+                double health = (double)(unit->getShields() + unit->getHitPoints()) / (double)(unit->getType().maxShields() + unit->getType().maxHitPoints());
+                groundDefendersNeeded -= (int)std::round(health * 6);
+                flyingDefendersNeeded -= (int)std::round(health * 2);
+            }
 
             staticDefense = true;
 
@@ -1112,37 +1142,6 @@ void CombatCommander::updateBaseDefenseSquads()
                 "Defend region"));
         }
     }
-
-    // Skip the below check, seems superfluous and breaks the zergling sim
-    return;
-
-    // for each of our defense squads, if there aren't any enemy units near the position, clear the squad
-	// TODO partially overlaps with "is enemy in region check" above
-	for (const auto & kv : _squadData.getSquads())
-	{
-		const Squad & squad = kv.second;
-		const SquadOrder & order = squad.getSquadOrder();
-
-		if (order.getType() != SquadOrderTypes::Defend || squad.isEmpty())
-		{
-			continue;
-		}
-
-		bool enemyUnitInRange = false;
-		for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
-		{
-			if (unit->getDistance(order.getPosition()) < order.getRadius())
-			{
-				enemyUnitInRange = true;
-				break;
-			}
-		}
-
-		if (!enemyUnitInRange)
-		{
-			_squadData.getSquad(squad.getName()).clear();
-		}
-	}
 }
 
 void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool preferRangedUnits)

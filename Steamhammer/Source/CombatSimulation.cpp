@@ -10,7 +10,7 @@ CombatSimulation::CombatSimulation()
 
 // sets the starting states based on the combat units within a radius of a given position
 // this center will most likely be the position of the forwardmost combat unit we control
-void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius, bool visibleOnly, bool ignoreSolitaryBunker)
+void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius, bool visibleOnly, bool ignoreBunkers)
 {
 	fap.clearState();
 
@@ -37,6 +37,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		MapGrid::Instance().getUnits(enemyCombatUnits, center, radius, false, true);
 		for (const auto unit : enemyCombatUnits)
 		{
+            if (ignoreBunkers && unit->getType() == BWAPI::UnitTypes::Terran_Bunker) continue;
+
 			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit))
 			{
                 enemyUnits.push_back(unit);
@@ -52,6 +54,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		InformationManager::Instance().getNearbyForce(enemyStaticDefense, center, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyStaticDefense)
 		{
+            if (ignoreBunkers && ui.type == BWAPI::UnitTypes::Terran_Bunker) continue;
+
 			if (ui.type.isBuilding() && 
 				ui.lastHealth > 0 &&
 				!ui.unit->isVisible() &&
@@ -74,6 +78,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		InformationManager::Instance().getNearbyForce(enemyCombatUnits, center, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyCombatUnits)
 		{
+            if (ignoreBunkers && ui.type == BWAPI::UnitTypes::Terran_Bunker) continue;
+
             // The check is careful about seen units and assumes that unseen units are powered.
 			if (ui.lastHealth > 0 &&
 				(ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
@@ -93,10 +99,9 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		}
 	}
 
-    // Add the enemy units unless there is only one bunker that we want to skip
-    if (!ignoreSolitaryBunker || enemyUnits.size() != 1 || enemyUnits.begin()->type != BWAPI::UnitTypes::Terran_Bunker)
-        for (auto& unit : enemyUnits)
-            fap.addIfCombatUnitPlayer2(unit);
+    // Add the enemy units
+    for (auto& unit : enemyUnits)
+        fap.addIfCombatUnitPlayer2(unit);
 
 	// Add our units.
 	BWAPI::Unitset ourCombatUnits;
