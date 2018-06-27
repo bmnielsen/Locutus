@@ -20,7 +20,7 @@ ProductionManager::ProductionManager()
 	, _extractorTrickState			     (ExtractorTrick::None)
 	, _extractorTrickUnitType			 (BWAPI::UnitTypes::None)
 	, _extractorTrickBuilding			 (nullptr)
-	, _workersReplacedInOpening			 (0)
+	, _workersLostInOpening(0)
 {
     setBuildOrder(StrategyManager::Instance().getOpeningBookBuildOrder());
 }
@@ -129,55 +129,22 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 		return;
 	}
 
-	// If it's a worker or a building, it affects the production plan.
-	// TODO: Fix this so it doesn't trigger when the worker scout dies
-	if (false /*unit->getType().isWorker() && !_outOfBook && _workersReplacedInOpening < 2 */)
-	{
-		// We lost a worker in the opening. Replace it.
-		// This helps if a small number of workers are killed. If many are killed, you're toast anyway, so don't bother
-		// Still, it's better than breaking out of the opening altogether.
-		_queue.queueAsHighestPriority(unit->getType());
-		_workersReplacedInOpening++;
-
-		// If we have a gateway and no zealots, or a barracks and no marines,
-		// consider making a military unit first. To, you know, stay alive and stuff.
-		if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Protoss)
-		{
-			if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway) > 0 &&
-				UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Zealot) == 0 &&
-				!_queue.anyInNextN(BWAPI::UnitTypes::Protoss_Zealot, 2) &&
-				(BWAPI::Broodwar->self()->minerals() >= 150 || UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Probe) > 3))
-			{
-				_queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Zealot);
-			}
-		}
-		else if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Terran)
-		{
-			if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Terran_Barracks) > 0 &&
-				UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Marine) == 0 &&
-				!_queue.anyInNextN(BWAPI::UnitTypes::Terran_Marine, 2) &&
-				(BWAPI::Broodwar->self()->minerals() >= 100 || UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Terran_SCV) > 3))
-			{
-				_queue.queueAsHighestPriority(BWAPI::UnitTypes::Terran_Marine);
-			}
-		}
-		else // Zerg (unused code due to the condition at the top of the method)
-		{
-			if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Zerg_Spawning_Pool) > 0 &&
-				UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Zergling) == 0 &&
-				!_queue.anyInNextN(BWAPI::UnitTypes::Zerg_Zergling, 2) &&
-				(BWAPI::Broodwar->self()->minerals() >= 100 || UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Zerg_Drone) > 3))
-			{
-				_queue.queueAsHighestPriority(BWAPI::UnitTypes::Zerg_Zergling);
-			}
-		}
-	}
-	else if (unit->getType().isBuilding() &&
+    // Break out of the opening book if we've lost a lot of workers or an important building
+    if (!_outOfBook && unit->getType().isWorker())
+    {
+        _workersLostInOpening++;
+        if (_workersLostInOpening >= 5)
+        {
+            Log().Get() << "Lost a lot of workers in the opening, going out of book";
+            goOutOfBookAndClearQueue();
+        }
+    }
+    else if (!_outOfBook && 
+        unit->getType().isBuilding() &&
 		!(UnitUtil::CanAttackAir(unit) || UnitUtil::CanAttackGround(unit)) &&
 		unit->getType().supplyProvided() == 0)
 	{
-		// We lost a building other than static defense or supply. It may be serious. Replan from scratch.
-		if (!_outOfBook) Log().Get() << "Lost an important building, going out of book";
+		Log().Get() << "Lost an important building, going out of book";
 		goOutOfBookAndClearQueue();
 	}
 }

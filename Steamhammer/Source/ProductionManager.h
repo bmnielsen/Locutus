@@ -34,7 +34,7 @@ class ProductionManager
 	BWAPI::UnitType		_extractorTrickUnitType;         // drone or zergling
 	Building *			_extractorTrickBuilding;         // set depending on the extractor trick state
 
-	int					_workersReplacedInOpening; // How many workers we have attempted to replace during the opening
+	int					_workersLostInOpening; // How many workers we have attempted to replace during the opening
     
 	BWAPI::Unit         getClosestUnitToPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position closestTo) const;
 	BWAPI::Unit         getFarthestUnitFromPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position farthest) const;
