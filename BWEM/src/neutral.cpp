@@ -74,6 +74,10 @@ void Neutral::PutOnTiles()
 		else
 		{
 			Neutral * pTop = tile.GetNeutral()->LastStacked();
+
+            // Workaround for maps with offset stacked neutrals: don't stack them
+            if (pTop->TopLeft() != TopLeft() || pTop->BottomRight() != BottomRight()) continue;
+
 			bwem_assert(this != tile.GetNeutral());
 			bwem_assert(this != pTop);
 			bwem_assert(!pTop->IsGeyser());

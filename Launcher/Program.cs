@@ -43,7 +43,7 @@
                                                            {
                                                                "cig/(2)BlueStorm1.2.scx",
                                                                "cig/(2)Destination1.1.scx",
-                                                               //"cig/(2)Hitchhiker1.1.SCX",
+                                                               "cig/(2)Hitchhiker1.1.SCX",
                                                                "cig/(2)MatchPoint1.3.scx",
                                                                "cig/(2)NeoChupungRyeong2.1.scx",
                                                                "cig/(2)NeoHeartbreakerRidge.scx",
