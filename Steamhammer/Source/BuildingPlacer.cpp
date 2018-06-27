@@ -14,6 +14,7 @@ BuildingPlacer::BuildingPlacer()
     , _boxLeft      (std::numeric_limits<int>::max())
     , _boxRight     (std::numeric_limits<int>::lowest())
     , _proxyBlock   (nullptr)
+    , _hiddenTechBlock   (nullptr)
 {
     _reserveMap = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(),std::vector<bool>(BWAPI::Broodwar->mapHeight(),false));
 
@@ -390,6 +391,47 @@ void BuildingPlacer::initializeBWEB()
     _wall = LocutusWall::CreateForgeGatewayWall(true);
 
     bwebMap.findBlocks();
+
+    // Find a hidden tech block
+    // This is the closest block to our base that avoids the paths between starting locations
+
+    // First do the pathing to gather which areas we should avoid
+    std::set<const BWEM::Area*> areasToAvoid;
+    auto _myBase = InformationManager::Instance().getMyMainBaseLocation();
+    for (auto base : BWTA::getStartLocations())
+    {
+        if (base == _myBase) continue;
+
+        for (auto choke : bwemMap.GetPath(base->getPosition(), _myBase->getPosition()))
+        {
+            areasToAvoid.insert(choke->GetAreas().first);
+            areasToAvoid.insert(choke->GetAreas().second);
+            for (auto area : choke->GetAreas().first->AccessibleNeighbours())
+                areasToAvoid.insert(area);
+            for (auto area : choke->GetAreas().second->AccessibleNeighbours())
+                areasToAvoid.insert(area);
+        }
+    }
+
+    // Now find the closest block that powers two medium buildings and avoids those areas
+    int distBest = INT_MAX;
+    for (auto &block : bwebMap.Blocks())
+    {
+        if (block.MediumTiles().size() < 2) continue;
+
+        BWAPI::Position blockCenter =
+            BWAPI::Position(block.Location()) + BWAPI::Position(block.width() * 16, block.height() * 16);
+
+        if (areasToAvoid.find(bwemMap.GetNearestArea(BWAPI::TilePosition(blockCenter))) != areasToAvoid.end()) continue;
+
+        int dist;
+        bwemMap.GetPath(blockCenter, _myBase->getPosition(), &dist);
+        if (dist < distBest)
+        {
+            _hiddenTechBlock = &block;
+            distBest = dist;
+        }
+    }
 }
 
 BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation)
@@ -472,6 +514,15 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
                 _proxyBlock->Location() + BWAPI::TilePosition(_proxyBlock->width() / 2, _proxyBlock->height() / 2),
                 true);
         }
+    }
+
+    if (macroLocation == MacroLocation::HiddenTech && _hiddenTechBlock)
+    {
+        // Default BWEB selection will do fine here
+        return bwebMap.getBuildPosition(
+            type, 
+            _hiddenTechBlock->Location() + BWAPI::TilePosition(_hiddenTechBlock->width() / 2, _hiddenTechBlock->height() / 2),
+            true);
     }
 
 	if (type == BWAPI::UnitTypes::Protoss_Pylon)

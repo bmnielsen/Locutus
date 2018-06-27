@@ -24,6 +24,7 @@ class BuildingPlacer
 	// BWEB-related stuff
 	LocutusWall		    _wall;
     const BWEB::Block * _proxyBlock;
+    const BWEB::Block * _hiddenTechBlock;
 
 public:
 

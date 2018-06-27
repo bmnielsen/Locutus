@@ -43,6 +43,10 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 	{
 		return MacroLocation::Proxy;
 	}
+	if (s == "hidden tech")
+	{
+		return MacroLocation::HiddenTech;
+	}
 
 	UAB_ASSERT(false, "config file - bad location '@ %s'", s.c_str());
 

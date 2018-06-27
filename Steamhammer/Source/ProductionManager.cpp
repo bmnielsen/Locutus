@@ -694,7 +694,8 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 			}
 		}
 		else if (act.getMacroLocation() == MacroLocation::Center ||
-            act.getMacroLocation() == MacroLocation::Proxy)
+            act.getMacroLocation() == MacroLocation::Proxy ||
+            act.getMacroLocation() == MacroLocation::HiddenTech)
 		{
 			// Near the center of the map.
 			desiredLocation = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth()/2, BWAPI::Broodwar->mapHeight()/2);
