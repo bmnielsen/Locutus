@@ -1341,9 +1341,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		// Some checks can use the expected plan, some are better with the observed plan.
 		OpeningPlan likelyEnemyPlan = OpponentModel::Instance().getBestGuessEnemyPlan();
 
-        // Set wall cannon count vs. zerg depending on the enemy plan
-        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
-            !CombatCommander::Instance().getAggression() &&
+        // Set wall cannon count depending on the enemy plan
+        if (!CombatCommander::Instance().getAggression() &&
             BuildingPlacer::Instance().getWall().exists() &&
             (BWAPI::Broodwar->getFrameCount() > 4000 || UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0))
         {
@@ -1425,8 +1424,10 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                     PlayerSnapshot snap;
                     snap.takeEnemy();
 
-                    // If the enemy is relatively low on workers, prepare for some heavy pressure
-                    if (frame > 5000 && snap.getCount(BWAPI::UnitTypes::Zerg_Drone) < 11)
+                    // If a zerg enemy is relatively low on workers, prepare for some heavy pressure
+                    if (frame > 5000 && 
+                        BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
+                        snap.getCount(BWAPI::UnitTypes::Zerg_Drone) < 11)
                     {
                         if (frame > 6000)
                             cannons = 4;
@@ -1434,7 +1435,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                             cannons = 3;
                     }
 
-                    // Otherwise scale up gradually to two cannons to handle early ling pressure
+                    // Otherwise scale up gradually to two cannons to handle early pressure
                     else if (frame > 4000 && InformationManager::Instance().enemyCanProduceCombatUnits())
                         cannons = 2;
                     else if (frame > 3000)
