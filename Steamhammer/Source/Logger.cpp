@@ -62,6 +62,14 @@ std::string FileUtils::ReadFile(const std::string & filename)
     return ss.str();
 }
 
+void appendTime(std::ostringstream& os)
+{
+    int seconds = BWAPI::Broodwar->getFrameCount() / 24;
+    int minutes = seconds / 60;
+    seconds = seconds % 60;
+    os << "(" << minutes << ":" << (seconds < 10 ? "0" : "") << seconds << ")";
+}
+
 Log::Log()
 {
 	debug = false;
@@ -69,7 +77,9 @@ Log::Log()
 
 std::ostringstream& Log::Get()
 {
-	os << BWAPI::Broodwar->getFrameCount() << ": ";
+    os << BWAPI::Broodwar->getFrameCount();
+    appendTime(os);
+    os << ": ";
 	return os;
 }
 
@@ -77,7 +87,9 @@ std::ostringstream& Log::Debug()
 {
 	debug = true;
 	auto t = std::time(nullptr);
-	os << t << ": " << BWAPI::Broodwar->getFrameCount() << ": ";
+	os << t << ": " << BWAPI::Broodwar->getFrameCount();
+    appendTime(os);
+    os << ": ";
 	return os;
 }
 
