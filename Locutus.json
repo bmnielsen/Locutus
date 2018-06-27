@@ -92,30 +92,34 @@
 
 		"PvT" :
 			{ "Protoss" : [
-				{ "Weight" : 45, "Strategy" : "10-15GateGoon" },
-				{ "Weight" : 35, "Strategy" : "DTDrop" },
-				{ "Weight" : 20, "Strategy" : "Turtle" }
+				{ "Weight" : 15, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 30, "Strategy" : "10-15GateGoon" },
+				{ "Weight" : 40, "Strategy" : "DTDrop" },
+				{ "Weight" : 15, "Strategy" : "Turtle" }
 			]},
 
 		"PvP" :
 			{ "Protoss" : [
-				{ "Weight" : 35, "Strategy" : "4GateGoon" },
-				{ "Weight" : 25, "Strategy" : "2GateDTExpo" },
-				{ "Weight" : 25, "Strategy" : "12Nexus5ZealotFECannons" },
+				{ "Weight" : 15, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 30, "Strategy" : "4GateGoon" },
+				{ "Weight" : 20, "Strategy" : "2GateDTExpo" },
+				{ "Weight" : 20, "Strategy" : "12Nexus5ZealotFECannons" },
 				{ "Weight" : 15, "Strategy" : "Turtle" }
 			]},
 			
 		"PvZ" :
 			{ "Protoss" : [
-				{ "Weight" : 40, "Strategy" : "ForgeExpandSpeedlots" },
-				{ "Weight" : 60, "Strategy" : "ForgeExpand5GateGoon" }
+				{ "Weight" : 15, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 35, "Strategy" : "ForgeExpandSpeedlots" },
+				{ "Weight" : 50, "Strategy" : "ForgeExpand5GateGoon" }
 			]},
 
 		"PvU" :
 			{ "Protoss" : [
-				{ "Weight" : 40, "Strategy" : "9-9GateDefensive" },
-				{ "Weight" : 40, "Strategy" : "4GateGoon" },
-				{ "Weight" : 20, "Strategy" : "Turtle" }
+				{ "Weight" : 10, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 30, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 30, "Strategy" : "4GateGoon" },
+				{ "Weight" : 30, "Strategy" : "ForgeExpand5GateGoon" }
 			]},
 
 		"UseEnemySpecificStrategy" : true,
@@ -153,31 +157,16 @@
 
 		"CounterStrategies" :
 		{
-			"Counter Proxy" : "AntiFastCheese",
-			"Counter Worker rush" : "AntiFastCheese",
-			"Counter Fast rush" : "AntiFastCheese",
-			"Counter Fast rush vZ" : "Anti5Pool",
-			"Counter Heavy rush vU" : { "Protoss" : "Turtle" },
-			"Counter Heavy rush vT" : "AntiMarine",
-			"Counter Heavy rush vP" : "AntiZealot",
-			"Counter Heavy rush vZ" : {
-				"Protoss -- disabled --" : [
-					{ "Weight" : 40, "Strategy" : "ForgeExpandSpeedlots" },
-					{ "Weight" : 60, "Strategy" : "Turtle" }
-				]
-			},
-			"Counter Safe expand" : { "--disabled-- Protoss" : "10-15GateGoon" },
-			"Counter Turtle" : { "--disabled-- Protoss" : "10-15GateGoon" }
+			"Counter Proxy" : { "Protoss" : "9-9GateDefensive" },
+			"Counter Worker rush" : { "Protoss" : "9-9GateDefensive" },
+			"Counter Fast rush" : { "Protoss" : "9-9GateDefensive" },
+			"Counter Fast rush vZ" : { "Protoss" : [
+				{ "Weight" : 60, "Strategy" : "ForgeExpandSpeedlots" },
+				{ "Weight" : 40, "Strategy" : "ForgeExpand5GateGoon" }
+			]}
 		},
 
-		"StrategyCombos" :
-		{
-			"Anti5Pool" : {	"--disabled-- Protoss" : "Turtle" },
-			"AntiFastCheese" : { "Protoss" : "9-9GateDefensive" },
-			"AntiSlowerCheese" : { "Protoss" : "9-9GateDefensive" },
-			"AntiMarine" : { "-- disabled -- Protoss" : "Turtle" },
-			"AntiZealot" : { "-- disabled -- Protoss" : "Turtle" }
-		},
+		"StrategyCombos" : {},
 
 		"Strategies" :
 		{
@@ -207,10 +196,10 @@
 				["go defensive", "4 x probe", "pylon @ wall then go scout while safe", "probe", "gateway @ wall", "probe", "forge @ wall", "probe", "zealot", "photon cannon @ wall", "probe", "photon cannon @ wall", "probe", "pylon", "zealot", "photon cannon @ wall", "probe", "zealot", "probe", "assimilator", "cybernetics core", "probe", "pylon", "2 x probe", "dragoon", "probe", "nexus @ natural", "probe", "dragoon", "probe", "singularity charge then go aggressive", "pylon", "dragoon", "probe", "gateway", "2 x probe", "dragoon", "2 x probe", "gateway", "pylon", "3 x probe", "2 x dragoon", "2 x probe", "pylon", "dragoon", "2 x probe", "2 x dragoon"]},
 
 			"9-9GateDefensive"		: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
-				["go defensive", "4 x probe", "pylon then go scout while safe", "probe", "2 x gateway", "2 x probe", "zealot", "pylon", "2 x zealot", "probe", "2 x zealot", "probe", "zealot", "go aggressive", "pylon", "probe", "2 x zealot" ]},
+				["go defensive", "4 x probe", "pylon", "probe", "2 x gateway", "2 x probe", "zealot", "pylon then go scout while safe", "2 x zealot", "probe", "2 x zealot", "probe", "zealot", "go aggressive", "pylon", "probe", "2 x zealot" ]},
 
 			"Proxy9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
-				["4 x probe", "pylon @ proxy", "probe", "gateway @ proxy then gateway @ proxy then go scout location", "2 x probe", "zealot", "pylon", "2 x zealot",  "probe", "2 x zealot", "probe", "zealot", "pylon", "probe", "2 x zealot" ]},
+				["4 x probe", "pylon @ proxy", "probe", "gateway @ proxy then gateway @ proxy then go scout location", "2 x probe", "zealot", "pylon", "2 x zealot" ]},
 				
 				
 			"9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :

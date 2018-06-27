@@ -140,7 +140,7 @@ namespace BWEB
 		/// <summary> Returns the closest buildable TilePosition for any type of structure </summary>
 		/// <param name="type"> The UnitType of the structure you want to build.</param>
 		/// <param name="tile"> The TilePosition you want to build closest to.</param>
-		TilePosition getBuildPosition(UnitType type, TilePosition searchCenter = Broodwar->self()->getStartLocation());
+		TilePosition getBuildPosition(UnitType type, TilePosition searchCenter = Broodwar->self()->getStartLocation(), bool skipPowerCheck = false);
 
 		/// <summary> Returns the closest buildable TilePosition for a defensive structure </summary>
 		/// <param name="type"> The UnitType of the structure you want to build.</param>

@@ -3,6 +3,8 @@
 #include "OpponentModel.h"
 #include "UnitUtil.h"
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 //#define CRASH_DEBUG 1
@@ -430,10 +432,10 @@ void GameCommander::onUnitMorph(BWAPI::Unit unit)
 
 BWAPI::Unit GameCommander::getScoutWorker()
 {
-	// We get the free worker closest to the natural
-	BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+	// We get the free worker closest to the center of the map by ground
+    BWAPI::Position mapCenter(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2));
 	BWAPI::Unit bestUnit = nullptr;
-	double best = DBL_MAX;
+    int bestDist = INT_MAX;
 
 	for (const auto unit : _validUnits)
 	{
@@ -444,13 +446,11 @@ BWAPI::Unit GameCommander::getScoutWorker()
 			!unit->isCarryingGas() &&
 			unit->getOrder() != BWAPI::Orders::MiningMinerals)
 		{
-			if (!natural)
-				return unit;
-
-			double dist = unit->getPosition().getDistance(natural->getPosition());
-			if (dist < best)
+            int dist;
+            bwemMap.GetPath(unit->getPosition(), mapCenter, &dist);
+			if (dist < bestDist)
 			{
-				best = dist;
+				bestDist = dist;
 				bestUnit = unit;
 			}
 		}

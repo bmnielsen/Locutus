@@ -415,7 +415,7 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
             {
                 proxyCloseTo = _enemyBase->getPosition();
             }
-            else
+            else if (BWTA::getStartLocations().size() == 3)
             {
                 proxyCloseTo = BWAPI::Position(0, 0);
                 for (auto base : BWTA::getStartLocations())
@@ -425,8 +425,13 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
                 }
                 proxyCloseTo = proxyCloseTo / (BWTA::getStartLocations().size() - 1);
             }
+            else
+            {
+                proxyCloseTo = BWAPI::Position(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2));
+            }
 
             // Find the closest block that powers two large buildings
+            BWAPI::Position main = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
             int distBest = INT_MAX;
             for (auto &block : bwebMap.Blocks())
             {
@@ -436,8 +441,22 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
                 BWAPI::Position blockCenter =
                     BWAPI::Position(block.Location()) + BWAPI::Position(block.width() * 16, block.height() * 16);
 
+                // Must have a path to our main
+                int mainDist;
+                bwemMap.GetPath(blockCenter, main, &mainDist);
+                if (mainDist == -1) continue;
+
+                // Distance from desired position
                 int dist;
                 bwemMap.GetPath(blockCenter, proxyCloseTo, &dist);
+                if (dist == -1) continue;
+
+                // If we don't know the enemy base location, give a slight preference to blocks closer to our base
+                if (!_enemyBase)
+                {
+                    dist += mainDist / 10;
+                }
+
                 if (dist < distBest)
                 {
                     _proxyBlock = &block;
@@ -448,8 +467,10 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
 
         if (_proxyBlock)
         {
-            // Default BWEB selection will do fine here
-            return bwebMap.getBuildPosition(type, _proxyBlock->Location() + BWAPI::TilePosition(_proxyBlock->width() / 2, _proxyBlock->height() / 2));
+            return bwebMap.getBuildPosition(
+                type,
+                _proxyBlock->Location() + BWAPI::TilePosition(_proxyBlock->width() / 2, _proxyBlock->height() / 2),
+                true);
         }
     }
 

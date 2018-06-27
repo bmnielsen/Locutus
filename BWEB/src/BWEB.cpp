@@ -234,7 +234,7 @@ namespace BWEB
 		return dist += start.getDistance(end);
 	}
 
-	TilePosition Map::getBuildPosition(UnitType type, const TilePosition searchCenter)
+	TilePosition Map::getBuildPosition(UnitType type, const TilePosition searchCenter, bool skipPowerCheck)
 	{
 		auto distBest = DBL_MAX;
 		auto tileBest = TilePositions::Invalid;
@@ -248,7 +248,7 @@ namespace BWEB
 
 			for (auto& tile : placements) {
 				const auto dist = tile.getDistance(searchCenter);
-				if (dist < distBest && isPlaceable(type, tile) && (!type.requiresPsi() || Broodwar->hasPower(tile, type)))
+				if (dist < distBest && isPlaceable(type, tile) && (skipPowerCheck || !type.requiresPsi() || Broodwar->hasPower(tile, type)))
 					distBest = dist, tileBest = tile;
 			}
 		}
