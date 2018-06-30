@@ -1512,14 +1512,18 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         probes + (2 * UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus)));
     int desiredMineralPatches = (predictedProbes - WorkerManager::Instance().getNumGasWorkers()) / 2;
 
+    // Are we gas blocked?
+    bool gasBlocked = WorkerManager::Instance().isCollectingGas() &&
+        BWAPI::Broodwar->self()->gas() < 400 && BWAPI::Broodwar->self()->minerals() > 700 && BWAPI::Broodwar->self()->minerals() > BWAPI::Broodwar->self()->gas() * 3;
+
     // Queue an expansion if:
     // - it is safe to do so
     // - we don't already have one queued
-    // - we want more active mineral patches than we currently have
+    // - we want more active mineral patches than we currently have OR we are gas blocked
     if (safeToMacro &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
-        mineralPatches < desiredMineralPatches)
+        (mineralPatches < desiredMineralPatches || gasBlocked))
     {
         // Double-check that there is actually a place to expand to
         if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
@@ -1547,8 +1551,8 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     }
 
     // If we are mining gas, make sure we've taken the geysers at our mining bases
-    // They usually get ordered automatically, so don't do this too often
-    if (BWAPI::Broodwar->getFrameCount() % (30 * 24) == 0 &&
+    // They usually get ordered automatically, so don't do this too often unless we are gas blocked
+    if ((gasBlocked || BWAPI::Broodwar->getFrameCount() % (30 * 24) == 0) &&
         WorkerManager::Instance().isCollectingGas() &&
         UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) > 1 &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Assimilator) &&

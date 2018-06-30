@@ -852,7 +852,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	// tell the worker manager to move this worker
 	WorkerManager::Instance().setMoveWorker(moveWorker, mineralsRequired, gasRequired, walkToPosition);
 
-	Log().Debug() << "Moving worker " << moveWorker << " to build " << b.type << " @ " << _predictedTilePosition;
+	Log().Debug() << "Moving worker " << moveWorker->getID() << " to build " << b.type << " @ " << _predictedTilePosition;
 }
 
 int ProductionManager::getFreeMinerals() const

@@ -142,7 +142,7 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
         b.status = BuildingStatus::Assigned;
 		// BWAPI::Broodwar->printf("assigned and placed building %s", b.type.getName().c_str());
 
-		Log().Debug() << "Assigned " << b.builderUnit << " to build " << b.type << " @ " << b.finalPosition;
+		Log().Debug() << "Assigned " << b.builderUnit->getID() << " to build " << b.type << " @ " << b.finalPosition;
 	}
 }
 
@@ -173,9 +173,20 @@ void BuildingManager::constructAssignedBuildings()
 		}
 		else if (!b.builderUnit->isConstructing())
         {
-            int distance;
-            bwemMap.GetPath(b.builderUnit->getPosition(), BWAPI::Position(b.finalPosition), &distance);
-			if (!isBuildingPositionExplored(b) || distance > 200)
+            // Move towards the position if:
+            // - it hasn't been explored yet
+            // - it is in a different map area (so may require custom patching to reach)
+            // - it is still far away
+            bool moveToPosition = !isBuildingPositionExplored(b) ||
+                bwemMap.GetNearestArea(b.builderUnit->getTilePosition()) != bwemMap.GetNearestArea(b.finalPosition);
+            if (!moveToPosition)
+            {
+                int distance;
+                bwemMap.GetPath(b.builderUnit->getPosition(), BWAPI::Position(b.finalPosition), &distance);
+                moveToPosition = distance > 200;
+            }
+
+			if (moveToPosition)
             {
 				// We haven't explored the build position. Go there.
                 InformationManager::Instance().getLocutusUnit(b.builderUnit).moveTo(BWAPI::Position(b.finalPosition));
@@ -203,7 +214,7 @@ void BuildingManager::constructAssignedBuildings()
 				// Issue the build order and record whether it succeeded.
 				// If the builderUnit is zerg, it changes to !exists() when it builds.
 				b.buildCommandGiven = b.builderUnit->build(b.type, b.finalPosition);
-				Log().Debug() << "Gave build command to " << b.builderUnit << " to build " << b.type << " @ " << b.finalPosition << "; result " << b.buildCommandGiven;
+				Log().Debug() << "Gave build command to " << b.builderUnit->getID() << " to build " << b.type << " @ " << b.finalPosition << "; result " << b.buildCommandGiven;
 
                 // Record the first frame we attempted to build, we will use this to detect timeouts
                 if (b.buildFrame == 0) b.buildFrame = BWAPI::Broodwar->getFrameCount();
@@ -494,15 +505,7 @@ int BuildingManager::getReservedGas() const
 // In the building queue with any status.
 bool BuildingManager::isBeingBuilt(BWAPI::UnitType type) const
 {
-	for (const auto & b : _buildings)
-	{
-		if (b.type == type)
-		{
-			return true;
-		}
-	}
-
-	return false;
+    return numBeingBuilt(type) > 0;
 }
 
 // In the building queue with any status.
@@ -515,6 +518,11 @@ int BuildingManager::numBeingBuilt(BWAPI::UnitType type) const
 		{
 			result++;
 		}
+        else if (b.macroAct.hasThen())
+        {
+            auto & then = b.macroAct.getThen();
+            if (then.isBuilding() && then.getUnitType() == type) result++;
+        }
 	}
 
 	return result;

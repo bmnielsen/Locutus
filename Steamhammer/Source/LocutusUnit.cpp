@@ -43,6 +43,17 @@ void LocutusUnit::update()
 
     lastPosition = unit->getPosition();
 
+    // If a worker is stuck, order it to move again
+    // This will often happen when a worker can't get out of the mineral line to build something
+    if (unit->getType().isWorker() && 
+        unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Move &&
+        unit->getLastCommand().getTargetPosition().isValid() &&
+        (unit->getOrder() == BWAPI::Orders::PlayerGuard || !unit->isMoving()))
+    {
+        Micro::Move(unit, unit->getLastCommand().getTargetPosition());
+        return;
+    }
+
     updateMoveWaypoints();
 }
 
@@ -128,7 +139,7 @@ void LocutusUnit::updateMoveWaypoints()
         return;
     }
 
-    // If the unit order is no longer to move towards the first waypoint, clear the waypoints
+    // If the unit command is no longer to move towards the first waypoint, clear the waypoints
     // This means we have ordered the unit to do something else in the meantime
     BWAPI::UnitCommand currentCommand(unit->getLastCommand());
     BWAPI::Position firstWaypointPosition((*waypoints.begin())->Center());
@@ -199,7 +210,7 @@ void LocutusUnit::moveToNextWaypoint()
 void LocutusUnit::mineralWalk()
 {
     // If we're close to the patch, we're done mineral walking
-    if (unit->getDistance(mineralWalkingPatch) < 96)
+    if (unit->getDistance(mineralWalkingPatch) < 32)
     {
         mineralWalkingPatch = nullptr;
 

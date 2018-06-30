@@ -626,6 +626,8 @@ bool MacroAct::hasPotentialProducer() const
 {
 	BWAPI::UnitType producerType = whatBuilds();
 
+    if (BuildingManager::Instance().isBeingBuilt(producerType)) return true;
+
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
 		// A producer is good if it is the right type and doesn't suffer from
