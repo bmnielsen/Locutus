@@ -232,6 +232,7 @@
     <ClCompile Include="..\Source\LocutusUnit.cpp">
       <Filter>game\util</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\MicroCarriers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -422,5 +423,6 @@
     <ClInclude Include="..\Source\LocutusUnit.h">
       <Filter>game\util</Filter>
     </ClInclude>
+    <ClInclude Include="..\Source\MicroCarriers.h" />
   </ItemGroup>
 </Project>

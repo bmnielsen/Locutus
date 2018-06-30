@@ -224,18 +224,6 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 			}
 		}
 
-		// Carriers stay at home until they have enough interceptors to be useful,
-		// or retreat toward home to rebuild them if they run low.
-		// On attack-move so that they're not helpless, but that can cause problems too....
-		// Potentially useful for other units.
-		// NOTE Regrouping can cause the carriers to move away from home.
-		if (stayHomeUntilReady(rangedUnit))
-		{
-			BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
-			Micro::AttackMove(rangedUnit, fleeTo);
-			continue;
-		}
-
 		if (order.isCombatOrder())
         {
 			if (unstickStuckUnit(rangedUnit))
@@ -669,13 +657,6 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	}
 	// Finally everything else.
 	return 1;
-}
-
-// Should the unit stay (or return) home until ready to move out?
-bool MicroRanged::stayHomeUntilReady(const BWAPI::Unit u) const
-{
-	return
-		u->getType() == BWAPI::UnitTypes::Protoss_Carrier && u->getInterceptorCount() < 4;
 }
 
 void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)

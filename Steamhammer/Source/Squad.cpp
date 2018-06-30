@@ -103,6 +103,7 @@ void Squad::update()
 		_microAirToAir.regroup(regroupPosition);
 		_microMelee.regroup(regroupPosition);
 		_microRanged.regroup(regroupPosition);
+        _microCarriers.regroup(regroupPosition);
 		_microTanks.regroup(regroupPosition);
 	}
 	else
@@ -111,6 +112,7 @@ void Squad::update()
 		_microAirToAir.execute();
 		_microMelee.execute();
 		_microRanged.execute();
+        _microCarriers.execute();
 		_microTanks.execute();
 	}
 
@@ -239,6 +241,7 @@ void Squad::addUnitsToMicroManagers()
 	BWAPI::Unitset airToAirUnits;
 	BWAPI::Unitset meleeUnits;
 	BWAPI::Unitset rangedUnits;
+	BWAPI::Unitset carrierUnits;
 	BWAPI::Unitset detectorUnits;
 	BWAPI::Unitset highTemplarUnits;
 	BWAPI::Unitset transportUnits;
@@ -260,6 +263,10 @@ void Squad::addUnitsToMicroManagers()
 			{
 				highTemplarUnits.insert(unit);
 			}
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Carrier)
+            {
+                carrierUnits.insert(unit);
+            }
 			else if (unit->getType() == BWAPI::UnitTypes::Terran_Medic)
             {
                 medicUnits.insert(unit);
@@ -286,8 +293,7 @@ void Squad::addUnitsToMicroManagers()
 			// NOTE This excludes spellcasters.
 			else if ((unit->getType().groundWeapon().maxRange() > 32) ||
 				unit->getType() == BWAPI::UnitTypes::Zerg_Scourge ||
-				unit->getType() == BWAPI::UnitTypes::Protoss_Reaver ||
-				unit->getType() == BWAPI::UnitTypes::Protoss_Carrier)
+				unit->getType() == BWAPI::UnitTypes::Protoss_Reaver)
 			{
 				rangedUnits.insert(unit);
 			}
@@ -311,6 +317,7 @@ void Squad::addUnitsToMicroManagers()
 	_microAirToAir.setUnits(airToAirUnits);
 	_microMelee.setUnits(meleeUnits);
 	_microRanged.setUnits(rangedUnits);
+    _microCarriers.setUnits(carrierUnits);
 	_microDetectors.setUnits(detectorUnits);
 	_microHighTemplar.setUnits(highTemplarUnits);
 	_microLurkers.setUnits(lurkerUnits);
@@ -601,6 +608,7 @@ void Squad::setSquadOrder(const SquadOrder & so)
 	_microAirToAir.setOrder(so);
 	_microMelee.setOrder(so);
 	_microRanged.setOrder(so);
+    _microCarriers.setOrder(so);
 	_microDetectors.setOrder(so);
 	_microHighTemplar.setOrder(so);
 	_microLurkers.setOrder(so);
@@ -863,6 +871,7 @@ bool Squad::hasMicroManager(MicroManager* microManager) const
 {
     return
         &_microAirToAir == microManager ||
+        &_microCarriers == microManager ||
         &_microDetectors == microManager ||
         &_microHighTemplar == microManager ||
         &_microLurkers == microManager ||

@@ -9,6 +9,7 @@
 #include "MicroMelee.h"
 #include "MicroRanged.h"
 
+#include "MicroCarriers.h"
 #include "MicroDetectors.h"
 #include "MicroHighTemplar.h"
 #include "MicroLurkers.h"
@@ -40,6 +41,7 @@ class Squad
 	MicroAirToAir		_microAirToAir;
 	MicroMelee			_microMelee;
 	MicroRanged			_microRanged;
+	MicroCarriers		_microCarriers;
 	MicroDetectors		_microDetectors;
 	MicroHighTemplar	_microHighTemplar;
 	MicroLurkers		_microLurkers;
