@@ -294,3 +294,8 @@ BuildOrderItem BuildOrderQueue::operator [] (int i)
 {
 	return queue[i];
 }
+
+const BuildOrderItem & BuildOrderQueue::operator [] (int i) const
+{
+	return queue[i];
+}

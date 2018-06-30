@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "BuildingPlacer.h"
+#include "ProductionManager.h"
 #include "MapGrid.h"
 #include "MapTools.h"
 
@@ -434,6 +435,15 @@ void BuildingPlacer::initializeBWEB()
     }
 }
 
+// Used for scoring blocks when finding pylon positions
+struct BlockData
+{
+    int dist;
+    int poweredMedium = 0;
+    int poweredLarge = 0;
+    BWAPI::TilePosition pylon = BWAPI::TilePositions::Invalid;
+};
+
 BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation)
 {
 	if (type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
@@ -531,105 +541,175 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
 		if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, bwebMap.startBlockPylon))
 			return bwebMap.startBlockPylon;
 
-		// Overall closest
-		double distBest = DBL_MAX;
-		BWAPI::TilePosition tileBest = BWAPI::TilePositions::Invalid;
+        // Collect data about all of the blocks we have
+        std::vector<BlockData> blocks;
 
-		// Best in blocks that power at least one large tile
-		double distBestPowersLarge = DBL_MAX;
-		BWAPI::TilePosition tileBestPowersLarge = BWAPI::TilePositions::Invalid;
+        // Also keep track of how many powered building locations we currently have
+        int poweredLarge = 0;
+        int poweredMedium = 0;
 
-		// Best in blocks that power at least one medium tile
-		double distBestPowersMedium = DBL_MAX;
-		BWAPI::TilePosition tileBestPowersMedium = BWAPI::TilePositions::Invalid;
-
-		// Best in blocks that power at least one of each type of tile
-		double distBestPowersBoth = DBL_MAX;
-		BWAPI::TilePosition tileBestPowersBoth = BWAPI::TilePositions::Invalid;
-
-		// The total number of powered large and medium tiles
-		int poweredLarge = 0;
-		int poweredMedium = 0;
-
-		for (auto &block : bwebMap.Blocks())
-		{
-			bool powersLarge = false;
-			bool powersMedium = false;
-
-			// Count powered large building positions
-			for (auto tile : block.LargeTiles())
-				if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Gateway, tile))
-					if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Gateway))
-						poweredLarge++;
-					else
-						powersLarge = true;
-
-			// Count powered medium building positions
-			for (auto tile : block.MediumTiles())
-				if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Forge, tile))
-					if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Forge))
-						poweredMedium++;
-					else
-						powersMedium = true;
-
-			// Find pylon closest to the center of the block
-			double distBestToBlockCenter = DBL_MAX;
-			BWAPI::TilePosition bestTile = BWAPI::TilePositions::Invalid;
-			BWAPI::TilePosition blockCenter = block.Location() + BWAPI::TilePosition(block.width() / 2, block.height() / 2);
-			for (auto tile : block.SmallTiles())
-			{
-				if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, tile)) continue;
-
-				double distToBlockCenter = tile.getDistance(blockCenter);
-				if (distToBlockCenter < distBestToBlockCenter)
-					distBestToBlockCenter = distToBlockCenter, bestTile = tile;
-			}
-
-			if (!bestTile.isValid()) continue;
-
-			double distToPos = bestTile.getDistance(closeTo);
-
-			if (distToPos < distBest)
-				distBest = distToPos, tileBest = bestTile;
-
-			if (powersLarge && distToPos < distBestPowersLarge)
-				distBestPowersLarge = distToPos, tileBestPowersLarge = bestTile;
-
-			if (powersMedium && distToPos < distBestPowersMedium)
-				distBestPowersMedium = distToPos, tileBestPowersMedium = bestTile;
-
-			if (powersLarge && powersMedium && distToPos < distBestPowersBoth)
-				distBestPowersBoth = distToPos, tileBestPowersBoth = bestTile;
-		}
-
-		// Short-circuit if there are no valid tiles
-		if (!tileBest.isValid()) return tileBest;
-
-		// If we have no powered medium or large locations, return them no matter how far away they are
-        if (poweredMedium == 0 && poweredLarge == 0 && tileBestPowersBoth.isValid()) return tileBestPowersBoth;
-        if (poweredLarge == 0 && tileBestPowersLarge.isValid()) return tileBestPowersLarge;
-        if (poweredMedium == 0 && tileBestPowersMedium.isValid()) return tileBestPowersMedium;
-
-		// Invalidate tiles in a different area if we have enough powered tiles
-        if (BWTA::getRegion(tileBest) == BWTA::getRegion(closeTo))
+        for (auto &block : bwebMap.Blocks())
         {
-            if (poweredMedium > 1 && poweredLarge > 2 && tileBestPowersBoth.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersBoth)) tileBestPowersBoth = BWAPI::TilePositions::Invalid;
-            if (poweredLarge > 2 && tileBestPowersLarge.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersLarge)) tileBestPowersLarge = BWAPI::TilePositions::Invalid;
-            if (poweredMedium > 1 && tileBestPowersMedium.isValid() && BWTA::getRegion(tileBest) != BWTA::getRegion(tileBestPowersMedium)) tileBestPowersMedium = BWAPI::TilePositions::Invalid;
+            BlockData blockData;
+
+            // Count powered large building positions
+            for (auto tile : block.LargeTiles())
+                if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Gateway, tile))
+                    if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Gateway))
+                        poweredLarge++;
+                    else
+                        blockData.poweredLarge++;
+
+            // Count powered medium building positions
+            for (auto tile : block.MediumTiles())
+                if (bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Forge, tile))
+                    if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Forge))
+                        poweredMedium++;
+                    else
+                        blockData.poweredMedium++;
+
+            // Find the next pylon to build in this block
+            // It is the available small tile location closest to the center of the block
+            BWAPI::TilePosition blockCenter = block.Location() + BWAPI::TilePosition(block.width() / 2, block.height() / 2);
+            int distBestToBlockCenter = INT_MAX;
+            for (auto tile : block.SmallTiles())
+            {
+                if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, tile)) continue;
+
+                int distToBlockCenter = tile.getApproxDistance(blockCenter);
+                if (distToBlockCenter < distBestToBlockCenter)
+                    distBestToBlockCenter = distToBlockCenter, blockData.pylon = tile;
+            }
+
+            // If all the pylons are already built, don't consider this block
+            if (!blockData.pylon.isValid()) continue;
+
+            // Now compute the distance
+            bwemMap.GetPath(
+                BWAPI::Position(closeTo) + BWAPI::Position(16, 16),
+                BWAPI::Position(blockData.pylon) + BWAPI::Position(32, 32),
+                &(blockData.dist));
+
+            // If this block isn't ground-connected to the desired position, don't consider it
+            if (blockData.dist == -1) continue;
+
+            // Add the block
+            blocks.push_back(blockData);
         }
 
-        // Prefer powering both
-        if (tileBestPowersBoth.isValid()) return tileBestPowersBoth;
+        // Check the production queue to find what type of locations we most need right now
+        // Break when we reach the second pylon and have seen a different building type
+        int availableLarge = poweredLarge;
+        int availableMedium = poweredMedium;
+        std::vector<bool> priority; // true for large, false for medium
+        bool firstPylon = true;
+        bool seenBuilding = false;
+        const auto & queue = ProductionManager::Instance().getQueue();
+        for (int i = queue.size() - 1; i >= 0; i--)
+        {
+            const auto & macroAct = queue[i].macroAct;
 
-		// Otherwise prefer medium if there is only one, or if there are already many powered large
-		if (tileBestPowersMedium.isValid())
-		{
-			if (!tileBestPowersLarge.isValid()) return tileBestPowersMedium;
-			if (poweredMedium == 1 || poweredMedium * 2 <= poweredLarge) return tileBestPowersMedium;
-		}
+            // Only care about buildings
+            if (!macroAct.isBuilding()) continue;
 
-		if (tileBestPowersLarge.isValid()) return tileBestPowersLarge;
-		return tileBest;
+            // When we see the second pylon after another building type, we can stop
+            // We assume that the next pylon will give power to any later buildings
+            if (macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Pylon && seenBuilding)
+            {
+                if (firstPylon)
+                    firstPylon = false;
+                else
+                    break;
+            }
+
+            // Don't count buildings like nexuses and assimilators
+            if (!macroAct.getUnitType().requiresPsi()) continue;
+
+            if (macroAct.getUnitType().tileWidth() == 4)
+            {
+                seenBuilding = true;
+
+                if (availableLarge > 0)
+                    availableLarge--;
+                else
+                    priority.push_back(true);
+            }
+            else if (macroAct.getUnitType().tileWidth() == 3)
+            {
+                seenBuilding = true;
+
+                if (availableMedium > 0)
+                    availableMedium--;
+                else
+                    priority.push_back(false);
+            }
+        }
+
+        // If we have no priority buildings in the queue, but have few available building locations, make them a priority
+        // We don't want to queue a building and not have space for it
+        if (priority.empty())
+        {
+            if (availableLarge == 0) priority.push_back(true);
+            if (availableMedium == 0) priority.push_back(false);
+            if (availableLarge == 1) priority.push_back(true);
+        }
+
+        // Score the blocks and pick the best one
+        // The general idea is:
+        // - Prefer a block in the same area and close to the desired position
+        // - Give a bonus to blocks that provide powered locations we currently need
+
+        Log().Debug() << "Scoring pylons close to " << BWAPI::TilePosition(closeTo) << ": Powered large = " << poweredLarge << ", Powered medium = " << poweredMedium << ", Available large = " << availableLarge << ", Available medium = " << availableMedium;
+
+        double bestScore = DBL_MAX;
+        BlockData * bestBlock = nullptr;
+        for (auto & block : blocks)
+        {
+            // Base score is based on the distance
+            double score = log(block.dist);
+
+            // Penalize the block if it is in a different BWEM area from the desired position
+            if (bwemMap.GetNearestArea(closeTo) != bwemMap.GetNearestArea(block.pylon)) score *= 2;
+
+            // Give the score a bonus based on the locations it powers
+            int poweredLocationBonus = 0;
+            int blockAvailableLarge = block.poweredLarge;
+            int blockAvailableMedium = block.poweredMedium;
+            for (bool isLarge : priority)
+            {
+                if (isLarge && blockAvailableLarge > 0)
+                {
+                    poweredLocationBonus += 2;
+                    blockAvailableLarge--;
+                }
+                else if (!isLarge && blockAvailableMedium > 0)
+                {
+                    poweredLocationBonus += 2;
+                    blockAvailableMedium--;
+                }
+                else
+                    break;
+            }
+
+            // Reduce the score based on the location bonus
+            score /= (double)(poweredLocationBonus + 1);
+
+            Log().Debug() << "Block @ " << block.pylon << " dist=" << block.dist << ", Powers " << block.poweredLarge << " large, " << block.poweredMedium << " medium" << ", score=" << score;
+
+            if (score < bestScore)
+            {
+                Log().Debug() << "(best)";
+                bestScore = score;
+                bestBlock = &block;
+            }
+        }
+
+        if (bestBlock)
+        {
+            return bestBlock->pylon;
+        }
+
+        return BWAPI::TilePositions::Invalid;
 	}
 
 	return bwebMap.getBuildPosition(type, closeTo);

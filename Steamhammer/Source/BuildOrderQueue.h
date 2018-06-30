@@ -57,5 +57,6 @@ public:
 	// queue[queue.size()-1] is the next item
 	// queue[0] is the last item
     BuildOrderItem operator [] (int i);
+    const BuildOrderItem & operator [] (int i) const;
 };
 }

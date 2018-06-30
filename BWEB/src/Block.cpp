@@ -1,5 +1,7 @@
 #include "Block.h"
 
+#include "Logger.h"
+
 namespace BWEB
 {
 	TilePosition getStartBlockPylon(TilePosition startBlockTile, bool mirrorHorizontal, bool mirrorVertical)
@@ -152,29 +154,43 @@ namespace BWEB
 		}
 
 		if (race == Races::Protoss) {
-			heights.insert(heights.end(), { 2, 4, 5, 6, 8 });
-			widths.insert(widths.end(), { 2, 4, 5, 8, 10, 18 });
+			heights.insert(heights.end(), { 2, 4, 5, 6, 7, 8 });
+			widths.insert(widths.end(), { 2, 4, 5, 8, 9, 10, 13, 17, 18 });
 		}
 		else if (race == Races::Terran) {
 			heights.insert(heights.end(), { 2, 4, 5, 6 });
 			widths.insert(widths.end(), { 3, 6, 10 });
 		}
 
-		// Iterate every tile
-		for (int i = 20; i > 0; i--) {
-			for (int j = 20; j > 0; j--) {
+		// Consider large blocks first
+        for (int tiles = 108; tiles >= 4; tiles--) {
+            for (int height = 8; height >= 2; height--) {
+                if (tiles % height != 0) continue;
+                int width = tiles / height;
 				for (auto& t : tilesByPathDist) {
-
 					TilePosition tile(t.second);
-					if (find(heights.begin(), heights.end(), j) == heights.end() || find(widths.begin(), widths.end(), i) == widths.end())
+					if (find(heights.begin(), heights.end(), height) == heights.end() || find(widths.begin(), widths.end(), width) == widths.end())
 						continue;
 
-					if (canAddBlock(tile, i, j)) {
-						insertBlock(race, tile, i, j);
+					if (canAddBlock(tile, width, height)) {
+						insertBlock(race, tile, width, height);
 					}
 				}
 			}
 		}
+
+        int totalBlocks = 0;
+        int totalSmall = 0;
+        int totalMedium = 0;
+        int totalLarge = 0;
+        for (const auto& block : blocks)
+        {
+            totalBlocks++;
+            totalSmall += block.SmallTiles().size();
+            totalMedium += block.MediumTiles().size();
+            totalLarge += block.LargeTiles().size();
+        }
+        Log().Get() << "Found " << totalBlocks << " blocks. Small tiles: " << totalSmall << ", medium tiles: " << totalMedium << ", large tiles: " << totalLarge;
 	}
 
 	bool Map::canAddBlock(const TilePosition here, const int width, const int height)
@@ -215,6 +231,11 @@ namespace BWEB
 				if (width == 2) {
 					newBlock.insertSmall(here);
 				}
+                // Two pylons
+                else if (width == 4) {
+                    newBlock.insertSmall(here);
+                    newBlock.insertSmall(here + TilePosition(2, 0));
+                }
 				// Pylon and medium
 				else if (width == 5) {
 					newBlock.insertSmall(here);
@@ -224,7 +245,12 @@ namespace BWEB
 			}
 
 			else if (height == 4) {
-				// Pylon and 2 medium
+                // Two pylons
+                if (width == 2) {
+                    newBlock.insertSmall(here);
+                    newBlock.insertSmall(here + TilePosition(0, 2));
+                }
+                // Pylon and 2 medium
 				if (width == 5) {
 					newBlock.insertSmall(here);
 					newBlock.insertSmall(here + TilePosition(0, 2));
@@ -236,8 +262,16 @@ namespace BWEB
 			}
 
 			else if (height == 5) {
-				// Gate and 2 Pylons
-				if (width == 4) {
+                // Pylon, 2 medium, 2 large
+                if (width == 8) {
+                    newBlock.insertSmall(here);
+                    newBlock.insertMedium(here + TilePosition(2, 0));
+                    newBlock.insertMedium(here + TilePosition(5, 0));
+                    newBlock.insertLarge(here + TilePosition(0, 2));
+                    newBlock.insertLarge(here + TilePosition(4, 2));
+                }
+                // Gate and 2 Pylons
+                else if (width == 4) {
 					newBlock.insertLarge(here);
 					newBlock.insertSmall(here + TilePosition(0, 3));
 					newBlock.insertSmall(here + TilePosition(2, 3));
@@ -246,8 +280,19 @@ namespace BWEB
 			}
 
 			else if (height == 6) {
+				// 3 pylons, 2 large, 3 medium
+				if (width == 9) {
+					newBlock.insertSmall(here + TilePosition(4, 0));
+					newBlock.insertSmall(here + TilePosition(4, 2));
+					newBlock.insertSmall(here + TilePosition(4, 4));
+					newBlock.insertLarge(here);
+					newBlock.insertLarge(here + TilePosition(0, 3));
+					newBlock.insertMedium(here + TilePosition(6, 0));
+					newBlock.insertMedium(here + TilePosition(6, 2));
+					newBlock.insertMedium(here + TilePosition(6, 4));
+				}
 				// 4 Gates and 3 Pylons
-				if (width == 10) {
+				else if (width == 10) {
 					newBlock.insertSmall(here + TilePosition(4, 0));
 					newBlock.insertSmall(here + TilePosition(4, 2));
 					newBlock.insertSmall(here + TilePosition(4, 4));
@@ -256,10 +301,39 @@ namespace BWEB
 					newBlock.insertLarge(here + TilePosition(6, 0));
 					newBlock.insertLarge(here + TilePosition(6, 3));
 				}
+                // 4 large, 3 medium, 3 pylons
+				else if (width == 13) {
+					newBlock.insertSmall(here + TilePosition(3, 0));
+					newBlock.insertSmall(here + TilePosition(3, 2));
+					newBlock.insertSmall(here + TilePosition(3, 4));
+					newBlock.insertMedium(here);
+					newBlock.insertMedium(here + TilePosition(0, 2));
+					newBlock.insertMedium(here + TilePosition(0, 4));
+					newBlock.insertLarge(here + TilePosition(5, 0));
+					newBlock.insertLarge(here + TilePosition(5, 3));
+					newBlock.insertLarge(here + TilePosition(9, 0));
+					newBlock.insertLarge(here + TilePosition(9, 3));
+				}                
+                // 6 large, 3 medium, 3 pylons
+				else if (width == 17) {
+					newBlock.insertSmall(here + TilePosition(7, 0));
+					newBlock.insertSmall(here + TilePosition(7, 2));
+					newBlock.insertSmall(here + TilePosition(7, 4));
+					newBlock.insertMedium(here);
+					newBlock.insertMedium(here + TilePosition(0, 2));
+					newBlock.insertMedium(here + TilePosition(0, 4));
+					newBlock.insertLarge(here + TilePosition(3, 0));
+					newBlock.insertLarge(here + TilePosition(3, 3));
+					newBlock.insertLarge(here + TilePosition(9, 0));
+					newBlock.insertLarge(here + TilePosition(9, 3));
+					newBlock.insertLarge(here + TilePosition(13, 0));
+					newBlock.insertLarge(here + TilePosition(13, 3));
+				}                
+                // 8 large, 3 pylons
 				else if (width == 18) {
-					//newBlock.insertSmall(here + TilePosition(8, 0));
+					newBlock.insertSmall(here + TilePosition(8, 0));
 					newBlock.insertSmall(here + TilePosition(8, 2));
-					//newBlock.insertSmall(here + TilePosition(8, 4));
+					newBlock.insertSmall(here + TilePosition(8, 4));
 					newBlock.insertLarge(here);
 					newBlock.insertLarge(here + TilePosition(0, 3));
 					newBlock.insertLarge(here + TilePosition(4, 0));
@@ -272,7 +346,19 @@ namespace BWEB
 				else return;
 			}
 
-			else  if (height == 8) {
+            else if (height == 7) {
+                // 2 pylons, 1 large, 1 medium
+                // Not a perfect rectangle, but narrow blocks are hard to come by
+                if (width == 4) {
+                    newBlock.insertMedium(here);
+                    newBlock.insertSmall(here + TilePosition(0, 2));
+                    newBlock.insertSmall(here + TilePosition(2, 2));
+                    newBlock.insertLarge(here + TilePosition(0, 4));
+                }
+                else return;
+            }
+
+			else if (height == 8) {
 				// 4 Gates and 4 Pylons
 				if (width == 8) {
 					newBlock.insertSmall(here + TilePosition(0, 3));

@@ -81,6 +81,8 @@ public:
 	bool	isOutOfBook() const { return _outOfBook; };
 
     void    cancelHighestPriorityItem();
+
+    const BuildOrderQueue& getQueue() const { return _queue; };
 };
 
 
