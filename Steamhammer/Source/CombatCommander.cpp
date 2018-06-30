@@ -1478,6 +1478,7 @@ bool CombatCommander::onTheDefensive()
         ? InformationManager::Instance().getMyNaturalLocation()
         : InformationManager::Instance().getMyMainBaseLocation();
 
+    // First check: Our ground or air squads are fighting a good distance away from the base
     auto& groundSquad = CombatCommander::Instance().getSquadData().getSquad("Ground");
     if (groundSquad.hasCombatUnits())
     {
@@ -1487,7 +1488,15 @@ bool CombatCommander::onTheDefensive()
     }
 
     auto& flyingSquad = CombatCommander::Instance().getSquadData().getSquad("Flying");
-    return !flyingSquad.hasCombatUnits() || flyingSquad.calcCenter().getApproxDistance(base->getPosition()) <= 1500;
+    if (flyingSquad.hasCombatUnits() && flyingSquad.calcCenter().getApproxDistance(base->getPosition()) > 1500)
+        return false;
+
+    // Our squads are empty or close to home. We're on the defensive if we can see an enemy unit close to our base.
+    for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
+        if (unit->exists() && unit->isVisible() && unit->getDistance(base->getPosition()) < 1000)
+            return true;
+
+    return false;
 }
 
 void CombatCommander::drawSquadInformation(int x, int y)
