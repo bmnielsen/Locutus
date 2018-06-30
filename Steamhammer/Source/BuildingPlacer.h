@@ -57,6 +57,7 @@ public:
 	BWAPI::TilePosition placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation);
 	void				reserveWall(const BuildOrder & buildOrder);
 	LocutusWall&		getWall() {	return _wall; }
+    bool                isCloseToProxyBlock(BWAPI::Unit unit);
 
 };
 }

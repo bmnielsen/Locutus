@@ -211,16 +211,16 @@ void ProductionManager::manageBuildOrderQueue()
 
 		const BuildOrderItem & currentItem = _queue.getHighestPriorityItem();
 
-		// WORKAROUND for BOSS bug of making too many gateways: Limit the count to 15.
-		// Idea borrowed from Locutus by Bruce Nielsen.
-		if (currentItem.macroAct.isUnit() &&
-			currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Gateway &&
-			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Gateway) >= 15)
-		{
-			_queue.doneWithHighestPriorityItem();
-			_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
-			continue;
-		}
+        // On Plasma, delay building proxy buildings until we know where the enemy base is
+        if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
+            currentItem.macroAct.isBuilding() &&
+            currentItem.macroAct.getMacroLocation() == MacroLocation::Proxy &&
+            !InformationManager::Instance().getEnemyMainBaseLocation())
+        {
+            // Queue a probe instead
+            _queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Probe);
+            return;
+        }
 
         // BOSS queues too many of some units, so cancel this one if we don't want it
 		if (_outOfBook && currentItem.macroAct.isUnit())
@@ -233,6 +233,7 @@ void ProductionManager::manageBuildOrderQueue()
             // - Gateways we have must be in use
             // - Only build at most 2 at a time
             // - Only build at most 3 per nexus
+            // - On Plasma, only build at most one non-proxy gateway
             if (type == BWAPI::UnitTypes::Protoss_Gateway)
             {
                 int gatewaysBuilding = BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
@@ -242,6 +243,16 @@ void ProductionManager::manageBuildOrderQueue()
                     StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 ||
                     gateways > nexuses * 3 ||
                     gatewaysBuilding >= 2);
+
+                // Special case for Plasma
+                // Since our combat units can't mineral walk, make sure we only build gateways at the proxy location,
+                // unless we have none
+                if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
+                    gateways > 0 &&
+                    currentItem.macroAct.getMacroLocation() != MacroLocation::Proxy)
+                {
+                    skipThisItem = true;
+                }
             }
 
             // Rules for stargates:

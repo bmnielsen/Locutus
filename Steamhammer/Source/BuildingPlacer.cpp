@@ -724,3 +724,12 @@ void BuildingPlacer::reserveWall(const BuildOrder & buildOrder)
 	for (size_t i(0); i < buildOrder.size(); ++i)
 		buildOrder[i].setWallBuildingPosition(wallPlacements);
 }
+
+bool BuildingPlacer::isCloseToProxyBlock(BWAPI::Unit unit)
+{
+    if (!_proxyBlock) return false;
+
+    BWAPI::Position blockCenter =
+        BWAPI::Position(_proxyBlock->Location()) + BWAPI::Position(_proxyBlock->width() * 16, _proxyBlock->height() * 16);
+    return unit->getDistance(blockCenter) < 320;
+}

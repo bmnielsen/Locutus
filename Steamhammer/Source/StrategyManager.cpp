@@ -132,7 +132,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 	bool hasStargate = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0;
 
-	// Look up capacity of various producers
+	// Look up capacity and other details of various producers
     int numGateways = 0;
     int numStargates = 0;
     int numForges = 0;
@@ -141,12 +141,16 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	int idleRoboFacilities = 0;
 	int idleForges = 0;
 	int idleCyberCores = 0;
+    bool gatewaysAreAtProxy = true;
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		if (unit->isCompleted()
 			&& (!unit->getType().requiresPsi() || unit->isPowered()))
 		{
             if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway)
+            {
                 numGateways++;
+                gatewaysAreAtProxy = gatewaysAreAtProxy && BuildingPlacer::Instance().isCloseToProxyBlock(unit);
+            }
             else if (unit->getType() == BWAPI::UnitTypes::Protoss_Stargate)
                 numStargates++;
             else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge)
@@ -172,6 +176,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     double gatewaySaturation = getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway);
 
 	// Look up whether we are already building various tech prerequisites
+	bool startedAssimilator = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Assimilator) > 0 
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Assimilator);
 	bool startedForge = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
 	bool startedCyberCore = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0 
@@ -205,6 +211,24 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	double zealotRatio = 0.0;
 	double goonRatio = 0.0;
 
+    // Opening group transitions
+
+    // On Plasma, transition to carriers on two bases or if our proxy gateways die
+    // We will still build ground units as long as we have an active proxy gateway
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
+        (numNexusAll >= 2 || numGateways == 0 || !gatewaysAreAtProxy))
+    {
+        _openingGroup = "carriers";
+    }
+
+    // Transition to goons off of a rush build vs. other than Zerg
+    // Against Zerg we can go ahead and continue with zealots
+    else if (numNexusCompleted >= 2 && _openingGroup == "zealots" &&
+        BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
+    {
+        _openingGroup = "dragoons";
+    }
+
 	// Initial ratios
 	if (_openingGroup == "zealots")
 	{
@@ -227,12 +251,20 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     }
     else if (_openingGroup == "carriers")
     {
+        buildGround = false;
         upgradeAir = true;
         getCarrierCapacity = true;
-        buildGround = false;
         buildCarriers = true;
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
             buildCorsairs = true;
+
+        // On Plasma, if we have at least one gateway and they are all at the proxy location, build ground units
+        if (numGateways > 0 && gatewaysAreAtProxy &&
+            BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67")
+        {
+            buildGround = true;
+            zealotRatio = 1.0; // Will be switched to goons below when the enemy gets air units, which is fine
+        }
     }
 	else
 	{
@@ -245,16 +277,6 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     {
         // Switch to goons if the enemy has air units
         if (InformationManager::Instance().enemyHasAirCombatUnits())
-        {
-            getGoonRange = true;
-            goonRatio = 1.0;
-            zealotRatio = 0.0;
-        }
-
-        // Switch to goons on two bases unless our opponent is zerg
-        // This is our transition out of a rush build
-        if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
-            numNexusCompleted >= 2)
         {
             getGoonRange = true;
             goonRatio = 1.0;
@@ -305,6 +327,15 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         // Upgrade when we have at least two bases, a reasonable army size, and our gateways are busy
         upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) >= 10 &&
             ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.5);
+    }
+
+    // If we're trying to do anything that requires gas, make sure we have an assimilator
+    if (!startedAssimilator && (
+        getGoonRange || getZealotSpeed || getCarrierCapacity || upgradeGround || upgradeAir ||
+        buildDarkTemplar || buildCorsairs || buildCarriers || buildReaver || buildObserver ||
+        (buildGround && goonRatio > 0.0)))
+    {
+        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Assimilator, 1));
     }
 
 	// Build reavers when we have 2 or more bases

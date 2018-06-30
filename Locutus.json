@@ -148,10 +148,12 @@
 			]},
 			
 			"6f5295624a7e3887470f3f2e14727b1411321a67" : { "Protoss" : [
-				{ "Weight" : 45, "Strategy" : "PlasmaCarriers" }
+				{ "Weight" : 50, "Strategy" : "PlasmaProxy2Gate" },
+				{ "Weight" : 50, "Strategy" : "PlasmaCarriers" }
 			]},
 			"6f5295624a7e3887470f3f2e14727b1411321a67 vZ" : { "Protoss" : [
-				{ "Weight" : 60, "Strategy" : "PlasmaCorsairsCarriers" }
+				{ "Weight" : 50, "Strategy" : "PlasmaProxy2Gate" },
+				{ "Weight" : 50, "Strategy" : "PlasmaCorsairsCarriers" }
 			]}
 		},
 
@@ -231,6 +233,10 @@
 				
 			"PlasmaCorsairsCarriers": { "Race" : "Protoss", "OpeningGroup" : "carriers", "OpeningBuildOrder" :
 				["4 x probe", "pylon then go scout while safe", "4 x probe", "nexus @ natural", "2 x probe", "gateway", "assimilator", "2 x probe", "pylon", "2 x probe", "cybernetics core", "6 x probe", "stargate", "protoss air weapons", "2 x probe", "assimilator", "2 x probe", "stargate", "4 x probe", "pylon", "corsair", "2 x probe", "corsair"]},
+				
+			"PlasmaProxy2Gate": { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
+				["4 x probe", "pylon then go scout location", "pylon @ proxy then gateway @ proxy then gateway @ proxy", "2 x probe", "zealot", "pylon", "2 x zealot" ]},
+				
 				
 			"TestWall"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
 				["go defensive", "4 x probe", "nexus", "pylon @ wall", "probe", "gateway @ wall", "forge @ wall", "photon cannon @ wall then photon cannon @ wall", "2 x probe", "photon cannon @ wall", "4 x probe", "go away"]},
