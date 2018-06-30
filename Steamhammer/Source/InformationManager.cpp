@@ -269,6 +269,87 @@ void InformationManager::update()
 	updateTheBases();
 	updateGoneFromLastPosition();
     updateBullets();
+
+    // Output unit info for debugging micro
+    return;
+    std::ostringstream debug;
+    bool anyDebugUnits = false;
+
+    for (const auto unit : _self->getUnits())
+    {
+        LocutusUnit& locutusUnit = getLocutusUnit(unit);
+
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && false)
+        {
+            anyDebugUnits = true;
+
+            debug << "\n" << unit->getType() << " " << unit->getID() << " @ " << unit->getPosition() << ": ";
+
+            debug << "command: " << unit->getLastCommand().getType() << ",frame=" << (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame());
+            if (unit->getLastCommand().getTarget())
+                debug << ",target=" << unit->getLastCommand().getTarget()->getType() << " " << unit->getLastCommand().getTarget()->getID() << " @ " << unit->getLastCommand().getTarget()->getPosition() << ",dist=" << unit->getLastCommand().getTarget()->getDistance(unit);
+            else if (unit->getLastCommand().getTargetPosition())
+                debug << ",targetpos " << unit->getLastCommand().getTargetPosition();
+
+            debug << ". order: " << unit->getOrder();
+            if (unit->getOrderTarget())
+                debug << ",target=" << unit->getOrderTarget()->getType() << " " << unit->getOrderTarget()->getID() << " @ " << unit->getOrderTarget()->getPosition() << ",dist=" << unit->getOrderTarget()->getDistance(unit);
+            else if (unit->getOrderTargetPosition())
+                debug << ",targetpos " << unit->getOrderTargetPosition();
+
+            debug << ". isMoving=" << unit->isMoving() << ";isattackframe=" << unit->isAttackFrame() << ";isstartingattack=" << unit->isStartingAttack() << ";cooldown=" << unit->getGroundWeaponCooldown();
+
+            if (locutusUnit.isStuck()) debug << ";is stuck";
+        }
+
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Carrier && false)
+        {
+            anyDebugUnits = true;
+
+            int launchedInterceptors = 0;
+            for (auto interceptor : unit->getInterceptors())
+                if (interceptor->isCompleted() && !interceptor->isLoaded()) launchedInterceptors++;
+
+            debug << "\n" << unit->getType() << " (" << launchedInterceptors << ":" << unit->getInterceptorCount() << ") " << unit->getID() << " @ " << unit->getPosition() << ": ";
+
+            debug << "command: " << unit->getLastCommand().getType() << ",frame=" << (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame());
+            if (unit->getLastCommand().getTarget())
+                debug << ",target=" << unit->getLastCommand().getTarget()->getType() << " " << unit->getLastCommand().getTarget()->getID() << " @ " << unit->getLastCommand().getTarget()->getPosition() << ",dist=" << unit->getLastCommand().getTarget()->getDistance(unit);
+            else if (unit->getLastCommand().getTargetPosition())
+                debug << ",targetpos " << unit->getLastCommand().getTargetPosition();
+
+            debug << ". order: " << unit->getOrder();
+            if (unit->getOrderTarget())
+                debug << ",target=" << unit->getOrderTarget()->getType() << " " << unit->getOrderTarget()->getID() << " @ " << unit->getOrderTarget()->getPosition() << ",dist=" << unit->getOrderTarget()->getDistance(unit);
+            else if (unit->getOrderTargetPosition())
+                debug << ",targetpos " << unit->getOrderTargetPosition();
+
+            debug << ". isMoving=" << unit->isMoving();
+        }
+
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && true)
+        {
+            anyDebugUnits = true;
+
+            debug << "\n" << unit->getType() << " " << unit->getID() << " @ " << unit->getPosition() << ": ";
+
+            debug << "command: " << unit->getLastCommand().getType() << ",frame=" << (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame());
+            if (unit->getLastCommand().getTarget())
+                debug << ",target=" << unit->getLastCommand().getTarget()->getType() << " " << unit->getLastCommand().getTarget()->getID() << " @ " << unit->getLastCommand().getTarget()->getPosition() << ",dist=" << unit->getLastCommand().getTarget()->getDistance(unit);
+            else if (unit->getLastCommand().getTargetPosition())
+                debug << ",targetpos " << unit->getLastCommand().getTargetPosition();
+
+            debug << ". order: " << unit->getOrder();
+            if (unit->getOrderTarget())
+                debug << ",target=" << unit->getOrderTarget()->getType() << " " << unit->getOrderTarget()->getID() << " @ " << unit->getOrderTarget()->getPosition() << ",dist=" << unit->getOrderTarget()->getDistance(unit);
+            else if (unit->getOrderTargetPosition())
+                debug << ",targetpos " << unit->getOrderTargetPosition();
+
+            debug << ". isMoving=" << unit->isMoving();
+        }
+    }
+
+    if (anyDebugUnits) Log().Debug() << debug.str();
 }
 
 void InformationManager::updateUnitInfo() 
