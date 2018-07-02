@@ -15,6 +15,7 @@ class BuildingManager
     std::vector<Building> _buildings;
 
     int             _reservedMinerals;				// minerals reserved for planned buildings
+    int             _reservedMineralsWorkerScout;   // minerals reserved by the worker scout
     int             _reservedGas;					// gas reserved for planned buildings
 	int			    _dontPlaceUntil;				// In the case of a building placement error, don't try to place a building until this frame
 
@@ -61,6 +62,7 @@ public:
 	size_t              getNumUnstarted() const;
 	size_t              getNumUnstarted(BWAPI::UnitType type) const;
 	
+    void                        reserveMineralsForWorkerScout(int minerals) { _reservedMineralsWorkerScout = minerals; };
 	bool						isWorkerScoutBuildingInQueue() const;
 	std::vector<Building *>		workerScoutBuildings();
 

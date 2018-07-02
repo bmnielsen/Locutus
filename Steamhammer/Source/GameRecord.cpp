@@ -8,6 +8,8 @@
 
 using namespace UAlbertaBot;
 
+const std::vector<std::string> GameRecord::SupportedFileFormatVersions = { "1.4", "2018-07-02" };
+
 // Take a digest snapshot of the game situation.
 void GameRecord::takeSnapshot()
 {
@@ -193,10 +195,15 @@ void GameRecord::read(std::istream & input)
 	try
 	{
 		std::string formatStr;
-		if (!std::getline(input, formatStr) || formatStr != fileFormatVersion)
+		if (!std::getline(input, formatStr) || 
+            std::find(SupportedFileFormatVersions.begin(), SupportedFileFormatVersions.end(), formatStr) == SupportedFileFormatVersions.end())
 		{
 			throw game_record_read_error();
 		}
+
+        // 0 for first format, 1 for next, etc.
+        // Easier than parsing the numbers and allows us to use anything as version format strings
+        int formatNumber = std::distance(SupportedFileFormatVersions.begin(), std::find(SupportedFileFormatVersions.begin(), SupportedFileFormatVersions.end(), formatStr));
 
 		std::string matchupStr;
 		if (std::getline(input, matchupStr))
@@ -224,6 +231,11 @@ void GameRecord::read(std::istream & input)
 		frameEnemyGetsStaticDetection = readNumber(input);
 		frameEnemyGetsMobileDetection = readNumber(input);
 		frameGameEnds = readNumber(input);
+
+        if (formatNumber > 0)
+        {
+            pylonHarassBehaviour = readNumber(input);
+        }
 
 		GameSnapshot * snap;
 		while (snap = readGameSnapshot(input))
@@ -334,6 +346,7 @@ GameRecord::GameRecord()
 	, frameEnemyGetsStaticDetection(0)
 	, frameEnemyGetsMobileDetection(0)
 	, frameGameEnds(0)
+	, pylonHarassBehaviour(0)
 {
 }
 
@@ -358,6 +371,7 @@ GameRecord::GameRecord(std::istream & input)
 	, frameEnemyGetsStaticDetection(0)
 	, frameEnemyGetsMobileDetection(0)
 	, frameGameEnds(0)
+	, pylonHarassBehaviour(0)
 {
 	read(input);
 }
@@ -371,7 +385,7 @@ void GameRecord::setWin(bool isWinner)
 
 // Write the game record to the given stream. File format:
 
-// 1.4 = file format version number
+// file format version number
 // matchup (e.g. ZvP, ZvRP)
 // map
 // opening
@@ -389,6 +403,7 @@ void GameRecord::setWin(bool isWinner)
 // frame enemy first gets static detection
 // frame enemy first gets mobile detection
 // game duration in frames (0 if the game is not over yet)
+// pylon harass result
 // snapshots
 // END GAME
 
@@ -401,7 +416,7 @@ void GameRecord::write(std::ostream & output)
 		expectedEnemyPlan = OpponentModel::Instance().getInitialExpectedEnemyPlan();
 	}
 
-	output << fileFormatVersion << '\n';
+	output << currentFileFormatVersion << '\n';
 	output <<
 		RaceChar(ourRace) <<
 		'v' <<
@@ -422,6 +437,7 @@ void GameRecord::write(std::ostream & output)
 	output << frameEnemyGetsStaticDetection << '\n';
 	output << frameEnemyGetsMobileDetection << '\n';
 	output << frameGameEnds << '\n';
+	output << pylonHarassBehaviour << '\n';
 
 	// TODO skip the snapshots for now
 	// for (const auto & snap : snapshots)

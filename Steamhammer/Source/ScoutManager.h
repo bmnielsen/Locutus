@@ -10,10 +10,28 @@ namespace UAlbertaBot
 enum class PylonHarassStates
 {
 	Initial				// Initial state before we've decided what to do
-	, Ready				// We are ready to build the next pylon
+	, ReadyForManner	// We are ready to build the next manner pylon
+	, ReadyForLure		// We are ready to build the next "lure" pylon
 	, Building			// We have queued building the pylon, the worker is "owned" by the BuildingManager
 	, Monitoring		// We have just built a pylon and are monitoring the effects
 	, Finished			// We're completely done doing pylon harass
+};
+
+struct HarassPylon
+{
+    BWAPI::TilePosition position;
+    bool isManner;
+    int queuedAt;
+    int builtAt;
+    BWAPI::Unit unit;
+    std::set<BWAPI::Unit> attackedBy;
+
+    HarassPylon(BWAPI::TilePosition tile, bool manner)
+        : position(tile)
+        , isManner(manner)
+        , queuedAt(BWAPI::Broodwar->getFrameCount()) 
+        , unit(nullptr)
+    {};
 };
 
 class ScoutManager 
@@ -38,6 +56,7 @@ class ScoutManager
 	int								_enemyBaseLastSeen;
 
 	PylonHarassStates				_pylonHarassState;
+    std::vector<HarassPylon>        _activeHarassPylons;
 
 	ScoutManager();
 
@@ -55,6 +74,7 @@ class ScoutManager
 	void                            moveAirScout(BWAPI::Unit scout);
 	void                            drawScoutInformation(int x, int y);
     void                            calculateEnemyRegionVertices();
+    void                            updatePylonHarassState();
 	bool							pylonHarass();
 
 public:

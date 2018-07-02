@@ -455,6 +455,8 @@ OpponentModel::OpponentModel()
 	, _recommendGasSteal(false)
 	, _worstCaseExpectedAirTech(INT_MAX)
 	, _worstCaseExpectedCloakTech(INT_MAX)
+	, _expectedPylonHarassBehaviour(0)
+	, _pylonHarassBehaviour(0)
 {
 	_filename = "om_" + InformationManager::Instance().getEnemyName() + ".txt";
 }
@@ -508,14 +510,20 @@ void OpponentModel::read()
 
         if ((*it)->getEnemyPlan() == OpeningPlan::FastRush) 
         {
-            Log().Get() << "Enemy has done a fast rush in the last 20 games";
+            Log().Get() << "Enemy has done a fast rush in the last 50 games";
             _enemyCanFastRush = true;
             break;
         }
     }
 
     // If we have no record of the opponent, assume they can do a fast rush
-    if (count == 0) _enemyCanFastRush = true;
+    if (count == 0)
+    {
+        _enemyCanFastRush = true;
+
+        // Don't need to do anything more when we have no same matchup records
+        return;
+    }
 
 	// Look at the previous 3 games and store the earliest frame we saw air and cloak tech
 	count = 0;
@@ -536,6 +544,141 @@ void OpponentModel::read()
 
 	if (_worstCaseExpectedAirTech != INT_MAX) Log().Get() << "Worst case expected air tech at frame " << _worstCaseExpectedAirTech;
 	if (_worstCaseExpectedCloakTech != INT_MAX) Log().Get() << "Worst case expected cloaked combat units at frame " << _worstCaseExpectedCloakTech;
+
+    // Set the expected pylon harass behaviour
+
+    // Start by gathering attempts and observed results
+    int mannerTries = 0;
+    int mannerWins = 0;
+    int mannerPylonAttackedByMultipleWorkersWhileBuilding = 0;
+    int mannerPylonAttackedByMultipleWorkersWhenComplete = 0;
+    int mannerPylonSurvived1500Frames = 0;
+    int lureTries = 0;
+    int lureWins = 0;
+    int lurePylonAttackedByMultipleWorkersWhileBuilding = 0;
+    int lurePylonAttackedByMultipleWorkersWhenComplete = 0;
+    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend(); it++)
+    {
+        if (!_gameRecord.sameMatchup(**it)) continue;
+
+        int gameBehaviour = (*it)->getPylonHarassBehaviour();
+
+        if ((gameBehaviour & (int)PylonHarassBehaviour::MannerPylonBuilt) != 0)
+        {
+            mannerTries++;
+            if ((*it)->getWin()) mannerWins++;
+            if ((gameBehaviour & (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhileBuilding) != 0)
+                mannerPylonAttackedByMultipleWorkersWhileBuilding++;
+            if ((gameBehaviour & (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhenComplete) != 0)
+                mannerPylonAttackedByMultipleWorkersWhenComplete++;
+            if ((gameBehaviour & (int)PylonHarassBehaviour::MannerPylonSurvived1500Frames) != 0)
+                mannerPylonSurvived1500Frames++;
+        }
+
+        if ((gameBehaviour & (int)PylonHarassBehaviour::LurePylonBuilt) != 0)
+        {
+            lureTries++;
+            if ((*it)->getWin()) lureWins++;
+            if ((gameBehaviour & (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhileBuilding) != 0)
+                lurePylonAttackedByMultipleWorkersWhileBuilding++;
+            if ((gameBehaviour & (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhenComplete) != 0)
+                lurePylonAttackedByMultipleWorkersWhenComplete++;
+        }
+    }
+
+    // Compute our overall win rate
+    count = 0;
+    int wins = 0;
+    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 50; it++)
+    {
+        if (!_gameRecord.sameMatchup(**it)) continue;
+
+        count++;
+        if ((*it)->getWin()) wins++;
+    }
+
+    double winRate = (double)wins / (double)count;
+
+    // Log stored information
+    std::ostringstream status;
+    status << "Expected pylon harass behaviour: ";
+
+    // Set the expected behaviour based on this logic:
+    // - If we have less than 2 games experience, don't assume anything
+    // - Consider it working if we observe it at least half the time and our win rate is improved
+    // We give the thresholds a bit of leeway when we have few data points
+    if (mannerTries > 1)
+    {
+        _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonBuilt;
+        status << "have mannered: ";
+        if (mannerTries < 5 ||
+            (mannerTries < 10 && (double)mannerWins / (double)count > 0.9 * winRate) ||
+            (double)mannerWins / (double)count > winRate)
+        {
+            bool effective = false;
+            if ((double)mannerPylonAttackedByMultipleWorkersWhileBuilding / (double)mannerTries > (mannerTries > 3 ? 0.49 : 0.32))
+            {
+                _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhileBuilding;
+                status << "got reaction while building";
+                effective = true;
+            }
+            if ((double)mannerPylonAttackedByMultipleWorkersWhenComplete / (double)mannerTries > (mannerTries > 3 ? 0.49 : 0.32))
+            {
+                _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhenComplete;
+                status << "got reaction after built";
+                effective = true;
+            }
+            if ((double)mannerPylonSurvived1500Frames / (double)mannerTries > (mannerTries > 3 ? 0.49 : 0.32))
+            {
+                _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonSurvived1500Frames;
+                status << "survived 1500 frames";
+                effective = true;
+            }
+            if (!effective) status << "ineffective";
+        }
+        else
+        {
+            status << "low win rate";
+        }
+    }
+    else
+    {
+        status << "have not mannered";
+    }
+    if (lureTries > 1)
+    {
+        _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::LurePylonBuilt;
+        status << "; have lured: ";
+        if (lureTries < 5 ||
+            (lureTries < 10 && (double)lureWins / (double)count > 0.9 * winRate) ||
+            (double)lureWins / (double)count > winRate)
+        {
+            bool effective = false;
+            if ((double)lurePylonAttackedByMultipleWorkersWhileBuilding / (double)lureWins > (lureTries > 3 ? 0.49 : 0.32))
+            {
+                _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhileBuilding;
+                status << "got reaction while building";
+                effective = true;
+            }
+            if ((double)lurePylonAttackedByMultipleWorkersWhenComplete / (double)lureWins > (lureTries > 3 ? 0.49 : 0.32))
+            {
+                _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhenComplete;
+                status << "got reaction after built";
+                effective = true;
+            }
+            if (!effective) status << "ineffective";
+        }
+        else
+        {
+            status << "low win rate";
+        }
+    }
+    else
+    {
+        status << "; have not lured";
+    }
+
+    Log().Get() << status.str();
 }
 
 // Write the game records to the opponent model file.
@@ -708,6 +851,16 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 bool OpponentModel::expectAirTechSoon()
 {
 	return _worstCaseExpectedAirTech < (BWAPI::Broodwar->getFrameCount() + BWAPI::UnitTypes::Protoss_Photon_Cannon.buildTime());
+}
+
+void OpponentModel::setPylonHarassObservation(PylonHarassBehaviour observation)
+{
+    if ((_pylonHarassBehaviour & (int)observation) == 0)
+    {
+        _pylonHarassBehaviour |= (int)observation;
+        _gameRecord.setPylonHarassBehaviour(_pylonHarassBehaviour);
+        Log().Get() << "Added pylon harass observation: " << (int)observation;
+    }
 }
 
 bool OpponentModel::expectCloakedCombatUnitsSoon()

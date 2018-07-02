@@ -44,8 +44,11 @@ private:
 
 	// Each game record is labeled with a version number, to allow some backward compatibility
 	// file format changes.
-	// Plan: Set the version number to the last Steamhammer release which changed the file format.
-	const std::string fileFormatVersion = "1.4";
+    // Version history:
+    // 1.4 - initial opponent model format from Steamhammer
+    // 2018-07-02 - added pylon harass
+    const static std::vector<std::string> SupportedFileFormatVersions;
+	const std::string currentFileFormatVersion = "2018-07-02";
 
 	const std::string gameEndMark = "END GAME";
 
@@ -77,6 +80,7 @@ private:
 	int frameEnemyGetsStaticDetection;     // includes spider mines
 	int frameEnemyGetsMobileDetection;
 	int frameGameEnds;
+    int pylonHarassBehaviour;
 
 	// We allocate the snapshots and never release them.
 	std::vector<GameSnapshot *> snapshots;
@@ -111,6 +115,7 @@ public:
 	bool isValid() { return valid; };
 	void setOpening(const std::string & opening) { openingName = opening; };
 	void setWin(bool isWinner);
+    void setPylonHarassBehaviour(int result) { pylonHarassBehaviour = result; };
 
 	void write(std::ostream & output);
 
@@ -131,6 +136,7 @@ public:
 	bool getGasStealHappened() const { return gasStealHappened; };
 	int getAirTechFrame() const { return frameEnemyGetsAirUnits; };
 	int getCloakTechFrame() const { return frameEnemyGetsCloakedUnits; };
+    int getPylonHarassBehaviour() const { return pylonHarassBehaviour; };
 
 	void debugLog();
 	static GameRecord & Instance();

@@ -121,6 +121,9 @@ bool ScoutManager::shouldScout()
 
 void ScoutManager::update()
 {
+    // We may have active harass pylons after the scout is dead, so always update them
+    updatePylonHarassState();
+
 	// If we're not scouting now, minimum effort.
 	if (!_workerScout && !_overlordScout)
 	{
@@ -133,6 +136,7 @@ void ScoutManager::update()
 		_workerScout->getPlayer() != BWAPI::Broodwar->self()))             // it got mind controlled!
 	{
 		_workerScout = nullptr;
+        BuildingManager::Instance().reserveMineralsForWorkerScout(0);
 	}
 	if (_overlordScout &&
 		(!_overlordScout->exists() || _overlordScout->getHitPoints() <= 0 ||   // it died
@@ -213,12 +217,12 @@ void ScoutManager::update()
 			{
 				_gasStealStatus = "Not planned";
 			}
-		}
 
-		if (pylonHarass())
-		{
-			moveScout = false;
-		}
+            if (pylonHarass())
+            {
+                moveScout = false;
+            }
+        }
 
 		if (moveScout)
 		{
@@ -261,6 +265,7 @@ void ScoutManager::releaseWorkerScout()
 	if (_workerScout)
 	{
 		WorkerManager::Instance().finishedWithWorker(_workerScout);
+        BuildingManager::Instance().reserveMineralsForWorkerScout(0);
 		_workerScout = nullptr;
 	}
 }
@@ -856,33 +861,343 @@ void ScoutManager::calculateEnemyRegionVertices()
     }
 }
 
+void ScoutManager::updatePylonHarassState()
+{
+    for (auto it = _activeHarassPylons.begin(); it != _activeHarassPylons.end(); )
+    {
+        // We flag trying a manner pylon as soon as we decide to do it
+        // This means we treat cases where the enemy workers kill our probe as failed attempts
+        if (it->isManner)
+        {
+            OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::MannerPylonBuilt);
+
+            if (it->unit && (BWAPI::Broodwar->getFrameCount() - it->builtAt) >= 1500)
+                OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::MannerPylonSurvived1500Frames);
+        }
+
+        // If we don't have a unit, try to find it in the building manager
+        if (!it->unit)
+        {
+            for (const auto & building : BuildingManager::Instance().workerScoutBuildings())
+            {
+                if (building->buildingUnit && building->type == BWAPI::UnitTypes::Protoss_Pylon)
+                {
+                    it->unit = building->buildingUnit;
+                    it->builtAt = BWAPI::Broodwar->getFrameCount();
+                    break;
+                }
+            }
+
+            // Continue if the pylon is still queued in the building manager
+            if (!it->unit)
+            {
+                it++;
+                continue;
+            }
+        }
+
+        // If the unit is destroyed or cancelled, remove the pylon from the list
+        if (!it->unit->exists() || it->unit->getHitPoints() <= 0)
+        {
+            it = _activeHarassPylons.erase(it);
+            continue;
+        }
+
+        // Mark a lure pylon as built when it has existed for 1000 frames
+        // If it hasn't attracted workers by this time, it hasn't been effective
+        if (!it->isManner && BWAPI::Broodwar->getFrameCount() - it->builtAt >= 1000)
+        {
+            OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::LurePylonBuilt);
+        }
+
+        // Update attackers
+        if (it->unit->isUnderAttack())
+        {
+            for (const auto enemyUnit : BWAPI::Broodwar->enemy()->getUnits())
+                if (enemyUnit->getType().isWorker() &&
+                    enemyUnit->getOrderTarget() == it->unit)
+                {
+                    it->attackedBy.insert(enemyUnit);
+                }
+
+            if (it->attackedBy.size() > 1)
+            {
+                if (it->isManner)
+                {
+                    OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::MannerPylonBuilt);
+                    OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhenComplete);
+                }
+                else
+                {
+                    OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::LurePylonBuilt);
+                    OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhenComplete);
+                }
+
+                if (it->unit->isBeingConstructed())
+                {
+                    if (it->isManner)
+                        OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhileBuilding);
+                    else
+                        OpponentModel::Instance().setPylonHarassObservation(PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhileBuilding);
+                }
+            }
+        }
+
+        // If the pylon is almost finished building and has been attacked by multiple workers, cancel it
+        if (it->unit->isBeingConstructed() && it->attackedBy.size() > 1 &&
+            it->unit->getRemainingBuildTime() < (BWAPI::Broodwar->getLatencyFrames() + 1))
+        {
+            it->unit->cancelConstruction();
+        }
+
+        it++;
+    }
+}
+
 bool ScoutManager::pylonHarass()
 {
+    if (_pylonHarassState == PylonHarassStates::Finished)
+    {
+        BuildingManager::Instance().reserveMineralsForWorkerScout(0);
+        return false;
+    }
+
 	// If we haven't found the enemy base yet, we can't do any pylon harass
     BWTA::BaseLocation* enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
     const BWEB::Station * enemyStation = InformationManager::Instance().getEnemyMainBaseStation();
     if (!enemyBase || !enemyStation) return false;
 
+    // Wait until we know the enemy race
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Random ||
+        BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Unknown) return false;
+
+    // Wait until we are in the enemy base
+    if (BWTA::getRegion(BWAPI::TilePosition(_workerScout->getPosition())) != enemyBase->getRegion()) return false;
+
+    // We don't do any pylon harass after the enemy has gotten combat units
+    if (InformationManager::Instance().enemyHasCombatUnits())
+    {
+        Log().Get() << "Enemy has combat units, stopping pylon harass";
+        _pylonHarassState = PylonHarassStates::Finished;
+        return false;
+    }
+
+    // Look up our actual and expected behaviour in the opponent model
+    int actualBehaviour = OpponentModel::Instance().getActualPylonHarassBehaviour();
+    int expectedBehaviour = OpponentModel::Instance().getExpectedPylonHarassBehaviour();
+
+    // Parse the behaviours into "works"/"doesn't work" conclusions
+
+    // Do manner pylons cause an enemy worker reaction?
+    bool mannerCausesEnemyWorkerReaction =
+        (expectedBehaviour & (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhileBuilding) != 0 ||
+        (expectedBehaviour & (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhenComplete) != 0;
+
+    // Do lure pylons draw enemy workers? (also set to true if we haven't tried it yet)
+    bool lureCausesEnemyWorkerReaction =
+        (expectedBehaviour & (int)PylonHarassBehaviour::LurePylonBuilt) == 0 ||
+        (expectedBehaviour & (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhileBuilding) != 0 ||
+        (expectedBehaviour & (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhenComplete) != 0;
+    if ((actualBehaviour & (int)PylonHarassBehaviour::LurePylonBuilt) != 0)
+    {
+        lureCausesEnemyWorkerReaction =
+            (actualBehaviour & (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhileBuilding) != 0 ||
+            (actualBehaviour & (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhenComplete) != 0;
+    }
+
 	switch (_pylonHarassState)
 	{
 	case PylonHarassStates::Initial:
-		// Currently hard-coded opponents
-		// In the future, recognize how opponents react to pylon harass and store it in the opponent model
-		if (InformationManager::Instance().getEnemyName() == "ironbot")
-		{
-			_pylonHarassState = PylonHarassStates::Ready;
-		}
-		else
-		{
-			_pylonHarassState = PylonHarassStates::Finished;
-		}
+    {
+        // Determine our initial pylon harassment strategy
 
-		return false;
+        // Never harass if we don't make it into the enemy base before frame 2250
+        if (BWAPI::Broodwar->getFrameCount() >= 2250)
+        {
+            _pylonHarassState = PylonHarassStates::Finished;
+            return false;
+        }
 
-	case PylonHarassStates::Ready:
+        // Manner if:
+        // - Enemy isn't Zerg
+        // - We have never mannered before, OR
+        // - Our previous manner pylon survived more than 1500 frames OR
+        // - Our previous manner pylon caused a reaction from enemy workers which our lure pylons did not
+        if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
+            ((expectedBehaviour & (int)PylonHarassBehaviour::MannerPylonBuilt) == 0 ||
+            (expectedBehaviour & (int)PylonHarassBehaviour::MannerPylonSurvived1500Frames) != 0 ||
+            (mannerCausesEnemyWorkerReaction && !lureCausesEnemyWorkerReaction)))
+        {
+            _pylonHarassState = PylonHarassStates::ReadyForManner;
+        }
+
+        // Lure if:
+        // - We have never lured before, OR
+        // - Our previous lure pylon caused a reacton from enemy workers
+        else if (lureCausesEnemyWorkerReaction)
+        {
+            _pylonHarassState = PylonHarassStates::ReadyForLure;
+        }
+        else
+        {
+            _pylonHarassState = PylonHarassStates::Finished;
+        }
+        return false;
+
+    }
+    case PylonHarassStates::ReadyForManner:
+    {
+        // Switch to lure if the worker is low on shields
+        // This means the enemy defends the worker line from harassment
+        if (_workerScout->getShields() <= BWAPI::UnitTypes::Protoss_Probe.maxShields() / 4)
+        {
+            Log().Get() << "Aborting manner pylon; low on shields";
+            _pylonHarassState = PylonHarassStates::ReadyForLure;
+            return false;
+        }
+
+        // Pick a mineral patch to manner
+
+        // Start by collecting all of the tiles being covered by minerals
+        std::set<BWAPI::TilePosition> mineralTiles;
+        for (auto patch : enemyStation->BWEMBase()->Minerals())
+        {
+            mineralTiles.insert(patch->TopLeft());
+            mineralTiles.insert(patch->BottomRight());
+        }
+
+        // Now collect the possible locations
+        std::vector<std::pair<BWAPI::TilePosition, BWAPI::Unit>> mannerLocations;
+        for (auto patch : enemyStation->BWEMBase()->Minerals())
+        {
+            // Which side of the depot is the patch?
+            int diffX = patch->TopLeft().x - enemyBase->getTilePosition().x;
+            int diffY = patch->TopLeft().y - enemyBase->getTilePosition().y;
+
+            // For vertically-aligned mineral fields, which column should we check?
+            int x = diffX < 0 ? patch->BottomRight().x + 1 : patch->TopLeft().x - 1;
+
+            // Is there only one free tile next to the patch?
+            if (mineralTiles.find(BWAPI::TilePosition(x, patch->TopLeft().y - 1)) != mineralTiles.end() &&
+                mineralTiles.find(BWAPI::TilePosition(x, patch->TopLeft().y + 1)) != mineralTiles.end())
+            {
+                // Place the pylon so it overlaps the depot as much as possible.
+                mannerLocations.push_back(std::make_pair(BWAPI::TilePosition(
+                    x + (diffX < 0 ? 1 : -2),
+                    patch->TopLeft().y - enemyBase->getTilePosition().y > 1 ? patch->TopLeft().y - 1 : patch->TopLeft().y),
+                    patch->Unit()));
+
+                continue;
+            }
+
+            // For horizontally-aligned mineral fields, which row should we check?
+            int y = diffY < 0 ? patch->TopLeft().y + 1 : patch->TopLeft().y - 1;
+
+            // Are both diagonals covered?
+            if (mineralTiles.find(BWAPI::TilePosition(patch->TopLeft().x - 1, y)) != mineralTiles.end() &&
+                mineralTiles.find(BWAPI::TilePosition(patch->BottomRight().x + 1, y)) != mineralTiles.end())
+            {
+                // Is the left tile covered?
+                if (mineralTiles.find(BWAPI::TilePosition(patch->TopLeft().x, y)) != mineralTiles.end())
+                {
+                    // Place the pylon so it overlaps the depot as much as possible.
+                    mannerLocations.push_back(std::make_pair(BWAPI::TilePosition(
+                        patch->BottomRight().x - enemyBase->getTilePosition().x > 1 ? patch->BottomRight().x - 1 : patch->BottomRight().x,
+                        y + (diffY < 0 ? 1 : -2)),
+                        patch->Unit()));
+                }
+
+                // Is the right tile covered?
+                else if (mineralTiles.find(BWAPI::TilePosition(patch->BottomRight().x, y)) != mineralTiles.end())
+                {
+                    // Place the pylon so it overlaps the depot as much as possible.
+                    mannerLocations.push_back(std::make_pair(BWAPI::TilePosition(
+                        patch->TopLeft().x - enemyBase->getTilePosition().x > 1 ? patch->TopLeft().x - 1 : patch->TopLeft().x,
+                        y + (diffY < 0 ? 1 : -2)),
+                        patch->Unit()));
+                }
+            }
+        }
+
+        // Pick the location closest to the depot
+        BWAPI::TilePosition mannerTile = BWAPI::TilePositions::Invalid;
+        BWAPI::Unit mannerPatch = nullptr;
+        int bestDist = INT_MAX;
+        for (auto const & mannerLocation : mannerLocations)
+        {
+            int dist = (BWAPI::Position(mannerLocation.first) + BWAPI::Position(32, 32)).getApproxDistance(enemyBase->getPosition());
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                mannerTile = mannerLocation.first;
+                mannerPatch = mannerLocation.second;
+            }
+        }
+
+        // If we have no mannerable location, try a lure instead
+        if (!mannerTile.isValid())
+        {
+            Log().Get() << "No suitable location to manner";
+            _pylonHarassState = PylonHarassStates::ReadyForLure;
+            return false;
+        }
+
+        // If far away, move to the manner tile location
+        BWAPI::Position mannerCenter = BWAPI::Position(mannerTile) + BWAPI::Position(32, 32);
+        int dist = _workerScout->getDistance(mannerCenter) > 64;
+        if (dist > 16)
+        {
+            if (dist > 96 && mannerPatch && mannerPatch->isVisible())
+                Micro::RightClick(_workerScout, mannerPatch);
+            else
+                Micro::Move(_workerScout, mannerCenter);
+            return true;
+        }
+
+        // We're in position. Issue the build when the patch is being mined and nothing is in the way.
+        bool isBeingMined = false;
+        bool workerInTheWay = false;
+        for (auto const & unit : BWAPI::Broodwar->enemy()->getUnits())
+        {
+            if (!unit->getType().isWorker()) continue;
+
+            if (unit->getTilePosition().x >= mannerTile.x && unit->getTilePosition().x <= (mannerTile.x + 1) &&
+                unit->getTilePosition().y >= mannerTile.y && unit->getTilePosition().y <= (mannerTile.y + 1))
+            {
+                workerInTheWay = true;
+                break;
+            }
+
+            if (unit->getOrder() == BWAPI::Orders::MiningMinerals &&
+                unit->getOrderTarget() == mannerPatch)
+            {
+                isBeingMined = true;
+            }
+        }
+
+        if (workerInTheWay || !isBeingMined)
+        {
+            Micro::Move(_workerScout, mannerCenter);
+            return true;
+        }
+
+        _activeHarassPylons.emplace_back(mannerTile, true);
+
+        MacroAct act(BWAPI::UnitTypes::Protoss_Pylon);
+        act.setReservedPosition(mannerTile);
+        ProductionManager::Instance().queueWorkerScoutBuilding(act);
+
+        _pylonHarassState = PylonHarassStates::Building;
+
+        Log().Get() << "Issued build for manner pylon @ " << mannerTile;
+
+        return true;
+    }
+
+	case PylonHarassStates::ReadyForLure:
 	{
-        // If the enemy has gotten combat units, stop the harass
-        if (InformationManager::Instance().enemyHasCombatUnits())
+        // If we've discovered luring isn't effective, abort
+        if (!lureCausesEnemyWorkerReaction)
         {
             _pylonHarassState = PylonHarassStates::Finished;
             return false;
@@ -895,9 +1210,9 @@ bool ScoutManager::pylonHarass()
 		// - We are in sight range of an enemy building
 		// - Nothing is in the way
 
-        if (BWTA::getRegion(BWAPI::TilePosition(_workerScout->getPosition())) != enemyBase->getRegion()) return false;
+        BuildingManager::Instance().reserveMineralsForWorkerScout(100);
 
-		if (BWAPI::Broodwar->self()->minerals() - BuildingManager::Instance().getReservedMinerals() < 100) return false;
+		if (BWAPI::Broodwar->self()->minerals() - BuildingManager::Instance().getReservedMinerals() < 0) return false;
 
 		if (_workerScout->getPosition().getDistance(enemyStation->ResourceCentroid()) < 300) return false;
 
@@ -928,6 +1243,8 @@ bool ScoutManager::pylonHarass()
 		if (enemyUnitClose || !inEnemyBuildingSightRange) return false;
 
 		// We passed all checks, so build a pylon here
+        _activeHarassPylons.emplace_back(tile, false);
+
 		MacroAct act(BWAPI::UnitTypes::Protoss_Pylon);
 		act.setReservedPosition(tile);
 		ProductionManager::Instance().queueWorkerScoutBuilding(act);
@@ -945,22 +1262,11 @@ bool ScoutManager::pylonHarass()
 
 	case PylonHarassStates::Monitoring:
 	{
-		// Build another pylon if we have fewer than 3 and none are less than half finished
-		int pylons = 0;
-		for (const auto & existingPylon : BuildingManager::Instance().workerScoutBuildings())
-		{
-			if (existingPylon->type != BWAPI::UnitTypes::Protoss_Pylon) continue;
+        // When our pylon is dead, maybe make another
+        if (_activeHarassPylons.empty())
+            _pylonHarassState = PylonHarassStates::ReadyForLure;
 
-			pylons++;
-			if (existingPylon->status == BuildingStatus::UnderConstruction &&
-				existingPylon->buildingUnit->getRemainingBuildTime() > (BWAPI::UnitTypes::Protoss_Pylon.buildTime() / 2)) return false;
-		}
-
-		if (pylons >= 3) return false;
-
-		_pylonHarassState = PylonHarassStates::Ready;
-
-		return false;
+        return false;
 	}
 
 	case PylonHarassStates::Finished:

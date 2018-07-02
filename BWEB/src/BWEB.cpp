@@ -303,6 +303,7 @@ namespace BWEB
 				if (usedTiles.find(tile) != usedTiles.end()) return false;
 				if (reserveGrid[x][y] > 0) return false;
 				if (type.isResourceDepot() && !Broodwar->canBuildHere(tile, type)) return false;
+                if (Broodwar->hasCreep(tile)) return false;
 			}
 		}
 

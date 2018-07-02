@@ -6,6 +6,16 @@
 
 namespace UAlbertaBot
 {
+    enum class PylonHarassBehaviour
+    {
+        MannerPylonBuilt                                       = 1 << 0,
+        MannerPylonAttackedByMultipleWorkersWhileBuilding      = 1 << 1,
+        MannerPylonAttackedByMultipleWorkersWhenComplete       = 1 << 2,
+        MannerPylonSurvived1500Frames                          = 1 << 3,
+        LurePylonBuilt                                         = 1 << 4,
+        LurePylonAttackedByMultipleWorkersWhileBuilding        = 1 << 5,
+        LurePylonAttackedByMultipleWorkersWhenComplete         = 1 << 6
+    };
 
 	class OpponentModel
 	{
@@ -30,6 +40,9 @@ namespace UAlbertaBot
 
 		int _worstCaseExpectedAirTech;
 		int _worstCaseExpectedCloakTech;
+
+        int _expectedPylonHarassBehaviour;
+        int _pylonHarassBehaviour;
 
 		OpeningPlan predictEnemyPlan() const;
 
@@ -70,6 +83,10 @@ namespace UAlbertaBot
 
 		bool expectAirTechSoon();
 		bool expectCloakedCombatUnitsSoon();
+
+        int getExpectedPylonHarassBehaviour() const { return _expectedPylonHarassBehaviour; };
+        int getActualPylonHarassBehaviour() const { return _pylonHarassBehaviour; };
+        void setPylonHarassObservation(PylonHarassBehaviour observation);
 
 		static OpponentModel & Instance();
 	};

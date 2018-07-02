@@ -11,6 +11,7 @@ using namespace UAlbertaBot;
 
 BuildingManager::BuildingManager()
     : _reservedMinerals(0)
+    , _reservedMineralsWorkerScout(0)
     , _reservedGas(0)
 	, _dontPlaceUntil(0)
 	, _stalledForLackOfSpace(false)
@@ -216,6 +217,11 @@ void BuildingManager::constructAssignedBuildings()
 				b.buildCommandGiven = b.builderUnit->build(b.type, b.finalPosition);
 				Log().Debug() << "Gave build command to " << b.builderUnit->getID() << " to build " << b.type << " @ " << b.finalPosition << "; result " << b.buildCommandGiven;
 
+                // If we can't currently build it, at least move to where we want to build it
+                // Helps when we try to build something in a mineral line
+                if (!b.buildCommandGiven)
+                    b.builderUnit->move(BWAPI::Position(b.finalPosition) + BWAPI::Position(32, 32));
+
                 // Record the first frame we attempted to build, we will use this to detect timeouts
                 if (b.buildFrame == 0) b.buildFrame = BWAPI::Broodwar->getFrameCount();
            }
@@ -393,7 +399,6 @@ void BuildingManager::checkReservedResources()
 
 	if (minerals != _reservedMinerals || gas != _reservedGas)
 	{
-		BWAPI::Broodwar->printf("reserves wrong: %d %d should be %d %d", _reservedMinerals, _reservedGas, minerals, gas);
 		Log().Get() << "Reserves wrong " << _reservedMinerals << " " << _reservedGas << " should be " << minerals << " " << gas;
 		_reservedMinerals = minerals;
 		_reservedGas = gas;
@@ -415,6 +420,7 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 
 	_reservedMinerals += act.mineralPrice();
 	_reservedGas += act.gasPrice();
+    if (isWorkerScoutBuilding) _reservedMineralsWorkerScout = 0;
 
 	Building b(type, desiredLocation);
 	b.macroAct = act;
@@ -494,7 +500,7 @@ void BuildingManager::releaseBuilderUnit(const Building & b)
 
 int BuildingManager::getReservedMinerals() const
 {
-    return _reservedMinerals;
+    return _reservedMinerals + _reservedMineralsWorkerScout;
 }
 
 int BuildingManager::getReservedGas() const

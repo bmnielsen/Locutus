@@ -659,8 +659,6 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
         // - Prefer a block in the same area and close to the desired position
         // - Give a bonus to blocks that provide powered locations we currently need
 
-        Log().Debug() << "Scoring pylons close to " << BWAPI::TilePosition(closeTo) << ": Powered large = " << poweredLarge << ", Powered medium = " << poweredMedium << ", Available large = " << availableLarge << ", Available medium = " << availableMedium;
-
         double bestScore = DBL_MAX;
         BlockData * bestBlock = nullptr;
         for (auto & block : blocks)
@@ -694,11 +692,8 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
             // Reduce the score based on the location bonus
             score /= (double)(poweredLocationBonus + 1);
 
-            Log().Debug() << "Block @ " << block.pylon << " dist=" << block.dist << ", Powers " << block.poweredLarge << " large, " << block.poweredMedium << " medium" << ", score=" << score;
-
             if (score < bestScore)
             {
-                Log().Debug() << "(best)";
                 bestScore = score;
                 bestBlock = &block;
             }
