@@ -344,24 +344,22 @@ void OpponentModel::reconsiderEnemyPlan()
 // so they can take into account what the opponent is doing.
 void OpponentModel::considerGasSteal()
 {
-	// Sometimes it's queuing a gas steal regardless, let's just kill it
-	return;
+    // Don't steal gas if the expected enemy plan is something that doesn't require it
+    if (_expectedEnemyPlan == OpeningPlan::FastRush ||
+        _expectedEnemyPlan == OpeningPlan::Proxy ||
+        _expectedEnemyPlan == OpeningPlan::WorkerRush ||
+        _expectedEnemyPlan == OpeningPlan::HeavyRush)
+    {
+        return;
+    }
 
-	// 1. Random gas stealing.
-	// This part really should run only once per game.
-	if (Random::Instance().flag(Config::Strategy::RandomGasStealRate))
-	{
-		_recommendGasSteal = true;
-		return;
-	}
-
-	// 2. Is auto gas stealing turned on?
+	// 1. Is auto gas stealing turned on?
 	if (!Config::Strategy::AutoGasSteal)
 	{
 		return;
 	}
 
-	// 3. Gather data.
+	// 2. Gather data.
 	// We add fictitious games saying that not stealing gas was tried once and won, and stealing gas
 	// was tried twice and lost. That way we don't try stealing gas unless we lose games without;
 	// it represents that stealing gas has a cost.

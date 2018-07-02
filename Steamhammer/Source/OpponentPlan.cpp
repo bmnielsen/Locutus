@@ -166,7 +166,7 @@ void OpponentPlan::recognize()
 		snap.getCount(BWAPI::UnitTypes::Protoss_Gateway) >= 2 &&
 		snap.getCount(BWAPI::UnitTypes::Protoss_Assimilator) == 0 &&
 		snap.getCount(BWAPI::UnitTypes::Protoss_Nexus) <= 1 &&
-		snap.getCount(BWAPI::UnitTypes::Protoss_Zealot) > 2)
+		snap.getCount(BWAPI::UnitTypes::Protoss_Zealot) > 3)
 	{
 		_openingPlan = OpeningPlan::HeavyRush;
 		_planIsFixed = true;

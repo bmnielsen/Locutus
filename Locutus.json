@@ -85,7 +85,7 @@
     "Strategy" :
     {
         "ScoutHarassEnemy"          : false,
-		"AutoGasSteal"				: false,
+		"AutoGasSteal"				: true,
 		"RandomGasStealRate"		: 0.0,
 		"SurrenderWhenHopeIsLost"   : true,
 		"UsePlanRecognizer"         : true,
