@@ -131,14 +131,25 @@
 
             foreach (var arg in args.Where(x => x != "ui" && x != "cig"))
             {
-                foreach (var map in maps)
+                var map = maps.FirstOrDefault(
+                    x => CultureInfo.InvariantCulture.CompareInfo.IndexOf(x, arg, CompareOptions.IgnoreCase) >= 0);
+                if (map != null)
                 {
-                    if (CultureInfo.InvariantCulture.CompareInfo.IndexOf(map, arg, CompareOptions.IgnoreCase) >= 0)
-                    {
-                        Run(opponent, map, isHeadless, showReplay, timeout);
-                        return;
-                    }
+                    maps = new List<string> { map };
                 }
+            }
+
+            if (args.Contains("2p"))
+            {
+                maps = maps.Where(x => x.Contains("(2)")).ToList();
+            }
+            else if (args.Contains("3p"))
+            {
+                maps = maps.Where(x => x.Contains("(3)")).ToList();
+            }
+            else if (args.Contains("4p"))
+            {
+                maps = maps.Where(x => x.Contains("(4)")).ToList();
             }
 
             var shuffledMaps = Shuffle(maps);
@@ -216,24 +227,6 @@
                     if (count >= limit) break;
                 }
 
-                return;
-            }
-
-            if (args.Contains("2p"))
-            {
-                Run(opponent, shuffledMaps.First(x => x.Contains("(2)")), isHeadless, showReplay, timeout);
-                return;
-            }
-
-            if (args.Contains("3p"))
-            {
-                Run(opponent, shuffledMaps.First(x => x.Contains("(3)")), isHeadless, showReplay, timeout);
-                return;
-            }
-
-            if (args.Contains("4p"))
-            {
-                Run(opponent, shuffledMaps.First(x => x.Contains("(4)")), isHeadless, showReplay, timeout);
                 return;
             }
 
