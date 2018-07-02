@@ -2,6 +2,7 @@
 
 #include "OpponentModel.h"
 #include "ProductionManager.h"
+#include "UnitUtil.h"
 
 // This class is responsible for early game scouting.
 // It controls any scouting worker and scouting overlord that it is given.
@@ -166,6 +167,38 @@ void ScoutManager::update()
 	{
 		releaseWorkerScout();
 	}
+
+    // If we want to scout while safe, and the scout is no longer safe, release it
+    if (_scoutCommand == MacroCommandType::ScoutWhileSafe)
+    {
+        bool scoutSafe = _workerScout->getHitPoints() > BWAPI::UnitTypes::Protoss_Probe.maxHitPoints() / 2;
+        if (scoutSafe)
+            for (const auto & unit : BWAPI::Broodwar->enemy()->getUnits())
+            {
+                // Static defense
+                if (unit->getType().isBuilding() && UnitUtil::CanAttack(unit, _workerScout))
+                {
+                    scoutSafe = false;
+                    break;
+                }
+
+                if (unit->getOrderTarget() != _workerScout) continue;
+
+                // The enemy unit is likely trying to attack our scout
+                // Stop scouting if the enemy unit is ranged
+                if (UnitUtil::GetAttackRange(unit, _workerScout) > 64)
+                {
+                    scoutSafe = false;
+                    break;
+                }
+            }
+
+        if (!scoutSafe)
+        {
+            Log().Get() << "Scout no longer safe, returning home";
+            releaseWorkerScout();
+        }
+    }
 
 	// If we're done with a gas steal and we don't want to keep scouting, release the worker.
 	// If we're zerg, the worker may have turned into an extractor. That is handled elsewhere.
