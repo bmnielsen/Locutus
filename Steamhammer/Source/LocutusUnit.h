@@ -14,12 +14,12 @@ class LocutusUnit
     BWAPI::Unit                         mineralWalkingPatch;
     int                                 lastMoveFrame;
 
-    // Used for combat micro
-    int lastAttackStartedAt;
-
-    // Used for detecting stuck goons
+    // Used for various things, like detecting stuck goons and updating our collision matrix
     BWAPI::Position lastPosition;
-    int             potentiallyStuckSince;  // frame the unit might have been stuck since, or 0 if it isn't stuck
+
+    // Used for goon micro
+    int lastAttackStartedAt;
+    int potentiallyStuckSince;  // frame the unit might have been stuck since, or 0 if it isn't stuck
 
     void updateMoveWaypoints();
     void moveToNextWaypoint();
@@ -29,6 +29,8 @@ class LocutusUnit
         BWAPI::Position target,
         int minChokeWidth,
         int desiredChokeWidth = 0);
+
+    void updateGoon();
 
 public:
     LocutusUnit()
@@ -60,5 +62,7 @@ public:
 
     bool isReady() const;
     bool isStuck() const;
+
+    int getLastAttackStartedAt() const { return lastAttackStartedAt; };
 };
 }

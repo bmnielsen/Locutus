@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "LocutusUnit.h"
+#include "InformationManager.h"
 #include "Micro.h"
 #include "MapTools.h"
 
@@ -14,31 +15,14 @@ void LocutusUnit::update()
 {
 	if (!unit || !unit->exists()) { return; }
 
-    if (unit->isStartingAttack()) 
-        lastAttackStartedAt = BWAPI::Broodwar->getFrameCount();
+    if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon) updateGoon();
 
-    // Logic for detecting our own stuck goons
-    if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon)
+    if (unit->getPosition() != lastPosition)
     {
-        // If isMoving==false, the unit isn't stuck
-        if (!unit->isMoving())
-            potentiallyStuckSince = 0;
-
-        // If the unit's position has changed after potentially being stuck, it is no longer stuck
-        else if (potentiallyStuckSince > 0 && unit->getPosition() != lastPosition)
-            potentiallyStuckSince = 0;
-
-        // If we have issued a stop command to the unit on the last turn, it will no longer be stuck when the command is executed
-        else if (potentiallyStuckSince > 0 &&
-            unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Stop &&
-            BWAPI::Broodwar->getRemainingLatencyFrames() == BWAPI::Broodwar->getLatencyFrames())
-        {
-            potentiallyStuckSince = 0;
-        }
-
-        // Otherwise it might have been stuck since the last frame where isAttackFrame==true
-        else if (unit->isAttackFrame())
-            potentiallyStuckSince = BWAPI::Broodwar->getFrameCount();
+        if (lastPosition.isValid())
+            InformationManager::Instance().getMyUnitGrid().unitMoved(unit->getType(), lastPosition, unit->getPosition());
+        else
+            InformationManager::Instance().getMyUnitGrid().unitCreated(unit->getType(), unit->getPosition());
     }
 
     lastPosition = unit->getPosition();
@@ -297,11 +281,31 @@ void LocutusUnit::mineralWalk()
 
 void LocutusUnit::fleeFrom(BWAPI::Position position)
 {
-    // TODO: Use a threat and collision matrix to determine the best position to move to
+    // TODO: Use a threat matrix, maybe it's actually best to move towards the position sometimes
 
     // Our current angle relative to the target
     BWAPI::Position delta(position - unit->getPosition());
     double angleToTarget = atan2(delta.y, delta.x);
+
+    const auto verifyPosition = [](BWAPI::Position position) {
+        // Valid
+        if (!position.isValid()) return false;
+
+        // Not blocked by a building
+        if (bwebMap.usedTiles.find(BWAPI::TilePosition(position)) != bwebMap.usedTiles.end())
+            return false;
+
+        // Walkable
+        BWAPI::WalkPosition walk(position);
+        if (!walk.isValid()) return false;
+        if (!BWAPI::Broodwar->isWalkable(walk)) return false;
+
+        // Not blocked by one of our own units
+        if (InformationManager::Instance().getMyUnitGrid().get(walk) > 0)
+            return false;
+
+        return true;
+    };
 
     // Find a valid position to move to that is two tiles further away from the given position
     // Start by considering fleeing directly away, falling back to other angles if blocked
@@ -314,19 +318,24 @@ void LocutusUnit::fleeFrom(BWAPI::Position position)
             BWAPI::Position position(
                 unit->getPosition().x - (int)std::round(64.0 * std::cos(a)),
                 unit->getPosition().y - (int)std::round(64.0 * std::sin(a)));
-            if (!position.isValid()) continue;
 
-            // Sample walk positions to make sure we can move there
-            BWAPI::WalkPosition walk(position);
-            BWAPI::WalkPosition walkHalfway((walk + BWAPI::WalkPosition(unit->getPosition())) / 2);
-            if (!walk.isValid() || !walkHalfway.isValid() ||
-                !BWAPI::Broodwar->isWalkable(walk) || !BWAPI::Broodwar->isWalkable(walkHalfway))
+            // Verify it and positions around it
+            if (!verifyPosition(position) ||
+                !verifyPosition(position + BWAPI::Position(-16, -16)) ||
+                !verifyPosition(position + BWAPI::Position(16, -16)) ||
+                !verifyPosition(position + BWAPI::Position(16, 16)) ||
+                !verifyPosition(position + BWAPI::Position(-16, 16)))
             {
                 continue;
             }
 
-            // Not blocked by a building
-            if (bwebMap.usedTiles.find(BWAPI::TilePosition(position)) != bwebMap.usedTiles.end())
+            // Now do the same for a position halfway in between
+            BWAPI::Position halfwayPosition((position + unit->getPosition()) / 2);
+            if (!verifyPosition(halfwayPosition) ||
+                !verifyPosition(halfwayPosition + BWAPI::Position(-16, -16)) ||
+                !verifyPosition(halfwayPosition + BWAPI::Position(16, -16)) ||
+                !verifyPosition(halfwayPosition + BWAPI::Position(16, 16)) ||
+                !verifyPosition(halfwayPosition + BWAPI::Position(-16, 16)))
             {
                 continue;
             }
@@ -346,8 +355,38 @@ bool LocutusUnit::isReady() const
 {
     if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon) return true;
 
-    // Dragoons are given 9 frames (adjusted for latency) to perform their attack before getting another order
-    return BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt > 9 - BWAPI::Broodwar->getLatencyFrames();
+    // Compute delta between current frame and when the last attack started / will start
+    int attackFrameDelta = BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt;
+
+    // Always give the dragoon 9 frames to perform their attack before getting another order
+    if (attackFrameDelta >= 0 && attackFrameDelta <= 9 - BWAPI::Broodwar->getRemainingLatencyFrames())
+    {
+        return false;
+    }
+
+    // The unit might attack within our remaining latency frames
+    if (attackFrameDelta < 0 && attackFrameDelta > -BWAPI::Broodwar->getRemainingLatencyFrames())
+    {
+        BWAPI::Unit target = unit->getLastCommand().getTarget();
+
+        // Allow switching targets if the current target no longer exists
+        if (!target || !target->exists() || !target->isVisible() || !target->getPosition().isValid()) return true;
+
+        // Otherwise only allow switching targets if the current one is expected to be too far away to attack
+        int distTarget = unit->getDistance(target);
+        int distTargetPos = unit->getPosition().getApproxDistance(target->getPosition());
+
+        BWAPI::Position myPredictedPosition = InformationManager::Instance().predictUnitPosition(unit, -attackFrameDelta);
+        BWAPI::Position targetPredictedPosition = InformationManager::Instance().predictUnitPosition(target, -attackFrameDelta);
+
+        // This is approximate, as we are computing the distance between the center points of the units, while
+        // range calculations use the edges. To compensate we add the difference in observed target distance vs. position distance.
+        int predictedDistance = myPredictedPosition.getApproxDistance(targetPredictedPosition) - (distTargetPos - distTarget);
+
+        return predictedDistance > (BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) ? 6 : 4) * 32;
+    }
+
+    return true;
 }
 
 bool LocutusUnit::isStuck() const
@@ -444,4 +483,50 @@ std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(
     }
 
     return {};
+}
+
+void LocutusUnit::updateGoon()
+{
+    // If we're not currently in an attack, determine the frame when the next attack will start
+    if (lastAttackStartedAt >= BWAPI::Broodwar->getFrameCount() ||
+        BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt > 9 - BWAPI::Broodwar->getRemainingLatencyFrames())
+    {
+        lastAttackStartedAt = 0;
+
+        // If this is the start of the attack, set it to now
+        if (unit->isStartingAttack())
+            lastAttackStartedAt = BWAPI::Broodwar->getFrameCount();
+
+        // Otherwise predict when an attack command might result in the start of an attack
+        else if (unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Attack_Unit &&
+            unit->getLastCommand().getTarget() && unit->getLastCommand().getTarget()->exists() &&
+            unit->getLastCommand().getTarget()->isVisible() && unit->getLastCommand().getTarget()->getPosition().isValid())
+        {
+            lastAttackStartedAt = std::max(BWAPI::Broodwar->getFrameCount() + 1, std::max(
+                unit->getLastCommandFrame() + BWAPI::Broodwar->getLatencyFrames(),
+                BWAPI::Broodwar->getFrameCount() + unit->getGroundWeaponCooldown()));
+        }
+    }
+
+    // Determine if this unit is stuck
+
+    // If isMoving==false, the unit isn't stuck
+    if (!unit->isMoving())
+        potentiallyStuckSince = 0;
+
+    // If the unit's position has changed after potentially being stuck, it is no longer stuck
+    else if (potentiallyStuckSince > 0 && unit->getPosition() != lastPosition)
+        potentiallyStuckSince = 0;
+
+    // If we have issued a stop command to the unit on the last turn, it will no longer be stuck after the command is executed
+    else if (potentiallyStuckSince > 0 &&
+        unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Stop &&
+        BWAPI::Broodwar->getRemainingLatencyFrames() == BWAPI::Broodwar->getLatencyFrames())
+    {
+        potentiallyStuckSince = 0;
+    }
+
+    // Otherwise it might have been stuck since the last frame where isAttackFrame==true
+    else if (unit->isAttackFrame())
+        potentiallyStuckSince = BWAPI::Broodwar->getFrameCount();
 }

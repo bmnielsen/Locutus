@@ -233,6 +233,9 @@
       <Filter>game\util</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroCarriers.cpp" />
+    <ClCompile Include="..\Source\LocutusMapGrid.cpp">
+      <Filter>game\util\map</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -424,5 +427,8 @@
       <Filter>game\util</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroCarriers.h" />
+    <ClInclude Include="..\Source\LocutusMapGrid.h">
+      <Filter>game\util\map</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

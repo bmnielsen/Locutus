@@ -665,23 +665,35 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
     if (!InformationManager::Instance().getLocutusUnit(rangedUnit).isReady())
         return;
 
-    // If our weapon is ready to fire, just attack
-    int cooldown = rangedUnit->getGroundWeaponCooldown() - BWAPI::Broodwar->getRemainingLatencyFrames();
-    if (cooldown <= 0)
+    // If the unit can't move, don't kite
+    double speed = rangedUnit->getType().topSpeed();
+    if (speed < 0.001)
+    {
+        Micro::AttackUnit(rangedUnit, target);
+        return;
+    }
+
+    // Our unit range
+    int range(rangedUnit->getType().groundWeapon().maxRange());
+    if (rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
+        BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
+    {
+        range = 6 * 32;
+    }
+
+    int distToTarget = rangedUnit->getDistance(target);
+
+    // If our weapon is ready to fire, attack
+    int cooldown = rangedUnit->getGroundWeaponCooldown() - BWAPI::Broodwar->getRemainingLatencyFrames() - 2;
+    int framesToFiringRange = std::max(0, distToTarget - range) / speed;
+    if (cooldown <= framesToFiringRange)
     {
         Micro::AttackUnit(rangedUnit, target);
         return;
     }
 
     // Compute unit ranges
-    double range(rangedUnit->getType().groundWeapon().maxRange());
-    if (rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && 
-        BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
-    {
-        range = 6 * 32;
-    }
-
-    double targetRange(rangedUnit->getType().groundWeapon().maxRange());
+    int targetRange(rangedUnit->getType().groundWeapon().maxRange());
     if (InformationManager::Instance().enemyHasInfantryRangeUpgrade())
     {
         if (target->getType() == BWAPI::UnitTypes::Terran_Marine ||
@@ -695,17 +707,46 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
         }
     }
 
+    // Kite by default
+    bool kite = true;
+
     // Move towards the target in the following cases:
     // - It is a sieged tank
     // - It is a building that cannot attack
     // - It outranges us
-    // - We are blocking a ramp
+    // - We are blocking a narrow choke
+    // - The enemy unit is moving away from us and is close to the edge of its range, or is standing still and we aren't in its weapon range
+
+    // Do simple checks immediately
     bool moveCloser =
         target->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
         (target->getType().isBuilding() && !UnitUtil::CanAttack(target, rangedUnit)) ||
         targetRange > range;
 
-    // Do the check for blocking a ramp only if the others have failed
+    // Now check enemy unit movement
+    if (!moveCloser)
+    {
+        BWAPI::Position predictedPosition = InformationManager::Instance().predictUnitPosition(target, 1);
+        if (predictedPosition.isValid())
+        {
+            int distPredicted = rangedUnit->getDistance(predictedPosition);
+            int distCurrent = rangedUnit->getDistance(target->getPosition());
+
+            // Enemy is moving away from us: don't kite
+            if (distPredicted > distCurrent)
+            {
+                kite = false;
+            }
+
+            // Enemy is standing still and we are well out of its range: move closer
+            else if (distCurrent == distPredicted && distToTarget > (targetRange * 5) / 4)
+            {
+                moveCloser = true;
+            }
+        }
+    }
+
+    // Now check for blocking a choke
     if (!moveCloser)
     {
         for (BWTA::Chokepoint * choke : BWTA::getChokepoints())
@@ -722,31 +763,24 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
                 // Now find points ahead and behind us with respect to the choke
                 // We'll find out which is which in a moment
                 BWAPI::Position first(
-                    rangedUnit->getPosition().x - (int)std::round(64 * std::cos(chokeAngle + (pi / 2.0))),
-                    rangedUnit->getPosition().y - (int)std::round(64 * std::sin(chokeAngle + (pi / 2.0))));
+                    rangedUnit->getPosition().x - (int)std::round(48 * std::cos(chokeAngle + (pi / 2.0))),
+                    rangedUnit->getPosition().y - (int)std::round(48 * std::sin(chokeAngle + (pi / 2.0))));
                 BWAPI::Position second(
-                    rangedUnit->getPosition().x - (int)std::round(64 * std::cos(chokeAngle - (pi / 2.0))),
-                    rangedUnit->getPosition().y - (int)std::round(64 * std::sin(chokeAngle - (pi / 2.0))));
+                    rangedUnit->getPosition().x - (int)std::round(48 * std::cos(chokeAngle - (pi / 2.0))),
+                    rangedUnit->getPosition().y - (int)std::round(48 * std::sin(chokeAngle - (pi / 2.0))));
 
                 // Find out which position is behind us
                 BWAPI::Position position = first;
                 if (target->getDistance(second) > target->getDistance(first))
                     position = second;
 
-                // Now check how many friendly units are close to it
-                int friendlies = 0;
-                for (auto & unit : getUnits())
-                {
-                    if (unit == rangedUnit) continue;
-                    if (unit->getDistance(position) < 64)
-                    {
-                        friendlies++;
-                        break;
-                    }
-                }
-
-                moveCloser = friendlies >= 2;
-
+                // Move closer if there is a friendly unit near the position
+                moveCloser = 
+                    InformationManager::Instance().getMyUnitGrid().get(position) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, -16)) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, -16)) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, 16)) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, 16)) > 0;
                 break;
             }
         }
@@ -755,7 +789,7 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
     // Execute move closer
     if (moveCloser)
     {
-        if (rangedUnit->getDistance(target) > 48)
+        if (distToTarget > 16)
         {
             Micro::Move(rangedUnit, target->getPosition());
         }
@@ -767,50 +801,13 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
         return;
     }
 
-    // Kite unless:
-    // - The target is a building
-    // - We're ready to attack again
-    // - The enemy is fleeing or standing still out of range
-    bool kite(!target->getType().isBuilding());
-
-    double dist(rangedUnit->getDistance(target));
-    double speed(rangedUnit->getType().topSpeed());
-
-    // Kite if we're not ready yet: Wait for the weapon.
+    // Execute kite
     if (kite)
     {
-        double timeToEnter = 0.0;                      // time to reach firing range
-        if (speed > .00001)                            // don't even visit the same city as division by zero
-        {
-            timeToEnter = std::max(0.0, dist - range) / speed;
-        }
-        if (timeToEnter >= cooldown)
-        {
-            kite = false;
-        }
+        InformationManager::Instance().getLocutusUnit(rangedUnit).fleeFrom(target->getPosition());
     }
-
-    // Don't kite if the enemy is moving away from us, or is staying in the same place and can't attack us at the current range
-    if (kite)
-    {
-        BWAPI::Position predictedPosition = InformationManager::Instance().predictUnitPosition(target, 1);
-        if (predictedPosition.isValid())
-        {
-            int distPredicted = rangedUnit->getDistance(predictedPosition);
-            int distCurrent = rangedUnit->getDistance(target->getPosition());
-            if (distPredicted > distCurrent || distCurrent == distPredicted && dist > targetRange)
-            {
-                kite = false;
-            }
-        }
-    }
-
-    // If we shouldn't kite, execute the attack order now
-    if (!kite)
+    else
     {
         Micro::AttackUnit(rangedUnit, target);
-        return;
     }
-
-    InformationManager::Instance().getLocutusUnit(rangedUnit).fleeFrom(target->getPosition());
 }

@@ -6,6 +6,7 @@
 #include "Base.h"
 #include "UnitData.h"
 #include "LocutusUnit.h"
+#include "LocutusMapGrid.h"
 
 namespace UAlbertaBot
 {
@@ -44,6 +45,7 @@ class InformationManager
 	BWAPI::Unitset										_ourPylons;
 
     std::map<BWAPI::Unit, LocutusUnit>  _myUnits;
+    LocutusMapGrid                      _myUnitGrid;
 
     std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
     int                             bulletsSeenAtExtendedMarineRange;
@@ -167,6 +169,7 @@ public:
     BWAPI::Position         predictUnitPosition(BWAPI::Unit unit, int frames) const;
 
     LocutusUnit&            getLocutusUnit(BWAPI::Unit unit);
+    LocutusMapGrid&         getMyUnitGrid() { return _myUnitGrid; };
 
 	// yay for singletons!
 	static InformationManager & Instance();

@@ -279,7 +279,7 @@ void InformationManager::update()
     {
         LocutusUnit& locutusUnit = getLocutusUnit(unit);
 
-        if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && false)
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && true)
         {
             anyDebugUnits = true;
 
@@ -300,6 +300,8 @@ void InformationManager::update()
             debug << ". isMoving=" << unit->isMoving() << ";isattackframe=" << unit->isAttackFrame() << ";isstartingattack=" << unit->isStartingAttack() << ";cooldown=" << unit->getGroundWeaponCooldown();
 
             if (locutusUnit.isStuck()) debug << ";is stuck";
+            if (locutusUnit.getLastAttackStartedAt() > 0) debug << ";lastAttackStartedAt=" << (BWAPI::Broodwar->getFrameCount() - locutusUnit.getLastAttackStartedAt());
+            debug << ";isReady=" << locutusUnit.isReady();
         }
 
         else if (unit->getType() == BWAPI::UnitTypes::Protoss_Carrier && false)
@@ -327,7 +329,7 @@ void InformationManager::update()
             debug << ". isMoving=" << unit->isMoving();
         }
 
-        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && true)
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && false)
         {
             anyDebugUnits = true;
 
@@ -1258,6 +1260,11 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
 			_staticDefense.erase(unit);
 		}
 	}
+
+    if (unit->getPlayer() == _self)
+    {
+        _myUnitGrid.unitDestroyed(unit->getType(), unit->getPosition());
+    }
 }
 
 // Only returns units believed to be completed.
