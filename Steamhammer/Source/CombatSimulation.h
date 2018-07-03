@@ -9,6 +9,11 @@ namespace UAlbertaBot
 {
 class CombatSimulation
 {
+private:
+    BWAPI::Position myUnitsCentroid;
+    BWAPI::Position enemyUnitsCentroid;
+    bool airBattle;
+
 public:
 
 	CombatSimulation();

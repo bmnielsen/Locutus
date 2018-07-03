@@ -2,9 +2,14 @@
 #include "FAP.h"
 #include "UnitUtil.h"
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 CombatSimulation::CombatSimulation()
+    : myUnitsCentroid(BWAPI::Positions::Invalid)
+    , enemyUnitsCentroid(BWAPI::Positions::Invalid)
+    , airBattle(false)
 {
 }
 
@@ -99,13 +104,24 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		}
 	}
 
-    // Add the enemy units
-    for (auto& unit : enemyUnits)
-        fap.addIfCombatUnitPlayer2(unit);
+    // Add the enemy units and compute the centroid
+    if (!enemyUnits.empty())
+    {
+        enemyUnitsCentroid = BWAPI::Position(0, 0);
 
-	// Add our units.
+        for (auto& unit : enemyUnits)
+        {
+            fap.addIfCombatUnitPlayer2(unit);
+            enemyUnitsCentroid += unit.lastPosition;
+        }
+
+        enemyUnitsCentroid /= enemyUnits.size();
+    }
+
+	// Collect our units.
 	BWAPI::Unitset ourCombatUnits;
 	MapGrid::Instance().getUnits(ourCombatUnits, center, radius, true, false);
+    std::vector<BWAPI::Unit> myUnits;
 	for (const auto unit : ourCombatUnits)
 	{
 		if (UnitUtil::IsCombatSimUnit(unit))
@@ -115,19 +131,66 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 				--compensatoryMutalisks;
 				continue;
 			}
-			fap.addIfCombatUnitPlayer1(unit);
+            myUnits.push_back(unit);
 			if (Config::Debug::DrawCombatSimulationInfo)
 			{
 				BWAPI::Broodwar->drawCircleMap(unit->getPosition(), 3, BWAPI::Colors::Green, true);
 			}
 		}
 	}
+
+    // Add our units and compute the centroid
+    if (!myUnits.empty())
+    {
+        myUnitsCentroid = BWAPI::Position(0, 0);
+
+        for (auto& unit : myUnits)
+        {
+            fap.addIfCombatUnitPlayer1(unit);
+            myUnitsCentroid += unit->getPosition();
+
+            if (unit->isFlying()) airBattle = true;
+        }
+
+        myUnitsCentroid /= myUnits.size();
+    }
 }
 
 double CombatSimulation::simulateCombat()
 {
 	fap.simulate();
 	std::pair<int, int> scores = fap.playerScores();
+
+    // Make some adjustments based on the ground geography if we know where the armies are located
+    if (myUnitsCentroid.isValid() && enemyUnitsCentroid.isValid() && !airBattle)
+    {
+        // Are we attacking through a narrow choke?
+        bool narrowChoke = false;
+        for (auto choke : bwemMap.GetPath(myUnitsCentroid, enemyUnitsCentroid))
+        {
+            if (choke->Data() < 96) narrowChoke = true;
+        }
+
+        // If yes, give the enemy army a small bonus, as we don't fight well through chokes
+        if (narrowChoke) scores.second = (scores.second * 3) / 2;
+
+        // Is there an elevation difference?
+        int elevationDifference = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(enemyUnitsCentroid)) 
+            - BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(myUnitsCentroid));
+
+        // If so, give a bonus to the army with the high ground
+        // We are pessimistic and give a higher bonus to the enemy
+        if (elevationDifference > 0)
+        {
+            scores.second *= 2;
+        }
+        else if (elevationDifference < 0)
+        {
+            scores.second = (scores.second * 4) / 3;
+        }
+    }
+
+    //Log().Get() << "Combat sim: Me " << BWAPI::TilePosition(myUnitsCentroid) << ": " << scores.first << "; enemy " << BWAPI::TilePosition(enemyUnitsCentroid) << ": " << scores.second;
 
 	int score = scores.first - scores.second;
 
