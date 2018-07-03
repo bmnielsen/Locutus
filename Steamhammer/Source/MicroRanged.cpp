@@ -272,7 +272,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
                     }
                     else
                     {
-                        InformationManager::Instance().getLocutusUnit(rangedUnit).moveTo(order.getPosition());
+                        InformationManager::Instance().getLocutusUnit(rangedUnit).moveTo(order.getPosition(), order.getType() == SquadOrderTypes::Attack);
                         //Micro::Move(rangedUnit, order.getPosition());
                     }
 				}

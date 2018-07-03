@@ -111,7 +111,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 				else if (meleeUnit->getDistance(order.getPosition()) > 96)
 				{
 					// There are no targets. Move to the order position if not already close.
-                    InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(order.getPosition());
+                    InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(order.getPosition(), order.getType() == SquadOrderTypes::Attack);
                     //Micro::Move(meleeUnit, order.getPosition());
 				}
 			}

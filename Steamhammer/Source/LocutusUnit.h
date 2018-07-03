@@ -24,7 +24,11 @@ class LocutusUnit
     void updateMoveWaypoints();
     void moveToNextWaypoint();
     void mineralWalk();
-    std::vector<const BWEM::ChokePoint *> pathAvoidingUnusableChokes(BWAPI::Position start, BWAPI::Position target, int minChokeWidth);
+    std::vector<const BWEM::ChokePoint *> pathAvoidingUnusableChokes(
+        BWAPI::Position start,
+        BWAPI::Position target,
+        int minChokeWidth,
+        int desiredChokeWidth = 0);
 
 public:
     LocutusUnit()
@@ -51,7 +55,7 @@ public:
 
     void update();
 
-    bool moveTo(BWAPI::Position position);
+    bool moveTo(BWAPI::Position position, bool avoidNarrowChokes = false);
     void fleeFrom(BWAPI::Position position);
 
     bool isReady() const;

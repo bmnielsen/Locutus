@@ -192,7 +192,7 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 		{
 			if (!mobilizeUnit(unit))
 			{
-                InformationManager::Instance().getLocutusUnit(unit).moveTo(regroupPosition);
+                InformationManager::Instance().getLocutusUnit(unit).moveTo(regroupPosition, order.getType() == SquadOrderTypes::Attack);
 				//Micro::Move(unit, regroupPosition);
 			}
 		}

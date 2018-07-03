@@ -57,7 +57,7 @@ void LocutusUnit::update()
     updateMoveWaypoints();
 }
 
-bool LocutusUnit::moveTo(BWAPI::Position position)
+bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
 {
     // Fliers just move to the target
     if (unit->isFlying())
@@ -91,7 +91,9 @@ bool LocutusUnit::moveTo(BWAPI::Position position)
     // Detect when we can't use the BWEM path:
     // - One or more chokepoints require mineral walking and our unit is not a worker
     // - One or more chokepoints are narrower than the unit width
+    // We also track if avoidNarrowChokes is true and there is a narrow choke in the path
     bool bwemPathValid = true;
+    bool bwemPathNarrow = false;
     for (const BWEM::ChokePoint * chokepoint : path)
     {
         // Mineral walking data is stored in Ext, choke width is stored in Data (see MapTools)
@@ -102,20 +104,31 @@ bool LocutusUnit::moveTo(BWAPI::Position position)
             break;
         }
 
+        // Check for narrow chokes
+        // TODO: Fix this, our units just get confused
+        //if (avoidNarrowChokes && chokepoint->Data() < 96)
+        //    bwemPathNarrow = true;
+
         // Push the waypoints on this pass on the assumption that we can use them
         waypoints.push_back(chokepoint);
     }
 
-    // If we can't use the BWEM path, attempt to generate one avoiding the unusable chokes
-    if (!bwemPathValid)
+    // Attempt to generate an alternate path if possible
+    if (!bwemPathValid || bwemPathNarrow)
     {
-        waypoints.clear();
-
         auto alternatePath = pathAvoidingUnusableChokes(unit->getPosition(), position, unit->getType().width());
-        if (alternatePath.empty()) return false;
+        if (!alternatePath.empty())
+        {
+            waypoints.clear();
 
-        for (const BWEM::ChokePoint * chokepoint : alternatePath)
-            waypoints.push_back(chokepoint);
+            for (const BWEM::ChokePoint * chokepoint : alternatePath)
+                waypoints.push_back(chokepoint);
+        }
+        else if (!bwemPathValid)
+        {
+            waypoints.clear();
+            return false;
+        }
     }
 
     // Start moving
@@ -346,7 +359,11 @@ bool LocutusUnit::isStuck() const
 }
 
 // Basically BWEB's path find alorithm modified to use BWEM chokepoints
-std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(BWAPI::Position start, BWAPI::Position target, int minChokeWidth)
+std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(
+    BWAPI::Position start, 
+    BWAPI::Position target, 
+    int minChokeWidth,
+    int desiredChokeWidth)
 {
     const BWEM::Area * startArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(start));
     const BWEM::Area * targetArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(target));
@@ -362,6 +379,12 @@ std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(BW
 
     const auto validChoke = [](const BWEM::ChokePoint * choke, int minChokeWidth) {
         return !choke->Blocked() && !choke->Ext() && choke->Data() >= minChokeWidth;
+    };
+
+    const auto chokeDist = [](const BWEM::ChokePoint * choke, int dist, int desiredChokeWidth) {
+        // Give too narrow chokes a large penalty, so they are only used if there is no other option
+        if (choke->Data() < desiredChokeWidth) return dist + 2000;
+        return dist;
     };
 
     const auto chokeTo = [](const BWEM::ChokePoint * choke, const BWEM::Area * from) {
@@ -389,7 +412,11 @@ std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(BW
     std::priority_queue<Node, std::vector<Node>, decltype(cmp)> nodeQueue(cmp);
     for (auto choke : startArea->ChokePoints())
         if (validChoke(choke, minChokeWidth))
-            nodeQueue.emplace(choke, start.getApproxDistance(BWAPI::Position(choke->Center())), chokeTo(choke, startArea), nullptr);
+            nodeQueue.emplace(
+                choke,
+                chokeDist(choke, start.getApproxDistance(BWAPI::Position(choke->Center())), desiredChokeWidth),
+                chokeTo(choke, startArea),
+                nullptr);
 
     std::map<const BWEM::ChokePoint *, const BWEM::ChokePoint *> parentMap;
 
@@ -409,7 +436,11 @@ std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(BW
         // Add valid connected chokes we haven't visited yet
         for (auto choke : current.toArea->ChokePoints())
             if (validChoke(choke, minChokeWidth) && parentMap.find(choke) == parentMap.end())
-                nodeQueue.emplace(choke, current.dist + choke->DistanceFrom(current.choke), chokeTo(choke, current.toArea), current.choke);
+                nodeQueue.emplace(
+                    choke, 
+                    chokeDist(choke, current.dist + choke->DistanceFrom(current.choke), desiredChokeWidth), 
+                    chokeTo(choke, current.toArea), 
+                    current.choke);
     }
 
     return {};
