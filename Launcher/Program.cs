@@ -16,6 +16,7 @@
         private const int ShortTimeout = 60;
         private const int MediumTimeout = 300;
         private const int LongTimeout = 600;
+        private const int ExtraLongTimeout = 1200;
         private const int MaxTimeout = 1800;
 
         private static readonly Random Rnd = new Random();
@@ -104,6 +105,10 @@
             {
                 timeout = LongTimeout;
             }
+            if (args.Contains("extralong"))
+            {
+                timeout = ExtraLongTimeout;
+            }
 
             if (args.Contains("latest"))
             {
@@ -190,6 +195,10 @@
                         else if (trainingOpponent[1] == "long")
                         {
                             timeout = LongTimeout;
+                        }
+                        else if (trainingOpponent[1] == "extralong")
+                        {
+                            timeout = ExtraLongTimeout;
                         }
                     }
 
