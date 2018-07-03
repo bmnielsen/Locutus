@@ -1044,8 +1044,8 @@ bool ScoutManager::pylonHarass()
     {
         // Determine our initial pylon harassment strategy
 
-        // Never harass if we don't make it into the enemy base before frame 2250
-        if (BWAPI::Broodwar->getFrameCount() >= 2250)
+        // Never harass if we don't make it into the enemy base before frame 2500
+        if (BWAPI::Broodwar->getFrameCount() >= 2500)
         {
             _pylonHarassState = PylonHarassStates::Finished;
             return false;
