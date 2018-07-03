@@ -863,10 +863,37 @@ void CombatCommander::updateBaseDefenseSquads()
             continue;
         }
 
-		// start off assuming all enemy units in region are just workers
-		const int numDefendersPerEnemyUnit = 2;
+        // Collect all of the enemy units in or near the region
+        std::set<BWAPI::Unit> enemyUnits;
+        for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
+        {
+            // If it's a harmless air unit, don't worry about it for base defense.
+            // TODO something more sensible
+            if (unit->getType() == BWAPI::UnitTypes::Zerg_Overlord ||
+                unit->getType() == BWAPI::UnitTypes::Protoss_Observer ||
+                unit->isLifted())  // floating terran building
+            {
+                continue;
+            }
 
-		// Count and score the enemy units in or close to this region
+            // If the enemy unit is not in the region and not close to the wall, ignore it
+            if (BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) != myRegion &&
+                (myRegion != naturalRegion || !wall.exists() ||
+                    unit->getDistance(BuildingPlacer::Instance().getWall().gapCenter) > 320))
+            {
+                continue;
+            }
+
+            // Add it
+            enemyUnits.insert(unit);
+
+            // Add any units close to it
+            for (const auto closeUnit : BWAPI::Broodwar->enemy()->getUnits())
+                if (unit != closeUnit && unit->getDistance(closeUnit) < 200)
+                    enemyUnits.insert(closeUnit);
+        }
+
+		// Now count and score the enemy units
         // We score needed ground defenders based on the unit type as:
         // - workers 1
         // - zerglings 2
@@ -884,25 +911,8 @@ void CombatCommander::updateBaseDefenseSquads()
 
         bool firstWorker = true;
         bool hasShuttle = false;
-        for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
+        for (const auto unit : enemyUnits)
         {
-            // If it's a harmless air unit, don't worry about it for base defense.
-			// TODO something more sensible
-            if (unit->getType() == BWAPI::UnitTypes::Zerg_Overlord ||
-				unit->getType() == BWAPI::UnitTypes::Protoss_Observer ||
-				unit->isLifted())  // floating terran building
-            {
-                continue;
-            }
-
-            // When defending a wall, we include units close to it in the natural region
-            if (BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) != myRegion &&
-                (myRegion != naturalRegion || !wall.exists() || 
-                    unit->getDistance(BuildingPlacer::Instance().getWall().gapCenter) > 320))
-            {
-                continue;
-            }
-
             // We assume the first enemy worker in the region is a scout, unless it has attacked us recently
             if (unit->getType().isWorker())
             {
