@@ -131,12 +131,12 @@
 		"MapSpecificStrategy" :
 		{
 			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vT" : { "Protoss" : [
-				{ "Weight" : 45, "Strategy" : "10-15GateGoon" },
-				{ "Weight" : 35, "Strategy" : "DTDrop" }
+				{ "Weight" : 60, "Strategy" : "DTDrop" },
+				{ "Weight" : 40, "Strategy" : "10-15GateGoon" }
 			]},
 			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vP" : { "Protoss" : [
-				{ "Weight" : 35, "Strategy" : "4GateGoon" },
-				{ "Weight" : 25, "Strategy" : "2GateDTExpo" }
+				{ "Weight" : 60, "Strategy" : "4GateGoon" },
+				{ "Weight" : 40, "Strategy" : "2GateDTExpo" }
 			]},
 			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vZ" : { "Protoss" : [
 				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
