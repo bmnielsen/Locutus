@@ -978,7 +978,7 @@ void ScoutManager::updatePylonHarassState()
 
         // If the pylon is almost finished building and has been attacked by multiple workers, cancel it
         if (it->unit->isBeingConstructed() && it->attackedBy.size() > 1 &&
-            it->unit->getRemainingBuildTime() < (BWAPI::Broodwar->getLatencyFrames() + 1))
+            it->unit->getRemainingBuildTime() <= (BWAPI::Broodwar->getRemainingLatencyFrames() + 5))
         {
             it->unit->cancelConstruction();
         }

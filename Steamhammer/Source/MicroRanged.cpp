@@ -666,7 +666,7 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
         return;
 
     // If our weapon is ready to fire, just attack
-    int cooldown = rangedUnit->getGroundWeaponCooldown() - BWAPI::Broodwar->getLatencyFrames();
+    int cooldown = rangedUnit->getGroundWeaponCooldown() - BWAPI::Broodwar->getRemainingLatencyFrames();
     if (cooldown <= 0)
     {
         Micro::AttackUnit(rangedUnit, target);
