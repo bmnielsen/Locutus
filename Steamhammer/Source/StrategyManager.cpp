@@ -324,9 +324,9 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             goonRatio = 0.0;
         }
 
-        // Upgrade when we have at least two bases, a reasonable army size, and our gateways are busy
-        upgradeGround = numNexusAll >= 2 && (numZealots + numDragoons) >= 10 &&
-            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.5);
+        // Upgrade when we have at least two bases, a reasonable army size, our gateways are busy, and we aren't on the defensive
+        upgradeGround = numNexusCompleted >= 2 && (numZealots + numDragoons) >= 10 &&
+            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.75) && !CombatCommander::Instance().onTheDefensive();
     }
 
     // If we're trying to do anything that requires gas, make sure we have an assimilator
@@ -1583,7 +1583,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
     // If we are mining gas, make sure we've taken the geysers at our mining bases
     // They usually get ordered automatically, so don't do this too often unless we are gas blocked
-    if ((gasBlocked || BWAPI::Broodwar->getFrameCount() % (30 * 24) == 0) &&
+    if ((gasBlocked || BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0) &&
         WorkerManager::Instance().isCollectingGas() &&
         UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) > 1 &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Assimilator) &&
@@ -1598,7 +1598,23 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
         for (auto base : InformationManager::Instance().getMyBases())
         {
+            // Don't bother if the base doesn't have gas or the geyser is already mined out
             if (base->gas() < 100) continue;
+
+            // Find the nexus
+            auto units = BWAPI::Broodwar->getUnitsOnTile(base->getTilePosition());
+            if (units.size() != 1) continue;
+
+            BWAPI::Unit nexus = *units.begin();
+            if (nexus->getType() != BWAPI::UnitTypes::Protoss_Nexus) continue;
+            
+            // Try to time it so the nexus completes a bit before the assimilator
+            if (!nexus->isCompleted() &&
+                nexus->getRemainingBuildTime() > BWAPI::UnitTypes::Protoss_Assimilator.buildTime())
+            {
+                continue;
+            }
+
             for (auto geyser : base->getGeysers())
             {
                 if (assimilators.find(geyser->getTilePosition()) == assimilators.end() &&
