@@ -102,6 +102,7 @@ void Squad::update()
         
 		_microAirToAir.regroup(regroupPosition);
 		_microMelee.regroup(regroupPosition);
+		_microDarkTemplar.regroup(regroupPosition);
 		_microRanged.regroup(regroupPosition);
         _microCarriers.regroup(regroupPosition);
 		_microTanks.regroup(regroupPosition);
@@ -111,6 +112,7 @@ void Squad::update()
 		// No need to regroup. Execute micro.
 		_microAirToAir.execute();
 		_microMelee.execute();
+		_microDarkTemplar.execute();
 		_microRanged.execute();
         _microCarriers.execute();
 		_microTanks.execute();
@@ -243,7 +245,8 @@ void Squad::addUnitsToMicroManagers()
 	BWAPI::Unitset rangedUnits;
 	BWAPI::Unitset carrierUnits;
 	BWAPI::Unitset detectorUnits;
-	BWAPI::Unitset highTemplarUnits;
+    BWAPI::Unitset darkTemplarUnits;
+    BWAPI::Unitset highTemplarUnits;
 	BWAPI::Unitset transportUnits;
 	BWAPI::Unitset lurkerUnits;
     BWAPI::Unitset tankUnits;
@@ -262,6 +265,11 @@ void Squad::addUnitsToMicroManagers()
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_High_Templar)
 			{
 				highTemplarUnits.insert(unit);
+			}
+			else if (_order.getType() == SquadOrderTypes::Harass &&
+                unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
+			{
+				darkTemplarUnits.insert(unit);
 			}
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Carrier)
             {
@@ -319,6 +327,7 @@ void Squad::addUnitsToMicroManagers()
 	_microRanged.setUnits(rangedUnits);
     _microCarriers.setUnits(carrierUnits);
 	_microDetectors.setUnits(detectorUnits);
+	_microDarkTemplar.setUnits(darkTemplarUnits);
 	_microHighTemplar.setUnits(highTemplarUnits);
 	_microLurkers.setUnits(lurkerUnits);
 	_microMedics.setUnits(medicUnits);
@@ -610,6 +619,7 @@ void Squad::setSquadOrder(const SquadOrder & so)
 	_microRanged.setOrder(so);
     _microCarriers.setOrder(so);
 	_microDetectors.setOrder(so);
+	_microDarkTemplar.setOrder(so);
 	_microHighTemplar.setOrder(so);
 	_microLurkers.setOrder(so);
 	_microMedics.setOrder(so);
@@ -873,6 +883,7 @@ bool Squad::hasMicroManager(MicroManager* microManager) const
         &_microAirToAir == microManager ||
         &_microCarriers == microManager ||
         &_microDetectors == microManager ||
+        &_microDarkTemplar == microManager ||
         &_microHighTemplar == microManager ||
         &_microLurkers == microManager ||
         &_microMedics == microManager ||

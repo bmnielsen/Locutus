@@ -25,6 +25,7 @@ const size_t KamikazePriority = 7;
 // The attack squads.
 const int AttackRadius = 800;
 const int DefensivePositionRadius = 400;
+const int HarassRadius = 200;
 
 // Reconnaissance squad.
 const int ReconTargetTimeout = 40 * 24;
@@ -57,9 +58,6 @@ void CombatCommander::initializeSquads()
     // The kamikaze squad is an attack squad that never retreats
     // We put units in here that are doomed anyway
     _squadData.addSquad(Squad("Kamikaze", mainAttackOrder, KamikazePriority));
-
-    // Harass squad
-    _squadData.addSquad(Squad("Harass", mainAttackOrder, HarassPriority));
 
 	// The recon squad carries out reconnaissance in force to deny enemy bases.
 	// It is filled in when enough units are available.
@@ -108,7 +106,7 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 		updateDropSquads();
 		updateScoutDefenseSquad();
 		updateBaseDefenseSquads();
-		updateHarassSquad();
+		updateHarassSquads();
 		updateReconSquad();
 		updateAttackSquads();
 	}
@@ -168,22 +166,84 @@ void CombatCommander::updateKamikazeSquad()
     kamikazeSquad.setSquadOrder(kamikazeOrder);
 }
 
-// Update the harassment squad
+// Update the base harassment squads
 // Currently we put all dark templar that aren't being used for drops or base defense in here
-void CombatCommander::updateHarassSquad()
+void CombatCommander::updateHarassSquads()
 {
-    Squad & harassSquad = _squadData.getSquad("Harass");
+    // Collect active squads with the base they are harassing
+    auto enemyBases = InformationManager::Instance().getEnemyBases();
+    std::vector<std::pair<Squad*, BWTA::BaseLocation*>> activeSquads;
+    for (BWTA::Region * region : BWTA::getRegions())
+    {
+        BWAPI::Position regionCenter = region->getCenter();
+        if (!regionCenter.isValid()) continue;
 
+        std::stringstream squadName;
+        squadName << "Harass " << regionCenter.x << " " << regionCenter.y;
+
+        // Find an enemy base in this region
+        BWTA::BaseLocation* base = nullptr;
+        for (auto & potentialBase : InformationManager::Instance().getEnemyBases())
+            if (potentialBase->getRegion() == region)
+            {
+                base = potentialBase;
+                break;
+            }
+
+        // If the enemy doesn't have a base here, make sure the squad is cleared
+        if (!base)
+        {
+            if (_squadData.squadExists(squadName.str()))
+            {
+                _squadData.getSquad(squadName.str()).clear();
+            }
+
+            continue;
+        }
+
+        // Ensure squad exists
+        if (!_squadData.squadExists(squadName.str()))
+        {
+            _squadData.addSquad(Squad(
+                squadName.str(),
+                SquadOrder(SquadOrderTypes::Harass, base->getPosition(), HarassRadius, "Harass enemy base"),
+                HarassPriority));
+        }
+
+        // Add squad to vector
+        activeSquads.push_back(std::make_pair(&_squadData.getSquad(squadName.str()), base));
+    }
+
+    // Sort the squads by priority
+    // We give the main base highest priority in the early game
+    // Later on we prioritize the newest bases
+    std::sort(activeSquads.begin(), activeSquads.end(),
+        [](const std::pair<Squad*, BWTA::BaseLocation*> & a, const std::pair<Squad*, BWTA::BaseLocation*> & b)
+    {
+        if (BWAPI::Broodwar->getFrameCount() < 15000)
+        {
+            if (a.second == InformationManager::Instance().getEnemyMainBaseLocation()) return true;
+            if (b.second == InformationManager::Instance().getEnemyMainBaseLocation()) return false;
+        }
+
+        return InformationManager::Instance().getBaseOwnedSince(a.second) > InformationManager::Instance().getBaseOwnedSince(b.second);
+    });
+
+    // Assign two units to each squad
+    // Extra units will end up in the main attack squad
+    auto it = activeSquads.begin();
     for (const auto unit : _combatUnits)
     {
         if (unit->getType() != BWAPI::UnitTypes::Protoss_Dark_Templar) continue;
-        if (_squadData.canAssignUnitToSquad(unit, harassSquad)) 
-            _squadData.assignUnitToSquad(unit, harassSquad);
-    }
 
-    // For now we just use the same order as the main squad
-    SquadOrder harassOrder(SquadOrderTypes::Harass, getAttackLocation(&harassSquad), AttackRadius, "Harass enemy base");
-    harassSquad.setSquadOrder(harassOrder);
+        // Advance the iterator to a squad that needs more units
+        while (it != activeSquads.end() && it->first->getUnits().size() >= 2) it++;
+        if (it == activeSquads.end()) break;
+
+        // Try to add the unit to the squad
+        if (_squadData.canAssignUnitToSquad(unit, *it->first)) 
+            _squadData.assignUnitToSquad(unit, *it->first);
+    }
 }
 
 // Update the small recon squad which tries to find and deny enemy bases.

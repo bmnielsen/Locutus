@@ -11,6 +11,7 @@
 
 #include "MicroCarriers.h"
 #include "MicroDetectors.h"
+#include "MicroDarkTemplar.h"
 #include "MicroHighTemplar.h"
 #include "MicroLurkers.h"
 #include "MicroMedics.h"
@@ -43,6 +44,7 @@ class Squad
 	MicroRanged			_microRanged;
 	MicroCarriers		_microCarriers;
 	MicroDetectors		_microDetectors;
+	MicroDarkTemplar	_microDarkTemplar;
 	MicroHighTemplar	_microHighTemplar;
 	MicroLurkers		_microLurkers;
 	MicroMedics			_microMedics;

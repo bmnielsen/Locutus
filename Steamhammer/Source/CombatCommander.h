@@ -24,7 +24,7 @@ class CombatCommander
 
     void            updateScoutDefenseSquad();
 	void            updateBaseDefenseSquads();
-	void			updateHarassSquad();
+	void			updateHarassSquads();
 	void			updateReconSquad();
 	void            updateAttackSquads();
     void            updateDropSquads();

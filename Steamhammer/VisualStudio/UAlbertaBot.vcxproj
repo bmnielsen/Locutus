@@ -164,6 +164,7 @@
     <ClCompile Include="..\Source\MapTools.cpp" />
     <ClCompile Include="..\Source\MicroAirToAir.cpp" />
     <ClCompile Include="..\Source\MicroCarriers.cpp" />
+    <ClCompile Include="..\Source\MicroDarkTemplar.cpp" />
     <ClCompile Include="..\Source\MicroDetectors.cpp" />
     <ClCompile Include="..\Source\MicroHighTemplar.cpp" />
     <ClCompile Include="..\Source\MicroLurkers.cpp" />
@@ -244,6 +245,7 @@
     <ClInclude Include="..\Source\MapTools.h" />
     <ClInclude Include="..\Source\MicroAirToAir.h" />
     <ClInclude Include="..\Source\MicroCarriers.h" />
+    <ClInclude Include="..\Source\MicroDarkTemplar.h" />
     <ClInclude Include="..\Source\MicroDetectors.h" />
     <ClInclude Include="..\Source\MicroHighTemplar.h" />
     <ClInclude Include="..\Source\MicroLurkers.h" />

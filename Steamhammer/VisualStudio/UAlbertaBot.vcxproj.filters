@@ -232,6 +232,7 @@
     <ClCompile Include="..\Source\LocutusUnit.cpp">
       <Filter>game\util</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\MicroDarkTemplar.cpp" />
     <ClCompile Include="..\Source\MicroCarriers.cpp" />
     <ClCompile Include="..\Source\LocutusMapGrid.cpp">
       <Filter>game\util\map</Filter>
@@ -426,6 +427,7 @@
     <ClInclude Include="..\Source\LocutusUnit.h">
       <Filter>game\util</Filter>
     </ClInclude>
+    <ClInclude Include="..\Source\MicroDarkTemplar.h" />
     <ClInclude Include="..\Source\MicroCarriers.h" />
     <ClInclude Include="..\Source\LocutusMapGrid.h">
       <Filter>game\util\map</Filter>
