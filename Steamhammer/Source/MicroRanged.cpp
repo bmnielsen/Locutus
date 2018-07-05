@@ -738,8 +738,11 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
                 kite = false;
             }
 
-            // Enemy is standing still and we are well out of its range: move closer
-            else if (distCurrent == distPredicted && distToTarget > (targetRange * 5) / 4)
+            // Enemy is standing still: move a bit closer if we outrange it
+            // The idea is to move forward just enough to let friendly units move into range behind us
+            else if (distCurrent == distPredicted && 
+                range >= (targetRange + 64) &&
+                distToTarget > (range - 48))
             {
                 moveCloser = true;
             }
