@@ -10,6 +10,7 @@ CombatSimulation::CombatSimulation()
     : myUnitsCentroid(BWAPI::Positions::Invalid)
     , enemyUnitsCentroid(BWAPI::Positions::Invalid)
     , airBattle(false)
+    , rush(false)
 {
 }
 
@@ -122,6 +123,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 	BWAPI::Unitset ourCombatUnits;
 	MapGrid::Instance().getUnits(ourCombatUnits, center, radius, true, false);
     std::vector<BWAPI::Unit> myUnits;
+    rush = BWAPI::Broodwar->getFrameCount() < 10000;
 	for (const auto unit : ourCombatUnits)
 	{
 		if (UnitUtil::IsCombatSimUnit(unit))
@@ -132,6 +134,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 				continue;
 			}
             myUnits.push_back(unit);
+            rush = rush && (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot || unit->getType() == BWAPI::UnitTypes::Protoss_Probe);
 			if (Config::Debug::DrawCombatSimulationInfo)
 			{
 				BWAPI::Broodwar->drawCircleMap(unit->getPosition(), 3, BWAPI::Colors::Green, true);
@@ -162,7 +165,8 @@ double CombatSimulation::simulateCombat()
 	std::pair<int, int> scores = fap.playerScores();
 
     // Make some adjustments based on the ground geography if we know where the armies are located
-    if (myUnitsCentroid.isValid() && enemyUnitsCentroid.isValid() && !airBattle)
+    // Doesn't apply to rushes: zealots don't have as many problems with chokes, and FAP will simulate elevation
+    if (myUnitsCentroid.isValid() && enemyUnitsCentroid.isValid() && !airBattle && !rush)
     {
         // Are we attacking through a narrow choke?
         bool narrowChoke = false;
@@ -186,8 +190,15 @@ double CombatSimulation::simulateCombat()
         }
         else if (elevationDifference < 0)
         {
-            scores.second = (scores.second * 4) / 3;
+            scores.first = (scores.first * 4) / 3;
         }
+    }
+
+    // When rushing, give our own army an artificial bonus
+    // This is to promote aggression: our rush needs to do damage, and we have more units coming
+    if (rush)
+    {
+        scores.first = (scores.first * 4) / 3;
     }
 
     //Log().Get() << "Combat sim: Me " << BWAPI::TilePosition(myUnitsCentroid) << ": " << scores.first << "; enemy " << BWAPI::TilePosition(enemyUnitsCentroid) << ": " << scores.second;

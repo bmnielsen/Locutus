@@ -202,7 +202,7 @@
 				["go defensive", "4 x probe", "pylon", "probe", "2 x gateway", "2 x probe", "zealot", "pylon then go scout while safe", "2 x zealot", "probe", "2 x zealot", "probe", "zealot", "go aggressive", "pylon", "probe", "2 x zealot" ]},
 
 			"Proxy9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
-				["4 x probe", "pylon @ proxy", "probe", "gateway @ proxy then gateway @ proxy then go scout location", "2 x probe", "zealot", "pylon", "2 x zealot" ]},
+				["4 x probe", "pylon @ proxy then gateway @ proxy then gateway @ proxy then go scout location", "probe", "2 x probe", "zealot", "pylon", "2 x zealot" ]},
 				
 				
 			"9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :

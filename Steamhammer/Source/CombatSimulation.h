@@ -13,6 +13,7 @@ private:
     BWAPI::Position myUnitsCentroid;
     BWAPI::Position enemyUnitsCentroid;
     bool airBattle;
+    bool rush;
 
 public:
 
