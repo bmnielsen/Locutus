@@ -174,6 +174,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		Config::Strategy::RandomGasStealRate = GetDoubleByRace("RandomGasStealRate", strategy);
 		Config::Strategy::UsePlanRecognizer = GetBoolByRace("UsePlanRecognizer", strategy);
 		Config::Strategy::SurrenderWhenHopeIsLost = GetBoolByRace("SurrenderWhenHopeIsLost", strategy);
+		Config::Strategy::TrainingMode = GetBoolByRace("TrainingMode", strategy);
 
 		bool openingStrategyDecided = false;
 
@@ -569,6 +570,10 @@ bool ParseUtils::_ParseStrategy(
                         weight *= 50;
 
                     Log().Get() << "Considering " << strategy << " with weight " << weight;
+
+                    // If we are in training mode, all strategies are equal
+                    if (Config::Strategy::TrainingMode)
+                        weight = 1;
 
                     // If this strategy has the same weight as the current highest, add it to the vector
                     if (weight == highestWeight)

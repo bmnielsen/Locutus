@@ -90,6 +90,7 @@
 		"RandomGasStealRate"		: 0.0,
 		"SurrenderWhenHopeIsLost"   : true,
 		"UsePlanRecognizer"         : true,
+		"TrainingMode"				: true,
 
 		"PvT" :
 			{ "Protoss" : [
