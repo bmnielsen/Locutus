@@ -93,34 +93,34 @@
 
 		"PvT" :
 			{ "Protoss" : [
-				{ "Weight" : 15, "Strategy" : "Proxy9-9Gate" },
-				{ "Weight" : 30, "Strategy" : "10-15GateGoon" },
-				{ "Weight" : 40, "Strategy" : "DTDrop" },
-				{ "Weight" : 15, "Strategy" : "Turtle" }
+				{ "Weight" : 50, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 50, "Strategy" : "10-15GateGoon" },
+				{ "Weight" : 50, "Strategy" : "DTDrop" },
+				{ "Weight" : 20, "Strategy" : "Turtle" }
 			]},
 
 		"PvP" :
 			{ "Protoss" : [
-				{ "Weight" : 15, "Strategy" : "Proxy9-9Gate" },
-				{ "Weight" : 30, "Strategy" : "4GateGoon" },
+				{ "Weight" : 40, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 50, "Strategy" : "4GateGoon" },
 				{ "Weight" : 20, "Strategy" : "2GateDTExpo" },
 				{ "Weight" : 20, "Strategy" : "12Nexus5ZealotFECannons" },
-				{ "Weight" : 15, "Strategy" : "Turtle" }
+				{ "Weight" : 10, "Strategy" : "Turtle" }
 			]},
 			
 		"PvZ" :
 			{ "Protoss" : [
-				{ "Weight" : 15, "Strategy" : "Proxy9-9Gate" },
-				{ "Weight" : 35, "Strategy" : "ForgeExpandSpeedlots" },
-				{ "Weight" : 50, "Strategy" : "ForgeExpand5GateGoon" }
+				{ "Weight" : 30, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 60, "Strategy" : "ForgeExpandSpeedlots" },
+				{ "Weight" : 90, "Strategy" : "ForgeExpand5GateGoon" }
 			]},
 
 		"PvU" :
 			{ "Protoss" : [
-				{ "Weight" : 10, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 40, "Strategy" : "Proxy9-9Gate" },
 				{ "Weight" : 30, "Strategy" : "9-9GateDefensive" },
-				{ "Weight" : 30, "Strategy" : "4GateGoon" },
-				{ "Weight" : 30, "Strategy" : "ForgeExpand5GateGoon" }
+				{ "Weight" : 50, "Strategy" : "4GateGoon" },
+				{ "Weight" : 50, "Strategy" : "ForgeExpand5GateGoon" }
 			]},
 
 		"UseEnemySpecificStrategy" : true,
@@ -133,29 +133,30 @@
 		"MapSpecificStrategy" :
 		{
 			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vT" : { "Protoss" : [
-				{ "Weight" : 60, "Strategy" : "DTDrop" },
-				{ "Weight" : 40, "Strategy" : "10-15GateGoon" }
+				{ "Weight" : 40, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 50, "Strategy" : "DTDrop" },
+				{ "Weight" : 50, "Strategy" : "10-15GateGoon" }
 			]},
 			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vP" : { "Protoss" : [
-				{ "Weight" : 60, "Strategy" : "4GateGoon" },
-				{ "Weight" : 40, "Strategy" : "2GateDTExpo" }
+				{ "Weight" : 40, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 50, "Strategy" : "4GateGoon" }
 			]},
 			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vZ" : { "Protoss" : [
-				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 50, "Strategy" : "9-9GateDefensive" },
 				{ "Weight" : 40, "Strategy" : "4GateGoon" }
 			]},
 			"8000dc6116e405ab878c14bb0f0cde8efa4d640c vU" : { "Protoss" : [
-				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 50, "Strategy" : "9-9GateDefensive" },
 				{ "Weight" : 40, "Strategy" : "4GateGoon" }
 			]},
 			
 			"6f5295624a7e3887470f3f2e14727b1411321a67" : { "Protoss" : [
-				{ "Weight" : 50, "Strategy" : "PlasmaProxy2Gate" },
-				{ "Weight" : 50, "Strategy" : "PlasmaCarriers" }
+				{ "Weight" : 49, "Strategy" : "PlasmaProxy2Gate" },
+				{ "Weight" : 51, "Strategy" : "PlasmaCarriers" }
 			]},
 			"6f5295624a7e3887470f3f2e14727b1411321a67 vZ" : { "Protoss" : [
-				{ "Weight" : 50, "Strategy" : "PlasmaProxy2Gate" },
-				{ "Weight" : 50, "Strategy" : "PlasmaCorsairsCarriers" }
+				{ "Weight" : 49, "Strategy" : "PlasmaProxy2Gate" },
+				{ "Weight" : 51, "Strategy" : "PlasmaCorsairsCarriers" }
 			]}
 		},
 
