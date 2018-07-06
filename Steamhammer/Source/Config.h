@@ -21,6 +21,7 @@ namespace Config
 
 	namespace IO
 	{
+		extern std::string AIDir;
 		extern std::string ReadDir;
 		extern std::string WriteDir;
 		extern int MaxGameRecords;

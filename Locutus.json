@@ -74,6 +74,7 @@
     
     "IO" :
     {
+        "AIDirectory"			: "bwapi-data/AI/",
         "ReadDirectory"			: "bwapi-data/read/",
         "WriteDirectory"		: "bwapi-data/write/",
 

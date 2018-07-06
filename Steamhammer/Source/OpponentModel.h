@@ -46,6 +46,8 @@ namespace UAlbertaBot
 
 		OpeningPlan predictEnemyPlan() const;
 
+        void readFile(std::string filename);
+
 		void considerSingleStrategy();
 		void considerOpenings();
 		void reconsiderEnemyPlan();

@@ -144,6 +144,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 	{
 		const rapidjson::Value & io = doc["IO"];
 
+		JSONTools::ReadString("AIDirectory", io, Config::IO::AIDir);
 		JSONTools::ReadString("ReadDirectory", io, Config::IO::ReadDir);
 		JSONTools::ReadString("WriteDirectory", io, Config::IO::WriteDir);
 

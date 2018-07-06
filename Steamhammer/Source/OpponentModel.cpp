@@ -459,35 +459,49 @@ OpponentModel::OpponentModel()
 	_filename = "om_" + InformationManager::Instance().getEnemyName() + ".txt";
 }
 
+void OpponentModel::readFile(std::string filename)
+{
+    std::ifstream inFile(filename);
+
+    // There may not be a file to read. That's OK.
+    if (inFile.bad())
+    {
+        return;
+    }
+
+    while (inFile.good())
+    {
+        // NOTE We allocate records here and never free them if valid.
+        //      Their lifetime is the whole game.
+        GameRecord * record = new GameRecord(inFile);
+        if (record->isValid())
+        {
+            _pastGameRecords.push_back(record);
+        }
+        else
+        {
+            delete record;
+        }
+    }
+
+    inFile.close();
+}
+
 // Read past game records from the opponent model file, and do initial analysis.
 void OpponentModel::read()
 {
 	if (Config::IO::ReadOpponentModel)
 	{
-		std::ifstream inFile(Config::IO::ReadDir + _filename);
+        // Usually the data is in the read directory
+        readFile(Config::IO::ReadDir + _filename);
 
-		// There may not be a file to read. That's OK.
-		if (inFile.bad())
-		{
-			return;
-		}
-
-		while (inFile.good())
-		{
-			// NOTE We allocate records here and never free them if valid.
-			//      Their lifetime is the whole game.
-			GameRecord * record = new GameRecord(inFile);
-			if (record->isValid())
-			{
-				_pastGameRecords.push_back(record);
-			}
-			else
-			{
-				delete record;
-			}
-		}
-
-		inFile.close();
+        // For tournaments, we might not have access to put pre-trained data into the read directory
+        // So if we don't have any data, check if there is anything in the AI directory
+        // We will write out the entire data set at the end of the game, so we only have to do this once
+        if (_pastGameRecords.empty())
+        {
+            readFile(Config::IO::AIDir + _filename);
+        }
 	}
 
 	// Make immediate decisions that may take into account the game records.

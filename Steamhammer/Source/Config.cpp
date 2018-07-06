@@ -17,6 +17,7 @@ namespace Config
 
 	namespace IO
 	{
+		std::string AIDir					= "bwapi-data/AI/";
 		std::string ReadDir					= "bwapi-data/read/";
 		std::string WriteDir				= "bwapi-data/write/";
 		int MaxGameRecords					= 0;
