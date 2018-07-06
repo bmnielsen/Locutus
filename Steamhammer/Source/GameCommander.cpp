@@ -81,6 +81,14 @@ void GameCommander::update()
 	_timerManager.stopTimer(TimerManager::Worker);
 
 #ifdef CRASH_DEBUG
+	Log().Debug() << "StrategyManager";
+#endif
+
+	_timerManager.startTimer(TimerManager::Strategy);
+    StrategyManager::Instance().update();
+	_timerManager.stopTimer(TimerManager::Strategy);
+
+#ifdef CRASH_DEBUG
 	Log().Debug() << "ProductionManager";
 #endif
 
@@ -165,7 +173,8 @@ void GameCommander::drawDebugInterface()
 void GameCommander::drawGameInformation(int x, int y)
 {
 	const std::string & openingGroup = StrategyManager::Instance().getOpeningGroup();
-	bool gasSteal = OpponentModel::Instance().getRecommendGasSteal() || ScoutManager::Instance().wantGasSteal();
+	bool gasSteal = !StrategyManager::Instance().isRushing() && 
+        (OpponentModel::Instance().getRecommendGasSteal() || ScoutManager::Instance().wantGasSteal());
 
 	std::stringstream strategy;
 	strategy << Config::Strategy::StrategyName;

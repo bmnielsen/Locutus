@@ -1,6 +1,7 @@
 #include "CombatSimulation.h"
 #include "FAP.h"
 #include "UnitUtil.h"
+#include "StrategyManager.h"
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
@@ -10,7 +11,7 @@ CombatSimulation::CombatSimulation()
     : myUnitsCentroid(BWAPI::Positions::Invalid)
     , enemyUnitsCentroid(BWAPI::Positions::Invalid)
     , airBattle(false)
-    , rush(false)
+    , last(std::make_pair(0, 0))
 {
 }
 
@@ -35,6 +36,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 
     std::vector<UnitInfo> enemyUnits;
 
+    bool rushing = StrategyManager::Instance().isRushing();
+
 	// Add enemy units.
 	if (visibleOnly)
 	{
@@ -44,6 +47,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		for (const auto unit : enemyCombatUnits)
 		{
             if (ignoreBunkers && unit->getType() == BWAPI::UnitTypes::Terran_Bunker) continue;
+            if (rushing && unit->getType().isFlyer()) continue;
 
 			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit))
 			{
@@ -61,6 +65,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		for (const UnitInfo & ui : enemyStaticDefense)
 		{
             if (ignoreBunkers && ui.type == BWAPI::UnitTypes::Terran_Bunker) continue;
+            if (rushing && ui.type.isFlyer()) continue;
 
 			if (ui.type.isBuilding() && 
 				ui.lastHealth > 0 &&
@@ -85,6 +90,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		for (const UnitInfo & ui : enemyCombatUnits)
 		{
             if (ignoreBunkers && ui.type == BWAPI::UnitTypes::Terran_Bunker) continue;
+            if (rushing && ui.type.isFlyer()) continue;
 
             // The check is careful about seen units and assumes that unseen units are powered.
 			if (ui.lastHealth > 0 &&
@@ -123,7 +129,6 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 	BWAPI::Unitset ourCombatUnits;
 	MapGrid::Instance().getUnits(ourCombatUnits, center, radius, true, false);
     std::vector<BWAPI::Unit> myUnits;
-    rush = BWAPI::Broodwar->getFrameCount() < 10000;
 	for (const auto unit : ourCombatUnits)
 	{
 		if (UnitUtil::IsCombatSimUnit(unit))
@@ -134,7 +139,6 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 				continue;
 			}
             myUnits.push_back(unit);
-            rush = rush && (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot || unit->getType() == BWAPI::UnitTypes::Protoss_Probe);
 			if (Config::Debug::DrawCombatSimulationInfo)
 			{
 				BWAPI::Broodwar->drawCircleMap(unit->getPosition(), 3, BWAPI::Colors::Green, true);
@@ -159,14 +163,16 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
     }
 }
 
-double CombatSimulation::simulateCombat()
+double CombatSimulation::simulateCombat(bool currentlyRetreating)
 {
 	fap.simulate();
 	std::pair<int, int> scores = fap.playerScores();
 
+    bool rushing = StrategyManager::Instance().isRushing();
+
     // Make some adjustments based on the ground geography if we know where the armies are located
     // Doesn't apply to rushes: zealots don't have as many problems with chokes, and FAP will simulate elevation
-    if (myUnitsCentroid.isValid() && enemyUnitsCentroid.isValid() && !airBattle && !rush)
+    if (myUnitsCentroid.isValid() && enemyUnitsCentroid.isValid() && !airBattle && !rushing)
     {
         // Are we attacking through a narrow choke?
         bool narrowChoke = false;
@@ -194,14 +200,25 @@ double CombatSimulation::simulateCombat()
         }
     }
 
-    // When rushing, give our own army an artificial bonus
-    // This is to promote aggression: our rush needs to do damage, and we have more units coming
-    if (rush)
+    // Weight the combat simulation result when we're rushing
+    // Purpose: Be more aggressive, our rush needs to do damage to the enemy's economy
+    if (rushing)
     {
-        scores.first = (scores.first * 4) / 3;
+        // When retreating, don't forget the last score just because something goes out of range
+        if (currentlyRetreating)
+            scores.second = std::max(scores.second, last.second);
+
+        // We ramp up the aggression depending on how many units we have
+        // We don't want to just throw individual units away
+        double factor = currentlyRetreating 
+            ? std::max(1.0, std::min(2.0, 1.0 + ((double)scores.first - 300.0) / 150.0))
+            : std::max(1.0, std::min(3.0, 1.0 + ((double)scores.first - 100.0) / 100.0));
+
+        Log().Debug() << "Rush: Original combat sim ours " << scores.first << " theirs " << scores.second << ", boosting ours to " << (scores.first * factor);
+        scores.first = (double)scores.first * factor;
     }
 
-    //Log().Get() << "Combat sim: Me " << BWAPI::TilePosition(myUnitsCentroid) << ": " << scores.first << "; enemy " << BWAPI::TilePosition(enemyUnitsCentroid) << ": " << scores.second;
+    last = scores;
 
 	int score = scores.first - scores.second;
 

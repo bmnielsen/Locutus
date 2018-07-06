@@ -15,6 +15,7 @@ StrategyManager::StrategyManager()
 	, _enemyRace(BWAPI::Broodwar->enemy()->getRace())
     , _emptyBuildOrder(BWAPI::Broodwar->self()->getRace())
 	, _openingGroup("")
+	, _rushing(false)
 	, _hasDropTech(false)
 	, _highWaterBases(1)
 	, _openingStaticDefenseDropped(false)
@@ -25,6 +26,35 @@ StrategyManager & StrategyManager::Instance()
 {
 	static StrategyManager instance;
 	return instance;
+}
+
+void StrategyManager::update()
+{
+    // Check if we should stop a rush
+    if (_rushing)
+    {
+        // Stop the rush when the enemy has 3 or more non-tier-1 combat units
+        int nonTierOneCombatUnits = 0;
+        for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+        {
+            if (unit.second.type.isBuilding()) continue;
+            if (!UnitUtil::IsCombatUnit(unit.second.type)) continue;
+            if (UnitUtil::IsTierOneCombatUnit(unit.second.type)) continue;
+            nonTierOneCombatUnits++;
+        }
+
+        if (nonTierOneCombatUnits >= 3)
+        {
+            _rushing = false;
+            if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
+            {
+                _openingGroup = "dragoons";
+                ProductionManager::Instance().queueMacroAction(BWAPI::UnitTypes::Protoss_Cybernetics_Core);
+                ProductionManager::Instance().queueMacroAction(BWAPI::UnitTypes::Protoss_Assimilator);
+                CombatCommander::Instance().finishedRushing();
+            }
+        }
+    }
 }
 
 const BuildOrder & StrategyManager::getOpeningBookBuildOrder() const
@@ -79,7 +109,7 @@ void StrategyManager::addStrategy(const std::string & name, Strategy & strategy)
 // Set _openingGroup depending on the current strategy, which in principle
 // might be from the config file or from opening learning.
 // This is part of initialization; it happens early on.
-void StrategyManager::setOpeningGroup()
+void StrategyManager::initializeOpening()
 {
 	auto buildOrderItr = _strategies.find(Config::Strategy::StrategyName);
 
@@ -87,6 +117,14 @@ void StrategyManager::setOpeningGroup()
 	{
 		_openingGroup = (*buildOrderItr).second._openingGroup;
 	}
+
+    // Is the build a rush build?
+    _rushing = 
+        Config::Strategy::StrategyName == "9-9Gate" ||
+        Config::Strategy::StrategyName == "9-9GateDefensive" ||
+        Config::Strategy::StrategyName == "Proxy9-9Gate";
+
+    if (_rushing) Log().Get() << "Enabled rush mode";
 }
 
 const std::string & StrategyManager::getOpeningGroup() const
@@ -211,22 +249,12 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	double zealotRatio = 0.0;
 	double goonRatio = 0.0;
 
-    // Opening group transitions
-
     // On Plasma, transition to carriers on two bases or if our proxy gateways die
     // We will still build ground units as long as we have an active proxy gateway
     if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
-        (numNexusAll >= 2 || numGateways == 0 || !gatewaysAreAtProxy))
+        (numNexusAll >= 2 || numGateways == 0 || !gatewaysAreAtProxy || !isRushing()))
     {
         _openingGroup = "carriers";
-    }
-
-    // Transition to goons off of a rush build vs. other than Zerg
-    // Against Zerg we can go ahead and continue with zealots
-    else if (numNexusCompleted >= 2 && _openingGroup == "zealots" &&
-        BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
-    {
-        _openingGroup = "dragoons";
     }
 
 	// Initial ratios
@@ -1525,6 +1553,11 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Only expand if we aren't on the defensive
     bool safeToMacro = !CombatCommander::Instance().onTheDefensive();
 
+    // If we currently want dragoons, only expand once we have some
+    // This helps when transitioning out of a rush or when we might be in trouble
+    if (_openingGroup == "dragoons" && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 1)
+        safeToMacro = false;
+
     // Count how many active mineral patches we have
     // We don't count patches that are close to being mined out
     int mineralPatches = 0;
@@ -1545,16 +1578,18 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
     // Are we gas blocked?
     bool gasBlocked = WorkerManager::Instance().isCollectingGas() &&
-        BWAPI::Broodwar->self()->gas() < 400 && BWAPI::Broodwar->self()->minerals() > 700 && BWAPI::Broodwar->self()->minerals() > BWAPI::Broodwar->self()->gas() * 3;
+        BWAPI::Broodwar->self()->gas() < 50 && BWAPI::Broodwar->self()->minerals() > 700;
 
     // Queue an expansion if:
     // - it is safe to do so
     // - we don't already have one queued
     // - we want more active mineral patches than we currently have OR we are gas blocked
+    // - we aren't currently in the middle of a rush
     if (safeToMacro &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
-        (mineralPatches < desiredMineralPatches || gasBlocked))
+        (mineralPatches < desiredMineralPatches || gasBlocked) &&
+        !isRushing())
     {
         // Double-check that there is actually a place to expand to
         if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
@@ -1567,10 +1602,12 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Queue a probe unless:
     // - we are already oversaturated
     // - we are close to maxed and have a large mineral bank
+    // - we are rushing and already have two workers on each patch, plus one extra to build stuff
     if (!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Probe)
         && probes < WorkerManager::Instance().getMaxWorkers()
         && WorkerManager::Instance().getNumIdleWorkers() < 5
-        && (BWAPI::Broodwar->self()->supplyUsed() < 350 || BWAPI::Broodwar->self()->minerals() < 1500))
+        && (BWAPI::Broodwar->self()->supplyUsed() < 350 || BWAPI::Broodwar->self()->minerals() < 1500)
+        && (!isRushing() || probes < ((mineralPatches * 2) + 1)))
     {
         bool idleNexus = false;
         for (const auto unit : BWAPI::Broodwar->self()->getUnits())

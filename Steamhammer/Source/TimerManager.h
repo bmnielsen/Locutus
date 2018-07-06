@@ -20,7 +20,7 @@ class TimerManager
 
 public:
 
-	enum Type { Total, Worker, Production, Building, Combat, Scout, InformationManager, MapGrid, Search, OpponentModel, NumTypes };
+	enum Type { Total, Worker, Strategy, Production, Building, Combat, Scout, InformationManager, MapGrid, Search, OpponentModel, NumTypes };
 
 	TimerManager();
 

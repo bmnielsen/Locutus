@@ -1,6 +1,7 @@
 #include "MicroMelee.h"
 #include "UnitUtil.h"
 #include "BuildingPlacer.h"
+#include "StrategyManager.h"
 
 using namespace UAlbertaBot;
 
@@ -147,6 +148,14 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		// Let's say that 1 priority step is worth 64 pixels (2 tiles).
 		// We care about unit-target range and target-order position distance.
 		int score = 2 * 32 * priority - range;
+
+        // Kamikaze and rush attacks ignore all tier 2+ combat units
+        if ((StrategyManager::Instance().isRushing() || order.getType() == SquadOrderTypes::KamikazeAttack) &&
+            UnitUtil::IsCombatUnit(target) && 
+            !UnitUtil::IsTierOneCombatUnit(target->getType()))
+        {
+            continue;
+        }
 
 		// Adjust for special features.
 
@@ -325,6 +334,12 @@ bool MicroMelee::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unit
 {
     // terran don't regen so it doesn't make sense to retreat
     if (meleeUnit->getType().getRace() == BWAPI::Races::Terran)
+    {
+        return false;
+    }
+
+    // Don't retreat while rushing
+    if (StrategyManager::Instance().isRushing())
     {
         return false;
     }

@@ -13,7 +13,7 @@ private:
     BWAPI::Position myUnitsCentroid;
     BWAPI::Position enemyUnitsCentroid;
     bool airBattle;
-    bool rush;
+    std::pair<int, int> last;
 
 public:
 
@@ -21,6 +21,6 @@ public:
 
 	void setCombatUnits(const BWAPI::Position & center, const int radius, bool visibleOnly, bool ignoreBunkers);
 
-	double simulateCombat();
+	double simulateCombat(bool currentlyRetreating);
 };
 }

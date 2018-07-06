@@ -17,7 +17,7 @@ namespace SquadOrderTypes
 		Load,      // load into a transport (Drop squad)
 		Drop,      // go drop on the enemy (Drop squad)
 		Harass,    // harass the enemy
-		KamikazeAttack,    // attack the enemy and never retreat
+		KamikazeAttack,    // attacks the enemy with much higher aggression, ignoring air units
 	};
 }
 

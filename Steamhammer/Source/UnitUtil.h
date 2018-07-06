@@ -20,6 +20,7 @@ namespace UnitUtil
 	bool IsCombatUnit(BWAPI::UnitType type);
 	bool IsCombatUnit(BWAPI::Unit unit);
     bool IsValidUnit(BWAPI::Unit unit);
+    bool IsTierOneCombatUnit(BWAPI::UnitType type);
     
 	bool CanAttack(BWAPI::Unit attacker, BWAPI::Unit target);
 	bool CanAttack(BWAPI::UnitType attacker, BWAPI::UnitType target);

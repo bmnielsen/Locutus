@@ -461,59 +461,75 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
         // Set the proxy block if it is not already
         if (!_proxyBlock)
         {
-            BWAPI::Position proxyCloseTo = BWAPI::Positions::Invalid;
-            auto _enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
-            if (_enemyBase)
+            // Gather the possible enemy start locations
+            std::vector<BWTA::BaseLocation*> enemyStartLocations;
+            if (InformationManager::Instance().getEnemyMainBaseLocation())
             {
-                proxyCloseTo = _enemyBase->getPosition();
-            }
-            else if (BWTA::getStartLocations().size() == 3)
-            {
-                proxyCloseTo = BWAPI::Position(0, 0);
-                for (auto base : BWTA::getStartLocations())
-                {
-                    if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
-                    proxyCloseTo = proxyCloseTo + base->getPosition();
-                }
-                proxyCloseTo = proxyCloseTo / (BWTA::getStartLocations().size() - 1);
+                enemyStartLocations.push_back(InformationManager::Instance().getEnemyMainBaseLocation());
             }
             else
             {
-                proxyCloseTo = BWAPI::Position(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2));
+                for (auto base : BWTA::getStartLocations())
+                {
+                    if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
+                    enemyStartLocations.push_back(base);
+                }
             }
 
-            // Find the closest block that powers two large buildings
-            BWAPI::Position main = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
+            // Find the block that:
+            // - Powers two gateways
+            // - Is not in the same region as a start location
+            // - Has the lowest max distance to all start locations
+            // We also include a small factor with the distance to our main
+            // Some maps don't have a buildable center, so it's better to build near our natural
+            BWAPI::Position mainPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
             int distBest = INT_MAX;
             for (auto &block : bwebMap.Blocks())
             {
                 if (block.LargeTiles().size() < 2) continue;
-                if (_enemyBase && BWTA::getRegion(block.Location()) == _enemyBase->getRegion()) continue;
 
                 BWAPI::Position blockCenter =
                     BWAPI::Position(block.Location()) + BWAPI::Position(block.width() * 16, block.height() * 16);
 
-                // Must have a path to our main
-                int mainDist;
-                bwemMap.GetPath(blockCenter, main, &mainDist);
-                if (mainDist == -1) continue;
-
-                // Distance from desired position
-                int dist;
-                bwemMap.GetPath(blockCenter, proxyCloseTo, &dist);
-                if (dist == -1) continue;
-
-                // If we don't know the enemy base location, give a slight preference to blocks closer to our base
-                if (!_enemyBase)
+                // Get the minimum and maximum distance to the possible enemy start locations
+                int minDist = INT_MAX;
+                int maxDist = 0;
+                for (auto base : enemyStartLocations)
                 {
-                    dist += mainDist / 10;
+                    // Short-circuit if the block is in a start location region
+                    if (BWTA::getRegion(block.Location()) == base->getRegion()) goto nextBlock;
+
+                    // Get ground distance with BWEM
+                    int dist;
+                    bwemMap.GetPath(blockCenter, base->getPosition(), &dist);
+
+                    // If this block isn't connected to this base, skip it
+                    if (dist == -1) goto nextBlock;
+
+                    if (dist > maxDist)
+                        maxDist = dist;
+                    if (dist < minDist)
+                        minDist = dist;
                 }
 
-                if (dist < distBest)
+                // If this is a four-player map and there is a large variance between the min and max distances,
+                // the center is probably not buildable on this map
+                // In this case, we should prefer a location closer to our main
+                int weightedDist = maxDist;
+                if (enemyStartLocations.size() >= 3 && minDist < ((double)maxDist * 0.75))
                 {
+                    int distToOurMain;
+                    bwemMap.GetPath(blockCenter, mainPosition, &distToOurMain);
+                    weightedDist += distToOurMain;
+                }
+
+                if (weightedDist < distBest)
+                {
+                    distBest = weightedDist;
                     _proxyBlock = &block;
-                    distBest = dist;
                 }
+
+            nextBlock:;
             }
         }
 

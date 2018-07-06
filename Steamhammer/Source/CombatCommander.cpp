@@ -55,8 +55,8 @@ void CombatCommander::initializeSquads()
 	// The flying squad separates air units so they can act independently.
 	_squadData.addSquad(Squad("Flying", mainAttackOrder, AttackPriority));
 
-    // The kamikaze squad is an attack squad that never retreats
-    // We put units in here that are doomed anyway
+    // The kamikaze squad is an attack squad that (almost) never retreats
+    // We put zealots in here that can no longer fight efficiently, for example if the enemy has air or ranged units
     _squadData.addSquad(Squad("Kamikaze", mainAttackOrder, KamikazePriority));
 
 	// The recon squad carries out reconnaissance in force to deny enemy bases.
@@ -139,31 +139,56 @@ void CombatCommander::updateIdleSquad()
 
 void CombatCommander::updateKamikazeSquad()
 {
-    // We currently add units to the kamikaze squad in one situation: we are fighting a zerg
-    // opponent who has done a muta switch and we only have zealots
-    if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg) return;
-    if (!InformationManager::Instance().enemyHasAirCombatUnits()) return;
-
-    Squad & groundSquad = _squadData.getSquad("Ground");
+    // Always make sure the order is updated
+    // For now we are just using the same order as the main squad
     Squad & kamikazeSquad = _squadData.getSquad("Kamikaze");
-
-    // Add units to the kamikaze squad if needed
-    if (!groundSquad.isEmpty() && !groundSquad.canAttackAir())
-    {
-        std::vector<BWAPI::Unit> unitsToMove;
-        for (auto & unit : groundSquad.getUnits())
-            if (_squadData.canAssignUnitToSquad(unit, kamikazeSquad))
-                unitsToMove.push_back(unit);
-
-        for (auto & unit : unitsToMove)
-            _squadData.assignUnitToSquad(unit, kamikazeSquad);
-
-        Log().Get() << "Sent " << unitsToMove.size() << " units on a kamikaze attack";
-    }
-
-    // For now we just use the same order as the main squad
     SquadOrder kamikazeOrder(SquadOrderTypes::KamikazeAttack, getAttackLocation(&kamikazeSquad), AttackRadius, "Kamikaze attack enemy base");
     kamikazeSquad.setSquadOrder(kamikazeOrder);
+
+    Squad & groundSquad = _squadData.getSquad("Ground");
+    if (groundSquad.isEmpty()) return;
+
+    // We currently add zealots to the kamikaze squad in two situations:
+    // - Our squad cannot fight air and we are fighting a zerg opponent who has done a muta switch
+    // - We are transitioning out of a rush and want to do as much damage as possible with the remaining units
+    // (the second case is handled in finishedRushing())
+
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+    {
+        if (!InformationManager::Instance().enemyHasAirCombatUnits() || groundSquad.canAttackAir())
+            return;
+    }
+    else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
+    {
+        // Ensure our squad is all zealots
+        for (auto & unit : groundSquad.getUnits())
+            if (unit->getType() != BWAPI::UnitTypes::Protoss_Zealot)
+                return;
+
+        // Ensure the enemy has at least three dragoons
+        int enemyDragoons = 0;
+        for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+            if (unit.second.type == BWAPI::UnitTypes::Protoss_Dragoon)
+                enemyDragoons++;
+
+        if (enemyDragoons < 3) return;
+
+        // Make sure we have at least as many zealots as the enemy has goons
+        if (groundSquad.getUnits().size() < enemyDragoons) return;
+    }
+    else
+        return;
+
+    // Move the units
+    std::vector<BWAPI::Unit> unitsToMove;
+    for (auto & unit : groundSquad.getUnits())
+        if (_squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+            unitsToMove.push_back(unit);
+
+    for (auto & unit : unitsToMove)
+        _squadData.assignUnitToSquad(unit, kamikazeSquad);
+
+    Log().Get() << "Sent " << unitsToMove.size() << " units on a kamikaze attack";
 }
 
 // Update the base harassment squads
@@ -1538,6 +1563,28 @@ void CombatCommander::releaseWorkers()
 	groundSquad.releaseWorkers();
 }
 
+void CombatCommander::finishedRushing()
+{
+    // Against zerg we don't have to do anything special, we can continue with zealots
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg) return;
+
+    // When we are finished rushing, all units from the ground squad go into the kamikaze squad
+    Squad & groundSquad = _squadData.getSquad("Ground");
+    Squad & kamikazeSquad = _squadData.getSquad("Kamikaze");
+
+    std::vector<BWAPI::Unit> unitsToMove;
+    for (auto & unit : groundSquad.getUnits())
+        if (_squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+            unitsToMove.push_back(unit);
+
+    if (unitsToMove.empty()) return;
+
+    for (auto & unit : unitsToMove)
+        _squadData.assignUnitToSquad(unit, kamikazeSquad);
+
+    Log().Get() << "Finished rushing; sent " << unitsToMove.size() << " units on a kamikaze attack";
+}
+
 // Whether we are currently on the defensive
 // This may be because we haven't gone aggressive yet, or if our squads have been pushed back close to our base
 bool CombatCommander::onTheDefensive()
@@ -1561,9 +1608,9 @@ bool CombatCommander::onTheDefensive()
     if (flyingSquad.hasCombatUnits() && flyingSquad.calcCenter().getApproxDistance(base->getPosition()) > 1500)
         return false;
 
-    // Our squads are empty or close to home. We're on the defensive if we can see an enemy unit close to our base.
-    for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
-        if (unit->exists() && unit->isVisible() && unit->getDistance(base->getPosition()) < 1000)
+    // Our squads are empty or close to home. We're on the defensive if an enemy unit is close to our base
+    for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+        if (ui.second.lastPosition.getApproxDistance(base->getPosition()) < 1500)
             return true;
 
     return false;

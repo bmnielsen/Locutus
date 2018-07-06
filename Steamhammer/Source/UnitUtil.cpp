@@ -170,6 +170,13 @@ bool UnitUtil::IsValidUnit(BWAPI::Unit unit)
 		&& unit->getPlayer() == BWAPI::Broodwar->self();           // catches mind controlled units
 }
 
+bool UnitUtil::IsTierOneCombatUnit(BWAPI::UnitType type)
+{
+    return type == BWAPI::UnitTypes::Zerg_Zergling ||
+        type == BWAPI::UnitTypes::Terran_Marine ||
+        type == BWAPI::UnitTypes::Protoss_Zealot;
+}
+
 bool UnitUtil::CanAttack(BWAPI::Unit attacker, BWAPI::Unit target)
 {
 	return target->isFlying() ? TypeCanAttackAir(attacker->getType()) : TypeCanAttackGround(attacker->getType());

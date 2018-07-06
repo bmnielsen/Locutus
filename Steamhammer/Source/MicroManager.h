@@ -44,7 +44,7 @@ public:
 	void				setUnits(const BWAPI::Unitset & u);
 	void				setOrder(const SquadOrder & inputOrder);
 	void				execute();
-	void				regroup(const BWAPI::Position & regroupPosition) const;
+	void				regroup(const BWAPI::Position & regroupPosition, const BWAPI::Unit vanguard, std::map<BWAPI::Unit, bool> & nearEnemy) const;
 
 };
 }

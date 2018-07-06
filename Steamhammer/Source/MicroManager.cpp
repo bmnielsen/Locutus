@@ -77,9 +77,10 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 	MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
 
 	// For some orders, add enemies which are near our units.
-	if (order.getType() == SquadOrderTypes::Attack || 
+	if ((order.getType() == SquadOrderTypes::Attack || 
 	    order.getType() == SquadOrderTypes::KamikazeAttack || 
-        order.getType() == SquadOrderTypes::Defend)
+        order.getType() == SquadOrderTypes::Defend) &&
+        !StrategyManager::Instance().isRushing())
 	{
 		for (const auto unit : _units)
 		{
@@ -159,7 +160,10 @@ bool MicroManager::containsType(BWAPI::UnitType type) const
 	return false;
 }
 
-void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
+void MicroManager::regroup(
+    const BWAPI::Position & regroupPosition, 
+    const BWAPI::Unit vanguard, 
+    std::map<BWAPI::Unit, bool> & nearEnemy) const
 {
 	for (const auto unit : _units)
 	{
@@ -176,6 +180,7 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 		if (buildScarabOrInterceptor(unit))
 		{
 			// We're done for this frame.
+            continue;
 		}
 		else if (unit->getType() == BWAPI::UnitTypes::Zerg_Broodling ||
 			unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar && BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) == 0 ||
@@ -187,12 +192,20 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 				64)))
 		{
 			Micro::AttackMove(unit, unit->getPosition());
+            continue;
 		}
-		else if (unit->getDistance(regroupPosition) > 96)   // air distance, which can be unhelpful sometimes
+
+        // Determine position to move towards
+        // When rushing, we may move towards the vanguard unit when it is safe to do so
+        BWAPI::Position regroupTo = (StrategyManager::Instance().isRushing() && vanguard && !nearEnemy[unit])
+            ? vanguard->getPosition()
+            : regroupPosition;
+
+		if (unit->getDistance(regroupTo) > 96)   // air distance, which can be unhelpful sometimes
 		{
 			if (!mobilizeUnit(unit))
 			{
-                InformationManager::Instance().getLocutusUnit(unit).moveTo(regroupPosition, order.getType() == SquadOrderTypes::Attack);
+                InformationManager::Instance().getLocutusUnit(unit).moveTo(regroupTo, order.getType() == SquadOrderTypes::Attack);
 				//Micro::Move(unit, regroupPosition);
 			}
 		}

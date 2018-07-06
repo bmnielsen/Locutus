@@ -51,6 +51,8 @@ class Squad
 	MicroTanks			_microTanks;
 	MicroTransports		_microTransports;
 
+    CombatSimulation    sim;
+
     // Sub-squads specializing in enemy bunkers
     std::map<BWAPI::Unit, MicroBunkerAttackSquad> bunkerAttackSquads;
 

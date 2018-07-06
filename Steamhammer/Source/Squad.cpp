@@ -4,6 +4,8 @@
 #include "UnitUtil.h"
 #include "MapGrid.h"
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 Squad::Squad()
@@ -100,12 +102,14 @@ void Squad::update()
 			BWAPI::Broodwar->drawCircleMap(regroupPosition.x, regroupPosition.y, 20, BWAPI::Colors::Purple, true);
 		}
         
-		_microAirToAir.regroup(regroupPosition);
-		_microMelee.regroup(regroupPosition);
-		_microDarkTemplar.regroup(regroupPosition);
-		_microRanged.regroup(regroupPosition);
-        _microCarriers.regroup(regroupPosition);
-		_microTanks.regroup(regroupPosition);
+        auto vanguard = unitClosestToEnemy();
+
+		_microAirToAir.regroup(regroupPosition, vanguard, _nearEnemy);
+		_microMelee.regroup(regroupPosition, vanguard, _nearEnemy);
+		_microDarkTemplar.regroup(regroupPosition, vanguard, _nearEnemy);
+		_microRanged.regroup(regroupPosition, vanguard, _nearEnemy);
+        _microCarriers.regroup(regroupPosition, vanguard, _nearEnemy);
+		_microTanks.regroup(regroupPosition, vanguard, _nearEnemy);
 	}
 	else
 	{
@@ -479,8 +483,17 @@ bool Squad::unitNearEnemy(BWAPI::Unit unit)
             (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
             (ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)))
         {
-            int range = UnitUtil::GetAttackRangeAssumingUpgrades(ui.type, unit->getType()) * 32;
-            if (unit->getDistance(ui.lastPosition) < (range + 64)) return true;
+            // When rushing, we also consider the range of the enemy unit
+            if (StrategyManager::Instance().isRushing())
+            {
+                int range = UnitUtil::GetAttackRangeAssumingUpgrades(ui.type, unit->getType());
+                if (unit->getDistance(ui.lastPosition) < (range + 150))
+                {
+                    return true;
+                }
+            }
+            else
+                return true;
         }
     }
 
@@ -611,6 +624,12 @@ const BWAPI::Unitset & Squad::getUnits() const
 
 void Squad::setSquadOrder(const SquadOrder & so)
 {
+    if (so.getType() != _order.getType() ||
+        so.getPosition() != _order.getPosition())
+    {
+        Log().Debug() << "Order for " << _name << " changed to " << so.getCharCode() << " " << BWAPI::TilePosition(so.getPosition());
+    }
+
 	_order = so;
 
 	// Pass the order on to all micromanagers.
@@ -835,10 +854,11 @@ double Squad::runCombatSim(BWAPI::Position center)
     breakBunkerCheck:;
     }
 
-    CombatSimulation sim;
+    int radius = _combatSimRadius;
+    if (StrategyManager::Instance().isRushing()) radius /= 2;
 
-    sim.setCombatUnits(center, _combatSimRadius, _fightVisibleOnly, ignoreBunkers);
-    return sim.simulateCombat();
+    sim.setCombatUnits(center, radius, _fightVisibleOnly, ignoreBunkers);
+    return sim.simulateCombat(_lastRetreatSwitchVal);
 }
 
 const bool Squad::hasCombatUnits() const

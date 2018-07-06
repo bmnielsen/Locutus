@@ -11,6 +11,7 @@ TimerManager::TimerManager()
 {
 	_timerNames.push_back("Total");     // the Total timer must be first! it is referred to by index
 	_timerNames.push_back("Worker");
+	_timerNames.push_back("Strategy");
 	_timerNames.push_back("Production");
 	_timerNames.push_back("Building");
 	_timerNames.push_back("Combat");

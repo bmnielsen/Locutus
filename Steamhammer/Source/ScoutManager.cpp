@@ -154,8 +154,8 @@ void ScoutManager::update()
         _scoutCommand = MacroCommandType::ScoutLocation;
     }
 
-	// Find out if the opponent model wants us to steal gas.
-	if (_workerScout && OpponentModel::Instance().getRecommendGasSteal())
+	// Find out if we want to steal gas.
+	if (_workerScout && !StrategyManager::Instance().isRushing() && OpponentModel::Instance().getRecommendGasSteal())
 	{
 		_tryGasSteal = true;
 	}

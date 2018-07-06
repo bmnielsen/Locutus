@@ -67,7 +67,7 @@ void UAlbertaBotModule::onStart()
 
 	Log().Get() << "I am Locutus of Borg, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName();
 
-	StrategyManager::Instance().setOpeningGroup();    // may depend on config and/or opponent model
+	StrategyManager::Instance().initializeOpening();    // may depend on config and/or opponent model
 
     if (Config::BotInfo::PrintInfoOnStart)
     {
