@@ -439,8 +439,8 @@
                 }
             }
 
-            // Kill if it has been 10 seconds since we got a result
-            if (currentGame.HaveResult && (DateTime.UtcNow - currentGame.ResultTimestamp).TotalSeconds > 10)
+            // Kill if it has been 20 seconds since we got a result
+            if (currentGame.HaveResult && (DateTime.UtcNow - currentGame.ResultTimestamp).TotalSeconds > 20)
             {
                 return true;
             }
