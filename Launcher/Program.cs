@@ -75,6 +75,8 @@
 
         private static int crashes;
 
+        private static StreamWriter logFile = null;
+
         public static void Main(string[] args)
         {
             Go(args);
@@ -167,7 +169,9 @@
                     return;
                 }
 
-                var outputFilename = "trainingrun-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss") + ".csv";
+                var filename = "trainingrun-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+                logFile = File.CreateText(filename + ".log");
+                var outputFilename = filename + ".csv";
                 File.AppendAllText(outputFilename, "Opponent;Map;Game ID;My Strategy;Opponent Strategy;Result\n");
 
                 var trainingOpponents = File.ReadAllLines("opponents.csv")
@@ -212,7 +216,8 @@
                     var result = currentGame.HaveResult ? (currentGame.Won ? "win" : "loss") : "crash";
                     File.AppendAllText(outputFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.OpponentStrategy};{result}\n");
 
-                    Console.WriteLine("Overall score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
+                    Output("Overall score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
+                    logFile.Flush();
                 }
             }
 
@@ -230,7 +235,7 @@
                         crashes++;
                     }
 
-                    Console.WriteLine("Score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
+                    Output("Score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
 
                     count++;
                     if (count >= limit) break;
@@ -244,7 +249,7 @@
 
         private static void Run(string opponent, string map, bool isHeadless, bool showReplay, int timeout)
         {
-            Console.WriteLine("Starting game against {0} on {1}", opponent, map);
+            Output("Starting game against {0} on {1}", opponent, map);
 
             var headless = isHeadless ? "--headless" : string.Empty;
             var timeoutParam = timeout > 0 ? "--timeout " + timeout : string.Empty;
@@ -267,6 +272,11 @@
             while (!process.HasExited)
             {   
                 Thread.Sleep(500);
+
+                if (logFile != null)
+                {
+                    logFile.Flush();
+                }
 
                 if (string.IsNullOrEmpty(currentGame.Id))
                 {
@@ -336,12 +346,12 @@
 
                 if (currentGame.Won)
                 {
-                    Console.WriteLine("Result: Won");
+                    Output("Result: Won");
                     wins++;
                 }
                 else
                 {
-                    Console.WriteLine("Result: Loss");
+                    Output("Result: Loss");
                     losses++;
                 }
             }
@@ -396,7 +406,7 @@
                     currentGame.OpponentStrategy = line.Substring(line.IndexOf(": Opponent: ", StringComparison.InvariantCulture) + 12);
                 }
 
-                Console.WriteLine($"{DateTime.Now:HH:mm:ss} {prefix}{line}");
+                Output($"{DateTime.Now:HH:mm:ss} {prefix}{line}");
             }
         }
 
@@ -407,12 +417,12 @@
                 return;
             }
             
-            Console.WriteLine($"{DateTime.Now:HH:mm:ss} {e.Data}");
+            Output($"{DateTime.Now:HH:mm:ss} {e.Data}");
 
             if (e.Data.Contains("Waiting until game GAME_"))
             {
                 currentGame.Id = e.Data.Substring(e.Data.IndexOf("GAME_", StringComparison.Ordinal) + 5, 8);
-                Console.WriteLine("Got game ID {0}", currentGame.Id);
+                Output("Got game ID {0}", currentGame.Id);
             }
         }
 
@@ -429,7 +439,7 @@
 
                     if (currentGame.WaitingForPlayersCount > 2)
                     {
-                        Console.WriteLine("Killing game as it appears to have crashed");
+                        Output("Killing game as it appears to have crashed");
                         return true;
                     }
                 }
@@ -525,6 +535,12 @@
             {
                 Console.WriteLine("Failed to clear {0}: {1}", directory, exception.Message);
             }
+        }
+
+        private static void Output(string format, params object[] args)
+        {
+            Console.WriteLine(format, args);
+            logFile?.WriteLine(format, args);
         }
 
         private class GameData
