@@ -624,8 +624,7 @@ void OpponentModel::read()
         _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonBuilt;
         status << "have mannered: ";
         if (mannerTries < 5 ||
-            (mannerTries < 10 && (double)mannerWins / (double)count > 0.9 * winRate) ||
-            (double)mannerWins / (double)count > winRate)
+            (double)mannerWins / (double)mannerTries > 0.9 * winRate)
         {
             bool effective = false;
             if ((double)mannerPylonAttackedByMultipleWorkersWhileBuilding / (double)mannerTries > (mannerTries > 3 ? 0.49 : 0.32))
@@ -650,7 +649,7 @@ void OpponentModel::read()
         }
         else
         {
-            status << "low win rate";
+            status << "low win rate: " << ((double)mannerWins / (double)mannerTries) << " vs. " << winRate;
         }
     }
     else
@@ -662,8 +661,7 @@ void OpponentModel::read()
         _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::LurePylonBuilt;
         status << "; have lured: ";
         if (lureTries < 5 ||
-            (lureTries < 10 && (double)lureWins / (double)count > 0.9 * winRate) ||
-            (double)lureWins / (double)count > winRate)
+            (double)lureWins / (double)lureTries > 0.9 * winRate)
         {
             bool effective = false;
             if ((double)lurePylonAttackedByMultipleWorkersWhileBuilding / (double)lureWins > (lureTries > 3 ? 0.49 : 0.32))
@@ -682,7 +680,7 @@ void OpponentModel::read()
         }
         else
         {
-            status << "low win rate";
+            status << "low win rate: " << ((double)lureWins / (double)lureTries) << " vs. " << winRate;
         }
     }
     else
@@ -819,15 +817,21 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 
     // Compute a factor to adjust the weight for each strategy
     // More recent results are weighted more heavily
+    // Results on the same map are weighted more heavily
 	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend(); it++)
 	{
 		if (!_gameRecord.sameMatchup(**it)) continue;
+        bool sameMap = _gameRecord.getMapName() == BWAPI::Broodwar->mapFileName();
 
 		auto& strategy = (*it)->getOpeningName();
 
 		if (result.find(strategy) == result.end())
 		{
-			result[strategy] = 1.0;
+            // Our proxy 2-gate is given a boost on 2-player maps
+            if (strategy == "Proxy9-9Gate" && BWAPI::Broodwar->getStartLocations().size() == 2)
+			    result[strategy] = 1.5;
+            else
+                result[strategy] = 1.0;
 			strategyCount[strategy] = 0;
             strategyLosses[strategy] = 0;
 		}
@@ -836,10 +840,10 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 		strategyCount[strategy] = strategyCount[strategy] + 1;
 
 		if ((*it)->getWin())
-			factor *= 1.0 + 1.6 / strategyCount[strategy];
+			factor *= 1.0 + (sameMap ? 2.0 : 1.6) / strategyCount[strategy];
         else
         {
-            factor *= 1.0 - 0.6 / strategyCount[strategy];
+            factor *= 1.0 - (sameMap ? 0.4 : 0.6) / strategyCount[strategy];
             strategyLosses[strategy] = strategyLosses[strategy] + 1;
         }
 
