@@ -500,7 +500,7 @@ bool Squad::unitNearEnemy(BWAPI::Unit unit)
     return false;
 }
 
-BWAPI::Position Squad::calcCenter()
+BWAPI::Position Squad::calcCenter() const
 {
     if (_units.empty())
     {

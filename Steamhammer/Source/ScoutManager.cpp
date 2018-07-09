@@ -155,7 +155,8 @@ void ScoutManager::update()
     }
 
 	// Find out if we want to steal gas.
-	if (_workerScout && !StrategyManager::Instance().isRushing() && OpponentModel::Instance().getRecommendGasSteal())
+	if (_workerScout && !StrategyManager::Instance().isRushing() && OpponentModel::Instance().getRecommendGasSteal() &&
+        Config::Strategy::StrategyName != "PlasmaProxy2Gate")
 	{
 		_tryGasSteal = true;
 	}

@@ -90,7 +90,7 @@ public:
     void                setPriority(const size_t & priority);
     const std::string & getName() const;
     
-	BWAPI::Position     calcCenter();
+	BWAPI::Position     calcCenter() const;
 	BWAPI::Position     calcRegroupPosition();
 
 	const BWAPI::Unitset &  getUnits() const;

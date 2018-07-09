@@ -152,8 +152,8 @@
 			]},
 			
 			"6f5295624a7e3887470f3f2e14727b1411321a67" : { "Protoss" : [
-				{ "Weight" : 49, "Strategy" : "PlasmaProxy2Gate" },
-				{ "Weight" : 51, "Strategy" : "PlasmaCarriers" }
+				{ "Weight" : 51, "Strategy" : "PlasmaProxy2Gate" },
+				{ "Weight" : 49, "Strategy" : "PlasmaCarriers" }
 			]},
 			"6f5295624a7e3887470f3f2e14727b1411321a67 vZ" : { "Protoss" : [
 				{ "Weight" : 49, "Strategy" : "PlasmaProxy2Gate" },
@@ -247,7 +247,7 @@
 				["4 x probe", "pylon then go scout while safe", "4 x probe", "nexus @ natural", "2 x probe", "gateway", "assimilator", "2 x probe", "pylon", "2 x probe", "cybernetics core", "6 x probe", "stargate", "protoss air weapons", "2 x probe", "assimilator", "2 x probe", "stargate", "4 x probe", "pylon", "corsair", "2 x probe", "corsair"]},
 				
 			"PlasmaProxy2Gate": { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
-				["4 x probe", "pylon then go scout location", "pylon @ proxy then gateway @ proxy then gateway @ proxy", "2 x probe", "zealot", "pylon", "2 x zealot" ]},
+				["4 x probe", "pylon then go scout location", "pylon @ proxy then gateway @ proxy then gateway @ proxy", "4 x probe", "pylon", "2 x zealot" ]},
 				
 				
 			"TestWall"	: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :

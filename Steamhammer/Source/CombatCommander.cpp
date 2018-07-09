@@ -701,8 +701,7 @@ bool CombatCommander::isOptionalFlyingSquadUnit(const BWAPI::UnitType type) cons
 {
 	return
 		type == BWAPI::UnitTypes::Zerg_Scourge ||
-		type == BWAPI::UnitTypes::Zerg_Devourer ||
-		type == BWAPI::UnitTypes::Protoss_Carrier;
+		type == BWAPI::UnitTypes::Zerg_Devourer;
 }
 
 // Unit belongs in the ground squad.
@@ -1749,6 +1748,33 @@ Handled earlier in Locutus
 			return unit->getPosition();
 		}
 	}
+
+    // Special case: Plasma
+    // Here we only have a ground squad while we're doing a proxy 2-gate
+    // So attack any base we can reach that hasn't been explored yet
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
+        squad && squad->containsUnitType(BWAPI::UnitTypes::Protoss_Zealot))
+    {
+        BWAPI::Position squadCenter(squad->calcCenter());
+        for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+        {
+            if (InformationManager::Instance().getBaseOwner(base) != BWAPI::Broodwar->neutral()) continue;
+
+            // If there is no path to the base, continue
+            int dist;
+            auto path = bwemMap.GetPath(squadCenter, base->getPosition(), &dist);
+            if (dist == -1) continue;
+
+            // A choke requires mineral walking if we have put something in Ext
+            for (auto choke : path)
+                if (choke->Ext())
+                    goto nextBase;
+
+            return base->getPosition();
+
+        nextBase:;
+        }
+    }
 
 	// 4. We can't see anything, so explore the map until we find something.
 	return MapGrid::Instance().getLeastExplored(hasGround && !hasAir);

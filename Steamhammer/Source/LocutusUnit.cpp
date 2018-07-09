@@ -228,9 +228,11 @@ void LocutusUnit::mineralWalk()
         return;
     }
 
-    // Find the closest walkable position within sight range of the patch
+    // Find the closest and furthest walkable position within sight range of the patch
     BWAPI::Position bestPos = BWAPI::Positions::Invalid;
+    BWAPI::Position worstPos = BWAPI::Positions::Invalid;
     int bestDist = INT_MAX;
+    int worstDist = 0;
     int desiredDist = unit->getType().sightRange();
     int desiredDistTiles = desiredDist / 32;
     for (int x = -desiredDistTiles; x <= desiredDistTiles; x++)
@@ -260,6 +262,12 @@ void LocutusUnit::mineralWalk()
                 bestPos = tileCenter;
             }
 
+            if (pathLength > worstDist)
+            {
+                worstDist = pathLength;
+                worstPos = tileCenter;
+            }
+
         cnt:;
         }
 
@@ -274,8 +282,13 @@ void LocutusUnit::mineralWalk()
         return;
     }
 
+    // If we are already very close to the best position, it isn't working: we should have vision of the mineral patch
+    // So use the worst one instead
+    BWAPI::Position tile = bestPos;
+    if (unit->getDistance(tile) < 16) tile = worstPos;
+
     // Move towards the tile
-    Micro::Move(unit, bestPos);
+    Micro::Move(unit, tile);
     lastMoveFrame = BWAPI::Broodwar->getFrameCount();
 }
 

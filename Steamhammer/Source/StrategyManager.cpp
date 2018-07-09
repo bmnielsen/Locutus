@@ -252,7 +252,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     // On Plasma, transition to carriers on two bases or if our proxy gateways die
     // We will still build ground units as long as we have an active proxy gateway
     if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
-        (numNexusAll >= 2 || numGateways == 0 || !gatewaysAreAtProxy || !isRushing()))
+        (numNexusAll >= 2 || numGateways == 0 || !gatewaysAreAtProxy))
     {
         _openingGroup = "carriers";
     }
@@ -288,7 +288,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
         // On Plasma, if we have at least one gateway and they are all at the proxy location, build ground units
         if (numGateways > 0 && gatewaysAreAtProxy &&
-            BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67")
+            BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
+            numZealots < 15)
         {
             buildGround = true;
             zealotRatio = 1.0; // Will be switched to goons below when the enemy gets air units, which is fine
