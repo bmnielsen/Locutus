@@ -163,13 +163,21 @@
 
 		"CounterStrategies" :
 		{
-			"Counter Proxy" : { "Protoss" : "9-9GateDefensive" },
-			"Counter Worker rush" : { "Protoss" : "9-9GateDefensive" },
-			"Counter Fast rush" : { "Protoss" : "9-9GateDefensive" },
+			"Counter Proxy" : "9-9GateDefensive",
+			"Counter Worker rush" : "9-9GateDefensive",
+			"Counter Fast rush vT" : { "Protoss" : [
+				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 40, "Strategy" : "Turtle" }
+			]},
+			"Counter Fast rush vP" : { "Protoss" : [
+				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 40, "Strategy" : "Turtle" }
+			]},
 			"Counter Fast rush vZ" : { "Protoss" : [
 				{ "Weight" : 60, "Strategy" : "ForgeExpandSpeedlots" },
 				{ "Weight" : 40, "Strategy" : "ForgeExpand5GateGoon" }
-			]}
+			]},
+			"Counter Fast rush vU" : "ForgeExpand5GateGoon"
 		},
 
 		"StrategyCombos" : {},
