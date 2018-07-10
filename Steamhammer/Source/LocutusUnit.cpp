@@ -343,15 +343,16 @@ void LocutusUnit::fleeFrom(BWAPI::Position position)
             }
 
             // Now do the same for a position halfway in between
-            BWAPI::Position halfwayPosition((position + unit->getPosition()) / 2);
-            if (!verifyPosition(halfwayPosition) ||
-                !verifyPosition(halfwayPosition + BWAPI::Position(-16, -16)) ||
-                !verifyPosition(halfwayPosition + BWAPI::Position(16, -16)) ||
-                !verifyPosition(halfwayPosition + BWAPI::Position(16, 16)) ||
-                !verifyPosition(halfwayPosition + BWAPI::Position(-16, 16)))
-            {
-                continue;
-            }
+            // No longer needed now that we are sampling positions around the first one
+            //BWAPI::Position halfwayPosition((position + unit->getPosition()) / 2);
+            //if (!verifyPosition(halfwayPosition) ||
+            //    !verifyPosition(halfwayPosition + BWAPI::Position(-16, -16)) ||
+            //    !verifyPosition(halfwayPosition + BWAPI::Position(16, -16)) ||
+            //    !verifyPosition(halfwayPosition + BWAPI::Position(16, 16)) ||
+            //    !verifyPosition(halfwayPosition + BWAPI::Position(-16, 16)))
+            //{
+            //    continue;
+            //}
 
             bestPosition = position;
             goto breakOuterLoop;
