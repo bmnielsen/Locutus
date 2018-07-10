@@ -94,7 +94,7 @@
 
 		"PvT" :
 			{ "Protoss" : [
-				{ "Weight" : 45, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 30, "Strategy" : "Proxy9-9Gate" },
 				{ "Weight" : 40, "Strategy" : "10-15GateGoon" },
 				{ "Weight" : 50, "Strategy" : "DTDrop" },
 				{ "Weight" : 20, "Strategy" : "Turtle" }
@@ -118,7 +118,7 @@
 
 		"PvU" :
 			{ "Protoss" : [
-				{ "Weight" : 40, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 30, "Strategy" : "Proxy9-9Gate" },
 				{ "Weight" : 30, "Strategy" : "9-9GateDefensive" },
 				{ "Weight" : 50, "Strategy" : "4GateGoon" },
 				{ "Weight" : 50, "Strategy" : "ForgeExpand5GateGoon" }
