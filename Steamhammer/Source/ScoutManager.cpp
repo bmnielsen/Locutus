@@ -1057,7 +1057,8 @@ bool ScoutManager::pylonHarass()
         // - We have never mannered before, OR
         // - Our previous manner pylon survived more than 1500 frames OR
         // - Our previous manner pylon caused a reaction from enemy workers which our lure pylons did not
-        if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
+        if (false && // Currently disabled: it only really works against opponents that are easily defeated anyway
+            BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
             ((expectedBehaviour & (int)PylonHarassBehaviour::MannerPylonBuilt) == 0 ||
             (expectedBehaviour & (int)PylonHarassBehaviour::MannerPylonSurvived1500Frames) != 0 ||
             (mannerCausesEnemyWorkerReaction && !lureCausesEnemyWorkerReaction)))
