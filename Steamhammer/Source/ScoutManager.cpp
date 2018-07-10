@@ -170,12 +170,14 @@ void ScoutManager::update()
 	}
 
     // If we want to scout while safe, and the scout is no longer safe, release it
-    if (_scoutCommand == MacroCommandType::ScoutWhileSafe)
+    if (_workerScout && _scoutCommand == MacroCommandType::ScoutWhileSafe)
     {
         bool scoutSafe = _workerScout->getHitPoints() > BWAPI::UnitTypes::Protoss_Probe.maxHitPoints() / 2;
         if (scoutSafe)
             for (const auto & unit : BWAPI::Broodwar->enemy()->getUnits())
             {
+                if (!unit->exists() || !unit->isVisible()) continue;
+
                 // Static defense
                 if (unit->getType().isBuilding() && UnitUtil::CanAttack(unit, _workerScout))
                 {
