@@ -235,8 +235,11 @@ void MicroTransports::followPerimeter()
 	// Everything is set. Do the movement.
 
 	// If we're near the destination, go straight there.
-	if (_transportShip->getDistance(waypoint(_lastWaypointIndex)) < 2 * 32 * WaypointSpacing)
+	if (_nextWaypointIndex == -1 ||
+        _transportShip->getDistance(waypoint(_lastWaypointIndex)) < 2 * 32 * WaypointSpacing)
 	{
+        _nextWaypointIndex = -1;
+
 		// The target might be far from the edge of the map, although
 		// our path around the edge of the map makes sense only if it is close.
 		Micro::Move(_transportShip, _target);
