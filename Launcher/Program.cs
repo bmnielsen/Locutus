@@ -163,20 +163,26 @@
 
             if (args.Contains("trainingrun"))
             {
-                if (!File.Exists("opponents.csv"))
+                List<string> trainingOpponents;
+
+                var opponentsLabel = opponent;
+                if (File.Exists(opponent) || File.Exists("opponents.csv"))
                 {
-                    Console.WriteLine("Error: no opponents.csv file found for training run");
-                    return;
+                    trainingOpponents = File.ReadAllLines(File.Exists(opponent) ? opponent : "opponents.csv")
+                        .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("-"))
+                        .ToList();
+
+                    opponentsLabel = File.Exists(opponent) ? Path.GetFileNameWithoutExtension(opponent) : "opponents";
+                }
+                else
+                {
+                    trainingOpponents = new List<string> { opponent };
                 }
 
-                var filename = "trainingrun-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+                var filename = "trainingrun-" + opponentsLabel + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
                 logFile = File.CreateText(filename + ".log");
                 var outputFilename = filename + ".csv";
                 File.AppendAllText(outputFilename, "Opponent;Map;Game ID;My Strategy;Opponent Strategy;Result\n");
-
-                var trainingOpponents = File.ReadAllLines("opponents.csv")
-                    .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("-"))
-                    .ToList();
 
                 while (true)
                 {
@@ -539,8 +545,22 @@
 
         private static void Output(string format, params object[] args)
         {
-            Console.WriteLine(format, args);
-            logFile?.WriteLine(format, args);
+            if (args.Any())
+            {
+                try
+                {
+                    Console.WriteLine(format, args);
+                    logFile?.WriteLine(format, args);
+                    return;
+                }
+                catch (FormatException)
+                {
+                    // Fall through and output the raw text
+                }
+            }
+
+            Console.WriteLine(format);
+            logFile?.WriteLine(format);
         }
 
         private class GameData
