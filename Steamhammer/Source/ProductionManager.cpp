@@ -231,7 +231,7 @@ void ProductionManager::manageBuildOrderQueue()
 
             // Rules for gateways:
             // - Gateways we have must be in use
-            // - Only build at most 2 at a time
+            // - Only build at most 2 at a time, or 3 if we already have 6
             // - Only build at most 3 per nexus
             // - On Plasma, only build at most one non-proxy gateway
             if (type == BWAPI::UnitTypes::Protoss_Gateway)
@@ -242,7 +242,8 @@ void ProductionManager::manageBuildOrderQueue()
                 skipThisItem = gateways > 0 && (
                     StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 ||
                     gateways > nexuses * 3 ||
-                    gatewaysBuilding >= 2);
+                    (gateways < 6 && gatewaysBuilding >= 2) ||
+                    gatewaysBuilding >= 3);
 
                 // Special case for Plasma
                 // Since our combat units can't mineral walk, make sure we only build gateways at the proxy location,
