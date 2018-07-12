@@ -34,8 +34,12 @@ OpeningPlan OpponentModel::predictEnemyPlan() const
 		{
 			PlanInfoType & info = planInfo[int(record->getEnemyPlan())];
 			info.games += 1;
-			info.weight += weight;
-			weight *= 0.8;        // more recent game records are more heavily weighted
+
+            // If we won the game, the opponent is probably less likely to choose the same plan
+			info.weight += weight * (record->getWin() ? 0.5 : 1.0);
+
+            // more recent game records are more heavily weighted
+			weight *= 0.8;
 		}
 	}
 
@@ -818,10 +822,12 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
     // Compute a factor to adjust the weight for each strategy
     // More recent results are weighted more heavily
     // Results on the same map are weighted more heavily
+    int count = 0;
 	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend(); it++)
 	{
 		if (!_gameRecord.sameMatchup(**it)) continue;
-        bool sameMap = _gameRecord.getMapName() == BWAPI::Broodwar->mapFileName();
+        count++;
+        bool sameMap = (*it)->getMapName() == BWAPI::Broodwar->mapFileName();
 
 		auto& strategy = (*it)->getOpeningName();
 
@@ -838,27 +844,39 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 
 		double factor = result[strategy];
 		strategyCount[strategy] = strategyCount[strategy] + 1;
+        
+        double aging = std::pow((strategyCount[strategy] + count) / 2, 1.3);
 
-		if ((*it)->getWin())
-			factor *= 1.0 + (sameMap ? 2.0 : 1.6) / strategyCount[strategy];
+        if ((*it)->getWin())
+        {
+            factor *= 1.0 + (sameMap ? 0.6 : 0.4) / aging;
+        }
         else
         {
-            factor *= 1.0 - (sameMap ? 0.4 : 0.6) / strategyCount[strategy];
+            factor *= 1.0 - (sameMap ? 0.7 : 0.5) / aging;
             strategyLosses[strategy] = strategyLosses[strategy] + 1;
         }
 
 		result[strategy] = factor;
 	}
 
-    // Any strategies that have never lost are given a large boost
-    // A similar boost is given to strategies that haven't been played in ParseUtils
-    // This should allow us to avoid getting stuck on a strategy that wins 90% of the time,
-    // if another strategy wins 100% of the time
+    // Analyze the losses
     for (auto it = strategyLosses.begin(); it != strategyLosses.end(); it++)
     {
-        if (it->second > 0) continue;
+        // Any strategies that have never lost are given a large boost
+        // A similar boost is given to strategies that haven't been played in ParseUtils
+        // This should allow us to avoid getting stuck on a strategy that wins 90% of the time,
+        // if another strategy wins 100% of the time
+        if (it->second == 0)
+        {
+            result[it->first] = result[it->first] * 100;
+        }
 
-        result[it->first] = result[it->first] * 100;
+        // Any strategies that have been played at least 3 times and always lost are given a large penalty
+        if (it->second >= 3 && strategyCount[it->first] == it->second)
+        {
+            result[it->first] = result[it->first] * 0.1;
+        }
     }
 
 	return result;
