@@ -355,9 +355,14 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             goonRatio = 0.0;
         }
 
-        // Upgrade when we have at least two bases, a reasonable army size, our gateways are busy, and we aren't on the defensive
+        // Upgrade when appropriate:
+        // - we have at least two bases
+        // - we have a reasonable army size
+        // - we aren't on the defensive
+        // - our gateways are busy or we have a large income or we are close to maxed
         upgradeGround = numNexusCompleted >= 2 && (numZealots + numDragoons) >= 10 &&
-            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.75) && !CombatCommander::Instance().onTheDefensive();
+            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.75 || WorkerManager::Instance().getNumMineralWorkers() > 50 || BWAPI::Broodwar->self()->supplyUsed() >= 300)
+            && !CombatCommander::Instance().onTheDefensive();
     }
 
     // If we're trying to do anything that requires gas, make sure we have an assimilator
