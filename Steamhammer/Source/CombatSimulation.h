@@ -10,10 +10,13 @@ namespace UAlbertaBot
 class CombatSimulation
 {
 private:
+    BWAPI::Position simPosition;
     BWAPI::Position myUnitsCentroid;
     BWAPI::Position enemyUnitsCentroid;
     bool airBattle;
-    std::pair<int, int> last;
+
+    BWAPI::Position lastRetreatSimPosition;
+    std::pair<int, int> lastRetreatResult;
 
 public:
 

@@ -192,7 +192,7 @@ namespace UAlbertaBot {
 
         if (closestEnemy != enemyUnits.end() &&
             closestDist <=
-            (closestEnemy->flying ? fu.groundMaxRange : fu.airMinRange)) {
+            (closestEnemy->flying ? fu.airMaxRange : fu.groundMaxRange)) {
             if (closestEnemy->flying)
                 dealDamage(*closestEnemy, fu.airDamage, fu.airDamageType),
                 fu.attackCooldownRemaining = fu.airCooldown;

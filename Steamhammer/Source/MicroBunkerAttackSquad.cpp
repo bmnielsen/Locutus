@@ -307,6 +307,9 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     // Can't run-by with no units
     if (_units.empty()) return;
 
+    // Never do a run-by if the enemy has siege tech
+    if (InformationManager::Instance().enemyHasSiegeTech()) return;
+
     // Don't do a run-by if the bunker is very close to the order position
     int distToOrderPosition = _bunker->getDistance(orderPosition);
     if (distToOrderPosition < 128) return;

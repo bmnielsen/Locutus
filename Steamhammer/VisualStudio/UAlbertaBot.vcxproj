@@ -146,6 +146,7 @@
     <ClCompile Include="..\source\BuildOrderQueue.cpp" />
     <ClCompile Include="..\Source\LocutusMapGrid.cpp" />
     <ClCompile Include="..\Source\LocutusUnit.cpp" />
+    <ClCompile Include="..\Source\MathUtil.cpp" />
     <ClCompile Include="..\Source\MicroBunkerAttackSquad.cpp" />
     <ClCompile Include="..\Source\CombatSimulation.cpp" />
     <ClCompile Include="..\Source\CombatCommander.cpp" />
@@ -227,6 +228,7 @@
     <ClInclude Include="..\source\BuildOrderQueue.h" />
     <ClInclude Include="..\Source\LocutusMapGrid.h" />
     <ClInclude Include="..\Source\LocutusUnit.h" />
+    <ClInclude Include="..\Source\MathUtil.h" />
     <ClInclude Include="..\Source\MicroBunkerAttackSquad.h" />
     <ClInclude Include="..\Source\CombatSimulation.h" />
     <ClInclude Include="..\Source\CombatCommander.h" />

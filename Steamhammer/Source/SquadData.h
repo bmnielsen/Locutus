@@ -27,12 +27,13 @@ public:
     void            update();
     void            setRegroup();
 
-    bool            squadExists(const std::string & squadName);
+    bool            squadExists(const std::string & squadName) const;
     bool            unitIsInSquad(BWAPI::Unit unit) const;
     const Squad *   getUnitSquad(BWAPI::Unit unit) const;
     Squad *         getUnitSquad(BWAPI::Unit unit);
 
     Squad &         getSquad(const std::string & squadName);
+    const Squad &   getSquad(const std::string & squadName) const;
     const std::map<std::string, Squad> & getSquads() const;
     Squad &         getSquad(MicroManager * microManager);
 };

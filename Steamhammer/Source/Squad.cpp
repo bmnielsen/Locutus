@@ -2,6 +2,7 @@
 
 #include "ScoutManager.h"
 #include "UnitUtil.h"
+#include "MathUtil.h"
 #include "MapGrid.h"
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
@@ -102,7 +103,7 @@ void Squad::update()
 			BWAPI::Broodwar->drawCircleMap(regroupPosition.x, regroupPosition.y, 20, BWAPI::Colors::Purple, true);
 		}
         
-        auto vanguard = unitClosestToEnemy();
+        auto vanguard = unitClosestToOrderPosition();
 
 		_microAirToAir.regroup(regroupPosition, vanguard, _nearEnemy);
 		_microMelee.regroup(regroupPosition, vanguard, _nearEnemy);
@@ -138,7 +139,7 @@ void Squad::update()
 	// The remaining non-combat micro managers try to keep units near the front line.
 	if (BWAPI::Broodwar->getFrameCount() % 8 == 3)    // deliberately lag a little behind reality
 	{
-		BWAPI::Unit vanguard = unitClosestToEnemy();
+		BWAPI::Unit vanguard = unitClosestToOrderPosition();
 
 		// Medics.
 		BWAPI::Position medicGoal = vanguard && vanguard->getPosition().isValid() ? vanguard->getPosition() : calcCenter();
@@ -376,7 +377,7 @@ bool Squad::needsToRegroup()
 		}
 	}
 
-	BWAPI::Unit unitClosest = unitClosestToEnemy();
+	BWAPI::Unit unitClosest = unitClosestToOrderPosition();
 
 	if (!unitClosest)
 	{
@@ -577,7 +578,7 @@ BWAPI::Position Squad::calcRegroupPosition()
 }
 
 // Return the unit closest to the order position (not actually closest to the enemy).
-BWAPI::Unit Squad::unitClosestToEnemy()
+BWAPI::Unit Squad::unitClosestToOrderPosition() const
 {
 	BWAPI::Unit closest = nullptr;
 	int closestDist = 100000;
@@ -817,34 +818,60 @@ double Squad::runCombatSim(BWAPI::Position center)
     // Special case: ignore enemy bunkers if:
     // - Our squad is entirely ranged goons
     // - The enemy doesn't have the marine range upgrade
-    // - None of our goons are currently in range of an enemy bunker
+    // - The enemy doesn't have any other units in the combat sim radius
+    // - None of our goons are moving into range of an enemy bunker (unless they are in a bunker attack squad)
     
     bool ignoreBunkers = 
         BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
         !InformationManager::Instance().enemyHasInfantryRangeUpgrade();
     if (ignoreBunkers)
     {
-        // Gather enemy bunker positions
-        std::vector<BWAPI::Unit> bunkers;
-        for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
+        // Gather enemy bunker positions and break if the enemy has other units
+        std::vector<BWAPI::Position> bunkers;
+        for (auto const & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
         {
-            if (unit->getType() == BWAPI::UnitTypes::Terran_Bunker) bunkers.push_back(unit);
+            if (UnitUtil::IsCombatUnit(ui.second.type) && ui.second.type != BWAPI::UnitTypes::Terran_Bunker &&
+                !ui.second.goneFromLastPosition && ui.second.lastPosition.getApproxDistance(center) < _combatSimRadius)
+            {
+                ignoreBunkers = false;
+                goto breakBunkerCheck;
+            }
+
+            if (ui.second.type == BWAPI::UnitTypes::Terran_Bunker &&
+                !ui.second.goneFromLastPosition)
+            {
+                bunkers.push_back(ui.second.lastPosition);
+            }
         }
         if (!bunkers.empty())
         {
             // Make sure all of our units are goons and out of range of the bunker
             for (auto & unit : _units)
             {
+                // If the unit is part of a bunker attack squad, all is well
+                // They are allowed to move through the attack range of the bunker
+                if (getBunkerRunBySquad(unit)) continue;
+
                 if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon)
                 {
+                    Log().Debug() << "Not ignoring bunker; have a non-goon";
                     ignoreBunkers = false;
                     goto breakBunkerCheck;
                 }
 
-                for (auto bunker : bunkers)
+                BWAPI::Position anticipatedDragoonPosition = 
+                    InformationManager::Instance().predictUnitPosition(unit, BWAPI::Broodwar->getLatencyFrames());
+
+                for (auto bunkerPosition : bunkers)
                 {
-                    if (bunker->getDistance(unit) <= (5 * 32))
+                    if (MathUtil::EdgeToEdgeDistance(
+                            BWAPI::UnitTypes::Protoss_Dragoon, 
+                            anticipatedDragoonPosition, 
+                            BWAPI::UnitTypes::Terran_Bunker, 
+                            bunkerPosition) <= ((5 * 32) + 1))
                     {
+                        Log().Debug() << "Not ignoring bunker; have a goon entering bunker range";
+
                         ignoreBunkers = false;
                         goto breakBunkerCheck;
                     }

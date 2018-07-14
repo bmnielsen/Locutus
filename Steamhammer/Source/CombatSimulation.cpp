@@ -3,15 +3,19 @@
 #include "UnitUtil.h"
 #include "StrategyManager.h"
 
+//#define COMBATSIM_DEBUG 1
+
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
 CombatSimulation::CombatSimulation()
-    : myUnitsCentroid(BWAPI::Positions::Invalid)
+    : simPosition(BWAPI::Positions::Invalid)
+    , myUnitsCentroid(BWAPI::Positions::Invalid)
     , enemyUnitsCentroid(BWAPI::Positions::Invalid)
     , airBattle(false)
-    , last(std::make_pair(0, 0))
+    , lastRetreatSimPosition(BWAPI::Positions::Invalid)
+    , lastRetreatResult(std::make_pair(0, 0))
 {
 }
 
@@ -20,6 +24,7 @@ CombatSimulation::CombatSimulation()
 void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius, bool visibleOnly, bool ignoreBunkers)
 {
 	fap.clearState();
+    simPosition = center;
 
 	if (Config::Debug::DrawCombatSimulationInfo)
 	{
@@ -38,6 +43,9 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 
     bool rushing = StrategyManager::Instance().isRushing();
 
+    std::ostringstream debug;
+    debug << "Combat sim " << radius << " around " << BWAPI::TilePosition(center);
+
 	// Add enemy units.
 	if (visibleOnly)
 	{
@@ -51,6 +59,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 
 			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit))
 			{
+                debug << "\n" << unit->getType() << " @ " << unit->getTilePosition();
+
                 enemyUnits.push_back(unit);
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
@@ -73,6 +83,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
                 (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
 				UnitUtil::IsCombatSimUnit(ui.type))
 			{
+                debug << "\n" << ui.type << " @ " << BWAPI::TilePosition(ui.lastPosition);
                 enemyUnits.push_back(ui);
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
@@ -98,6 +109,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
                 (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
 				(ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)))
 			{
+                debug << "\n" << ui.type << " @ " << BWAPI::TilePosition(ui.lastPosition);
                 enemyUnits.push_back(ui);
 				if (ui.type == BWAPI::UnitTypes::Zerg_Spore_Colony)
 				{
@@ -110,6 +122,10 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 			}
 		}
 	}
+
+#ifdef COMBATSIM_DEBUG
+    Log().Debug() << debug.str();
+#endif
 
     // Add the enemy units and compute the centroid
     if (!enemyUnits.empty())
@@ -165,7 +181,26 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 
 double CombatSimulation::simulateCombat(bool currentlyRetreating)
 {
-	fap.simulate();
+    std::ostringstream debug;
+    debug << "combat sim @ " << BWAPI::TilePosition(simPosition) << (currentlyRetreating ? " (retreating)" : " (attacking)");
+
+	fap.simulate(24);
+    debug << "\nResult after 24 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+	fap.simulate(24);
+    debug << "\nResult after 48 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+    fap.simulate(24);
+    debug << "\nResult after 72 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+    fap.simulate(24);
+    debug << "\nResult after 96 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+    fap.simulate(24);
+    debug << "\nResult after 120 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+    fap.simulate(24);
+    debug << "\nResult after 144 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+    fap.simulate(24);
+    debug << "\nResult after 168 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+    fap.simulate(24);
+    debug << "\nResult after 192 frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+
 	std::pair<int, int> scores = fap.playerScores();
 
     bool rushing = StrategyManager::Instance().isRushing();
@@ -182,7 +217,11 @@ double CombatSimulation::simulateCombat(bool currentlyRetreating)
         }
 
         // If yes, give the enemy army a small bonus, as we don't fight well through chokes
-        if (narrowChoke) scores.second = (scores.second * 3) / 2;
+        if (narrowChoke)
+        {
+            scores.second = (scores.second * 3) / 2;
+            debug << "\nFight crosses narrow choke, adjusted theirs to " << scores.second;
+        }
 
         // Is there an elevation difference?
         int elevationDifference = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(enemyUnitsCentroid)) 
@@ -193,10 +232,24 @@ double CombatSimulation::simulateCombat(bool currentlyRetreating)
         if (elevationDifference > 0)
         {
             scores.second *= 2;
+            debug << "\nFight is uphill, adjusted theirs to " << scores.second;
         }
         else if (elevationDifference < 0)
         {
             scores.first = (scores.first * 4) / 3;
+            debug << "\nFight is downhill, adjusted ours to " << scores.first;
+        }
+    }
+
+    // When we retreat, we often forget units we no longer see
+    // So if the sim position is close to the sim position we last retreated from, use the largest of the two enemy results
+    if (currentlyRetreating && lastRetreatSimPosition.isValid() &&
+        (rushing || simPosition.getApproxDistance(lastRetreatSimPosition) < 200))
+    {
+        if (scores.second < lastRetreatResult.second)
+        {
+            scores.second = lastRetreatResult.second;
+            debug << "\nLast result near this position was " << lastRetreatResult.second << "; overriding with this value";
         }
     }
 
@@ -204,23 +257,28 @@ double CombatSimulation::simulateCombat(bool currentlyRetreating)
     // Purpose: Be more aggressive, our rush needs to do damage to the enemy's economy
     if (rushing)
     {
-        // When retreating, don't forget the last score just because something goes out of range
-        if (currentlyRetreating)
-            scores.second = std::max(scores.second, last.second);
-
         // We ramp up the aggression depending on how many units we have
         // We don't want to just throw individual units away
         double factor = currentlyRetreating 
             ? std::max(1.0, std::min(2.0, 1.0 + ((double)scores.first - 300.0) / 150.0))
             : std::max(1.0, std::min(3.0, 1.0 + ((double)scores.first - 100.0) / 100.0));
 
-        Log().Debug() << "Rush: Original combat sim ours " << scores.first << " theirs " << scores.second << ", boosting ours to " << (scores.first * factor);
+        if (factor > 1.0) debug << "\nRush mode: boosting ours by " << factor;
         scores.first = (double)scores.first * factor;
     }
 
-    last = scores;
+    debug << "\nFinal result ours " << scores.first << " theirs " << scores.second;
+#ifdef COMBATSIM_DEBUG
+    Log().Debug() << debug.str();
+#endif
 
 	int score = scores.first - scores.second;
+
+    if (score < 0 && !currentlyRetreating)
+    {
+        lastRetreatResult = scores;
+        lastRetreatSimPosition = simPosition;
+    }
 
 	if (Config::Debug::DrawCombatSimulationInfo)
 	{

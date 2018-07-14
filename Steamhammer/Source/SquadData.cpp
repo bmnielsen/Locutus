@@ -59,7 +59,7 @@ const std::map<std::string, Squad> & SquadData::getSquads() const
     return _squads;
 }
 
-bool SquadData::squadExists(const std::string & squadName)
+bool SquadData::squadExists(const std::string & squadName) const
 {
     return _squads.find(squadName) != _squads.end();
 }
@@ -194,6 +194,17 @@ Squad & SquadData::getSquad(const std::string & squadName)
     }
 
     return _squads[squadName];
+}
+
+const Squad & SquadData::getSquad(const std::string & squadName) const
+{
+    UAB_ASSERT_WARNING(squadExists(squadName), "Trying to access squad that doesn't exist: %s", squadName);
+    if (!squadExists(squadName))
+    {
+        int a = 10;
+    }
+
+    return _squads.at(squadName);
 }
 
 Squad & SquadData::getSquad(MicroManager * microManager)

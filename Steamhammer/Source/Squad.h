@@ -58,9 +58,6 @@ class Squad
 
 	std::map<BWAPI::Unit, bool>	_nearEnemy;
 
-	BWAPI::Unit		getRegroupUnit();
-	BWAPI::Unit		unitClosestToEnemy();
-    
 	void			updateUnits();
 	void			addUnitsToMicroManagers();
 	void			setNearEnemyUnits();
@@ -92,6 +89,7 @@ public:
     
 	BWAPI::Position     calcCenter() const;
 	BWAPI::Position     calcRegroupPosition();
+    BWAPI::Unit		    unitClosestToOrderPosition() const;
 
 	const BWAPI::Unitset &  getUnits() const;
 	void                setSquadOrder(const SquadOrder & so);
