@@ -271,7 +271,6 @@ BWAPI::WeaponType UnitUtil::GetWeapon(BWAPI::UnitType attacker, BWAPI::UnitType 
 }
 
 // Weapon range in pixels.
-// Tries to take possible range upgrades into account, making pessimistic assumptions about the enemy.
 // Returns 0 if the attacker does not have a way to attack the target.
 // NOTE Does not check whether our reaver, carrier, or bunker has units inside that can attack.
 int UnitUtil::GetAttackRange(BWAPI::Unit attacker, BWAPI::Unit target)
@@ -302,8 +301,9 @@ int UnitUtil::GetAttackRange(BWAPI::Unit attacker, BWAPI::Unit target)
 		return 0;
 	}
 
-	int range = weapon.maxRange();
+	int range = attacker->getPlayer()->weaponMaxRange(weapon);
 
+	/* This code is no longer needed: The above check covers it.
 	// Count range upgrades,
 	// for ourselves if we have researched it,
 	// for the enemy always (by pessimistic assumption).
@@ -339,6 +339,7 @@ int UnitUtil::GetAttackRange(BWAPI::Unit attacker, BWAPI::Unit target)
 			range = 5 * 32;
 		}
 	}
+	*/
 
     return range;
 }
@@ -407,6 +408,7 @@ int UnitUtil::GetMaxAttackRange(BWAPI::UnitType type)
 // - the attacker's weapon upgrades (easy to include)
 // - the defender's armor/shield upgrades (a bit complicated for probes)
 // Used in worker self-defense. It's usually good enough for that.
+// NOTE That worker self-defense feature is currently turned off.
 int UnitUtil::GetWeaponDamageToWorker(BWAPI::Unit attacker)
 {
 	// Workers will be the same, so use an SCV as a representative worker.

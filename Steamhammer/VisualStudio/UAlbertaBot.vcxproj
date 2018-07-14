@@ -148,6 +148,8 @@
     <ClCompile Include="..\Source\Micro.cpp" />
     <ClCompile Include="..\Source\MicroMedics.cpp" />
     <ClCompile Include="..\Source\MicroMelee.cpp" />
+    <ClCompile Include="..\Source\MicroMutas.cpp" />
+    <ClCompile Include="..\Source\MicroOverlords.cpp" />
     <ClCompile Include="..\Source\MicroRanged.cpp" />
     <ClCompile Include="..\Source\MicroTanks.cpp" />
     <ClCompile Include="..\Source\MicroTransports.cpp" />
@@ -207,6 +209,8 @@
     <ClInclude Include="..\Source\Micro.h" />
     <ClInclude Include="..\Source\MicroMedics.h" />
     <ClInclude Include="..\Source\MicroMelee.h" />
+    <ClInclude Include="..\Source\MicroMutas.h" />
+    <ClInclude Include="..\Source\MicroOverlords.h" />
     <ClInclude Include="..\Source\MicroRanged.h" />
     <ClInclude Include="..\Source\MicroTanks.h" />
     <ClInclude Include="..\Source\MicroTransports.h" />

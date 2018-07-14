@@ -24,32 +24,35 @@
 
 BWAPI::AIModule * __NewAIModule();
 
-/* Unused but potentially useful.
-struct double2
+// 2D vectors with basic vector arithmetic.
+struct v2
 {
-	double x,y;
+	double x, y;
 
-	double2() {}
-	double2(double x, double y) : x(x), y(y) {}
-	double2(const BWAPI::Position & p) : x(p.x), y(p.y) {}
+	v2() {}
+	v2(double x, double y) : x(x), y(y) {}
+	v2(const BWAPI::Position & p) : x(p.x), y(p.y) {}
 
-	operator BWAPI::Position()				const { return BWAPI::Position(static_cast<int>(x),static_cast<int>(y)); }
+	operator BWAPI::Position()		const { return BWAPI::Position(static_cast<int>(x),static_cast<int>(y)); }
 
-	double2 operator + (const double2 & v)	const { return double2(x+v.x,y+v.y); }
-	double2 operator - (const double2 & v)	const { return double2(x-v.x,y-v.y); }
-	double2 operator * (double s)			const { return double2(x*s,y*s); }
-	double2 operator / (double s)			const { return double2(x/s,y/s); }
+	v2 operator + (const v2 & v)	const { return v2(x+v.x,y+v.y); }
+	v2 operator - (const v2 & v)	const { return v2(x-v.x,y-v.y); }
+	v2 operator * (double s)		const { return v2(x*s,y*s); }
+	v2 operator / (double s)		const { return v2(x/s,y/s); }
 
-	double dot(const double2 & v)			const { return x*v.x + y*v.y; }
-	double lenSq()							const { return x*x + y*y; }
-	double len()							const { return sqrt(lenSq()); }
-	double2 normal()						const { return *this / len(); }
+	double dot(const v2 & v)		const { return x*v.x + y*v.y; }
+	double lengthSq()				const { return x*x + y*y; }
+	double length()					const { return sqrt(lengthSq()); }
 
-	void normalize() { double s(len()); x/=s; y/=s; } 
+	// Find the direction: The vector of length 1 in the same direction.
+	// The length of the original vector had better not be zero!
+	v2 normalize()					const { return *this / length(); }
+
+	// This uses trig, so it is probably slower.
 	void rotate(double angle) 
 	{ 	
-		angle = angle*M_PI/180.0;
-		*this = double2(x * cos(angle) - y * sin(angle), y * cos(angle) + x * sin(angle));
+		angle = angle*M_PI/180.0;		// convert degrees to radians
+		*this = v2(x * cos(angle) - y * sin(angle), y * cos(angle) + x * sin(angle));
 	}
 };
 
@@ -58,7 +61,6 @@ struct Rect
     int x, y;
     int height, width;
 };
-*/
 
 double UCB1_bound(int tries, int total);
 double UCB1_bound(double tries, double total);
@@ -70,6 +72,7 @@ std::string NiceMacroActName(const std::string & s);
 std::string UnitTypeName(BWAPI::UnitType type);
 
 // Short color codes for drawing text on the screen.
+// The dim colors can be hard to read, but are useful occasionally.
 const char yellow  = '\x03';
 const char white   = '\x04';
 const char darkRed = '\x06';   // dim
@@ -79,3 +82,7 @@ const char purple  = '\x10';   // dim
 const char orange  = '\x11';
 const char gray    = '\x1E';   // dim
 const char cyan    = '\x1F';
+
+void ClipToMap(BWAPI::Position & pos);
+BWAPI::Position CenterOfUnitset(const BWAPI::Unitset units);
+BWAPI::Position PredictMovement(BWAPI::Unit unit, int frames);

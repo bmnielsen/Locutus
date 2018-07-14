@@ -154,6 +154,8 @@
     <ClCompile Include="..\Source\Grid.cpp" />
     <ClCompile Include="..\Source\GridDistances.cpp" />
     <ClCompile Include="..\Source\GridAttacks.cpp" />
+    <ClCompile Include="..\Source\MicroOverlords.cpp" />
+    <ClCompile Include="..\Source\MicroMutas.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -276,5 +278,7 @@
     <ClInclude Include="..\Source\Grid.h" />
     <ClInclude Include="..\Source\GridDistances.h" />
     <ClInclude Include="..\Source\GridAttacks.h" />
+    <ClInclude Include="..\Source\MicroOverlords.h" />
+    <ClInclude Include="..\Source\MicroMutas.h" />
   </ItemGroup>
 </Project>

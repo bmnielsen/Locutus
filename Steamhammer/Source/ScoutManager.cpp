@@ -1,5 +1,6 @@
 #include "ScoutManager.h"
 
+#include "GameCommander.h"
 #include "MapTools.h"
 #include "Micro.h"
 #include "OpponentModel.h"
@@ -141,6 +142,12 @@ void ScoutManager::update()
 		_overlordScout = nullptr;
 	}
 
+    // Release the overlord scout if it is likely to meet trouble soon.
+	if (_overlordScout && InformationManager::Instance().enemyHasAntiAir())
+	{
+		releaseOverlordScout();
+	}
+
 	// Find out if the opponent model wants us to steal gas.
 	if (_workerScout && OpponentModel::Instance().getRecommendGasSteal())
 	{
@@ -251,6 +258,17 @@ void ScoutManager::releaseWorkerScout()
 	}
 }
 
+// Send the overlord scout home.
+void ScoutManager::releaseOverlordScout()
+{
+	if (_overlordScout)
+	{
+		GameCommander::Instance().releaseOverlord(_overlordScout);
+		_overlordScout = nullptr;
+	}
+}
+
+
 void ScoutManager::setScoutCommand(MacroCommandType cmd)
 {
 	UAB_ASSERT(
@@ -353,7 +371,7 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 				{
 					_scoutStatus = "Harass enemy worker";
 					_currentRegionVertexIndex = -1;
-					Micro::AttackUnit(scout, closestWorker);
+					Micro::CatchAndAttackUnit(scout, closestWorker);
 				}
 				// otherwise keep circling the enemy region
 				else

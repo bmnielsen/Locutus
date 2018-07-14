@@ -727,7 +727,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 					!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Bunker) &&
 					anyWorkers)
 				{
-					queue.queueAsHighestPriority(BWAPI::UnitTypes::Terran_Bunker);
+					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Bunker, MacroLocation::Front));
 				}
 			}
 

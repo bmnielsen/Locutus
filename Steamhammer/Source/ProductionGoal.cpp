@@ -2,8 +2,8 @@
 
 #include "BuildingManager.h"
 
-namespace UAlbertaBot
-{
+using namespace UAlbertaBot;
+
 bool ProductionGoal::failure() const
 {
 	// The goal fails if no possible unit could become its parent,
@@ -48,7 +48,7 @@ void ProductionGoal::update()
 		act.getCandidateProducers(producers);
 		if (!producers.empty())
 		{
-			parent = *(producers.begin());		// we don't care which one
+			parent = *producers.begin();		// we don't care which one
 		}
 	}
 
@@ -91,5 +91,3 @@ bool ProductionGoal::done()
 
 	return done;
 }
-
-};

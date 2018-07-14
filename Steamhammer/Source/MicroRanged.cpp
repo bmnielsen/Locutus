@@ -114,7 +114,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				}
 				else
 				{
-					Micro::AttackUnit(rangedUnit, target);
+					Micro::CatchAndAttackUnit(rangedUnit, target);
 				}
 			}
 			else
@@ -139,7 +139,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 	for (const auto target : targets)
 	{
 		// Skip targets under dark swarm that we can't hit.
-		if (target->isUnderDarkSwarm() && !goodUnderDarkSwarm(rangedUnit->getType()))
+		if (target->isUnderDarkSwarm() && !target->getType().isBuilding() && !goodUnderDarkSwarm(rangedUnit->getType()))
 		{
 			continue;
 		}
@@ -203,7 +203,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		{
 			score += 16;
 		}
-		else if (target->getType().topSpeed() >= rangedUnit->getType().topSpeed())
+		else if (target->getPlayer()->topSpeed(target->getType()) >= rangedUnit->getPlayer()->topSpeed(rangedUnit->getType()))
 		{
 			score -= 4 * 32;
 		}

@@ -90,7 +90,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 				BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets);
 				if (target)
 				{
-					Micro::AttackUnit(meleeUnit, target);
+					Micro::CatchAndAttackUnit(meleeUnit, target);
 				}
 				else if (meleeUnit->getDistance(order.getPosition()) > 96)
 				{
@@ -134,6 +134,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		// Adjust for special features.
 
 		// Prefer targets under dark swarm, on the expectation that then we'll be under it too.
+		// It doesn't matter whether the target is a building.
 		if (target->isUnderDarkSwarm())
 		{
 			if (meleeUnit->getType().isWorker())
@@ -180,7 +181,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		{
 			score += 16;
 		}
-		else if (target->getType().topSpeed() >= meleeUnit->getType().topSpeed())
+		else if (target->getPlayer()->topSpeed(target->getType()) >= meleeUnit->getPlayer()->topSpeed(meleeUnit->getType()))
 		{
 			score -= 2 * 32;
 		}
@@ -306,7 +307,8 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 // Retreat hurt units to allow them to regenerate health (zerg) or shields (protoss).
 bool MicroMelee::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets)
 {
-    // terran don't regen so it doesn't make sense to retreat
+    // Terran don't regen so it doesn't make sense to retreat.
+	// NOTE We might want to retreat a firebat if medics are available.
     if (meleeUnit->getType().getRace() == BWAPI::Races::Terran)
     {
         return false;
@@ -322,14 +324,14 @@ bool MicroMelee::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unit
     // if there is a ranged enemy unit within attack range of this melee unit then we shouldn't bother retreating since it could fire and kill it anyway
     for (auto & unit : targets)
     {
-        int groundWeaponRange = unit->getType().groundWeapon().maxRange();
+		int groundWeaponRange = UnitUtil::GetAttackRange(unit, meleeUnit);
         if (groundWeaponRange >= 64 && unit->getDistance(meleeUnit) < groundWeaponRange)
         {
             return false;
         }
     }
 
-	// A broodling should not retreat since it is on a timer and regeneration does it no good.
+	// A broodling should not retreat since it is on a timer.
 	if (meleeUnit->getType() == BWAPI::UnitTypes::Zerg_Broodling)
 	{
 		return false;

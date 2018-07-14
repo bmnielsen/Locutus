@@ -1,5 +1,6 @@
-#include "Common.h"
 #include "WorkerManager.h"
+
+#include "Bases.h"
 #include "Micro.h"
 #include "ProductionManager.h"
 #include "UnitUtil.h"
@@ -386,7 +387,7 @@ bool WorkerManager::defendSelf(BWAPI::Unit worker, BWAPI::Unit resource)
 		}
 
 		// 2. We do not want to or are not able to run away. Fight.
-		Micro::AttackUnit(worker, target);
+		Micro::CatchAndAttackUnit(worker, target);
 		return true;
 	}
 
@@ -954,9 +955,9 @@ int WorkerManager::getNumIdleWorkers() const
 // May not exceed Config::Macro::AbsoluteMaxWorkers.
 int WorkerManager::getMaxWorkers() const
 {
-	int patches = InformationManager::Instance().getMyNumMineralPatches();
+	int patches = Bases::Instance().mineralPatchCount();
 	int refineries, geysers;
-	InformationManager::Instance().getMyGasCounts(refineries, geysers);
+	Bases::Instance().gasCounts(refineries, geysers);
 
 	// Never let the max number of workers fall to 0!
 	// Set aside 1 for future opportunities.

@@ -3,6 +3,7 @@
 #include "MapTools.h"
 #include "InformationManager.h"		// temporary until stuff is moved into this class
 #include "The.h"
+#include "UnitUtil.h"
 
 namespace UAlbertaBot
 {
@@ -57,6 +58,47 @@ void Bases::rememberBaseBlockers()
 			baseBlockers[blocker] = base;
 		}
 	}
+}
+
+// During initialization, look for a base to be our natural and remember it.
+// startingBase has already been set (of course we need to know that first).
+// Make sure it's null if we don't find one.
+void Bases::setNaturalBase()
+{
+	Base * bestBase = nullptr;
+	double bestScore = 0.0;
+
+	for (Base * base : bases)
+	{
+		if (base == startingBase)
+		{
+			continue;
+		}
+
+		if (!connectedToStart(base->getTilePosition()))
+		{
+			continue;
+		}
+
+		int tileDistance = base->getTileDistance(startingBase->getTilePosition());
+
+		if (tileDistance < 0)
+		{
+			continue;
+		}
+
+		// NOTE If there are not enough resources to bring the score above 0.0,
+		//      then this base will not become our natural.
+		double score = -tileDistance + 0.01 * base->getInitialMinerals() + 0.025 * base->getInitialGas();
+
+		if (score > bestScore)
+		{
+			bestBase = base;
+			bestScore = score;
+		}
+	}
+
+	naturalBase = bestBase;
 }
 
 // Given a set of resources, remove any that are used in the base.
@@ -314,6 +356,7 @@ void Bases::initialize()
 	// Fill in other map properties we want to remember.
 	islandStart = checkIslandMap();
 	rememberBaseBlockers();
+	setNaturalBase();
 }
 
 void Bases::drawBaseInfo() const
@@ -323,6 +366,11 @@ void Bases::drawBaseInfo() const
 	//the.partitions.drawPartition(
 	//	the.partitions.id(InformationManager::Instance().getMyMainBaseLocation()->getPosition()),
 	//	BWAPI::Colors::Teal);
+
+	if (!Config::Debug::DrawMapInfo)
+	{
+		return;
+	}
 
 	for (const Base * base : bases)
 	{
@@ -355,6 +403,116 @@ void Bases::drawBaseInfo() const
 	}
 }
 
+void Bases::drawBaseOwnership(int x, int y) const
+{
+	if (!Config::Debug::DrawBaseInfo)
+	{
+		return;
+	}
+
+	int yy = y;
+
+	BWAPI::Broodwar->drawTextScreen(x, yy, "%cBases", white);
+
+	for (Base * base : bases)
+	{
+		yy += 10;
+
+		char color = gray;
+
+		char reservedChar = ' ';
+		if (base->isReserved())
+		{
+			reservedChar = '*';
+		}
+
+		char inferredChar = ' ';
+		BWAPI::Player player = base->owner;
+		if (player == BWAPI::Broodwar->self())
+		{
+			color = green;
+		}
+		else if (player == BWAPI::Broodwar->enemy())
+		{
+			color = orange;
+			if (base->resourceDepot == nullptr)
+			{
+				inferredChar = '?';
+			}
+		}
+
+		char baseCode = ' ';
+		if (base == startingBase)
+		{
+			baseCode = 'M';
+		}
+		else if (base == naturalBase)
+		{
+			baseCode = 'N';
+		}
+
+		BWAPI::TilePosition pos = base->getTilePosition();
+		BWAPI::Broodwar->drawTextScreen(x - 8, yy, "%c%c", white, reservedChar);
+		BWAPI::Broodwar->drawTextScreen(x, yy, "%c%d, %d%c%c", color, pos.x, pos.y, inferredChar, baseCode);
+	}
+}
+
+// Our "frontmost" base, the base which we most want to defend from ground attack.
+// May be null if we do not own any bases!
+Base * Bases::frontBase() const
+{
+	if (naturalBase && naturalBase->getOwner() == BWAPI::Broodwar->self())
+	{
+		return naturalBase;
+	}
+	if (startingBase->getOwner() == BWAPI::Broodwar->self())
+	{
+		return startingBase;
+	}
+
+    // Otherwise look for any base we own.
+	for (Base * base : bases)
+	{
+		if (base->getOwner() == BWAPI::Broodwar->self())
+		{
+			return base;
+		}
+	}
+
+    // We have no bases. Ouch.
+	return nullptr;
+}
+
+// Return a position to place static defense or deploy a defensive force.
+// If we can't figure out such a place, return no position.
+// Not too smart, so far.
+BWAPI::TilePosition Bases::frontPoint() const
+{
+	Base * front = frontBase();
+	if (!front)
+	{
+		return BWAPI::TilePositions::None;
+	}
+
+    // The main base: Choose a point toward the natural, if it exists.
+	if (front == startingBase && naturalBase)
+	{
+		BWAPI::Position here = startingBase->getPosition();
+		BWAPI::Position there = naturalBase->getPosition();
+		BWAPI::Position offset = there - here;
+		return BWAPI::TilePosition(here + (offset * (6 * 32) / int(std::trunc(there.getDistance(here)))));
+	}
+
+	// Otherwise choose a point opposite the minerals (ignoring the gas).
+	BWAPI::Position center = front->getPosition();
+	BWAPI::Position offset = BWAPI::Positions::Origin;
+	for (BWAPI::Unit mineral : front->getMinerals())
+	{
+		offset += center - mineral->getPosition();
+	}
+	return BWAPI::TilePosition(center + (offset / front->getMinerals().size()));
+}
+
 // The given position is reachable by ground from our starting base.
 bool Bases::connectedToStart(const BWAPI::Position & pos) const
 {
@@ -379,6 +537,120 @@ Base * Bases::getBaseAtTilePosition(BWAPI::TilePosition pos)
 	}
 
 	return nullptr;
+}
+
+// The number of bases believed owned by the given player,
+// self, enemy, or neutral.
+int Bases::baseCount(BWAPI::Player player) const
+{
+	int count = 0;
+
+	for (Base * base : bases)
+	{
+		if (base->getOwner() == player)
+		{
+			++count;
+		}
+	}
+
+	return count;
+}
+
+// The number of reachable expansions that are believed not yet taken.
+int Bases::freeLandBaseCount() const
+{
+	int count = 0;
+
+	for (Base * base : bases)
+	{
+		if (base->getOwner() == BWAPI::Broodwar->neutral() && connectedToStart(base->getTilePosition()))
+		{
+			++count;
+		}
+	}
+
+	return count;
+}
+
+// Current number of mineral patches at all of my bases.
+// Decreases as patches mine out, increases as new bases are taken.
+int Bases::mineralPatchCount() const
+{
+	int count = 0;
+
+	for (Base * base : bases)
+	{
+		if (base->getOwner() == BWAPI::Broodwar->self())
+		{
+			count += base->getMinerals().size();
+		}
+	}
+
+	return count;
+}
+
+// Current number of geysers at all my completed bases, whether taken or not.
+// Skip bases where the resource depot is not finished.
+int Bases::geyserCount() const
+{
+	int count = 0;
+
+	for (Base * base : bases)
+	{
+		BWAPI::Unit depot = base->getDepot();
+
+		if (base->getOwner() == BWAPI::Broodwar->self() &&
+			depot &&                // should never be null, but we check anyway
+			(depot->isCompleted() || UnitUtil::IsMorphedBuildingType(depot->getType())))
+		{
+			count += base->getGeysers().size();
+		}
+	}
+
+	return count;
+}
+
+// Current number of completed refineries at my completed bases,
+// and number of bare geysers available to be taken.
+void Bases::gasCounts(int & nRefineries, int & nFreeGeysers) const
+{
+	int refineries = 0;
+	int geysers = 0;
+
+	for (Base * base : bases)
+	{
+		BWAPI::Unit depot = base->getDepot();
+
+		if (base->getOwner() == BWAPI::Broodwar->self() &&
+			depot &&                // should never be null, but we check anyway
+			(depot->isCompleted() || UnitUtil::IsMorphedBuildingType(depot->getType())))
+		{
+			// Recalculate the base's geysers every time.
+			// This is a slow but accurate way to work around the BWAPI geyser bug.
+			// To save cycles, call findGeysers() only when necessary (e.g. a refinery is destroyed).
+			base->findGeysers();
+
+			for (const auto geyser : base->getGeysers())
+			{
+				if (geyser && geyser->exists())
+				{
+					if (geyser->getPlayer() == BWAPI::Broodwar->self() &&
+						geyser->getType().isRefinery() &&
+						geyser->isCompleted())
+					{
+						++refineries;
+					}
+					else if (geyser->getPlayer() == BWAPI::Broodwar->neutral())
+					{
+						++geysers;
+					}
+				}
+			}
+		}
+	}
+
+	nRefineries = refineries;
+	nFreeGeysers = geysers;
 }
 
 // A neutral building has been destroyed.

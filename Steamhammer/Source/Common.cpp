@@ -79,3 +79,61 @@ std::string UnitTypeName(BWAPI::UnitType type)
 
 	return TrimRaceName(type.getName());
 }
+
+// Clip (x,y) to the bounds of the map.
+void ClipToMap(BWAPI::Position & pos)
+{
+	if (pos.x < 0)
+	{
+		pos.x = 0;
+	}
+	else if (pos.x >= 32 * BWAPI::Broodwar->mapWidth())
+	{
+		pos.x = 32 * BWAPI::Broodwar->mapWidth() - 1;
+	}
+
+	if (pos.y < 0)
+	{
+		pos.y = 0;
+	}
+	else if (pos.y >= 32 * BWAPI::Broodwar->mapHeight())
+	{
+		pos.y = 32 * BWAPI::Broodwar->mapHeight() - 1;
+	}
+}
+
+// Find the geometric center of a set of visible units.
+// We call it (0,0) if there are no units--better check this before calling.
+BWAPI::Position CenterOfUnitset(const BWAPI::Unitset units)
+{
+	BWAPI::Position total = BWAPI::Positions::Origin;
+	int n = 0;
+	for (const auto unit : units)
+	{
+		if (unit->isVisible() && unit->getPosition().isValid())
+		{
+			++n;
+			total += unit->getPosition();
+		}
+	}
+	if (n > 0)
+	{
+		return total / n;
+	}
+	return total;
+}
+
+// Predict a visible unit's movement a given number of frames into the future,
+// on the assumption that it keeps moving in a straight line.
+// If it is predicted to go off the map, clip the prediction to a valid position on the map.
+BWAPI::Position PredictMovement(BWAPI::Unit unit, int frames)
+{
+	UAB_ASSERT(unit && unit->getPosition().isValid(), "bad unit");
+
+	BWAPI::Position pos(
+		unit->getPosition().x + int(frames * unit->getVelocityX()),
+		unit->getPosition().y + int(frames * unit->getVelocityY())
+	);
+	ClipToMap(pos);
+	return pos;
+}

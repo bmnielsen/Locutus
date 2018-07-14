@@ -84,11 +84,6 @@ void SquadData::drawSquadInformation(int x, int y)
         return;
     }
 
-	BWAPI::Broodwar->drawTextScreen(x, y, "\x04Squads");
-	BWAPI::Broodwar->drawTextScreen(x, y+20, "\x04NAME");
-	BWAPI::Broodwar->drawTextScreen(x+150, y+20, "\x04SIZE");
-	BWAPI::Broodwar->drawTextScreen(x+180, y+20, "\x04LOCATION");
-
 	int yspace = 0;
 
 	for (const auto & kv : _squads) 
@@ -97,11 +92,18 @@ void SquadData::drawSquadInformation(int x, int y)
 
 		const BWAPI::Unitset & units = squad.getUnits();
 		const SquadOrder & order = squad.getSquadOrder();
-		char code = order.getCharCode();               // a == attack, etc.
+		char code = order.getCharCode();                            // a == attack, etc.
+		const BWAPI::TilePosition orderTile(order.getPosition());   // shorter and easier to read
 
-		BWAPI::Broodwar->drawTextScreen(x, y+40+((yspace)*10), "\x03 %c %s", code, squad.getName().c_str());
-		BWAPI::Broodwar->drawTextScreen(x+150, y+40+((yspace)*10), "\x03%d", units.size());
-		BWAPI::Broodwar->drawTextScreen(x+180, y+40+((yspace++)*10), "\x03(%d,%d)", order.getPosition().x, order.getPosition().y);
+		BWAPI::Broodwar->drawTextScreen(x, y + (yspace * 10), "%c%c", yellow, code);
+		BWAPI::Broodwar->drawTextScreen(x + 10, y + (yspace * 10), "%c%s", white, squad.getName().c_str());
+		BWAPI::Broodwar->drawTextScreen(x + 80, y + (yspace * 10), "%c%d", yellow, units.size());
+		BWAPI::Broodwar->drawTextScreen(x + 105, y + (yspace * 10), "%c%d,%d", yellow, orderTile.x, orderTile.y);
+		if (units.size() > 0 && order.isRegroupableOrder())
+		{
+			BWAPI::Broodwar->drawTextScreen(x + 150, y + (yspace * 10), "%c%s", orange, squad.getRegroupStatus().c_str());
+		}
+		++yspace;
 
 		BWAPI::Broodwar->drawCircleMap(order.getPosition(), 10, BWAPI::Colors::Green, true);
         BWAPI::Broodwar->drawCircleMap(order.getPosition(), order.getRadius(), BWAPI::Colors::Red, false);

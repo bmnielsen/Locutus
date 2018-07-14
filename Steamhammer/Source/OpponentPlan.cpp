@@ -179,7 +179,7 @@ void OpponentPlan::recognize()
 	// Recognize expansions with pre-placed static defense.
 	// Zerg can't do this.
 	// NOTE Incomplete test! We don't check the location of the static defense
-	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->enemy()) >= 2)
+	if (Bases::Instance().baseCount(BWAPI::Broodwar->enemy()) >= 2)
 	{
 		if (snap.getCount(BWAPI::UnitTypes::Terran_Bunker) > 0 ||
 			snap.getCount(BWAPI::UnitTypes::Protoss_Photon_Cannon) > 0)
@@ -191,7 +191,7 @@ void OpponentPlan::recognize()
 
 	// Recognize a naked expansion.
 	// This has to run after the SafeExpand check, since it doesn't check for what's missing.
-	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->enemy()) >= 2)
+	if (Bases::Instance().baseCount(BWAPI::Broodwar->enemy()) >= 2)
 	{
 		_openingPlan = OpeningPlan::NakedExpand;
 		return;
@@ -199,7 +199,7 @@ void OpponentPlan::recognize()
 
 	// Recognize a turtling enemy.
 	// NOTE Incomplete test! We don't check where the defenses are placed.
-	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->enemy()) < 2)
+	if (Bases::Instance().baseCount(BWAPI::Broodwar->enemy()) < 2)
 	{
 		if (snap.getCount(BWAPI::UnitTypes::Terran_Bunker) >= 2 ||
 			snap.getCount(BWAPI::UnitTypes::Protoss_Photon_Cannon) >= 2 ||

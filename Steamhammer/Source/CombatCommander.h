@@ -21,12 +21,15 @@ class CombatCommander
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
 
-    void            updateScoutDefenseSquad();
-	void            updateBaseDefenseSquads();
-	void			updateReconSquad();
-	void            updateAttackSquads();
-    void            updateDropSquads();
+	bool            wantSquadDetectors() const;
+
 	void            updateIdleSquad();
+	void            updateOverlordSquad();
+	void            updateAttackSquads();
+	void			updateReconSquad();
+	void            updateBaseDefenseSquads();
+	void            updateScoutDefenseSquad();
+	void            updateDropSquads();
 
 	void			loadOrUnloadBunkers();
 	void			doComsatScan();
@@ -44,7 +47,7 @@ class CombatCommander
 
 	int             getNumType(BWAPI::Unitset & units, BWAPI::UnitType type);
 
-	BWAPI::Unit     findClosestDefender(const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullWoekers);
+	BWAPI::Unit     findClosestDefender(const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullWoekers, bool enemyHasAntiAir);
     BWAPI::Unit     findClosestWorkerToTarget(BWAPI::Unitset & unitsToAssign, BWAPI::Unit target);
 
 	BWAPI::Position getDefendLocation();
@@ -61,7 +64,7 @@ class CombatCommander
     int             getNumGroundDefendersInSquad(Squad & squad);
     int             getNumAirDefendersInSquad(Squad & squad);
 
-    void            updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers);
+	void            updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool enemyHasAntiAir);
 
     int             numZerglingsInOurBase() const;
     bool            buildingRush() const;

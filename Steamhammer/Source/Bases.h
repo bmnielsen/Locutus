@@ -34,7 +34,8 @@ namespace UAlbertaBot
 
 		std::vector<Base *> bases;
 		std::vector<Base *> startingBases;			// starting locations
-		Base * startingBase;
+		Base * startingBase;                        // always set, not always owned by us
+		Base * naturalBase;                         // not always set - some maps have no natural
 		std::vector<BWAPI::Unit> smallMinerals;		// patches too small to be worth mining
 
 		bool islandStart;
@@ -48,6 +49,7 @@ namespace UAlbertaBot
 
 		bool checkIslandMap() const;
 		void rememberBaseBlockers();
+		void setNaturalBase();
 
 		void removeUsedResources(BWAPI::Unitset & resources, const Base * base) const;
 		void countResources(BWAPI::Unit resource, int & minerals, int & gas) const;
@@ -64,10 +66,14 @@ namespace UAlbertaBot
 	public:
 		void initialize();
 		void drawBaseInfo() const;
-
-		bool isIslandStart() const { return islandStart; };
+		void drawBaseOwnership(int x, int y) const;
 
 		Base * myStartingBase() const { return startingBase; };
+		Base * myNaturalBase() const { return naturalBase; };
+		Base * frontBase() const;
+		BWAPI::TilePosition frontPoint() const;
+		bool isIslandStart() const { return islandStart; };
+
 		bool connectedToStart(const BWAPI::Position & pos) const;
 		bool connectedToStart(const BWAPI::TilePosition & tile) const;
 
@@ -75,6 +81,12 @@ namespace UAlbertaBot
 		const std::vector<Base *> & getBases() { return bases; };
 		const std::vector<Base *> & getStartingBases() { return startingBases; };
 		const std::vector<BWAPI::Unit> & getSmallMinerals() { return smallMinerals; };
+
+		int baseCount(BWAPI::Player player) const;
+		int freeLandBaseCount() const;
+		int mineralPatchCount() const;
+		int geyserCount() const;
+		void gasCounts(int & nRefineries, int & nFreeGeysers) const;
 
 		void clearNeutral(BWAPI::Unit unit);
 

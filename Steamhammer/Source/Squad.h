@@ -13,6 +13,8 @@
 #include "MicroHighTemplar.h"
 #include "MicroLurkers.h"
 #include "MicroMedics.h"
+#include "MicroMutas.h"
+#include "MicroOverlords.h"
 #include "MicroTanks.h"
 #include "MicroTransports.h"
 
@@ -45,6 +47,8 @@ class Squad
 	MicroHighTemplar	_microHighTemplar;
 	MicroLurkers		_microLurkers;
 	MicroMedics			_microMedics;
+	//MicroMutas          _microMutas;
+	MicroOverlords      _microOverlords;
 	MicroTanks			_microTanks;
 	MicroTransports		_microTransports;
 
@@ -60,6 +64,7 @@ class Squad
 	
 	bool			unitNearEnemy(BWAPI::Unit unit);
 	bool			needsToRegroup();
+	BWAPI::Position calcRegroupPosition();
 
 	void			loadTransport();
 	void			stimIfNeeded();
@@ -84,11 +89,11 @@ public:
     
 	int					mapPartition() const;
 	BWAPI::Position     calcCenter() const;
-	BWAPI::Position     calcRegroupPosition();
 
 	const BWAPI::Unitset &  getUnits() const;
 	void                setSquadOrder(const SquadOrder & so);
 	const SquadOrder &  getSquadOrder()	const;
+	const std::string   getRegroupStatus() const;
 
 	int					getCombatSimRadius() const { return _combatSimRadius; };
 	void				setCombatSimRadius(int radius) { _combatSimRadius = radius; };

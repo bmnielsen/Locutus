@@ -11,8 +11,6 @@ class MicroDetectors : public MicroManager
 	int squadSize;
 	BWAPI::Unit unitClosestToEnemy;
 
-	void clipToMap(BWAPI::Position & pos) const;
-
 public:
 
 	MicroDetectors();

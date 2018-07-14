@@ -1,4 +1,6 @@
 #include "ProductionManager.h"
+
+#include "Bases.h"
 #include "GameCommander.h"
 #include "StrategyBossZerg.h"
 #include "UnitUtil.h"
@@ -303,7 +305,7 @@ void ProductionManager::maybeReorderQueue()
 
 	// If we're in a severe emergency situation, don't try to reorder the queue.
 	// We need a resource depot and a few workers.
-	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->self()) == 0 ||
+	if (Bases::Instance().baseCount(BWAPI::Broodwar->self()) == 0 ||
 		WorkerManager::Instance().getNumMineralWorkers() <= 3)
 	{
 		return;
@@ -526,9 +528,17 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 		// Otherwise it will find some spot near desiredLocation.
 		BWAPI::TilePosition desiredLocation = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
 
-		if (act.getMacroLocation() == MacroLocation::Natural)
+		if (act.getMacroLocation() == MacroLocation::Front)
 		{
-			BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+			BWAPI::TilePosition front = Bases::Instance().frontPoint();
+			if (front.isValid())
+			{
+				desiredLocation = front;
+			}
+		}
+		else if (act.getMacroLocation() == MacroLocation::Natural)
+		{
+			Base * natural = Bases::Instance().myNaturalBase();
 			if (natural)
 			{
 				desiredLocation = natural->getTilePosition();

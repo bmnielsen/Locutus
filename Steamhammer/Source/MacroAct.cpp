@@ -1,5 +1,10 @@
 #include "MacroAct.h"
 
+#include "Bases.h"
+#include "BuildingManager.h"
+#include "ProductionManager.h"
+#include "UnitUtil.h"
+
 #include <regex>
 
 using namespace UAlbertaBot;
@@ -30,9 +35,17 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 	{
 		return MacroLocation::Natural;
 	}
+	if (s == "front")
+	{
+		return MacroLocation::Front;
+	}
 	if (s == "center")
 	{
 		return MacroLocation::Center;
+	}
+	if (s == "gas steal")
+	{
+		return MacroLocation::GasSteal;
 	}
 
 	UAB_ASSERT(false, "config file - bad location '@ %s'", s.c_str());
@@ -243,9 +256,14 @@ bool MacroAct::isBuilding()	const
     return _type == MacroActs::Unit && _unitType.isBuilding(); 
 }
 
-bool MacroAct::isAddon()	const
+bool MacroAct::isAddon() const
 {
 	return _type == MacroActs::Unit && _unitType.isAddon();
+}
+
+bool MacroAct::isMorphedBuilding() const
+{
+	return _type == MacroActs::Unit && UnitUtil::IsMorphedBuildingType(_unitType);
 }
 
 bool MacroAct::isRefinery()	const
@@ -551,7 +569,8 @@ bool MacroAct::hasTech() const
 	for (const std::pair<BWAPI::UnitType, int> & typeAndCount : getUnitType().requiredUnits())
 	{
 		BWAPI::UnitType requiredType = typeAndCount.first;
-		if (ourUnitTypes.find(requiredType) == ourUnitTypes.end())
+		if (ourUnitTypes.find(requiredType) == ourUnitTypes.end() &&
+			(ProductionManager::Instance().isOutOfBook() || !requiredType.isBuilding() || !BuildingManager::Instance().isBeingBuilt(requiredType)))
 		{
 			// BWAPI::Broodwar->printf("missing tech: %s requires %s", getName().c_str(), requiredType.getName().c_str());
 			// We don't have a type we need. We don't have the tech.
@@ -561,4 +580,85 @@ bool MacroAct::hasTech() const
 
 	// We have the technology.
 	return true;
+}
+
+// Create a unit or start research.
+void MacroAct::produce(BWAPI::Unit producer)
+{
+	if (!producer)
+	{
+		return;
+	}
+
+	// If it's a terran add-on.
+	if (isAddon())
+	{
+		producer->buildAddon(getUnitType());
+	}
+	// If it's a building other than a morphed zerg building.
+	else if (isBuilding()                                   // implies act.isUnit()
+		&& !UnitUtil::IsMorphedBuildingType(getUnitType())) // not morphed from another zerg building
+	{
+		// Every once in a while, pick a new base as the "main" base to build in.
+		if (getRace() != BWAPI::Races::Protoss || getUnitType() == BWAPI::UnitTypes::Protoss_Pylon)
+		{
+			InformationManager::Instance().maybeChooseNewMainBase();
+		}
+
+		// By default, build in the main base.
+		// BuildingManager will override the location if it needs to.
+		// Otherwise it will find some spot near desiredLocation.
+		BWAPI::TilePosition desiredLocation = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
+
+		if (getMacroLocation() == MacroLocation::Front)
+		{
+			BWAPI::TilePosition front = Bases::Instance().frontPoint();
+			if (front.isValid())
+			{
+				desiredLocation = front;
+			}
+		}
+		else if (getMacroLocation() == MacroLocation::Natural)
+		{
+			Base * natural = Bases::Instance().myNaturalBase();
+			if (natural)
+			{
+				desiredLocation = natural->getTilePosition();
+			}
+		}
+		else if (getMacroLocation() == MacroLocation::Center)
+		{
+			// Near the center of the map.
+			desiredLocation = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2);
+		}
+
+		BuildingManager::Instance().addBuildingTask(*this, desiredLocation, getMacroLocation() == MacroLocation::GasSteal);
+	}
+	// if we're dealing with a non-building unit, or a morphed zerg building
+	else if (isUnit())
+	{
+		if (getUnitType().getRace() == BWAPI::Races::Zerg)
+		{
+			// if the race is zerg, morph the unit
+			producer->morph(getUnitType());
+		}
+		else
+		{
+			// if not, train the unit
+			producer->train(getUnitType());
+		}
+	}
+	// if we're dealing with a tech research
+	else if (isTech())
+	{
+		producer->research(getTechType());
+	}
+	else if (isUpgrade())
+	{
+		producer->upgrade(getUpgradeType());
+	}
+	else
+	{
+		UAB_ASSERT(false, "Can't produce");
+	}
 }

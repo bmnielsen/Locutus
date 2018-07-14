@@ -81,8 +81,8 @@ void GameCommander::drawDebugInterface()
 {
 	InformationManager::Instance().drawExtendedInterface();
 	InformationManager::Instance().drawUnitInformation(425,30);
-	InformationManager::Instance().drawMapInformation();
-	InformationManager::Instance().drawBaseInformation(575, 30);
+	Bases::Instance().drawBaseInfo();
+	Bases::Instance().drawBaseOwnership(575, 30);
 	BuildingManager::Instance().drawBuildingInformation(200, 50);
 	BuildingPlacer::Instance().drawReservedTiles();
 	ProductionManager::Instance().drawProductionInformation(30, 60);
@@ -90,7 +90,7 @@ void GameCommander::drawDebugInterface()
     BOSSManager::Instance().drawStateInformation(250, 0);
 	MapTools::Instance().drawHomeDistances();
     
-	_combatCommander.drawSquadInformation(200, 30);
+	_combatCommander.drawSquadInformation(200, 70);
     _timerManager.displayTimers(490, 225);
     drawGameInformation(4, 1);
 
@@ -257,11 +257,9 @@ void GameCommander::setValidUnits()
 void GameCommander::setScoutUnits()
 {
 	// If we're zerg, assign the first overlord to scout.
-	// But (except for island maps) not if the enemy is terran: We have no evasion skills,
-	// we'll lose the overlord.
 	if (BWAPI::Broodwar->getFrameCount() == 0 &&
-		BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg &&
-		(BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran || Bases::Instance().isIslandStart()))
+		BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg)
+		// (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran || Bases::Instance().isIslandStart()))
 	{
 		for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		{
@@ -302,6 +300,12 @@ void GameCommander::setCombatUnits()
 			assignUnit(unit, _combatUnits);
 		}
 	}
+}
+
+// Release the zerg scouting overlord for other duty.
+void GameCommander::releaseOverlord(BWAPI::Unit overlord)
+{
+	_scoutUnits.erase(overlord);
 }
 
 void GameCommander::onUnitShow(BWAPI::Unit unit)			

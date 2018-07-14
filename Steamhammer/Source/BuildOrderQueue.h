@@ -49,6 +49,8 @@ public:
 	bool anyInQueue(BWAPI::UpgradeType type) const;
 	bool anyInQueue(BWAPI::UnitType type) const;
 	bool anyInNextN(BWAPI::UnitType type, int n) const;
+	bool anyInNextN(BWAPI::UpgradeType type, int n) const;
+	bool anyInNextN(BWAPI::TechType type, int n) const;
 	size_t numInQueue(BWAPI::UnitType type) const;
 	size_t numInNextN(BWAPI::UnitType type, int n) const;
 	void totalCosts(int & minerals, int & gas) const;

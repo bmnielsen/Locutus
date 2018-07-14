@@ -41,6 +41,9 @@ public:
 	const BWAPI::TilePosition & getTilePosition() const { return tilePosition; };
 	const BWAPI::Position getPosition() const { return BWAPI::Position(tilePosition); };
 
+	int getTileDistance(const BWAPI::Position & pos) const { return distances.at(pos); };
+	int getTileDistance(const BWAPI::TilePosition & pos) const { return distances.at(pos); };
+
 	void setOwner(BWAPI::Unit depot, BWAPI::Player player);
 
 	// The mineral patch units and geyser units.

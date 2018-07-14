@@ -52,7 +52,6 @@ Squad::~Squad()
     clear();
 }
 
-// TODO make a proper dispatch system for different orders
 void Squad::update()
 {
 	// update all necessary unit information within this squad
@@ -63,6 +62,7 @@ void Squad::update()
 		return;
 	}
 
+	_microOverlords.update();
 	_microHighTemplar.update();
 
 	if (_order.getType() == SquadOrderTypes::Load)
@@ -79,20 +79,10 @@ void Squad::update()
 
 	bool needToRegroup = needsToRegroup();
     
-	if (Config::Debug::DrawSquadInfo && _order.isRegroupableOrder()) 
-	{
-		BWAPI::Broodwar->drawTextScreen(200, 350, "%c%s", white, _regroupStatus.c_str());
-	}
-
 	if (needToRegroup)
 	{
 		// Regroup, aka retreat. Only fighting units care about regrouping.
 		BWAPI::Position regroupPosition = calcRegroupPosition();
-
-        if (Config::Debug::DrawCombatSimulationInfo)
-        {
-		    BWAPI::Broodwar->drawTextScreen(200, 150, "REGROUP");
-        }
 
 		if (Config::Debug::DrawSquadInfo)
 		{
@@ -101,6 +91,7 @@ void Squad::update()
         
 		_microAirToAir.regroup(regroupPosition);
 		_microMelee.regroup(regroupPosition);
+		//_microMutas.regroup(regroupPosition);
 		_microRanged.regroup(regroupPosition);
 		_microTanks.regroup(regroupPosition);
 	}
@@ -109,12 +100,13 @@ void Squad::update()
 		// No need to regroup. Execute micro.
 		_microAirToAir.execute();
 		_microMelee.execute();
+		//_microMutas.execute();
 		_microRanged.execute();
 		_microTanks.execute();
 	}
 
 	// Lurkers never regroup, always execute their order.
-	// TODO It is because regrouping works poorly. It retreats and unburrows them too often.
+	// NOTE It is because regrouping works poorly. It retreats and unburrows them too often.
 	_microLurkers.execute();
 
 	// Maybe stim marines and firebats.
@@ -237,6 +229,8 @@ void Squad::addUnitsToMicroManagers()
 	BWAPI::Unitset highTemplarUnits;
 	BWAPI::Unitset transportUnits;
 	BWAPI::Unitset lurkerUnits;
+	BWAPI::Unitset mutaUnits;
+	BWAPI::Unitset overlordUnits;
     BWAPI::Unitset tankUnits;
     BWAPI::Unitset medicUnits;
 
@@ -244,7 +238,12 @@ void Squad::addUnitsToMicroManagers()
 	{
 		if (unit->isCompleted() && unit->exists() && unit->getHitPoints() > 0 && !unit->isLoaded())
 		{
-			if (unit->getType() == BWAPI::UnitTypes::Terran_Valkyrie ||
+			if (_name == "Overlord" && unit->getType() == BWAPI::UnitTypes::Zerg_Overlord)
+			{
+                // Special case for the Overlord squad: All overlords under control of MicroOverlords.
+				overlordUnits.insert(unit);
+			}
+			else if (unit->getType() == BWAPI::UnitTypes::Terran_Valkyrie ||
 				unit->getType() == BWAPI::UnitTypes::Protoss_Corsair ||
 				unit->getType() == BWAPI::UnitTypes::Zerg_Devourer)
 			{
@@ -254,13 +253,17 @@ void Squad::addUnitsToMicroManagers()
 			{
 				highTemplarUnits.insert(unit);
 			}
-			else if (unit->getType() == BWAPI::UnitTypes::Terran_Medic)
-            {
-                medicUnits.insert(unit);
-            }
 			else if (unit->getType() == BWAPI::UnitTypes::Zerg_Lurker)
 			{
 				lurkerUnits.insert(unit);
+			}
+			//else if (unit->getType() == BWAPI::UnitTypes::Zerg_Mutalisk)
+			//{
+			//	mutaUnits.insert(unit);
+			//}
+			else if (unit->getType() == BWAPI::UnitTypes::Terran_Medic)
+			{
+				medicUnits.insert(unit);
 			}
 			else if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
 				unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
@@ -309,6 +312,8 @@ void Squad::addUnitsToMicroManagers()
 	_microHighTemplar.setUnits(highTemplarUnits);
 	_microLurkers.setUnits(lurkerUnits);
 	_microMedics.setUnits(medicUnits);
+	//_microMutas.setUnits(mutaUnits);
+	_microOverlords.setUnits(overlordUnits);
 	_microTanks.setUnits(tankUnits);
 	_microTransports.setUnits(transportUnits);
 }
@@ -318,15 +323,14 @@ bool Squad::needsToRegroup()
 {
 	if (_units.empty())
 	{
-		_regroupStatus = std::string("No attackers available");
+		_regroupStatus = std::string("Empty");
 		return false;
 	}
 
-	// If we are not attacking, never regroup.
-	// This includes the Defend and Drop orders (among others).
+	// Only specified orders ever regroup.
 	if (!_order.isRegroupableOrder())
 	{
-		_regroupStatus = std::string("No attack order");
+		_regroupStatus = std::string("N/A");
 		return false;
 	}
 
@@ -386,6 +390,56 @@ bool Squad::needsToRegroup()
 	}
 
 	return retreat;
+}
+
+BWAPI::Position Squad::calcRegroupPosition()
+{
+	BWAPI::Position regroup(0, 0);
+
+	int minDist = 100000;
+
+	// Retreat to the location of the squad unit not near the enemy which is
+	// closest to the order position.
+	// NOTE May retreat somewhere silly if the chosen unit was newly produced.
+	//      Zerg sometimes retreats back and forth through the enemy when new
+	//      zerg units are produced in bases on opposite sides.
+	for (const auto unit : _units)
+	{
+		// Count combat units only. Bug fix originally thanks to AIL, it's been rewritten a bit since then.
+		if (!_nearEnemy[unit] &&
+			!unit->getType().isDetector() &&
+			unit->getType() != BWAPI::UnitTypes::Terran_Medic &&
+			unit->getPosition().isValid())    // excludes loaded units
+		{
+			int dist = unit->getDistance(_order.getPosition());
+			if (dist < minDist)
+			{
+				// If the squad has any ground units, don't try to retreat to the position of an air unit
+				// which is flying in a place that a ground unit cannot reach.
+				if (!_hasGround || -1 != MapTools::Instance().getGroundTileDistance(unit->getPosition(), _order.getPosition()))
+				{
+					minDist = dist;
+					regroup = unit->getPosition();
+				}
+			}
+		}
+	}
+
+	// Failing that, retreat to a base we own.
+	if (regroup == BWAPI::Positions::Origin)
+	{
+		// Retreat to the starting base (guaranteed not null, even if the buildings were destroyed).
+		Base * base = Bases::Instance().myStartingBase();
+
+		// If the natural has been taken, retreat there instead.
+		Base * natural = Bases::Instance().myNaturalBase();
+		if (natural && natural->getOwner() == BWAPI::Broodwar->self())
+		{
+			base = natural;
+		}
+		return BWTA::getRegion(base->getTilePosition())->getCenter();
+	}
+	return regroup;
 }
 
 bool Squad::containsUnit(BWAPI::Unit u) const
@@ -470,56 +524,6 @@ BWAPI::Position Squad::calcCenter() const
 	return BWAPI::Position(accum.x / _units.size(), accum.y / _units.size());
 }
 
-BWAPI::Position Squad::calcRegroupPosition()
-{
-	BWAPI::Position regroup(0,0);
-
-	int minDist = 100000;
-
-	// Retreat to the location of the squad unit not near the enemy which is
-	// closest to the order position.
-	// NOTE May retreat somewhere silly if the chosen unit was newly produced.
-	//      Zerg sometimes retreats back and forth through the enemy when new
-	//      zerg units are produced in bases on opposite sides.
-	for (const auto unit : _units)
-	{
-		// Count combat units only. Bug fix originally thanks to AIL, it's been rewritten a bit since then.
-		if (!_nearEnemy[unit] &&
-			!unit->getType().isDetector() &&
-			unit->getType() != BWAPI::UnitTypes::Terran_Medic &&
-			unit->getPosition().isValid())    // excludes loaded units
-		{
-			int dist = unit->getDistance(_order.getPosition());
-			if (dist < minDist)
-			{
-				// If the squad has any ground units, don't try to retreat to the position of an air unit
-				// which is flying in a place that a ground unit cannot reach.
-				if (!_hasGround || -1 != MapTools::Instance().getGroundTileDistance(unit->getPosition(), _order.getPosition()))
-				{
-					minDist = dist;
-					regroup = unit->getPosition();
-				}
-			}
-		}
-	}
-
-	// Failing that, retreat to a base we own.
-	if (regroup == BWAPI::Positions::Origin)
-	{
-		// Retreat to the main base (guaranteed not null, even if the buildings were destroyed).
-		BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
-
-		// If the natural has been taken, retreat there instead.
-		BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
-		if (natural && InformationManager::Instance().getBaseOwner(natural) == BWAPI::Broodwar->self())
-		{
-			base = natural;
-		}
-		return BWTA::getRegion(base->getTilePosition())->getCenter();
-	}
-	return regroup;
-}
-
 // Return the unit closest to the order position (not actually closest to the enemy).
 BWAPI::Unit Squad::unitClosestToEnemy()
 {
@@ -578,6 +582,7 @@ void Squad::setSquadOrder(const SquadOrder & so)
 	_microHighTemplar.setOrder(so);
 	_microLurkers.setOrder(so);
 	_microMedics.setOrder(so);
+	//_microMutas.setOrder(so);
 	_microTanks.setOrder(so);
 	_microTransports.setOrder(so);
 }
@@ -585,6 +590,11 @@ void Squad::setSquadOrder(const SquadOrder & so)
 const SquadOrder & Squad::getSquadOrder() const			
 { 
 	return _order; 
+}
+
+const std::string Squad::getRegroupStatus() const
+{
+	return _regroupStatus;
 }
 
 void Squad::addUnit(BWAPI::Unit u)

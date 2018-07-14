@@ -58,7 +58,7 @@ void MicroAirToAir::assignTargets(const BWAPI::Unitset & targets)
 					BWAPI::Broodwar->drawLineMap(airUnit->getPosition(), airUnit->getTargetPosition(), BWAPI::Colors::Purple);
 				}
 
-				Micro::AttackUnit(airUnit, target);
+				Micro::CatchAndAttackUnit(airUnit, target);
 			}
 			else
 			{
@@ -113,7 +113,7 @@ BWAPI::Unit MicroAirToAir::getTarget(BWAPI::Unit airUnit, const BWAPI::Unitset &
 		{
 			score += 16;
 		}
-		else if (target->getType().topSpeed() >= airUnit->getType().topSpeed())
+		else if (target->getPlayer()->topSpeed(target->getType()) >= airUnit->getPlayer()->topSpeed(airUnit->getType()))
 		{
 			score -= 5 * 32;
 		}

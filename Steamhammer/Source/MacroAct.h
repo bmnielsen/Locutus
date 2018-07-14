@@ -5,16 +5,17 @@
 
 namespace UAlbertaBot
 {
-
 enum class MacroLocation
 	{ Anywhere     // default location
-	, Macro        // macro hatchery
-	, Expo         // gas expansion hatchery
-	, MinOnly      // any expansion hatchery (mineral-only or gas, whatever's next)
-	, Hidden       // gas expansion hatchery far from both main bases
+	, Macro        // macro hatchery or main base building
+	, Expo         // gas expansion
+	, MinOnly      // any expansion (mineral-only or gas, whatever's next)
+	, Hidden       // gas expansion far from both main bases
 	, Main         // current main base
 	, Natural      // "natural" first expansion base
+    , Front        // front line base (main or natural, as available)
 	, Center       // middle of the map
+    , GasSteal     // this is a gas steal, the unit type must be a refinery type
 	};
 
 namespace MacroActs
@@ -47,15 +48,16 @@ public:
 	MacroAct(MacroCommandType t);
 	MacroAct(MacroCommandType t, int amount);
 
-	bool    isUnit()		const;
-	bool	isWorker()		const;
-	bool    isTech()		const;
-	bool    isUpgrade()	    const;
-	bool    isCommand()	    const;
-	bool    isBuilding()	const;
-	bool	isAddon()		const;
-	bool    isRefinery()	const;
-	bool	isSupply()		const;
+	bool    isUnit()			const;
+	bool	isWorker()			const;
+	bool    isTech()			const;
+	bool    isUpgrade()			const;
+	bool    isCommand()			const;
+	bool    isBuilding()		const;
+	bool	isAddon()			const;
+	bool	isMorphedBuilding()	const;
+	bool    isRefinery()		const;
+	bool	isSupply()			const;
     
     const size_t & type() const;
     const BWAPI::Race & getRace() const;
@@ -77,5 +79,6 @@ public:
 	bool hasPotentialProducer() const;
 	bool hasTech() const;
 
+	void produce(BWAPI::Unit producer);
 };
 }

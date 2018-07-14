@@ -1,70 +1,82 @@
-#include "Common.h"
 #include "BuildingPlacer.h"
+
+#include "Bases.h"
+#include "Common.h"
 #include "InformationManager.h"
 #include "MapTools.h"
 
 using namespace UAlbertaBot;
 
 BuildingPlacer::BuildingPlacer()
-    : _boxTop       (std::numeric_limits<int>::max())
-    , _boxBottom    (std::numeric_limits<int>::lowest())
-    , _boxLeft      (std::numeric_limits<int>::max())
-    , _boxRight     (std::numeric_limits<int>::lowest())
 {
     _reserveMap = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(),std::vector<bool>(BWAPI::Broodwar->mapHeight(),false));
 
-    computeResourceBox();
+	reserveSpaceNearResources();
 }
 
-BuildingPlacer & BuildingPlacer::Instance() 
+void BuildingPlacer::reserveSpaceNearResources()
+{
+	for (Base * base : Bases::Instance().getBases())
+	{
+		// A tile close to the center of the building (which is 4x3 tiles).
+		BWAPI::TilePosition baseTile = base->getTilePosition() + BWAPI::TilePosition(2, 1);
+
+		for (const auto mineral : base->getMinerals())
+		{
+			BWAPI::TilePosition minTile = mineral->getTilePosition();
+			//reserveTiles(minTile, 2, 1);
+			if (minTile.x < baseTile.x)
+			{
+				reserveTiles(minTile + BWAPI::TilePosition(2, 0), 1, 1);
+			}
+			else if (minTile.x > baseTile.x)
+			{
+				reserveTiles(minTile + BWAPI::TilePosition(-1, 0), 1, 1);
+			}
+			if (minTile.y < baseTile.y)
+			{
+				reserveTiles(minTile + BWAPI::TilePosition(0, 1), 2, 1);
+			}
+			else if (minTile.y > baseTile.y)
+			{
+				reserveTiles(minTile + BWAPI::TilePosition(0, -1), 2, 1);
+			}
+		}
+
+		for (const auto gas : base->getGeysers())
+		{
+			// Don't build on the right edge or a right corner of a geyser.
+			// It causes workers to take a long path around. Other locations are OK.
+			BWAPI::TilePosition gasTile = gas->getTilePosition();
+			//reserveTiles(gasTile, 4, 2);
+			if (gasTile.x - baseTile.x > 2)
+			{
+				reserveTiles(gasTile + BWAPI::TilePosition(-1, 1), 3, 2);
+			}
+			else if (gasTile.x - baseTile.x < -2)
+			{
+				reserveTiles(gasTile + BWAPI::TilePosition(2, -1), 3, 2);
+			}
+			if (gasTile.y - baseTile.y > 2)
+			{
+				reserveTiles(gasTile + BWAPI::TilePosition(-1, -1), 2, 3);
+			}
+			else if (gasTile.y - baseTile.y < -2)
+			{
+				reserveTiles(gasTile + BWAPI::TilePosition(3, 0), 2, 3);
+			}
+		}
+	}
+}
+
+BuildingPlacer & BuildingPlacer::Instance()
 {
     static BuildingPlacer instance;
     return instance;
 }
 
-bool BuildingPlacer::isInResourceBox(int x, int y) const
-{
-    int posX(x * 32);
-    int posY(y * 32);
-
-    return (posX >= _boxLeft) && (posX < _boxRight) && (posY >= _boxTop) && (posY < _boxBottom);
-}
-
-void BuildingPlacer::computeResourceBox()
-{
-    BWAPI::Position start(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
-    BWAPI::Unitset unitsAroundNexus;
-
-    for (const auto unit : BWAPI::Broodwar->getAllUnits())
-    {
-        // if the units are less than 400 away add them if they are resources
-        if (unit->getDistance(start) < 300 && unit->getType().isMineralField())
-        {
-            unitsAroundNexus.insert(unit);
-        }
-    }
-
-    for (const auto unit : unitsAroundNexus)
-    {
-        int x = unit->getPosition().x;
-        int y = unit->getPosition().y;
-
-        int left = x - unit->getType().dimensionLeft();
-        int right = x + unit->getType().dimensionRight() + 1;
-        int top = y - unit->getType().dimensionUp();
-        int bottom = y + unit->getType().dimensionDown() + 1;
-
-        _boxTop     = top < _boxTop       ? top    : _boxTop;
-        _boxBottom  = bottom > _boxBottom ? bottom : _boxBottom;
-        _boxLeft    = left < _boxLeft     ? left   : _boxLeft;
-        _boxRight   = right > _boxRight   ? right  : _boxRight;
-    }
-
-    //BWAPI::Broodwar->printf("%d %d %d %d", boxTop, boxBottom, boxLeft, boxRight);
-}
-
 // makes final checks to see if a building can be built at a certain location
-bool BuildingPlacer::canBuildHere(BWAPI::TilePosition position,const Building & b) const
+bool BuildingPlacer::canBuildHere(BWAPI::TilePosition position, const Building & b) const
 {
     if (!BWAPI::Broodwar->canBuildHere(position,b.type,b.builderUnit))
     {
@@ -113,7 +125,7 @@ bool BuildingPlacer::tileBlocksAddon(BWAPI::TilePosition position) const
 
 // Can we build this building here with the specified amount of space around it?
 // Space value is buildDist. horizontalOnly means only horizontal spacing.
-bool BuildingPlacer::canBuildHereWithSpace(BWAPI::TilePosition position,const Building & b,int buildDist) const
+bool BuildingPlacer::canBuildHereWithSpace(BWAPI::TilePosition position, const Building & b, int buildDist) const
 {
     //if we can't build here, we of course can't build here with space
     if (!canBuildHere(position,b))
@@ -165,9 +177,7 @@ bool BuildingPlacer::canBuildHereWithSpace(BWAPI::TilePosition position,const Bu
         {
             if (!b.type.isRefinery())
             {
-                if (!buildable(b,x,y) ||
-					_reserveMap[x][y] ||
-					(b.type != BWAPI::UnitTypes::Protoss_Photon_Cannon && isInResourceBox(x,y)))
+                if (!buildable(b,x,y) || _reserveMap[x][y])
                 {
                     return false;
                 }
@@ -267,13 +277,13 @@ bool BuildingPlacer::buildable(const Building & b,int x,int y) const
     return true;
 }
 
-void BuildingPlacer::reserveTiles(BWAPI::TilePosition position,int width,int height)
+void BuildingPlacer::reserveTiles(BWAPI::TilePosition position, int width, int height)
 {
     int rwidth = _reserveMap.size();
     int rheight = _reserveMap[0].size();
-    for (int x = position.x; x < position.x + width && x < rwidth; x++)
+    for (int x = std::max(position.x, 0); x < std::min(position.x + width, rwidth); x++)
     {
-        for (int y = position.y; y < position.y + height && y < rheight; y++)
+        for (int y = std::max(position.y, 0); y < std::min(position.y + height, rheight); y++)
         {
             _reserveMap[x][y] = true;
         }
@@ -294,14 +304,14 @@ void BuildingPlacer::drawReservedTiles()
     {
         for (int y = 0; y < rheight; ++y)
         {
-            if (_reserveMap[x][y] || isInResourceBox(x,y))
+            if (_reserveMap[x][y])
             {
-                int x1 = x*32 + 8;
-                int y1 = y*32 + 8;
-                int x2 = (x+1)*32 - 8;
-                int y2 = (y+1)*32 - 8;
+                int x1 = x*32 + 3;
+                int y1 = y*32 + 3;
+                int x2 = (x+1)*32 - 3;
+                int y2 = (y+1)*32 - 3;
 
-                BWAPI::Broodwar->drawBoxMap(x1,y1,x2,y2,BWAPI::Colors::Yellow,false);
+                BWAPI::Broodwar->drawBoxMap(x1, y1, x2, y2, BWAPI::Colors::Yellow);
             }
         }
     }

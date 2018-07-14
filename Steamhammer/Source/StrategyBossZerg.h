@@ -115,12 +115,17 @@ class StrategyBossZerg
 	int nMineralPatches;  // mineral patches at all our bases
 	int maxDrones;        // maximum reasonable number given nMineralPatches and nGas
 
+	int myArmySize;
+	int enemyAntigroundArmySize;
+
 	// For choosing the tech target and the unit mix.
 	std::array<int, int(TechUnit::Size)> techScores;
 
 	// Update the resources, unit counts, and related stuff above.
 	void updateSupply();
 	void updateGameState();
+	void updateArmySizes();
+	bool enoughArmy() const;
 
 	int numInEgg(BWAPI::UnitType) const;
 	bool isBeingBuilt(const BWAPI::UnitType unitType) const;
@@ -152,6 +157,7 @@ class StrategyBossZerg
 	bool hiveTechUnit(TechUnit techUnit) const;
 	int techTier(TechUnit techUnit) const;
 
+	int findRemainingBuildTime(BWAPI::UnitType type) const;
 	bool lurkerDenTiming() const;
 	
 	void resetTechScores();

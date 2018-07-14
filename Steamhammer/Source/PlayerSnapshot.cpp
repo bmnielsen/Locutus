@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "PlayerSnapshot.h"
 
+#include "Bases.h"
 #include "InformationManager.h"
 #include "UnitUtil.h"
 
@@ -45,13 +46,13 @@ void PlayerSnapshot::takeSelf()
 {
 	BWAPI::Player self = BWAPI::Broodwar->self();
 
-	numBases = InformationManager::Instance().getNumBases(self);
+	numBases = Bases::Instance().baseCount(self);
 
 	for (const auto unit : self->getUnits())
 	{
 		if (UnitUtil::IsValidUnit(unit) && !excludeType(unit->getType()))
 		{
-			unitCounts[unit->getType()];
+			++unitCounts[unit->getType()];
 		}
 	}
 }
@@ -62,7 +63,7 @@ void PlayerSnapshot::takeEnemy()
 {
 	BWAPI::Player enemy = BWAPI::Broodwar->enemy();
 
-	numBases = InformationManager::Instance().getNumBases(enemy);
+	numBases = Bases::Instance().baseCount(enemy);
 
 	for (const auto & kv : InformationManager::Instance().getUnitData(enemy).getUnits())
 	{
@@ -77,7 +78,7 @@ void PlayerSnapshot::takeEnemy()
 
 int PlayerSnapshot::getCount(BWAPI::UnitType type) const
 {
-		auto it = unitCounts.find(type);
+	auto it = unitCounts.find(type);
 	if (it == unitCounts.end())
 	{
 		return 0;

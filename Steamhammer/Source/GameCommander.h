@@ -62,6 +62,8 @@ public:
 	void setScoutUnits();
 	void setCombatUnits();
 
+	void releaseOverlord(BWAPI::Unit overlord);     // zerg scouting overlord
+
 	void goScout();
 	int getScoutTime() const { return _initialScoutTime; };
 

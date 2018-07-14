@@ -3,22 +3,21 @@
 
 namespace UAlbertaBot
 {
+	class ProductionGoal
+	{
+		BWAPI::Unit parent;		// for terran addons and zerg morphed buildings
+		bool attempted;
 
-class ProductionGoal
-{
-	BWAPI::Unit parent;		// for terran addons and zerg morphed buildings
-	bool attempted;
+		bool failure() const;
 
-	bool failure() const;
+	public:
+		MacroAct act;
 
-public:
-	MacroAct act;
+		ProductionGoal(const MacroAct & macroAct);
 
-	ProductionGoal(const MacroAct & macroAct);
+		void update();
 
-	void update();
-
-	bool done();
-};
+		bool done();
+	};
 
 };

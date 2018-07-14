@@ -5,28 +5,6 @@
 
 using namespace UAlbertaBot;
 
-// Clip (x,y) to the bounds of the map.
-void MicroDetectors::clipToMap(BWAPI::Position & pos) const
-{
-	if (pos.x < 0)
-	{
-		pos.x = 0;
-	}
-	else if (pos.x >= 32 * BWAPI::Broodwar->mapWidth())
-	{
-		pos.x = 32 * BWAPI::Broodwar->mapWidth() - 1;
-	}
-
-	if (pos.y < 0)
-	{
-		pos.y = 0;
-	}
-	else if (pos.y >= 32 * BWAPI::Broodwar->mapHeight())
-	{
-		pos.y = 32 * BWAPI::Broodwar->mapHeight() - 1;
-	}
-}
-
 MicroDetectors::MicroDetectors()
 	: squadSize(0)
 	, unitClosestToEnemy(nullptr)
@@ -92,7 +70,7 @@ void MicroDetectors::executeMicro(const BWAPI::Unitset & targets)
 		if (unitClosestToEnemy && unitClosestToEnemy->getPosition().isValid())
 		{
 			destination = unitClosestToEnemy->getPosition();
-			// clipToMap(destination);
+			// ClipToMap(destination);
 			Micro::Move(detectorUnit, destination);
 		}
 	}

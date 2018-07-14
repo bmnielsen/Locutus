@@ -158,6 +158,36 @@ bool BuildOrderQueue::anyInNextN(BWAPI::UnitType type, int n) const
 	return false;
 }
 
+// Are there any of these in the next N items in the queue?
+bool BuildOrderQueue::anyInNextN(BWAPI::UpgradeType type, int n) const
+{
+	for (int i = queue.size() - 1; i >= std::max(0, int(queue.size()) - 1 - n); --i)
+	{
+		const MacroAct & act = queue[i].macroAct;
+		if (act.isUpgrade() && act.getUpgradeType() == type)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Are there any of these in the next N items in the queue?
+bool BuildOrderQueue::anyInNextN(BWAPI::TechType type, int n) const
+{
+	for (int i = queue.size() - 1; i >= std::max(0, int(queue.size()) - 1 - n); --i)
+	{
+		const MacroAct & act = queue[i].macroAct;
+		if (act.isTech() && act.getTechType() == type)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 size_t BuildOrderQueue::numInQueue(BWAPI::UnitType type) const
 {
 	size_t count = 0;

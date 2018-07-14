@@ -41,6 +41,30 @@ void Micro::Stop(BWAPI::Unit unit)
 	TotalCommands++;
 }
 
+// If the target is moving, chase it.
+// If it's not moving or we're in range and ready, attack it.
+void Micro::CatchAndAttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
+{
+	if (!attacker || !attacker->exists() || attacker->getPlayer() != BWAPI::Broodwar->self() ||
+		!target || !target->exists())
+	{
+		UAB_ASSERT(false, "bad arg");
+		return;
+	}
+
+	if (!target->isMoving() || !attacker->canMove() || attacker->isInWeaponRange(target))
+	{
+		//BWAPI::Broodwar->drawLineMap(attacker->getPosition(), target->getPosition(), BWAPI::Colors::Orange);
+		AttackUnit(attacker, target);
+	}
+	else
+	{
+		BWAPI::Position destination(PredictMovement(target, 8));	// the number is how many frames to look ahead
+		//BWAPI::Broodwar->drawLineMap(attacker->getPosition(), destination, BWAPI::Colors::Blue);
+		Move(attacker, destination);
+	}
+}
+
 void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
 {
 	if (!attacker || !attacker->exists() || attacker->getPlayer() != BWAPI::Broodwar->self() ||
@@ -413,30 +437,21 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return;
 	}
 
-	double range(rangedUnit->getType().groundWeapon().maxRange());
-	if (rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
-	{
-		range = 6 * 32;
-	}
-	else if (rangedUnit->getType() == BWAPI::UnitTypes::Zerg_Hydralisk && BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Grooved_Spines))
-	{
-		range = 5 * 32;
-	}
+	double range = rangedUnit->getPlayer()->weaponMaxRange(UnitUtil::GetWeapon(rangedUnit, target));
 
 	bool kite(true);
 
 	// Don't kite if the enemy's range is at least as long as ours.
-	// NOTE Assumes that the enemy does not have range upgrades, and only checks ground range.
 	// Also, if the target can't attack back, then don't kite.
-	if (range <= target->getType().groundWeapon().maxRange() ||
-		!UnitUtil::CanAttack(target, rangedUnit))
+	if (!UnitUtil::CanAttack(target, rangedUnit) ||
+		range <= target->getPlayer()->weaponMaxRange(UnitUtil::GetWeapon(target, rangedUnit)))
 	{
 		kite = false;
 	}
 
 	// Kite if we're not ready yet: Wait for the weapon.
 	double dist(rangedUnit->getDistance(target));
-	double speed(rangedUnit->getType().topSpeed());
+	double speed(rangedUnit->getPlayer()->topSpeed(rangedUnit->getType()));
 	double timeToEnter = 0.0;                      // time to reach firing range
 	if (speed > .00001)                            // don't even visit the same city as division by zero
 	{
@@ -461,11 +476,11 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	else
 	{
 		// Shoot.
-		Micro::AttackUnit(rangedUnit, target);
+		Micro::CatchAndAttackUnit(rangedUnit, target);
 	}
 }
 
-// Used for fast units with no delay in making turns.
+// Used for fast units with no delay in making turns--not necessarily mutalisks.
 void Micro::MutaDanceTarget(BWAPI::Unit muta, BWAPI::Unit target)
 {
 	if (!muta || !muta->exists() || muta->getPlayer() != BWAPI::Broodwar->self() ||
@@ -475,10 +490,10 @@ void Micro::MutaDanceTarget(BWAPI::Unit muta, BWAPI::Unit target)
 		return;
 	}
 
-    const int cooldown                  = muta->getType().groundWeapon().damageCooldown();
+    const int cooldown                  = muta->getType().groundWeapon().damageCooldown(); // no upgrade possible
     const int latency                   = BWAPI::Broodwar->getLatency();
-    const double speed                  = muta->getType().topSpeed();   // known to be non-zero :-)
-    const double range                  = muta->getType().groundWeapon().maxRange();
+	const double speed					= muta->getPlayer()->topSpeed(muta->getType());   // known to be non-zero :-)
+	const double range					= muta->getPlayer()->weaponMaxRange(UnitUtil::GetWeapon(muta, target));
     const double distanceToTarget       = muta->getDistance(target);
 	const double distanceToFiringRange  = std::max(distanceToTarget - range,0.0);
 	const double timeToEnterFiringRange = distanceToFiringRange / speed;

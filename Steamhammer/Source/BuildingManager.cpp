@@ -1,4 +1,6 @@
 #include "BuildingManager.h"
+
+#include "Bases.h"
 #include "MapTools.h"
 #include "Micro.h"
 #include "ProductionManager.h"
@@ -688,7 +690,13 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 
 	if (b.type.isResourceDepot())
 	{
-		BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+		BWAPI::TilePosition front = Bases::Instance().frontPoint();
+		if (b.macroLocation == MacroLocation::Front && front.isValid())
+		{
+            // This means build an additional hatchery at our existing front base, wherever it is.
+			return front;
+		}
+		Base * natural = Bases::Instance().myNaturalBase();
 		if (b.macroLocation == MacroLocation::Natural && natural)
 		{
 			return natural->getTilePosition();
@@ -702,10 +710,11 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 
     int distance = Config::Macro::BuildingSpacing;
 	if (b.type == BWAPI::UnitTypes::Terran_Bunker ||
+		b.type == BWAPI::UnitTypes::Terran_Missile_Turret ||
 		b.type == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
 		b.type == BWAPI::UnitTypes::Zerg_Creep_Colony)
 	{
-		// Pack defenses tightly together. Turrets are an exception.
+		// Pack defenses tightly together.
 		distance = 0;
 	}
 	else if (b.type == BWAPI::UnitTypes::Protoss_Pylon)

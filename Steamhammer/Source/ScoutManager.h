@@ -44,6 +44,8 @@ class ScoutManager
 	void                            drawScoutInformation(int x, int y);
     void                            calculateEnemyRegionVertices();
 
+	void                            releaseOverlordScout();
+
 public:
 
     static ScoutManager & Instance();

@@ -10,6 +10,7 @@ namespace Micro
 	bool AlwaysKite(BWAPI::UnitType type);
 
 	void Stop(BWAPI::Unit unit);
+	void CatchAndAttackUnit(BWAPI::Unit attacker, BWAPI::Unit target);
 	void AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target);
     void AttackMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosition);
     void Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition);

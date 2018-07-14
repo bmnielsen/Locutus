@@ -66,6 +66,7 @@ void MicroManager::execute()
 		{
 			for (const auto unit : _units)
 			{
+				// NOTE Ignores possible sight range upgrades. It's fine.
 				MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
 			}
 		}
@@ -96,7 +97,7 @@ void MicroManager::destroyNeutralTargets(const BWAPI::Unitset & targets)
 			// We see a target, so we can issue attack orders to units that can attack.
 			if (UnitUtil::CanAttackGround(unit) && unit->canAttack())
 			{
-				Micro::AttackUnit(unit, visibleTarget);
+				Micro::CatchAndAttackUnit(unit, visibleTarget);
 			}
 			else if (unit->canMove())
 			{
@@ -134,6 +135,9 @@ bool MicroManager::containsType(BWAPI::UnitType type) const
 
 void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 {
+	const int groundRegroupRadius = 96;
+	const int airRegroupRadius = 8;			// air units stack and can be kept close together
+
 	for (const auto unit : _units)
 	{
 		// 1. A broodling should never retreat, but attack as long as it lives.
@@ -156,12 +160,40 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 		{
 			Micro::AttackMove(unit, unit->getPosition());
 		}
-		else if (unit->getDistance(regroupPosition) > 96)   // air distance, which can be unhelpful sometimes
+		else if (!unit->isFlying() && unit->getDistance(regroupPosition) > groundRegroupRadius)   // air distance; can hurt
 		{
-			if (!mobilizeUnit(unit))
+			// For ground units, figure out whether we have to fight our way to the retreat point.
+			BWAPI::Unitset nearbyEnemies = BWAPI::Broodwar->getUnitsInRadius(
+				unit->getPosition(),
+				48,			// very short distance
+				BWAPI::Filter::IsEnemy && !BWAPI::Filter::IsFlying && BWAPI::Filter::CanAttack);
+			bool mustFight = false;
+			const int retreatDistance = unit->getDistance(regroupPosition);
+			for (BWAPI::Unit enemy : nearbyEnemies)
+			{
+				if (enemy->getDistance(regroupPosition) < retreatDistance &&
+					enemy->getDistance(unit) < retreatDistance)
+				{
+					// The enemy unit is in between us and the retreat point.
+					mustFight = true;
+					break;
+				}
+			}
+
+			if (mustFight)
+			{
+				// NOTE Does not affect lurkers, because lurkers do not regroup.
+				Micro::AttackMove(unit, regroupPosition);
+			}
+			else if (!mobilizeUnit(unit))
 			{
 				Micro::Move(unit, regroupPosition);
 			}
+		}
+		else if (unit->isFlying() && unit->getDistance(regroupPosition) > airRegroupRadius)
+		{
+			// 1. Flyers stack, so keep close. 2. Flyers are always mobile, no need to mobilize.
+			Micro::Move(unit, regroupPosition);
 		}
 		else
 		{

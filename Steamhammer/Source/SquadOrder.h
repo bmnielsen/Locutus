@@ -94,6 +94,7 @@ public:
 	{
 		return
 			_type == SquadOrderTypes::Attack ||
+			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::DestroyNeutral;
 	}
 

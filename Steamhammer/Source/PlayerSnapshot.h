@@ -4,7 +4,6 @@
 
 namespace UAlbertaBot
 {
-
 class PlayerSnapshot
 {
 	bool excludeType(BWAPI::UnitType type);
@@ -12,6 +11,8 @@ class PlayerSnapshot
 public:
 	int numBases;
 	std::map<BWAPI::UnitType, int> unitCounts;
+
+	const std::map<BWAPI::UnitType, int> & getCounts() const { return unitCounts; };
 
 	PlayerSnapshot();
 	PlayerSnapshot(BWAPI::Player);
