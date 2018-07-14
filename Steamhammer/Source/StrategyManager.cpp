@@ -340,11 +340,13 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         }
 
         // After getting third and a large army, build a fixed number of DTs unless many are dying
+        /*
         if ((numZealots + numDragoons) > 20
             && numNexusAll >= 3
             && self->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) < 3
             && numDarkTemplar < 3)
             buildDarkTemplar = true;
+        */
 
         // If we don't have a cyber core, only build zealots
         if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) == 0)
