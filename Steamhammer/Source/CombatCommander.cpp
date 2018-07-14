@@ -1707,11 +1707,17 @@ Handled earlier in Locutus
                 double defenseFactor = defenseCount == 0 ? 1.0 : 1.0 / (1.0 + defenseCount);
 
                 // Importance of the base scales linearly with time, we don't care when it is 10 minutes old
-                int age = BWAPI::Broodwar->getFrameCount() - InformationManager::Instance().getBaseOwnedSince(base);
-                double ageFactor = std::max(0.0, 10000.0 - age) / 10000.0;
+                // An exception is the enemy main, which we do not age until after frame 10000
+                double ageFactor = 1.0;
+                if (BWAPI::Broodwar->getFrameCount() > 10000 ||
+                    base != InformationManager::Instance().getEnemyMainBaseLocation())
+                {
+                    int age = BWAPI::Broodwar->getFrameCount() - InformationManager::Instance().getBaseOwnedSince(base);
+                    ageFactor = std::max(0.0, 14400.0 - age) / 14400.0;
+                }
 
                 double score = ageFactor * defenseFactor;
-				if (score > bestScore)
+				if (score > bestScore || !targetBase)
 				{
 					targetBase = base;
 					bestScore = score;
