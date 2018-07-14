@@ -1596,7 +1596,10 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
         {
             Log().Get() << "Expanding: " << mineralPatches << " active mineral patches, " << probes << " probes, " << UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) << " nexuses";
-            queue.queueAsLowestPriority(BWAPI::UnitTypes::Protoss_Nexus);
+            if (WorkerManager::Instance().isCollectingGas())
+                queue.queueAsLowestPriority(BWAPI::UnitTypes::Protoss_Nexus);
+            else
+                queue.queueAsLowestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Nexus, MacroLocation::MinOnly));
         }
     }
 
