@@ -566,8 +566,11 @@ bool ParseUtils::_ParseStrategy(
                     // Strategies that have always won are given a * 100 boost (see OpponentModel)
                     // Here, we give strategies that we have never played a * 50 boost, so we are sure
                     // to try them once when other strategies start losing
+                    // (only enabled for tournaments, not ladders)
+                    /*
                     else
                         weight *= 50;
+                    */
 
                     Log().Get() << "Considering " << strategy << " with weight " << weight;
 

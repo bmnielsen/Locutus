@@ -11,6 +11,8 @@ OpeningPlan OpponentModel::predictEnemyPlan() const
 		int wins;
 		int games;
 		double weight;
+        bool alwaysSwitchesAfterLoss; // Does the opponent always choose a different opening after this one loses?
+        bool alwaysPlaysAfterWin;     // Does the opponent always choose this opening again after it wins?
 	};
 	PlanInfoType planInfo[int(OpeningPlan::Size)];
 
@@ -20,23 +22,90 @@ OpeningPlan OpponentModel::predictEnemyPlan() const
 		planInfo[plan].wins = 0;
 		planInfo[plan].games = 0;
 		planInfo[plan].weight = 0.0;
+		planInfo[plan].alwaysSwitchesAfterLoss = plan != int(OpeningPlan::Unknown);
+        planInfo[plan].alwaysPlaysAfterWin = plan != int(OpeningPlan::Unknown);
 	}
 
-	// 2. Gather info.
+    std::ostringstream log;
+    log << "Predicting enemy plan:";
+
+    // 2. Perform initial forward pass to initialize "alwaysSwitchesAfterLoss" and "alwaysPlaysAfterWin"
+    GameRecord* previous = nullptr;
+    for (int i = std::max(0U, _pastGameRecords.size() - 50); i < _pastGameRecords.size(); i++)
+    {
+        GameRecord* current = _pastGameRecords[i];
+        if (previous && previous->getEnemyPlan() != OpeningPlan::Unknown && current->getEnemyPlan() != OpeningPlan::Unknown)
+        {
+            log << "\nCurrent " << OpeningPlanString(current->getEnemyPlan()) << ", previous " << OpeningPlanString(previous->getEnemyPlan());
+            if (current->getWin())
+                log << " (win): ";
+            else
+                log << " (loss): ";
+
+            // Did the enemy use the same strategy as the previous game?
+            if (previous->getEnemyPlan() == current->getEnemyPlan())
+            {
+                // Switch the alwaysSwitchesAfterLoss flag to false if we won the previous game
+                planInfo[int(previous->getEnemyPlan())].alwaysSwitchesAfterLoss =
+                    planInfo[int(previous->getEnemyPlan())].alwaysSwitchesAfterLoss &&
+                    !previous->getWin();
+            }
+            else
+            {
+                // Switch the alwaysPlaysAfterWin flag to false if we lost the previous game
+                planInfo[int(previous->getEnemyPlan())].alwaysPlaysAfterWin =
+                    planInfo[int(previous->getEnemyPlan())].alwaysPlaysAfterWin &&
+                    previous->getWin();
+            }
+
+            log << "alwaysSwitchesAfterLoss=" << planInfo[int(previous->getEnemyPlan())].alwaysSwitchesAfterLoss;
+            log << "; alwaysPlaysAfterWin=" << planInfo[int(previous->getEnemyPlan())].alwaysPlaysAfterWin;
+        }
+
+        previous = current;
+    }
+
+	// 3. Perform backwards pass to weight the opponent plans
 	double weight = 100000.0;
     int count = 0;
-    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 50; it++)
+    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 25; it++)
 	{
-        count++;
         auto record = *it;
+        count++;
 
 		if (_gameRecord.sameMatchup(*record))
 		{
+            log << "\n" << count << ": " << OpeningPlanString(record->getEnemyPlan());
+            if (record->getWin())
+                log << " (win): ";
+            else
+                log << " (loss): ";
+
 			PlanInfoType & info = planInfo[int(record->getEnemyPlan())];
 			info.games += 1;
 
-            // If we won the game, the opponent is probably less likely to choose the same plan
-			info.weight += weight * (record->getWin() ? 0.5 : 1.0);
+            // If this is the most recent game, check if the enemy will definitely use the plan from the previous game again
+            if (count == 1 && !record->getWin() && info.alwaysPlaysAfterWin)
+            {
+                log << "Enemy always continues with this plan after a win; short-circuiting";
+                Log().Debug() << log.str();
+                return record->getEnemyPlan();
+            }
+
+            // If this is the most recent game, check if the enemy will definitely switch strategies from the previous game
+            if (count == 1 && record->getWin() && info.alwaysSwitchesAfterLoss)
+            {
+                info.weight = -1000000.0;
+                log << "Enemy never continues this plan after a loss";
+            }
+
+            else
+            {
+                // Weight games we won lower
+                double change = weight * (record->getWin() ? 0.5 : 1.0);
+                info.weight += weight * (record->getWin() ? 0.5 : 1.0);
+                log << "Increased by " << change << " to " << info.weight;
+            }
 
             // more recent game records are more heavily weighted
 			weight *= 0.8;
@@ -55,6 +124,12 @@ OpeningPlan OpponentModel::predictEnemyPlan() const
 			bestWeight = planInfo[plan].weight;
 		}
 	}
+
+    if (count > 0)
+    {
+        log << "\nDecided on " << OpeningPlanString(bestPlan);
+        Log().Debug() << log.str();
+    }
 
 	return bestPlan;
 }
@@ -626,7 +701,7 @@ void OpponentModel::read()
     if (mannerTries > 1)
     {
         _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonBuilt;
-        status << "have mannered: ";
+        status << "have mannered";
         if (mannerTries < 5 ||
             (double)mannerWins / (double)mannerTries > 0.9 * winRate)
         {
@@ -634,26 +709,26 @@ void OpponentModel::read()
             if ((double)mannerPylonAttackedByMultipleWorkersWhileBuilding / (double)mannerTries > (mannerTries > 3 ? 0.49 : 0.32))
             {
                 _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhileBuilding;
-                status << "got reaction while building";
+                status << "; got reaction while building";
                 effective = true;
             }
             if ((double)mannerPylonAttackedByMultipleWorkersWhenComplete / (double)mannerTries > (mannerTries > 3 ? 0.49 : 0.32))
             {
                 _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonAttackedByMultipleWorkersWhenComplete;
-                status << "got reaction after built";
+                status << "; got reaction after built";
                 effective = true;
             }
             if ((double)mannerPylonSurvived1500Frames / (double)mannerTries > (mannerTries > 3 ? 0.49 : 0.32))
             {
                 _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::MannerPylonSurvived1500Frames;
-                status << "survived 1500 frames";
+                status << "; survived 1500 frames";
                 effective = true;
             }
-            if (!effective) status << "ineffective";
+            if (!effective) status << ": ineffective";
         }
         else
         {
-            status << "low win rate: " << ((double)mannerWins / (double)mannerTries) << " vs. " << winRate;
+            status << ": low win rate: " << ((double)mannerWins / (double)mannerTries) << " vs. " << winRate;
         }
     }
     else
@@ -663,7 +738,7 @@ void OpponentModel::read()
     if (lureTries > 1)
     {
         _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::LurePylonBuilt;
-        status << "; have lured: ";
+        status << "; have lured";
         if (lureTries < 5 ||
             (double)lureWins / (double)lureTries > 0.9 * winRate)
         {
@@ -671,20 +746,20 @@ void OpponentModel::read()
             if ((double)lurePylonAttackedByMultipleWorkersWhileBuilding / (double)lureWins > (lureTries > 3 ? 0.49 : 0.32))
             {
                 _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhileBuilding;
-                status << "got reaction while building";
+                status << "; got reaction while building";
                 effective = true;
             }
             if ((double)lurePylonAttackedByMultipleWorkersWhenComplete / (double)lureWins > (lureTries > 3 ? 0.49 : 0.32))
             {
                 _expectedPylonHarassBehaviour |= (int)PylonHarassBehaviour::LurePylonAttackedByMultipleWorkersWhenComplete;
-                status << "got reaction after built";
+                status << "; got reaction after built";
                 effective = true;
             }
-            if (!effective) status << "ineffective";
+            if (!effective) status << ": ineffective";
         }
         else
         {
-            status << "low win rate: " << ((double)lureWins / (double)lureTries) << " vs. " << winRate;
+            status << ": low win rate: " << ((double)lureWins / (double)lureTries) << " vs. " << winRate;
         }
     }
     else
@@ -819,6 +894,9 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 	std::map<std::string, int> strategyCount;
 	std::map<std::string, int> strategyLosses;
 
+    std::ostringstream log;
+    log << "Deciding strategy weight factors:";
+
     // Compute a factor to adjust the weight for each strategy
     // More recent results are weighted more heavily
     // Results on the same map are weighted more heavily
@@ -830,6 +908,8 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
         bool sameMap = (*it)->getMapName() == BWAPI::Broodwar->mapFileName();
 
 		auto& strategy = (*it)->getOpeningName();
+
+        log << "\n" << count << ": " << strategy << " " << ((*it)->getWin() ? "won" : "lost") << " on " << (*it)->getMapName() << ". ";
 
 		if (result.find(strategy) == result.end())
 		{
@@ -845,7 +925,9 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 		double factor = result[strategy];
 		strategyCount[strategy] = strategyCount[strategy] + 1;
         
-        double aging = std::pow((strategyCount[strategy] + count) / 2, 1.3);
+        double aging = std::pow(strategyCount[strategy], 1.2);
+
+        log << "Aging factor " << aging << "; initial weight " << factor;
 
         if ((*it)->getWin())
         {
@@ -857,6 +939,8 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
             strategyLosses[strategy] = strategyLosses[strategy] + 1;
         }
 
+        log << "; updated to " << factor;
+
 		result[strategy] = factor;
 	}
 
@@ -864,20 +948,24 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
     for (auto it = strategyLosses.begin(); it != strategyLosses.end(); it++)
     {
         // Any strategies that have never lost are given a large boost
-        // A similar boost is given to strategies that haven't been played in ParseUtils
+        // When in tournament mode, a similar boost is given to strategies that haven't been played in ParseUtils
         // This should allow us to avoid getting stuck on a strategy that wins 90% of the time,
         // if another strategy wins 100% of the time
         if (it->second == 0)
         {
             result[it->first] = result[it->first] * 100;
+            log << "\nBoosting " << it->first << " to " << result[it->first] << " as it has never lost";
         }
 
         // Any strategies that have been played at least 3 times and always lost are given a large penalty
         if (it->second >= 3 && strategyCount[it->first] == it->second)
         {
             result[it->first] = result[it->first] * 0.1;
+            log << "\nLowering " << it->first << " to " << result[it->first] << " as it has never won";
         }
     }
+
+    Log().Debug() << log.str();
 
 	return result;
 }
