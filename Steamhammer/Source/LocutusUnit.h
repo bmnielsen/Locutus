@@ -59,6 +59,7 @@ public:
 
     bool moveTo(BWAPI::Position position, bool avoidNarrowChokes = false);
     void fleeFrom(BWAPI::Position position);
+    int  distanceToMoveTarget() const;
 
     bool isReady() const;
     bool isStuck() const;

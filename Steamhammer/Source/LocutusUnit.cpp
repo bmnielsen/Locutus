@@ -365,6 +365,31 @@ breakOuterLoop:;
     }
 }
 
+int LocutusUnit::distanceToMoveTarget() const
+{
+    // If we're currently doing a move with waypoints, sum up the total ground distance
+    if (targetPosition.isValid())
+    {
+        BWAPI::Position current = unit->getPosition();
+        int dist = 0;
+        for (auto waypoint : waypoints)
+        {
+            dist += current.getApproxDistance(BWAPI::Position(waypoint->Center()));
+            current = BWAPI::Position(waypoint->Center());
+        }
+        return dist + current.getApproxDistance(targetPosition);
+    }
+
+    // Otherwise, if the unit has a move order, compute the simple air distance
+    // Usually this means the unit is already in the same area as the target (or is a flier)
+    BWAPI::UnitCommand currentCommand(unit->getLastCommand());
+    if (currentCommand.getType() == BWAPI::UnitCommandTypes::Move)
+        return unit->getDistance(currentCommand.getTargetPosition());
+
+    // The unit is not moving
+    return INT_MAX;
+}
+
 bool LocutusUnit::isReady() const
 {
     if (unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon) return true;

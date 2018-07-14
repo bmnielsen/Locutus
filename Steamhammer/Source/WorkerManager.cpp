@@ -313,7 +313,7 @@ void WorkerManager::handleMineralLocking()
 		if (job == WorkerData::Minerals && (
 			worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
 			worker->getOrder() == BWAPI::Orders::WaitForMinerals ||
-            (worker->getOrder() == BWAPI::Orders::Move && worker->getDistance(worker->getOrderTargetPosition()) < 200)))
+            (worker->getOrder() == BWAPI::Orders::Move && InformationManager::Instance().getLocutusUnit(worker).distanceToMoveTarget() < 200)))
 		{
 			BWAPI::Unit patch = workerData.getWorkerResource(worker);
 			if (patch && worker->getOrderTarget() != patch && patch->exists())
