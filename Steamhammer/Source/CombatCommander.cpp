@@ -507,6 +507,23 @@ BWAPI::Position CombatCommander::getReconLocation() const
 	BWAPI::Position mainPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
     auto enemyBases = InformationManager::Instance().getEnemyBases();
 
+    // Gather up all of the BWEM areas that our main attack squad will traverse on the way to its current order position
+    std::set<const BWEM::Area *> attackSquadAreas;
+    const Squad & groundSquad = _squadData.getSquad("Ground");
+    if (!groundSquad.isEmpty())
+    {
+        BWAPI::Unit vanguard = groundSquad.unitClosestToOrderPosition();
+        if (vanguard)
+        {
+            attackSquadAreas.insert(bwemMap.GetNearestArea(BWAPI::WalkPosition(vanguard->getPosition())));
+            for (auto choke : bwemMap.GetPath(vanguard->getPosition(), groundSquad.getSquadOrder().getPosition()))
+            {
+                attackSquadAreas.insert(choke->GetAreas().first);
+                attackSquadAreas.insert(choke->GetAreas().second);
+            }
+        }
+    }
+
     // Score based on two factors: proximity to any known enemy base and time since we've last scouted it
     BWTA::BaseLocation * bestBase = nullptr;
     double bestScore = 0.0;
@@ -514,6 +531,7 @@ BWAPI::Position CombatCommander::getReconLocation() const
 	{
         if (InformationManager::Instance().getBaseOwner(base) != BWAPI::Broodwar->neutral()) continue; // not neutral
         if (MapTools::Instance().getGroundTileDistance(base->getPosition(), mainPosition) == -1) continue; // not reachable by ground
+        if (attackSquadAreas.find(bwemMap.GetNearestArea(base->getTilePosition())) != attackSquadAreas.end()) continue; // will be attacked
 
         int proximityToEnemyBase = MapTools::Instance().closestBaseDistance(base, enemyBases);
         double proximityFactor = proximityToEnemyBase > 0 ? proximityToEnemyBase : 1.0;
