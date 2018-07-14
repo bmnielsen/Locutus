@@ -698,7 +698,7 @@ void InformationManager::updateBullets()
         if (distanceToTarget > 180 && distanceToTarget <= 192)
         {
             bulletsSeenAtExtendedMarineRange++;
-            if (bulletsSeenAtExtendedMarineRange > 8)
+            if (bulletsSeenAtExtendedMarineRange > 4)
             {
                 Log().Get() << "Detected ranged marines in bunker";
                 _enemyHasInfantryRangeUpgrade = true;
