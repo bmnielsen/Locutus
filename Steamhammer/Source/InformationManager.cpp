@@ -1189,12 +1189,6 @@ void InformationManager::drawBaseInformation(int x, int y)
 
 		char color = gray;
 
-		char reservedChar = ' ';
-		if (_theBases[base]->reserved)
-		{
-			reservedChar = '*';
-		}
-
 		char inferredChar = ' ';
 		BWAPI::Player player = _theBases[base]->owner;
 		if (player == _self)
@@ -1221,7 +1215,6 @@ void InformationManager::drawBaseInformation(int x, int y)
 		}
 
 		BWAPI::TilePosition pos = base->getTilePosition();
-		BWAPI::Broodwar->drawTextScreen(x-8, yy, "%c%c", white, reservedChar);
 		BWAPI::Broodwar->drawTextScreen(x, yy, "%c%d, %d%c%c", color, pos.x, pos.y, inferredChar, baseCode);
 	}
 }
@@ -1319,33 +1312,17 @@ const UnitData & InformationManager::getUnitData(BWAPI::Player player) const
     return _unitData.find(player)->second;
 }
 
-bool InformationManager::isBaseReserved(BWTA::BaseLocation * base)
-{
-	return _theBases[base]->reserved;
-}
-
-void InformationManager::reserveBase(BWTA::BaseLocation * base)
-{
-	_theBases[base]->reserved = true;
-}
-
-void InformationManager::unreserveBase(BWTA::BaseLocation * base)
-{
-	_theBases[base]->reserved = false;
-}
-
-void InformationManager::unreserveBase(BWAPI::TilePosition baseTilePosition)
+Base* InformationManager::baseAt(BWAPI::TilePosition baseTilePosition)
 {
 	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 	{
 		if (closeEnough(base->getTilePosition(), baseTilePosition))
 		{
-			_theBases[base]->reserved = false;
-			return;
+            return _theBases[base];
 		}
 	}
 
-	UAB_ASSERT(false,"trying to unreserve a non-base");
+    return nullptr;
 }
 
 // We have complated combat units (excluding workers).

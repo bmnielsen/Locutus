@@ -68,7 +68,6 @@ public:
 	void	drawHomeDistanceMap();
 
 	BWAPI::TilePosition	getNextExpansion(bool hidden, bool wantMinerals, bool wantGas);
-	BWAPI::TilePosition	reserveNextExpansion(bool hidden, bool wantMinerals, bool wantGas);
 
 	bool	hasIslandBases() const { return _hasIslandBases; };
 };

@@ -16,7 +16,7 @@ Base::Base(BWAPI::TilePosition pos)
 	, owner(BWAPI::Broodwar->neutral())
 	, ownedSince(0)
 	, lastScouted(0)
-	, reserved(false)
+	, spiderMined(false)
 {
 	++BaseID;
 }
@@ -31,7 +31,7 @@ Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
 	, owner(BWAPI::Broodwar->neutral())
     , ownedSince(0)
     , lastScouted(0)
-    , reserved(false)
+    , spiderMined(false)
 {
 	DistanceMap resourceDistances(pos, BaseResourceRange, false);
 
@@ -73,7 +73,6 @@ void Base::findGeysers()
 void Base::setOwner(BWAPI::Unit depot, BWAPI::Player player)
 {
 	resourceDepot = depot;
-    reserved = false;
     if (player != owner)
     {
         owner = player;

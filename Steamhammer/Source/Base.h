@@ -30,7 +30,7 @@ public:
 	BWAPI::Player	owner;              // self, enemy, neutral
     int             ownedSince;         // Frame the base last changed ownership
     int             lastScouted;        // When we have last seen this base
-	bool			reserved;			// if this is a planned expansion
+    bool            spiderMined;        // Do we suspect this base to have a spider mine blocking it
 
 	BWAPI::Unit		getDepot() const { return resourceDepot; };
 	BWAPI::Player	getOwner() const { return owner; };

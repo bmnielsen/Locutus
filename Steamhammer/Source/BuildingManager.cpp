@@ -209,6 +209,15 @@ void BuildingManager::constructAssignedBuildings()
 				// Unreserve the building location. The building will mark its own location.
 				BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
 				Log().Debug() << "Failed to build " << b.type << " @ " << b.finalPosition << "; assume something was in the way";
+
+                // If we're trying to build a nexus against a terran opponent, assume there's a spider mine in the way
+                // We'll send a unit by to clear it
+                if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran
+                    && b.type == BWAPI::UnitTypes::Protoss_Nexus)
+                {
+                    auto base = InformationManager::Instance().baseAt(b.finalPosition);
+                    if (base) base->spiderMined = true;
+                }
 			}
             else
             {
@@ -828,12 +837,6 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 // Undo any connections with other data structures, then delete.
 void BuildingManager::undoBuilding(Building& b)
 {
-	// If the building was to establish a base, unreserve the base location.
-	if (b.type.isResourceDepot() && b.macroLocation != MacroLocation::Macro && b.finalPosition.isValid())
-	{
-		InformationManager::Instance().unreserveBase(b.finalPosition);
-	}
-
     // Free reserved tiles
     if (b.finalPosition.isValid())
     {

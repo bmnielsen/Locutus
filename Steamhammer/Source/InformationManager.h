@@ -113,7 +113,9 @@ public:
     std::vector<BWTA::BaseLocation *> getBases(BWAPI::Player player);
     std::vector<BWTA::BaseLocation *> getMyBases() { return getBases(BWAPI::Broodwar->self()); }
     std::vector<BWTA::BaseLocation *> getEnemyBases() { return getBases(BWAPI::Broodwar->enemy()); }
-	int						getTotalNumBases() const;
+    Base*					getBase(BWTA::BaseLocation * base) { return _theBases[base]; };
+    Base*					baseAt(BWAPI::TilePosition baseTilePosition);
+    int						getTotalNumBases() const;
 	int						getNumBases(BWAPI::Player player);
 	int						getNumFreeLandBases();
 	int						getMyNumMineralPatches();
@@ -123,11 +125,6 @@ public:
 	bool					getEnemyProxy() { return _enemyProxy; };
 
 	void					maybeChooseNewMainBase();
-
-	bool					isBaseReserved(BWTA::BaseLocation * base);
-	void					reserveBase(BWTA::BaseLocation * base);
-	void					unreserveBase(BWTA::BaseLocation * base);
-	void					unreserveBase(BWAPI::TilePosition baseTilePosition);
 
 	int						getAir2GroundSupply(BWAPI::Player player) const;
 

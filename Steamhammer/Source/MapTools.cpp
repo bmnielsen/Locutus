@@ -358,13 +358,13 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 		{
 			continue;
 		}
-        
-		// Don't expand to a base already reserved for another expansion.
-		if (InformationManager::Instance().isBaseReserved(base))
-		{
-			continue;
-		}
 
+        // Don't expand to a spider-mined base.
+        if (InformationManager::Instance().getBase(base)->spiderMined)
+        {
+            continue;
+        }
+        
 		BWAPI::TilePosition tile = base->getTilePosition();
         bool buildingInTheWay = false;
 
@@ -465,18 +465,6 @@ BWAPI::TilePosition MapTools::getNextExpansion(bool hidden, bool wantMinerals, b
 	if (base)
 	{
 		// BWAPI::Broodwar->printf("foresee base @ %d, %d", base->getTilePosition().x, base->getTilePosition().y);
-		return base->getTilePosition();
-	}
-	return BWAPI::TilePositions::None;
-}
-
-BWAPI::TilePosition MapTools::reserveNextExpansion(bool hidden, bool wantMinerals, bool wantGas)
-{
-	BWTA::BaseLocation * base = nextExpansion(hidden, wantMinerals, wantGas);
-	if (base)
-	{
-		// BWAPI::Broodwar->printf("reserve base @ %d, %d", base->getTilePosition().x, base->getTilePosition().y);
-		InformationManager::Instance().reserveBase(base);
 		return base->getTilePosition();
 	}
 	return BWAPI::TilePositions::None;
