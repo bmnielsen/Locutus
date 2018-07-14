@@ -653,10 +653,10 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 		&& !UnitUtil::IsMorphedBuildingType(act.getUnitType()))  // not morphed from another zerg building
 	{
 		// Every once in a while, pick a new base as the "main" base to build in.
-		if (act.getRace() != BWAPI::Races::Protoss || act.getUnitType() == BWAPI::UnitTypes::Protoss_Pylon)
-		{
-			InformationManager::Instance().maybeChooseNewMainBase();
-		}
+		//if (act.getRace() != BWAPI::Races::Protoss || act.getUnitType() == BWAPI::UnitTypes::Protoss_Pylon)
+		//{
+		//	InformationManager::Instance().maybeChooseNewMainBase();
+		//}
 
 		// By default, build in the main base.
 		// BuildingManager will override the location if it needs to.
