@@ -164,25 +164,23 @@
             if (args.Contains("trainingrun"))
             {
                 List<string> trainingOpponents;
-
-                var opponentsLabel = opponent;
-                if (File.Exists(opponent) || File.Exists("opponents.csv"))
+                string outputFilename;
+                if (File.Exists(opponent))
                 {
-                    trainingOpponents = File.ReadAllLines(File.Exists(opponent) ? opponent : "opponents.csv")
+                    trainingOpponents = File.ReadAllLines(opponent)
                         .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("-"))
                         .ToList();
-
-                    opponentsLabel = File.Exists(opponent) ? Path.GetFileNameWithoutExtension(opponent) : "opponents";
+                    outputFilename = "trainingrun-" + Path.GetFileNameWithoutExtension(opponent) + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
                 }
                 else
                 {
                     trainingOpponents = new List<string> { opponent };
+                    outputFilename = "trainingrun-" + opponent + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
                 }
 
-                var filename = "trainingrun-" + opponentsLabel + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
-                logFile = File.CreateText(filename + ".log");
-                var outputFilename = filename + ".csv";
-                File.AppendAllText(outputFilename, "Opponent;Map;Game ID;My Strategy;Opponent Strategy;Result\n");
+                logFile = File.CreateText(outputFilename + ".log");
+                var resultsFilename = outputFilename + ".csv";
+                File.AppendAllText(resultsFilename, "Opponent;Map;Game ID;My Strategy;Expected Opponent Strategy;Observed Opponent Strategy;Result\n");
 
                 while (true)
                 {
@@ -192,7 +190,7 @@
 
                     // Set the timeout
                     timeout = MaxTimeout;
-                    if (trainingOpponent.Length > 0)
+                    if (trainingOpponent.Length > 1)
                     {
                         if (trainingOpponent[1] == "short")
                         {
@@ -220,7 +218,7 @@
                     }
 
                     var result = currentGame.HaveResult ? (currentGame.Won ? "win" : "loss") : "crash";
-                    File.AppendAllText(outputFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.OpponentStrategy};{result}\n");
+                    File.AppendAllText(resultsFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.ExpectedOpponentStrategy};{currentGame.OpponentStrategy};{result}\n");
 
                     Output("Overall score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
                     logFile.Flush();
@@ -409,7 +407,15 @@
 
                 if (line.Contains(": Opponent: "))
                 {
-                    currentGame.OpponentStrategy = line.Substring(line.IndexOf(": Opponent: ", StringComparison.InvariantCulture) + 12);
+                    var strategy = line.Substring(line.IndexOf(": Opponent: ", StringComparison.InvariantCulture) + 12);
+                    if (strategy.StartsWith("expect "))
+                    {
+                        currentGame.ExpectedOpponentStrategy = strategy.Substring(7);
+                    }
+                    else
+                    {
+                        currentGame.OpponentStrategy = strategy;
+                    }
                 }
 
                 Output($"{DateTime.Now:HH:mm:ss} {prefix}{line}");
@@ -578,6 +584,8 @@
             public bool RenamedReplay { get; set; }
 
             public string MyStrategy { get; set; }
+
+            public string ExpectedOpponentStrategy { get; set; }
 
             public string OpponentStrategy { get; set; }
         }
