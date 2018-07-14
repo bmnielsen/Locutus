@@ -133,6 +133,19 @@ bool closeToReservedPath(BWAPI::Position position, std::vector<BWAPI::TilePositi
     return false;
 }
 
+bool bunkerBlocksNarrowChoke(BWAPI::Unit bunker)
+{
+    // Get the BWEM path to the bunker
+    auto& chokes = bwemMap.GetPath(
+        InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
+        bunker->getPosition());
+    if (chokes.size() < 2) return false;
+
+    auto lastChoke = chokes[chokes.size() - 1];
+    return lastChoke->Data() < 96 &&
+        bunker->getDistance(BWAPI::Position(lastChoke->Center())) < 160;
+}
+
 void MicroBunkerAttackSquad::initialize(BWAPI::Unit bunker)
 {
     // Short-circuit if we have already initialized
@@ -145,6 +158,8 @@ void MicroBunkerAttackSquad::initialize(BWAPI::Unit bunker)
     std::vector<BWAPI::TilePosition> reservedPath = getReservedPath(bunker);
 
     // Generate the set of valid firing positions
+
+    // Start by adding all possible positions
     addArcToSet(
         bunker->getPosition() + BWAPI::Position(-BWAPI::UnitTypes::Terran_Bunker.dimensionLeft(), -BWAPI::UnitTypes::Terran_Bunker.dimensionUp()),
         bunker, pi, 1.5*pi, 7, attackPositions);
@@ -161,15 +176,24 @@ void MicroBunkerAttackSquad::initialize(BWAPI::Unit bunker)
     attackPositions.insert(bunker->getPosition() + BWAPI::Position(0, -192 - 16 - BWAPI::UnitTypes::Terran_Bunker.dimensionUp()));
     attackPositions.insert(bunker->getPosition() + BWAPI::Position(0, 192 + 16 + BWAPI::UnitTypes::Terran_Bunker.dimensionDown()));
 
+    // Now filter out undesirable positions:
+    // - invalid
+    // - not walkable by a Dragoon
+    // - at a lower elevation than the bunker
+    // - covered by a building
+    // - close to our reserved path to the bunker
+    // - bunker blocks choke and position is in same area as the bunker
     int bunkerElevation = BWAPI::Broodwar->getGroundHeight(bunker->getTilePosition());
-
+    bool blocksNarrowChoke = bunkerBlocksNarrowChoke(bunker);
+    auto bunkerArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(bunker->getPosition()));
     for (auto it = attackPositions.begin(); it != attackPositions.end(); )
     {
         if (!it->isValid() ||
             !isDragoonWalkable(*it) ||
             BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(*it)) < bunkerElevation ||
             bwebMap.usedTiles.find(BWAPI::TilePosition(*it)) != bwebMap.usedTiles.end() ||
-            closeToReservedPath(*it, reservedPath))
+            closeToReservedPath(*it, reservedPath) ||
+            (blocksNarrowChoke && bwemMap.GetNearestArea(BWAPI::WalkPosition(*it)) == bunkerArea))
         {
             it = attackPositions.erase(it);
         }
@@ -284,7 +308,8 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     if (_units.empty()) return;
 
     // Don't do a run-by if the bunker is very close to the order position
-    if (_bunker->getDistance(orderPosition) < 128) return;
+    int distToOrderPosition = _bunker->getDistance(orderPosition);
+    if (distToOrderPosition < 128) return;
 
     // Don't do a run-by if the opponent has more than one bunker
     if (InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Bunker, BWAPI::Broodwar->enemy()) > 1) return;
@@ -317,15 +342,18 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
 
     // Do the run-by when we have enough units, measured as equivalent of a goon's health. Thresholds:
     // - If we are already doing a run-by, 1.5
-    // - If the enemy has the marine range upgrade, 2.5 (we can't range down the bunker)
-    // - Otherwise, 3.5 (we can range down the bunker while we wait for a stronger force)
+    // - If the enemy has the marine range upgrade, 2.0 (we can't range down the bunker)
+    // - If the bunker is not close to the order position, 2.5
+    // - Otherwise, 3.0 (we can range down the bunker while we wait for a stronger force)
     double healthCutoff = BWAPI::UnitTypes::Protoss_Dragoon.maxHitPoints() + BWAPI::UnitTypes::Protoss_Dragoon.maxShields();
     if (dead < unitsDoingRunBy.size())
         healthCutoff *= 1.5;
     else if (InformationManager::Instance().enemyHasInfantryRangeUpgrade())
+        healthCutoff *= 2.0;
+    else if (distToOrderPosition > 500)
         healthCutoff *= 2.5;
     else
-        healthCutoff *= 3.5;
+        healthCutoff *= 3.0;
 
     if ((double)totalHealth >= healthCutoff)
     {

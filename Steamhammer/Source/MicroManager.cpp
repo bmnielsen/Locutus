@@ -94,9 +94,6 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
 {
     if (!combatUnit || !target) return true;
 
-    // If we are already close to our order position, this is the best target we're going to get
-    if (combatUnit->getDistance(order.getPosition()) <= 200) return false;
-
     // If there isn't an enemy resource depot at the order position, then let our units pick their targets at will
     // This is so we don't ignore outlying buildings after we've already razed the center of the base
     bool resourceDepotAtOrderPosition = false;
@@ -116,7 +113,7 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
     if (bunkerRunBySquad)
     {
         // We consider ourselves as doing the run-by when either:
-        // - We are in firing range of the bunker
+        // - We are still in firing range of the bunker
         // - We are closer to the bunker than our current run-by position
         int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
         auto runByPosition = bunkerRunBySquad->getRunByPosition(combatUnit, order.getPosition());
@@ -126,6 +123,9 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
             return true;
         }
     }
+
+    // If we are already close to our order position, this is the best target we're going to get
+    if (combatUnit->getDistance(order.getPosition()) <= 200) return false;
 
     // Consider outlying buildings
     // Static defenses are handled separately so we can consider run-bys as a squad
