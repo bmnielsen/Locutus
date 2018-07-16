@@ -991,7 +991,7 @@ void CombatCommander::updateBaseDefenseSquads()
 
             // Add any units close to it
             for (const auto closeUnit : BWAPI::Broodwar->enemy()->getUnits())
-                if (unit != closeUnit && unit->getDistance(closeUnit) < 200)
+                if (unit != closeUnit && unit->getDistance(closeUnit) < 400)
                     enemyUnits.insert(closeUnit);
         }
 
@@ -1159,9 +1159,7 @@ void CombatCommander::updateBaseDefenseSquads()
         // - there is nothing to defend against
         // - we are up against overwhelming odds and the base isn't worth defending
         if ((groundDefendersNeeded == 0 && flyingDefendersNeeded == 0) ||
-            (groundDefendersNeeded > 50 &&
-            (BWAPI::Broodwar->getFrameCount() > 14000 ||
-                (myRegion != mainRegion && myRegion != naturalRegion))))
+            (groundDefendersNeeded > 50 && myRegion != mainRegion && myRegion != naturalRegion))
         {
             // if a defense squad for this region exists, empty it
             if (_squadData.squadExists(squadName.str()))
