@@ -673,11 +673,10 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 				desiredLocation = natural->getTilePosition();
 			}
 		}
-		else if (act.getMacroLocation() == MacroLocation::Center ||
-            act.getMacroLocation() == MacroLocation::Proxy ||
-            act.getMacroLocation() == MacroLocation::HiddenTech)
+		else if (act.getMacroLocation() == MacroLocation::Center)
 		{
 			// Near the center of the map.
+            // NOTE: This bugs out pylons if the center isn't reachable, e.g. neo moon glaive
 			desiredLocation = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth()/2, BWAPI::Broodwar->mapHeight()/2);
 		}
 		
