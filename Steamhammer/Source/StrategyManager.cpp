@@ -317,11 +317,11 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         {
             getZealotSpeed = true;
 
-            // Keep the zealot:goon ratio at about 1:1, but keep training both
-            if (numZealots < numDragoons)
+            // Keep the zealot:goon ratio at about 3:1, but keep training both if we have many idle gateways
+            if (numZealots < (numDragoons * 3))
             {
-                zealotRatio = 0.7;
-                goonRatio = 0.3;
+                zealotRatio = 0.8;
+                goonRatio = 0.2;
             }
             else
             {
