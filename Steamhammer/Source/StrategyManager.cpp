@@ -1752,13 +1752,13 @@ bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 		}
 	}
 
-	// Count supply needed by the next 5 items in the queue
-	int supplyNeeded = 0;
-	for (int i = queue.size() - 1; i >= 0 && i >= queue.size() - 5; --i)
-		supplyNeeded += queue[i].macroAct.supplyRequired();
-
-	// Keep a buffer of 16 or 15% extra supply, whichever is higher
-	supplyNeeded += std::max(16, (int)std::ceil(supplyAvailable * 0.15));
+    // Roughly estimate that 6 mineral workers will support constant production from a gateway
+    // Then reserve enough supply to produce a unit out of each of these virtual gateways
+    // This is a very rough estimate and doesn't take into consideration anything else we are building
+    // At minimum keep a buffer of 16
+    int supplyNeeded = std::max(
+        (WorkerManager::Instance().getNumMineralWorkers() / 6) * 4,
+        16);
 
 	return supplyAvailable < supplyNeeded;
 }
