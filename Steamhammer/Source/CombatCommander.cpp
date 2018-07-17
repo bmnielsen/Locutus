@@ -305,10 +305,10 @@ void CombatCommander::updateReconSquad()
 		return;
 	}
 
-    // To avoid weakening our initial push, don't scout immediately.
-    // We start scouting Zerg opponents at frame 12000, others at 15000.
-    if (BWAPI::Broodwar->getFrameCount() <
-        (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg ? 12000 : 15000))
+    // Don't scout terrans or protoss until frame 15000
+    // They do not tend to expand beyond their natural before then
+    if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
+        BWAPI::Broodwar->getFrameCount() <  15000)
     {
         reconSquad.clear();
         return;

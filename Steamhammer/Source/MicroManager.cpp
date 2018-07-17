@@ -204,7 +204,7 @@ void MicroManager::regroup(
 
         // Determine position to move towards
         // When rushing, we may move towards the vanguard unit when it is safe to do so
-        BWAPI::Position regroupTo = (StrategyManager::Instance().isRushing() && vanguard && !nearEnemy[unit])
+        BWAPI::Position regroupTo = vanguard && !nearEnemy[unit]
             ? vanguard->getPosition()
             : regroupPosition;
 
