@@ -759,6 +759,12 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
             if (distPredicted > distCurrent)
             {
                 kite = false;
+
+                // If the enemy is close to being out of our attack range, move closer
+                if (distToTarget > (range - 32))
+                {
+                    moveCloser = true;
+                }
             }
 
             // Enemy is standing still: move a bit closer if we outrange it

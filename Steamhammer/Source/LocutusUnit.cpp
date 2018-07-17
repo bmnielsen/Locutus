@@ -6,6 +6,8 @@
 
 const double pi = 3.14159265358979323846;
 
+const int DRAGOON_ATTACK_FRAMES = 6;
+
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
@@ -397,8 +399,8 @@ bool LocutusUnit::isReady() const
     // Compute delta between current frame and when the last attack started / will start
     int attackFrameDelta = BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt;
 
-    // Always give the dragoon 9 frames to perform their attack before getting another order
-    if (attackFrameDelta >= 0 && attackFrameDelta <= 9 - BWAPI::Broodwar->getRemainingLatencyFrames())
+    // Always give the dragoon some frames to perform their attack before getting another order
+    if (attackFrameDelta >= 0 && attackFrameDelta <= DRAGOON_ATTACK_FRAMES - BWAPI::Broodwar->getRemainingLatencyFrames())
     {
         return false;
     }
@@ -528,7 +530,7 @@ void LocutusUnit::updateGoon()
 {
     // If we're not currently in an attack, determine the frame when the next attack will start
     if (lastAttackStartedAt >= BWAPI::Broodwar->getFrameCount() ||
-        BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt > 9 - BWAPI::Broodwar->getRemainingLatencyFrames())
+        BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt > DRAGOON_ATTACK_FRAMES - BWAPI::Broodwar->getRemainingLatencyFrames())
     {
         lastAttackStartedAt = 0;
 
