@@ -231,25 +231,26 @@ void ProductionManager::manageBuildOrderQueue()
 
             // Rules for gateways:
             // - Gateways we have must be in use
-            // - Only build at most 2 at a time, or 3 if we already have 6
+            // - Limit how many gateways we build in parallel depending on how many we have
             // - Only build at most 3 per nexus
             // - On Plasma, only build at most one non-proxy gateway
             if (type == BWAPI::UnitTypes::Protoss_Gateway)
             {
                 int gatewaysBuilding = BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
-                int gateways = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway) + gatewaysBuilding;
+                int gateways = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway);
                 
                 skipThisItem = gateways > 0 && (
                     StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 ||
                     gateways > nexuses * 3 ||
-                    (gateways < 6 && gatewaysBuilding >= 2) ||
-                    gatewaysBuilding >= 3);
+                    gatewaysBuilding >= 4 ||
+                    (gateways < 10 && gatewaysBuilding >= 3) ||
+                    (gateways < 6 && gatewaysBuilding >= 2));
 
                 // Special case for Plasma
                 // Since our combat units can't mineral walk, make sure we only build gateways at the proxy location,
                 // unless we have none
                 if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
-                    gateways > 0 &&
+                    (gateways > 0 || gatewaysBuilding > 0) &&
                     currentItem.macroAct.getMacroLocation() != MacroLocation::Proxy)
                 {
                     skipThisItem = true;

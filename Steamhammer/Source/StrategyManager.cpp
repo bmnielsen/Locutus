@@ -1894,7 +1894,7 @@ bool StrategyManager::hasDropTech()
 	return false;
 }
 
-// Returns the percentage of our production facilities that are currently training something
+// Returns the percentage of our completed production facilities that are currently training something
 double StrategyManager::getProductionSaturation(BWAPI::UnitType producer) const
 {
     // Look up overall count and idle count
@@ -1902,10 +1902,11 @@ double StrategyManager::getProductionSaturation(BWAPI::UnitType producer) const
     int idleFacilities = 0;
     for (const auto unit : BWAPI::Broodwar->self()->getUnits())
         if (unit->getType() == producer
+            && unit->isCompleted()
             && unit->isPowered())
         {
             numFacilities++;
-            if (!unit->isCompleted() || unit->getRemainingTrainTime() < 48) idleFacilities++;
+            if (unit->getRemainingTrainTime() < 48) idleFacilities++;
         }
 
     if (numFacilities == 0) return 0.0;
