@@ -77,10 +77,9 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 	MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
 
 	// For some orders, add enemies which are near our units.
-	if ((order.getType() == SquadOrderTypes::Attack || 
+	if (order.getType() == SquadOrderTypes::Attack || 
 	    order.getType() == SquadOrderTypes::KamikazeAttack || 
-        order.getType() == SquadOrderTypes::Defend) &&
-        !StrategyManager::Instance().isRushing())
+        order.getType() == SquadOrderTypes::Defend)
 	{
 		for (const auto unit : _units)
 		{
@@ -126,6 +125,14 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
 
     // If we are already close to our order position, this is the best target we're going to get
     if (combatUnit->getDistance(order.getPosition()) <= 200) return false;
+
+    // Ignore workers far from the order position when rushing or doing a kamikaze attack
+    if ((StrategyManager::Instance().isRushing() && order.getType() == SquadOrderTypes::Attack) ||
+        order.getType() == SquadOrderTypes::KamikazeAttack)
+    {
+        if (combatUnit->getDistance(order.getPosition()) > 500 &&
+            target->getType().isWorker()) return true;
+    }
 
     // Consider outlying buildings
     // Static defenses are handled separately so we can consider run-bys as a squad

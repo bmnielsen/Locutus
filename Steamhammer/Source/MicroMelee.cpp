@@ -157,6 +157,15 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
             continue;
         }
 
+        // When on the attack, don't attack units that can kite us unless they are in range
+        bool inWeaponRange = meleeUnit->isInWeaponRange(target);
+        if (!inWeaponRange && order.getType() != SquadOrderTypes::Defend &&
+            (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon ||
+            target->getType() == BWAPI::UnitTypes::Terran_Vulture))
+        {
+            continue;
+        }
+
 		// Adjust for special features.
 
 		// Prefer targets under dark swarm, on the expectation that then we'll be under it too.
@@ -178,7 +187,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		}
 
 		// This could adjust for relative speed and direction, so that we don't chase what we can't catch.
-		if (meleeUnit->isInWeaponRange(target))
+		if (inWeaponRange)
 		{
 			if (meleeUnit->getType() == BWAPI::UnitTypes::Zerg_Ultralisk)
 			{
@@ -217,14 +226,28 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		}
 
 		// Prefer targets that are already hurt.
-		if (target->getType().getRace() == BWAPI::Races::Protoss && target->getShields() == 0)
+		if (target->getType().getRace() == BWAPI::Races::Protoss && target->getShields() <= 5)
 		{
 			score += 32;
+            if (target->getHitPoints() < (target->getType().maxHitPoints() / 3))
+            {
+                score += 24;
+            }
 		}
 		else if (target->getHitPoints() < target->getType().maxHitPoints())
 		{
 			score += 24;
-		}
+            if (target->getHitPoints() < (target->getType().maxHitPoints() / 3))
+            {
+                score += 24;
+            }
+        }
+
+        // Avoid defensive matrix
+        if (target->isDefenseMatrixed())
+        {
+            score -= 4 * 32;
+        }
 
 		if (score > bestScore)
 		{

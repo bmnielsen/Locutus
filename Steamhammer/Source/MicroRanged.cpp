@@ -361,14 +361,28 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		}
 		
 		// Prefer targets that are already hurt.
-		if (target->getType().getRace() == BWAPI::Races::Protoss && target->getShields() <= 5)
-		{
-			score += 32;
-		}
-		if (target->getHitPoints() < target->getType().maxHitPoints())
-		{
-			score += 24;
-		}
+        if (target->getType().getRace() == BWAPI::Races::Protoss && target->getShields() <= 5)
+        {
+            score += 32;
+            if (target->getHitPoints() < (target->getType().maxHitPoints() / 3))
+            {
+                score += 24;
+            }
+        }
+        else if (target->getHitPoints() < target->getType().maxHitPoints())
+        {
+            score += 24;
+            if (target->getHitPoints() < (target->getType().maxHitPoints() / 3))
+            {
+                score += 24;
+            }
+        }
+
+        // Avoid defensive matrix
+        if (target->isDefenseMatrixed())
+        {
+            score -= 4 * 32;
+        }
 
 		// Prefer to hit air units that have acid spores on them from devourers.
 		if (target->getAcidSporeCount() > 0)
@@ -573,10 +587,21 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		{
 			return 11;
 		}
-        // Repairing something that can shoot makes you critical.
-        if (target->isRepairing() && target->getOrderTarget() && target->getOrderTarget()->getType().groundWeapon() != BWAPI::WeaponTypes::None)
+        // Repairing
+        if (target->isRepairing() && target->getOrderTarget())
         {
-            return 11;
+            // Something that can shoot
+            if (target->getOrderTarget()->getType().groundWeapon() != BWAPI::WeaponTypes::None)
+            {
+                return 11;
+            }
+
+            // A bunker: only target the workers if we can't outrange the bunker
+            if (target->getOrderTarget()->getType() == BWAPI::UnitTypes::Terran_Bunker &&
+                InformationManager::Instance().enemyHasInfantryRangeUpgrade())
+            {
+                return 10;
+            }
         }
         // SCVs so close to the unit that they are likely to be attacking it are important
         if (rangedUnit->getDistance(target) < 32)
