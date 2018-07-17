@@ -24,8 +24,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 {
 	fap.clearState();
     simPosition = center;
-    enemyUnitsCentroid = BWAPI::Position(0, 0);
-    myUnitsCentroid = BWAPI::Position(0, 0);
+    enemyUnitsCentroid = BWAPI::Positions::Invalid;
+    myUnitsCentroid = BWAPI::Positions::Invalid;
     enemyZerglings = false;
     airBattle = false;
 
