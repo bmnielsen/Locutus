@@ -1816,6 +1816,81 @@ bool InformationManager::enemyHasInfantryRangeUpgrade()
 	return false;
 }
 
+int InformationManager::getWeaponDamage(BWAPI::Player player, BWAPI::WeaponType wpn)
+{
+    if (player == BWAPI::Broodwar->self()) return player->damage(wpn);
+
+    int last = enemyWeaponDamage[wpn];
+    int current = player->damage(wpn);
+    if (current > last)
+    {
+        enemyWeaponDamage[wpn] = current;
+        return current;
+    }
+
+    return last;
+}
+
+int InformationManager::getWeaponRange(BWAPI::Player player, BWAPI::WeaponType wpn)
+{
+    if (player == BWAPI::Broodwar->self()) return player->weaponMaxRange(wpn);
+
+    int last = enemyWeaponRange[wpn];
+    int current = player->weaponMaxRange(wpn);
+    if (current > last)
+    {
+        enemyWeaponRange[wpn] = current;
+        return current;
+    }
+
+    return last;
+}
+
+int InformationManager::getUnitCooldown(BWAPI::Player player, BWAPI::UnitType type)
+{
+    if (player == BWAPI::Broodwar->self()) return player->weaponDamageCooldown(type);
+
+    int last = enemyUnitCooldown[type];
+    int current = player->weaponDamageCooldown(type);
+    if (current > last)
+    {
+        enemyUnitCooldown[type] = current;
+        return current;
+    }
+
+    return last;
+}
+
+double InformationManager::getUnitTopSpeed(BWAPI::Player player, BWAPI::UnitType type)
+{
+    if (player == BWAPI::Broodwar->self()) return player->topSpeed(type);
+
+    double last = enemyUnitTopSpeed[type];
+    double current = player->topSpeed(type);
+    if (current > last)
+    {
+        enemyUnitTopSpeed[type] = current;
+        return current;
+    }
+
+    return last;
+}
+
+int InformationManager::getUnitArmor(BWAPI::Player player, BWAPI::UnitType type)
+{
+    if (player == BWAPI::Broodwar->self()) return player->armor(type);
+
+    int last = enemyUnitArmor[type];
+    int current = player->armor(type);
+    if (current > last)
+    {
+        enemyUnitArmor[type] = current;
+        return current;
+    }
+
+    return last;
+}
+
 // Our nearest shield battery, by air distance.
 // Null if none.
 BWAPI::Unit InformationManager::nearestShieldBattery(BWAPI::Position pos) const

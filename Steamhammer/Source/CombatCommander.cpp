@@ -171,6 +171,22 @@ void CombatCommander::updateKamikazeSquad()
             if (unit.second.type == BWAPI::UnitTypes::Protoss_Dragoon)
                 enemyDragoons++;
 
+        // If we are rushing, add zealots to the kamikaze squad when they get close to the order position if
+        // the enemy has 2 or more dragoons
+        if (StrategyManager::Instance().isRushing() && enemyDragoons > 1)
+        {
+            std::vector<BWAPI::Unit> unitsToMove;
+            for (auto & unit : groundSquad.getUnits())
+                if (_squadData.canAssignUnitToSquad(unit, kamikazeSquad) &&
+                    unit->getDistance(groundSquad.getSquadOrder().getPosition()) < 200)
+                {
+                    unitsToMove.push_back(unit);
+                }
+
+            for (auto & unit : unitsToMove)
+                _squadData.assignUnitToSquad(unit, kamikazeSquad);
+        }
+
         if (enemyDragoons < 3) return;
 
         // Make sure we have at least as many zealots as the enemy has goons
@@ -687,7 +703,7 @@ void CombatCommander::updateAttackSquads()
                         mainChokes++;
 
                 if (mainChokes == 1 && 
-                    groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) > 0)
+                    groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) >= 0)
                 {
                     defendPosition = BWAPI::Position(bwebMap.mainChoke->Center());
                 }

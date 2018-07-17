@@ -1,5 +1,6 @@
 #include "FAP.h"
 #include "BWAPI.h"
+#include "InformationManager.h"
 
 UAlbertaBot::FastAPproximation fap;
 
@@ -136,7 +137,16 @@ namespace UAlbertaBot {
     int inline FastAPproximation::distButNotReally(
         const FastAPproximation::FAPUnit &u1,
         const FastAPproximation::FAPUnit &u2) const {
-        return (u1.x - u2.x) * (u1.x - u2.x) + (u1.y - u2.y) * (u1.y - u2.y);
+        unsigned int min = abs((int)(u1.x - u2.x));
+        unsigned int max = abs((int)(u1.y - u2.y));
+        if (max < min)
+            std::swap(min, max);
+
+        if (min < (max >> 2))
+            return max;
+
+        unsigned int minCalc = (3 * min) >> 3;
+        return (minCalc >> 5) + minCalc + max - (max >> 4) - (max >> 6);
     }
 
     bool FastAPproximation::isSuicideUnit(BWAPI::UnitType ut) {
@@ -149,9 +159,21 @@ namespace UAlbertaBot {
     void FastAPproximation::unitsim(
         const FastAPproximation::FAPUnit &fu,
         std::vector<FastAPproximation::FAPUnit> &enemyUnits) {
+
+        bool kite = false;
         if (fu.attackCooldownRemaining) {
-            didSomething = true;
-            return;
+            if (fu.unitType == BWAPI::UnitTypes::Terran_Vulture ||
+                (fu.unitType == BWAPI::UnitTypes::Protoss_Dragoon &&
+                fu.attackCooldownRemaining <= BWAPI::UnitTypes::Protoss_Dragoon.groundWeapon().damageCooldown() - 9))
+            {
+                kite = true;
+            }
+
+            if (!kite)
+            {
+                didSomething = true;
+                return;
+            }
         }
 
         auto closestEnemy = enemyUnits.end();
@@ -181,7 +203,23 @@ namespace UAlbertaBot {
             }
         }
 
-        if (closestEnemy != enemyUnits.end() && sqrt(closestDist) <= fu.speed &&
+        if (kite)
+        {
+            if (closestEnemy != enemyUnits.end() &&
+                closestEnemy->groundMaxRange < fu.groundMaxRange &&
+                closestDist <= (fu.groundMaxRange + fu.speed))
+            {
+                int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
+
+                fu.x -= (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
+                fu.y -= (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy)));
+            }
+
+            didSomething = true;
+            return;
+        }
+
+        if (closestEnemy != enemyUnits.end() && closestDist <= fu.speed &&
             !(fu.x == closestEnemy->x && fu.y == closestEnemy->y)) {
             fu.x = closestEnemy->x;
             fu.y = closestEnemy->y;
@@ -214,7 +252,7 @@ namespace UAlbertaBot {
             didSomething = true;
             return;
         }
-        else if (closestEnemy != enemyUnits.end() && sqrt(closestDist) > fu.speed) {
+        else if (closestEnemy != enemyUnits.end() && closestDist > fu.speed) {
             int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
 
             fu.x += (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
@@ -282,7 +320,7 @@ namespace UAlbertaBot {
             }
         }
 
-        if (closestEnemy != enemyUnits.end() && sqrt(closestDist) <= fu.speed) {
+        if (closestEnemy != enemyUnits.end() && closestDist <= fu.speed) {
             if (closestEnemy->flying)
                 dealDamage(*closestEnemy, fu.airDamage, fu.airDamageType);
             else
@@ -298,7 +336,7 @@ namespace UAlbertaBot {
             didSomething = true;
             return true;
         }
-        else if (closestEnemy != enemyUnits.end() && sqrt(closestDist) > fu.speed) {
+        else if (closestEnemy != enemyUnits.end() && closestDist > fu.speed) {
             int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
 
             fu.x += (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
@@ -408,12 +446,12 @@ namespace UAlbertaBot {
         fu.operator=(funew);
     }
 
-    FastAPproximation::FAPUnit::FAPUnit(BWAPI::Unit u) : FAPUnit(UnitInfo(u)) {}
+    FastAPproximation::FAPUnit::FAPUnit(BWAPI::Unit u) : FAPUnit(UnitInfo(u), u->getGroundWeaponCooldown()) {}
 
-    FastAPproximation::FAPUnit::FAPUnit(UnitInfo ui)
+    FastAPproximation::FAPUnit::FAPUnit(UnitInfo ui, int _attackCooldownRemaining)
         : x(ui.lastPosition.x), y(ui.lastPosition.y),
 
-        speed(ui.player->topSpeed(ui.type)),
+        speed(InformationManager::Instance().getUnitTopSpeed(ui.player, ui.type)),
 
         health(ui.lastHealth),
         maxHealth(ui.type.maxHitPoints()),
@@ -421,20 +459,22 @@ namespace UAlbertaBot {
         shields(ui.lastShields),
         shieldArmor(ui.player->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Plasma_Shields)),
         maxShields(ui.type.maxShields()),
-        armor(ui.player->armor(ui.type)),
+        armor(InformationManager::Instance().getUnitArmor(ui.player, ui.type)),
         flying(ui.type.isFlyer()),
 
-        groundDamage(ui.player->damage(ui.type.groundWeapon())),
-        groundCooldown(ui.type.groundWeapon().damageFactor() && ui.type.maxGroundHits() ? ui.player->weaponDamageCooldown(ui.type) / (ui.type.groundWeapon().damageFactor() * ui.type.maxGroundHits()) : 0),
-        groundMaxRange(ui.player->weaponMaxRange(ui.type.groundWeapon())),
+        groundDamage(InformationManager::Instance().getWeaponDamage(ui.player, ui.type.groundWeapon())),
+        groundCooldown(ui.type.groundWeapon().damageFactor() && ui.type.maxGroundHits() ? InformationManager::Instance().getUnitCooldown(ui.player, ui.type) / (ui.type.groundWeapon().damageFactor() * ui.type.maxGroundHits()) : 0),
+        groundMaxRange(InformationManager::Instance().getWeaponRange(ui.player, ui.type.groundWeapon())),
         groundMinRange(ui.type.groundWeapon().minRange()),
         groundDamageType(ui.type.groundWeapon().damageType()),
 
-        airDamage(ui.player->damage(ui.type.airWeapon())),
+        airDamage(InformationManager::Instance().getWeaponDamage(ui.player, ui.type.airWeapon())),
         airCooldown(ui.type.airWeapon().damageFactor() && ui.type.maxAirHits() ? ui.type.airWeapon().damageCooldown() / (ui.type.airWeapon().damageFactor() * ui.type.maxAirHits()) : 0),
-        airMaxRange(ui.player->weaponMaxRange(ui.type.airWeapon())),
+        airMaxRange(InformationManager::Instance().getWeaponRange(ui.player, ui.type.airWeapon())),
         airMinRange(ui.type.airWeapon().minRange()),
         airDamageType(ui.type.airWeapon().damageType()),
+
+        attackCooldownRemaining(_attackCooldownRemaining),
 
         unitType(ui.type),
         isOrganic(ui.type.isOrganic()),
@@ -447,7 +487,7 @@ namespace UAlbertaBot {
 
         if (ui.type == BWAPI::UnitTypes::Protoss_Carrier)
         {
-            groundDamage = ui.player->damage(
+            groundDamage = InformationManager::Instance().getWeaponDamage(ui.player, 
                 BWAPI::UnitTypes::Protoss_Interceptor.groundWeapon());
 
             if (ui.unit && ui.unit->isVisible()) {
@@ -484,10 +524,10 @@ namespace UAlbertaBot {
         } 
         else if (ui.type == BWAPI::UnitTypes::Terran_Bunker)
         {
-            groundDamage = ui.player->damage(BWAPI::WeaponTypes::Gauss_Rifle);
+            groundDamage = InformationManager::Instance().getWeaponDamage(ui.player, BWAPI::WeaponTypes::Gauss_Rifle);
             groundCooldown =
                 BWAPI::UnitTypes::Terran_Marine.groundWeapon().damageCooldown() / 4;
-            groundMaxRange = ui.player->weaponMaxRange(
+            groundMaxRange = InformationManager::Instance().getWeaponRange(ui.player, 
                 BWAPI::UnitTypes::Terran_Marine.groundWeapon()) +
                 32;
 
@@ -502,7 +542,7 @@ namespace UAlbertaBot {
         }
         else if (ui.type == BWAPI::UnitTypes::Protoss_Reaver)
         {
-            groundDamage = ui.player->damage(BWAPI::WeaponTypes::Scarab);
+            groundDamage = InformationManager::Instance().getWeaponDamage(ui.player, BWAPI::WeaponTypes::Scarab);
         }
 
         if (ui.unit && ui.unit->isStimmed()) {
@@ -514,10 +554,10 @@ namespace UAlbertaBot {
             elevation = BWAPI::Broodwar->getGroundHeight(ui.unit->getTilePosition());
         }
 
-        groundMaxRange *= groundMaxRange;
-        groundMinRange *= groundMinRange;
-        airMaxRange *= airMaxRange;
-        airMinRange *= airMinRange;
+        //groundMaxRange *= groundMaxRange;
+        //groundMinRange *= groundMinRange;
+        //airMaxRange *= airMaxRange;
+        //airMinRange *= airMinRange;
 
         health <<= 8;
         maxHealth <<= 8;

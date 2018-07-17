@@ -7,7 +7,7 @@ namespace UAlbertaBot {
     struct FastAPproximation {
         struct FAPUnit {
             FAPUnit(BWAPI::Unit u);
-            FAPUnit(UnitInfo ui);
+            FAPUnit(UnitInfo ui, int attackCooldownRemaining = 0);
             const FAPUnit &operator=(const FAPUnit &other) const;
 
             int id = 0;

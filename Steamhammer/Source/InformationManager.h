@@ -50,6 +50,13 @@ class InformationManager
     std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
     int                             bulletsSeenAtExtendedMarineRange;
 
+    // Caches of enemy unit statistics, used to track upgrades
+    std::map<BWAPI::WeaponType, int> enemyWeaponDamage;
+    std::map<BWAPI::WeaponType, int> enemyWeaponRange;
+    std::map<BWAPI::UnitType, int> enemyUnitCooldown;
+    std::map<BWAPI::UnitType, double> enemyUnitTopSpeed;
+    std::map<BWAPI::UnitType, int> enemyUnitArmor;
+
 	InformationManager();
 
 	void					initializeTheBases();
@@ -145,6 +152,12 @@ public:
 	bool					enemyHasMobileDetection();
 	bool					enemyHasSiegeTech();
     bool                    enemyHasInfantryRangeUpgrade();
+
+    int                     getWeaponDamage(BWAPI::Player player, BWAPI::WeaponType wpn);
+    int                     getWeaponRange(BWAPI::Player player, BWAPI::WeaponType wpn);
+    int                     getUnitCooldown(BWAPI::Player player, BWAPI::UnitType type);
+    double                  getUnitTopSpeed(BWAPI::Player player, BWAPI::UnitType type);
+    int                     getUnitArmor(BWAPI::Player player, BWAPI::UnitType type);
 
 	void					enemySeenBurrowing() { _enemyHasCloakTech = true; };
 

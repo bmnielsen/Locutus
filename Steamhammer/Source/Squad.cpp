@@ -399,19 +399,36 @@ bool Squad::needsToRegroup()
 	{
         // All other checks are done. Finally do the expensive combat simulation.
 
-        // If we retreated last time, simulate around a point closer to the order position
-        // Otherwise simulate around the closest unit
-        BWAPI::Position simPosition(unitClosest->getPosition());
-        if (_lastRetreatSwitchVal)
+        // Find the closest enemy to our vanguard unit
+        int closestDist = INT_MAX;
+        BWAPI::Position closestPosition = BWAPI::Positions::Invalid;
+        for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
         {
-            BWAPI::Position delta(_order.getPosition() - simPosition);
-            double a = atan2(delta.y, delta.x);
-
-            simPosition = BWAPI::Position(
-                simPosition.x + (int)std::round(96 * std::cos(a)),
-                simPosition.y + (int)std::round(96 * std::sin(a)));
+            if (ui.second.goneFromLastPosition) continue;
+            int dist = ui.second.lastPosition.getApproxDistance(unitClosest->getPosition());
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closestPosition = ui.second.lastPosition;
+            }
         }
 
+        // If that enemy is closer to our order position (ground distance), run the combat
+        // sim around the midway point between the units
+        BWAPI::Position simPosition(unitClosest->getPosition());
+        if (closestPosition.isValid() && closestDist > 32)
+        {
+            int ourDistToOrderPosition;
+            int theirDistToOrderPosition;
+            bwemMap.GetPath(unitClosest->getPosition(), _order.getPosition(), &ourDistToOrderPosition);
+            bwemMap.GetPath(closestPosition, _order.getPosition(), &theirDistToOrderPosition);
+            if (ourDistToOrderPosition != -1 && theirDistToOrderPosition != -1 &&
+                ourDistToOrderPosition > (theirDistToOrderPosition + 32))
+            {
+                simPosition = (simPosition + closestPosition) / 2;
+            }
+        }
+        
         double score = runCombatSim(simPosition);
 
 		retreat = score < 0;

@@ -14,9 +14,9 @@ private:
     BWAPI::Position myUnitsCentroid;
     BWAPI::Position enemyUnitsCentroid;
     bool airBattle;
+    int enemyZerglings;
 
-    BWAPI::Position lastRetreatSimPosition;
-    std::pair<int, int> lastRetreatResult;
+    std::pair<int, int> simulate(int frames, bool narrowChoke, int elevationDifference, std::pair<int, int> & initialScores);
 
 public:
 
@@ -24,6 +24,6 @@ public:
 
 	void setCombatUnits(const BWAPI::Position & center, const int radius, bool visibleOnly, bool ignoreBunkers);
 
-	double simulateCombat(bool currentlyRetreating);
+	int simulateCombat(bool currentlyRetreating);
 };
 }
