@@ -203,8 +203,8 @@ void MicroManager::regroup(
 		}
 
         // Determine position to move towards
-        // When rushing, we may move towards the vanguard unit when it is safe to do so
-        BWAPI::Position regroupTo = vanguard && !nearEnemy[unit]
+        // If we are a long way away from the vanguard unit and not near an enemy, move towards it
+        BWAPI::Position regroupTo = (vanguard && !nearEnemy[unit] && vanguard->getDistance(unit) > 500)
             ? vanguard->getPosition()
             : regroupPosition;
 
@@ -212,7 +212,13 @@ void MicroManager::regroup(
 		{
 			if (!mobilizeUnit(unit))
 			{
-                InformationManager::Instance().getLocutusUnit(unit).moveTo(regroupTo, order.getType() == SquadOrderTypes::Attack);
+                // If we have already sent a move order very recently, don't send another one
+                // Sometimes we do it too often and the goons get stuck
+                if (unit->getLastCommand().getType() != BWAPI::UnitCommandTypes::Move ||
+                    BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame() > 3)
+                {
+                    InformationManager::Instance().getLocutusUnit(unit).moveTo(regroupTo, order.getType() == SquadOrderTypes::Attack);
+                }
 				//Micro::Move(unit, regroupPosition);
 			}
 		}

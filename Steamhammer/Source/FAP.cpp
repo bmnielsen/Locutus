@@ -544,6 +544,15 @@ namespace UAlbertaBot {
         {
             groundDamage = InformationManager::Instance().getWeaponDamage(ui.player, BWAPI::WeaponTypes::Scarab);
         }
+        // Destroy score is not a good value measurement for static ground defense, so set them manually
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+        {
+            score = 750; // approximate at 1.5 dragoons
+        }
+        else if (ui.type == BWAPI::UnitTypes::Zerg_Sunken_Colony)
+        {
+            score = 1000; // approximate at 2 dragoons
+        }
 
         if (ui.unit && ui.unit->isStimmed()) {
             groundCooldown /= 2;

@@ -3,7 +3,7 @@
 #include "UnitUtil.h"
 #include "StrategyManager.h"
 
-//#define COMBATSIM_DEBUG 1
+#define COMBATSIM_DEBUG 1
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
@@ -26,7 +26,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
     simPosition = center;
     enemyUnitsCentroid = BWAPI::Positions::Invalid;
     myUnitsCentroid = BWAPI::Positions::Invalid;
-    enemyZerglings = false;
+    enemyZerglings = 0;
     airBattle = false;
 
 	if (Config::Debug::DrawCombatSimulationInfo)
@@ -54,9 +54,6 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
         }
     }
 
-    std::ostringstream debug;
-    debug << "Combat sim " << radius << " around " << BWAPI::TilePosition(center);
-
 	// Add enemy units.
 	if (visibleOnly && enemyUnitPosition.isValid())
 	{
@@ -70,8 +67,6 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 
 			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit))
 			{
-                debug << "\n" << unit->getType() << " @ " << unit->getTilePosition();
-
                 enemyUnits.push_back(unit);
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
@@ -94,7 +89,6 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
                 (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
 				UnitUtil::IsCombatSimUnit(ui.type))
 			{
-                debug << "\n" << ui.type << " @ " << BWAPI::TilePosition(ui.lastPosition);
                 enemyUnits.push_back(ui);
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
@@ -120,7 +114,6 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
                 (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
 				(ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)))
 			{
-                debug << "\n" << ui.type << " @ " << BWAPI::TilePosition(ui.lastPosition);
                 enemyUnits.push_back(ui);
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
@@ -130,13 +123,11 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		}
 	}
 
-#ifdef COMBATSIM_DEBUG
-    Log().Debug() << debug.str();
-#endif
-
     // Add the enemy units and compute the centroid
     if (!enemyUnits.empty())
     {
+        enemyUnitsCentroid = BWAPI::Position(0, 0);
+
         for (auto& unit : enemyUnits)
         {
             fap.addIfCombatUnitPlayer2(unit);
@@ -181,6 +172,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
     // Add our units and compute the centroid
     if (!myUnits.empty())
     {
+        myUnitsCentroid = BWAPI::Position(0, 0);
+
         for (auto& unit : myUnits)
         {
             fap.addIfCombatUnitPlayer1(unit);
@@ -201,9 +194,12 @@ std::pair<int, int> CombatSimulation::simulate(int frames, bool narrowChoke, int
     int theirChange = initialScores.second - fap.playerScores().second;
 
     // If fighting through a narrow choke, assume our units won't be as effective
+    // Scales according to army size: the more units we have, the more the choke will affect performance
     if (narrowChoke)
     {
-        theirChange = (theirChange * 2) / 3;
+        // Scales from 1.0 at 1000 to 0.5 at 3000
+        double factor = std::min(0.5, 1.0 - (double)(initialScores.first - 1000) / 4000.0);
+        theirChange = (int)std::ceil((double)theirChange * factor);
     }
 
     // If fighting uphill, assume our units won't be as effective
@@ -287,7 +283,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         {
 #ifdef COMBATSIM_DEBUG
             debug << "\nNo result";
-            Log().Debug() << debug.str();
+            if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
 #endif
             return 0;
         }
@@ -297,7 +293,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         {
 #ifdef COMBATSIM_DEBUG
             debug << "\nPositive result, short-circuiting";
-            Log().Debug() << debug.str();
+            if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
 #endif
             return 1;
         }
@@ -309,13 +305,23 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         {
 #ifdef COMBATSIM_DEBUG
             debug << "\nRush mode: acceptable loss";
-            Log().Debug() << debug.str();
+            if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
 #endif
             return 1;
         }
     }
 
     // At this point we project some kind of loss, otherwise we would have returned earlier
+
+    // Press the attack if our army vastly outnumbers theirs
+    if ((double)fap.playerScores().second / (double)fap.playerScores().first < 0.25)
+    {
+        debug << "\nTheir army is much smaller than ours; pressing the attack";
+#ifdef COMBATSIM_DEBUG
+        if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
+#endif
+        return 1;
+    }
 
     // Attack if we're doing better than the enemy as a percentage of army size
     // We lost a bit more value than the enemy, but their army will be gone soon
@@ -327,7 +333,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         if (ourPercentageChange < theirPercentageChange)
         {
 #ifdef COMBATSIM_DEBUG
-            Log().Debug() << debug.str();
+            if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
 #endif
             return 1;
         }
