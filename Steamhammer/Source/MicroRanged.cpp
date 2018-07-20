@@ -241,9 +241,8 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				}
 
 				// attack it.
-                // Bunkers are handled by a special micro manager, unless we have a large army
-                if (rangedUnits.size() < 6 &&
-                    target->getType() == BWAPI::UnitTypes::Terran_Bunker &&
+                // Bunkers are handled by a special micro manager
+                if (target->getType() == BWAPI::UnitTypes::Terran_Bunker &&
                     target->isCompleted())
                 {
                     squad.addUnitToBunkerAttackSquad(target, rangedUnit);
