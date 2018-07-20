@@ -2,6 +2,7 @@
 
 #include "Bases.h"
 #include "MapTools.h"
+#include "MapGrid.h"
 #include "ProductionManager.h"
 #include "Random.h"
 #include "UnitUtil.h"
@@ -259,7 +260,7 @@ void InformationManager::maybeAddBase(BWAPI::Unit unit)
 // that we can say they are "the same place" as a base.
 bool InformationManager::closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition b)
 {
-	return abs(a.x - b.x) <= 2 && abs(a.y - b.y) <= 2;
+	return abs(a.x - b.x) <= 3 && abs(a.y - b.y) <= 3;
 }
 
 void InformationManager::update()
@@ -585,6 +586,7 @@ void InformationManager::updateTheBases()
 		{
             _theBases[base]->lastScouted = BWAPI::Broodwar->getFrameCount();
 
+            // Check if there is a base here
 			BWAPI::Unitset units = BWAPI::Broodwar->getUnitsOnTile(base->getTilePosition());
 			BWAPI::Unit depot = nullptr;
 			for (const auto unit : units)
@@ -605,6 +607,23 @@ void InformationManager::updateTheBases()
 				// The base is empty.
 				baseLost(base);
 			}
+
+            // If we have marked the base as being spider mined, clear it if we have a combat unit nearby
+            // that would have activated the mine
+            if (_theBases[base]->spiderMined)
+            {
+                BWAPI::Unitset ourUnits;
+                MapGrid::Instance().getUnits(ourUnits, base->getPosition(), BWAPI::UnitTypes::Terran_Vulture_Spider_Mine.sightRange() - 32, true, false);
+                for (const auto unit : ourUnits)
+                {
+                    if (!unit->isFlying() && UnitUtil::IsCombatUnit(unit))
+                    {
+                        _theBases[base]->spiderMined = false;
+                        Log().Debug() << "Defused spider-mined base @ " << base->getTilePosition();
+                        break;
+                    }
+                }
+            }
 		}
 		else
 		{

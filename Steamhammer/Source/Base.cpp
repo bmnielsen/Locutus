@@ -77,6 +77,7 @@ void Base::setOwner(BWAPI::Unit depot, BWAPI::Player player)
     {
         owner = player;
         ownedSince = BWAPI::Broodwar->getFrameCount();
+        spiderMined = false;
     }
 }
 

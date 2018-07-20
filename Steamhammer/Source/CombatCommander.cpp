@@ -107,6 +107,7 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 		updateScoutDefenseSquad();
 		updateBaseDefenseSquads();
 		updateHarassSquads();
+        updateDefuseSquads();
 		updateReconSquad();
 		updateAttackSquads();
 	}
@@ -205,6 +206,65 @@ void CombatCommander::updateKamikazeSquad()
         _squadData.assignUnitToSquad(unit, kamikazeSquad);
 
     Log().Get() << "Sent " << unitsToMove.size() << " units on a kamikaze attack";
+}
+
+void CombatCommander::updateDefuseSquads()
+{
+    if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran) return;
+
+    // Loop all of the bases
+    for (auto base : BWTA::getBaseLocations())
+    {
+        std::stringstream squadName;
+        squadName << "Defuse " << base->getPosition().x << " " << base->getPosition().y;
+
+        // If the base is currently marked as spider-mined, make sure there is a squad defusing it
+        if (InformationManager::Instance().getBase(base)->spiderMined)
+        {
+            if (!_squadData.squadExists(squadName.str()))
+            {
+                _squadData.addSquad(Squad(
+                    squadName.str(),
+                    SquadOrder(SquadOrderTypes::KamikazeAttack, base->getPosition(), 64, "Defuse expansion"),
+                    ReconPriority));
+            }
+
+            Squad & squad = _squadData.getSquad(squadName.str());
+            if (squad.getUnits().empty() && !onTheDefensive())
+            {
+                // Send the nearest zealot that can be reassigned from its current duties
+                BWAPI::Unit bestUnit = nullptr;
+                int bestDist = INT_MAX;
+                for (auto & unit : BWAPI::Broodwar->self()->getUnits())
+                {
+                    if (unit->getType() != BWAPI::UnitTypes::Protoss_Zealot) continue;
+                    if (!_squadData.canAssignUnitToSquad(unit, squad)) continue;
+
+                    int dist;
+                    bwemMap.GetPath(unit->getPosition(), base->getPosition(), &dist);
+                    if (dist > -1 && dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestUnit = unit;
+                    }
+                }
+
+                if (bestUnit)
+                {
+                    _squadData.assignUnitToSquad(bestUnit, squad);
+                }
+            }
+        }
+
+        // Otherwise, make sure there isn't a squad defusing it
+        else
+        {
+            if (_squadData.squadExists(squadName.str()))
+            {
+                _squadData.removeSquad(squadName.str());
+            }
+        }
+    }
 }
 
 // Update the base harassment squads

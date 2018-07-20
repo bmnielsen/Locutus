@@ -216,7 +216,11 @@ void BuildingManager::constructAssignedBuildings()
                     && b.type == BWAPI::UnitTypes::Protoss_Nexus)
                 {
                     auto base = InformationManager::Instance().baseAt(b.finalPosition);
-                    if (base) base->spiderMined = true;
+                    if (base)
+                    {
+                        Log().Debug() << "Detected spider mine blocking base @ " << b.finalPosition;
+                        base->spiderMined = true;
+                    }
                 }
 			}
             else
