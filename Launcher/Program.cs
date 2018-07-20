@@ -93,6 +93,7 @@
             var opponent = args[0];
             var isHeadless = !args.Contains("ui");
             var showReplay = args.Contains("replay");
+            var noOverwrite = args.Contains("noReadOverwrite");
 
             var timeout = MaxTimeout;
             if (args.Contains("short"))
@@ -210,7 +211,7 @@
                         }
                     }
 
-                    Run(trainingOpponent[0], map, true, false, timeout);
+                    Run(trainingOpponent[0], map, true, false, timeout, noOverwrite);
 
                     if (!currentGame.HaveResult)
                     {
@@ -232,7 +233,7 @@
 
                 foreach (var map in shuffledMaps)
                 {
-                    Run(opponent, map, isHeadless, false, timeout);
+                    Run(opponent, map, isHeadless, false, timeout, noOverwrite);
 
                     if (!currentGame.HaveResult)
                     {
@@ -248,16 +249,17 @@
                 return;
             }
 
-            Run(opponent, shuffledMaps.First(), isHeadless, showReplay, timeout);
+            Run(opponent, shuffledMaps.First(), isHeadless, showReplay, timeout, noOverwrite);
         }
 
-        private static void Run(string opponent, string map, bool isHeadless, bool showReplay, int timeout)
+        private static void Run(string opponent, string map, bool isHeadless, bool showReplay, int timeout, bool noOverwrite)
         {
             Output("Starting game against {0} on {1}", opponent, map);
 
             var headless = isHeadless ? "--headless" : string.Empty;
             var timeoutParam = timeout > 0 ? "--timeout " + timeout : string.Empty;
-            var args = $"--bots \"Locutus\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} --read_overwrite";
+            var overwriteParam = noOverwrite ? string.Empty : "--read_overwrite";
+            var args = $"--bots \"Locutus\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} {overwriteParam}";
 
             currentGame = new GameData();
 
