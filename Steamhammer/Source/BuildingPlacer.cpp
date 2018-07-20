@@ -427,7 +427,7 @@ void BuildingPlacer::initializeBWEB()
 
         int dist;
         bwemMap.GetPath(blockCenter, _myBase->getPosition(), &dist);
-        if (dist < distBest)
+        if (dist > -1 && dist < distBest)
         {
             _hiddenTechBlock = &block;
             distBest = dist;
