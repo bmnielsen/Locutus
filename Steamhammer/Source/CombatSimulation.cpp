@@ -3,7 +3,7 @@
 #include "UnitUtil.h"
 #include "StrategyManager.h"
 
-#define COMBATSIM_DEBUG 1
+//#define COMBATSIM_DEBUG 1
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
@@ -200,18 +200,17 @@ std::pair<int, int> CombatSimulation::simulate(int frames, bool narrowChoke, int
         // Scales from 1.0 at 1000 to 0.5 at 3000
         double factor = std::min(0.5, 1.0 - (double)(initialScores.first - 1000) / 4000.0);
         theirChange = (int)std::ceil((double)theirChange * factor);
-    }
 
-    // If fighting uphill, assume our units won't be as effective
-    if (elevationDifference > 0)
-    {
-        theirChange /= 2;
-    }
-
-    // If fighting downhill, assume their units won't be as effective
-    else if (elevationDifference < 0)
-    {
-        ourChange = (ourChange * 2) / 3;
+        // If there is an elevation change, this is a narrow ramp
+        // Penalize fighting uphill even more, but encourage downhill slightly
+        if (elevationDifference > 0)
+        {
+            theirChange /= 2;
+        }
+        else if (elevationDifference < 0)
+        {
+            ourChange = (ourChange * 2) / 3;
+        }
     }
 
     // If the enemy army consists of many zerglings, assume they won't be as effective
@@ -288,8 +287,8 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
             return 0;
         }
 
-        // We short-circuit if there is a gain after 3 or more seconds
-        if (step >= 3 && result.second > result.first)
+        // We short-circuit if our army is bigger and we project a gain after 3 or more seconds
+        if (step >= 3 && result.second > result.first && fap.playerScores().first >= fap.playerScores().second)
         {
 #ifdef COMBATSIM_DEBUG
             debug << "\nPositive result, short-circuiting";
@@ -309,6 +308,18 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
 #endif
             return 1;
         }
+    }
+
+    // We project a gain, but have a smaller army (otherwise we would have returned earlier)
+    if (result.second > result.first)
+    {
+        // Treat this as a significant gain if it is at least 20 % of the difference in army strength
+        double percentageChange = (double)(result.second - result.first) / (double)(fap.playerScores().second - fap.playerScores().first);
+        debug << "\n% of army difference: " << percentageChange;
+#ifdef COMBATSIM_DEBUG
+        if (percentageChange < 0.2 || BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
+#endif
+        return percentageChange >= 0.2 ? 1 : 0;
     }
 
     // At this point we project some kind of loss, otherwise we would have returned earlier
