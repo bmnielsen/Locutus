@@ -154,7 +154,14 @@ void OpponentPlan::recognize()
 	// Recognize slower rushes.
 	// TODO make sure we've seen the bare geyser in the enemy base!
 	// TODO seeing a unit carrying gas also means the enemy has gas
-	if (snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) >= 2 &&
+	if (frame < 5500 &&
+        snap.getCount(BWAPI::UnitTypes::Zerg_Zergling) > 10
+        ||
+        frame > 4000 &&
+        snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) == 1 &&
+        snap.getCount(BWAPI::UnitTypes::Zerg_Drone) <= 9
+        ||
+        snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) >= 2 &&
 		snap.getCount(BWAPI::UnitTypes::Zerg_Spawning_Pool) > 0 &&
 		snap.getCount(BWAPI::UnitTypes::Zerg_Extractor) == 0 &&
         snap.getCount(BWAPI::UnitTypes::Zerg_Zergling) > 5

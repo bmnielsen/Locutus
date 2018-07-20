@@ -1079,7 +1079,7 @@ void SetWallCannons(BuildOrderQueue & queue, int numCannons)
     {
         // Ensure we have a forge
         QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
-        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return;
+        if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return;
 
         queue.queueAsHighestPriority(m);
     }
@@ -1475,7 +1475,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                 {
                     // Build two cannons immediately if the opponent does fast rushes
                     // Otherwise, scale cannons up gradually to protect against unscouted heavy pressure
-                    if (frame > 5000)
+                    if (frame > 4500)
                         cannons = 3;
                     else if (frame > 4000 || OpponentModel::Instance().enemyCanFastRush())
                         cannons = 2;
