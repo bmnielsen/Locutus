@@ -155,7 +155,10 @@ void ScoutManager::update()
     }
 
 	// Find out if we want to steal gas.
-	if (_workerScout && !StrategyManager::Instance().isRushing() && OpponentModel::Instance().getRecommendGasSteal() &&
+	if (_workerScout && 
+        !StrategyManager::Instance().isRushing() && 
+        OpponentModel::Instance().getRecommendGasSteal() &&
+        BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
         Config::Strategy::StrategyName != "PlasmaProxy2Gate")
 	{
 		_tryGasSteal = true;
@@ -526,6 +529,14 @@ bool ScoutManager::gasSteal()
 		return false;
 	}
 
+    // Abort the gas steal if we've scouted a rush
+    OpeningPlan enemyPlan = OpponentModel::Instance().getEnemyPlan();
+    if (enemyPlan == OpeningPlan::FastRush || enemyPlan == OpeningPlan::HeavyRush)
+    {
+        _gasStealOver = true;
+        return false;
+    }
+
 	// The conditions are met. Do it!
 	_startedGasSteal = true;
 
@@ -537,7 +548,7 @@ bool ScoutManager::gasSteal()
 		// No need to set status. It will change on the next frame.
 		return false;
 	}
-	else if (_enemyGeyser->isVisible() && _workerScout->getDistance(_enemyGeyser) < 300)
+	else if (_enemyGeyser->isVisible() && _workerScout->getDistance(_enemyGeyser) < 64)
 	{
 		// We see the geyser. Queue the refinery, if it's not already done.
 		// We can't rely on _queuedGasSteal to know, because the queue may be cleared
