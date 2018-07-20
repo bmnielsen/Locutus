@@ -736,6 +736,7 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
     // Move towards the target in the following cases:
     // - It is a sieged tank
+    // - It is repairing a sieged tank
     // - It is a building that cannot attack
     // - We are blocking a narrow choke
     // - The enemy unit is moving away from us and is close to the edge of its range, or is standing still and we aren't in its weapon range
@@ -743,6 +744,7 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
     // Do simple checks immediately
     bool moveCloser =
         target->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
+        (target->isRepairing() && target->getOrderTarget() && target->getOrderTarget()->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode) ||
         (target->getType().isBuilding() && !UnitUtil::CanAttack(target, rangedUnit));
 
     // Now check enemy unit movement
