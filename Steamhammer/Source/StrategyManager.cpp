@@ -317,16 +317,19 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         {
             getZealotSpeed = true;
 
-            // Keep the zealot:goon ratio at about 3:1, but keep training both if we have many idle gateways
-            if (numZealots < (numDragoons * 3))
+            // Vary the ratio depending on how many tanks the enemy has
+            int tanks = 0;
+            for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+                if (ui.second.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
+                    ui.second.type == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode) tanks++;
+
+            // Scales from 1:1 to 3:1
+            double desiredZealotRatio = 0.5 + std::min((double)tanks / 40.0, 0.25);
+            double actualZealotRatio = numDragoons == 0 ? 1.0 : (double)numZealots / (double)numDragoons;
+            if (desiredZealotRatio > actualZealotRatio)
             {
-                zealotRatio = 0.8;
-                goonRatio = 0.2;
-            }
-            else
-            {
-                zealotRatio = 0.3;
-                goonRatio = 0.7;
+                zealotRatio = 1.0;
+                goonRatio = 0.0;
             }
         }
 
