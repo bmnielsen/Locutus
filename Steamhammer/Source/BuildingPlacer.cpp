@@ -14,8 +14,9 @@ BuildingPlacer::BuildingPlacer()
     , _boxBottom    (std::numeric_limits<int>::lowest())
     , _boxLeft      (std::numeric_limits<int>::max())
     , _boxRight     (std::numeric_limits<int>::lowest())
-    , _proxyBlock   (nullptr)
-    , _hiddenTechBlock   (nullptr)
+    , _hiddenTechBlock  (-1)
+    , _centerProxyBlock (-1)
+    , _proxyBlock       (-1)
 {
     _reserveMap = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(),std::vector<bool>(BWAPI::Broodwar->mapHeight(),false));
 
@@ -386,18 +387,23 @@ bool BuildingPlacer::isReserved(int x, int y) const
 
 void BuildingPlacer::initializeBWEB()
 {
-	bwebMap.onStart();
+    bwebMap.onStart();
 
     // TODO: Check if non-tight walls are better vs. protoss and terran
     _wall = LocutusWall::CreateForgeGatewayWall(true);
 
+    findHiddenTechBlock();
+    findProxyBlocks();
+
     bwebMap.findBlocks();
+}
 
-    // Find a hidden tech block
-    // This is the closest block to our base that avoids the paths between starting locations
-
+// Find a hidden tech block: a block with two tech locations hidden from predicted scouting paths
+void BuildingPlacer::findHiddenTechBlock()
+{
     // First do the pathing to gather which areas we should avoid
     std::set<const BWEM::Area*> areasToAvoid;
+    std::set<const BWEM::Area*> areasToPreferablyAvoid;
     auto _myBase = InformationManager::Instance().getMyMainBaseLocation();
     for (auto base : BWTA::getStartLocations())
     {
@@ -408,31 +414,301 @@ void BuildingPlacer::initializeBWEB()
             areasToAvoid.insert(choke->GetAreas().first);
             areasToAvoid.insert(choke->GetAreas().second);
             for (auto area : choke->GetAreas().first->AccessibleNeighbours())
-                areasToAvoid.insert(area);
+                areasToPreferablyAvoid.insert(area);
             for (auto area : choke->GetAreas().second->AccessibleNeighbours())
-                areasToAvoid.insert(area);
+                areasToPreferablyAvoid.insert(area);
         }
     }
 
-    // Now find the closest block that powers two medium buildings and avoids those areas
+    // Now find the closest location where we can build the block
+    // We weight the "preferably avoid" areas so they are only selected if all other options are bad
+    BWAPI::TilePosition tileBest = BWAPI::TilePositions::Invalid;
     int distBest = INT_MAX;
-    for (auto &block : bwebMap.Blocks())
-    {
-        if (block.MediumTiles().size() < 2) continue;
-
-        BWAPI::Position blockCenter =
-            BWAPI::Position(block.Location()) + BWAPI::Position(block.width() * 16, block.height() * 16);
-
-        if (areasToAvoid.find(bwemMap.GetNearestArea(BWAPI::TilePosition(blockCenter))) != areasToAvoid.end()) continue;
-
-        int dist;
-        bwemMap.GetPath(blockCenter, _myBase->getPosition(), &dist);
-        if (dist > -1 && dist < distBest)
+    for (int x = 0; x < BWAPI::Broodwar->mapWidth(); x++)
+        for (int y = 0; y < BWAPI::Broodwar->mapHeight(); y++) 
         {
-            _hiddenTechBlock = &block;
-            distBest = dist;
+            BWAPI::TilePosition tile(x, y);
+            if (!tile.isValid()) continue;
+            if (!BWAPI::Broodwar->isBuildable(tile)) continue;
+            if (areasToAvoid.find(bwemMap.GetNearestArea(tile)) != areasToAvoid.end()) continue;
+
+            int dist = -1;
+            if (bwebMap.canAddBlock(tile, 5, 4))
+            {
+                BWAPI::Position blockCenter = BWAPI::Position(tile) + BWAPI::Position(5 * 16, 4 * 16);
+                bwemMap.GetPath(blockCenter, _myBase->getPosition(), &dist);
+                if (dist == -1 || dist > 3000) continue;
+            }
+            else if (bwebMap.canAddBlock(tile, 8, 2))
+            {
+                BWAPI::Position blockCenter = BWAPI::Position(tile) + BWAPI::Position(8 * 16, 2 * 16);
+                bwemMap.GetPath(blockCenter, _myBase->getPosition(), &dist);
+                if (dist == -1 || dist > 3000) continue;
+            }
+            else
+                continue;
+
+            if (areasToPreferablyAvoid.find(bwemMap.GetNearestArea(tile)) != areasToPreferablyAvoid.end())
+                dist += 1000;
+
+            if (dist < distBest)
+            {
+                tileBest = tile;
+                distBest = dist;
+            }
+        }
+
+    // If there was a position, add the block
+    if (tileBest.isValid())
+    {
+        if (bwebMap.canAddBlock(tileBest, 5, 4))
+        {
+            bwebMap.addOverlap(tileBest, 5, 4);
+
+            BWEB::Block newBlock(5, 4, tileBest);
+            newBlock.insertSmall(tileBest);
+            newBlock.insertSmall(tileBest + BWAPI::TilePosition(0, 2));
+            newBlock.insertMedium(tileBest + BWAPI::TilePosition(2, 0));
+            newBlock.insertMedium(tileBest + BWAPI::TilePosition(2, 2));
+            bwebMap.blocks.push_back(newBlock);
+
+            _hiddenTechBlock = bwebMap.blocks.size() - 1;
+
+            Log().Get() << "Found 5x4 hidden tech block @ " << tileBest;
+        }
+        else if (bwebMap.canAddBlock(tileBest, 8, 2))
+        {
+            bwebMap.addOverlap(tileBest, 8, 2);
+
+            BWEB::Block newBlock(8, 2, tileBest);
+            newBlock.insertMedium(tileBest);
+            newBlock.insertSmall(tileBest + BWAPI::TilePosition(3, 0));
+            newBlock.insertMedium(tileBest + BWAPI::TilePosition(5, 0));
+            bwebMap.blocks.push_back(newBlock);
+
+            _hiddenTechBlock = bwebMap.blocks.size() - 1;
+
+            Log().Get() << "Found 8x2 hidden tech block @ " << tileBest;
+        }
+        else
+            Log().Get() << "ERROR: Could not add hidden tech block @ " << tileBest;
+    }
+    else
+        Log().Get() << "No suitable hidden tech block could be found.";
+}
+
+int addProxyBlock(BWAPI::TilePosition tile)
+{
+    if (!tile.isValid()) return -1;
+
+    if (bwebMap.canAddBlock(tile, 4, 8))
+    {
+        bwebMap.addOverlap(tile, 4, 8);
+
+        BWEB::Block newBlock(4, 8, tile);
+        newBlock.insertLarge(tile);
+        newBlock.insertSmall(tile + BWAPI::TilePosition(0, 3));
+        newBlock.insertSmall(tile + BWAPI::TilePosition(2, 3));
+        newBlock.insertLarge(tile + BWAPI::TilePosition(0, 5));
+        bwebMap.blocks.push_back(newBlock);
+
+        Log().Debug() << "Added 4x8 proxy block @ " << tile;
+
+        return bwebMap.blocks.size() - 1;
+    }
+    else if (bwebMap.canAddBlock(tile, 6, 6))
+    {
+        bwebMap.addOverlap(tile, 6, 6);
+
+        BWEB::Block newBlock(6, 6, tile);
+        newBlock.insertSmall(tile);
+        newBlock.insertSmall(tile + BWAPI::TilePosition(0, 2));
+        newBlock.insertSmall(tile + BWAPI::TilePosition(0, 4));
+        newBlock.insertLarge(tile + BWAPI::TilePosition(2, 0));
+        newBlock.insertLarge(tile + BWAPI::TilePosition(2, 3));
+        bwebMap.blocks.push_back(newBlock);
+
+        Log().Debug() << "Added 6x6 proxy block @ " << tile;
+
+        return bwebMap.blocks.size() - 1;
+    }
+
+    Log().Debug() << "Could not add proxy block @ " << tile;
+
+    return -1;
+}
+
+// Finds proxy blocks: one close to each potential enemy base and one at approximately equal distance between them
+void BuildingPlacer::findProxyBlocks()
+{
+    // Gather the possible enemy start locations
+    std::vector<BWTA::BaseLocation*> enemyStartLocations;
+    if (InformationManager::Instance().getEnemyMainBaseLocation())
+    {
+        enemyStartLocations.push_back(InformationManager::Instance().getEnemyMainBaseLocation());
+    }
+    else
+    {
+        for (auto base : BWTA::getStartLocations())
+        {
+            if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
+            enemyStartLocations.push_back(base);
         }
     }
+
+    // Initialize variables for scoring possible locations
+    int overallDistBest = INT_MAX;
+    BWAPI::TilePosition overallTileBest = BWAPI::TilePositions::Invalid;
+    std::map<BWTA::BaseLocation*, int> distBest;
+    std::map<BWTA::BaseLocation*, BWAPI::TilePosition> tileBest;
+    for (auto base : enemyStartLocations)
+    {
+        distBest[base] = INT_MAX;
+        tileBest[base] = BWAPI::TilePositions::Invalid;
+        _baseProxyBlocks[base] = -1;
+    }
+
+    std::ostringstream debug;
+    debug << "Finding proxy locations";
+
+    // Find the best locations
+    BWAPI::Position mainPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
+    for (int x = 0; x < BWAPI::Broodwar->mapWidth(); x++)
+        for (int y = 0; y < BWAPI::Broodwar->mapHeight(); y++)
+        {
+            BWAPI::TilePosition tile(x, y);
+            if (!tile.isValid()) continue;
+            if (!BWAPI::Broodwar->isBuildable(tile)) continue;
+
+            // Consider two types of blocks
+            // TODO: Allow to overlap center base location
+            BWAPI::Position blockCenter;
+            if (bwebMap.canAddBlock(tile, 4, 8))
+            {
+                blockCenter = BWAPI::Position(tile) + BWAPI::Position(4 * 16, 8 * 16);
+            }
+            else if (bwebMap.canAddBlock(tile, 6, 6))
+            {
+                blockCenter = BWAPI::Position(tile) + BWAPI::Position(6 * 16, 6 * 16);
+            }
+            else
+                continue;
+
+            debug << "\nBlock @ " << tile << ": ";
+
+            // Consider each start location
+            int minDist = INT_MAX;
+            int maxDist = 0;
+            for (auto base : enemyStartLocations)
+            {
+                // Don't build horror gates
+                if (BWTA::getRegion(blockCenter) == base->getRegion())
+                {
+                    debug << "In a base region";
+                    goto nextTile;
+                }
+
+                // Compute distance, abort if it is not connected
+                int dist;
+                bwemMap.GetPath(base->getPosition(), blockCenter, &dist);
+                if (dist == -1)
+                {
+                    debug << "Not connected";
+                    goto nextTile;
+                }
+
+                debug << "dist to " << base->getTilePosition() << "=" << dist << "; ";
+
+                // Update best distance for this base if appropriate, but don't build too close
+                // We don't want them to find the proxy early and kill it before we can make units
+                if (dist < distBest[base] && dist >= 2000)
+                {
+                    debug << "(best); ";
+                    distBest[base] = dist;
+                    tileBest[base] = tile;
+                }
+
+                // Update overall stats for this tile
+                if (dist < minDist) minDist = dist;
+                if (dist > maxDist) maxDist = dist;
+            }
+
+            // Don't consider center positions too close to a base
+            if (minDist < 2000)
+            {
+                debug << "rejecting for center, too close to a base";
+                continue;
+            }
+
+            // On 4+ player maps where the center isn't buildable, prefer locations closest to our main
+            if (enemyStartLocations.size() >= 3 && minDist < ((double)maxDist * 0.75))
+            {
+                int distToOurMain;
+                bwemMap.GetPath(blockCenter, mainPosition, &distToOurMain);
+                if (distToOurMain > minDist)
+                {
+                    debug << "rejecting for center, large variance and too far from our main";
+                    continue;
+                }
+            }
+
+            // Update overall best if appropriate
+            if (maxDist < overallDistBest)
+            {
+                debug << "(best center)";
+                overallDistBest = maxDist;
+                overallTileBest = tile;
+            }
+
+        nextTile:;
+        }
+
+    // Add the blocks
+    _centerProxyBlock = addProxyBlock(overallTileBest);
+    for (auto base : enemyStartLocations)
+        _baseProxyBlocks[base] = addProxyBlock(tileBest[base]);
+
+    //Log().Debug() << debug.str();
+}
+
+BWAPI::TilePosition buildLocationInBlock(BWAPI::UnitType type, const BWEB::Block & block)
+{
+    // If the type requires psi, make sure we have started building a pylon in the block
+    // Otherwise the worker we sent to do it probably got killed or didn't make it in time
+    if (type.requiresPsi())
+    {
+        std::set<BWAPI::TilePosition> positions = block.SmallTiles();
+
+        bool hasPylon = false;
+        for (auto pylon : BWAPI::Broodwar->self()->getUnits())
+        {
+            if (pylon->getType() != BWAPI::UnitTypes::Protoss_Pylon) continue;
+            if (positions.find(pylon->getTilePosition()) != positions.end())
+            {
+                hasPylon = true;
+                break;
+            }
+        }
+
+        if (!hasPylon)
+        {
+            Log().Get() << "No power in block " << block.Location() << "; falling through";
+            return BWAPI::TilePositions::Invalid;
+        }
+    }
+
+    // Return the first available position
+    std::set<BWAPI::TilePosition> placements;
+    if (type.tileWidth() == 4) placements = block.LargeTiles();
+    else if (type.tileWidth() == 3) placements = block.MediumTiles();
+    else placements = block.SmallTiles();
+    for (auto& tile : placements)
+        if (bwebMap.isPlaceable(type, tile))
+            return tile;
+
+    Log().Get() << "ERROR: No position for " << type << " available in block " << block.Location();
+
+    return BWAPI::TilePositions::Invalid;
 }
 
 // Used for scoring blocks when finding pylon positions
@@ -459,96 +735,28 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
     if (macroLocation == MacroLocation::Proxy)
     {
         // Set the proxy block if it is not already
-        if (!_proxyBlock)
+        if (_proxyBlock == -1)
         {
-            // Gather the possible enemy start locations
-            std::vector<BWTA::BaseLocation*> enemyStartLocations;
-            if (InformationManager::Instance().getEnemyMainBaseLocation())
-            {
-                enemyStartLocations.push_back(InformationManager::Instance().getEnemyMainBaseLocation());
-            }
-            else
-            {
-                for (auto base : BWTA::getStartLocations())
-                {
-                    if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
-                    enemyStartLocations.push_back(base);
-                }
-            }
+            // If we know the enemy start location, attempt to use it
+            auto enemyMain = InformationManager::Instance().getEnemyMainBaseLocation();
+            if (enemyMain)
+                _proxyBlock = _baseProxyBlocks[enemyMain];
 
-            // Find the block that:
-            // - Powers two gateways
-            // - Is not in the same region as a start location
-            // - Has the lowest max distance to all start locations
-            // We also include a small factor with the distance to our main
-            // Some maps don't have a buildable center, so it's better to build near our natural
-            BWAPI::Position mainPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
-            int distBest = INT_MAX;
-            for (auto &block : bwebMap.Blocks())
-            {
-                if (block.LargeTiles().size() < 2) continue;
-
-                BWAPI::Position blockCenter =
-                    BWAPI::Position(block.Location()) + BWAPI::Position(block.width() * 16, block.height() * 16);
-
-                // Get the minimum and maximum distance to the possible enemy start locations
-                int minDist = INT_MAX;
-                int maxDist = 0;
-                for (auto base : enemyStartLocations)
-                {
-                    // Short-circuit if the block is in a start location region
-                    if (BWTA::getRegion(block.Location()) == base->getRegion()) goto nextBlock;
-
-                    // Get ground distance with BWEM
-                    int dist;
-                    bwemMap.GetPath(blockCenter, base->getPosition(), &dist);
-
-                    // If this block isn't connected to this base, skip it
-                    if (dist == -1) goto nextBlock;
-
-                    if (dist > maxDist)
-                        maxDist = dist;
-                    if (dist < minDist)
-                        minDist = dist;
-                }
-
-                // If this is a four-player map and there is a large variance between the min and max distances,
-                // the center is probably not buildable on this map
-                // In this case, we should prefer a location closer to our main
-                int weightedDist = maxDist;
-                if (enemyStartLocations.size() >= 3 && minDist < ((double)maxDist * 0.75))
-                {
-                    int distToOurMain;
-                    bwemMap.GetPath(blockCenter, mainPosition, &distToOurMain);
-                    weightedDist += distToOurMain;
-                }
-
-                if (weightedDist < distBest)
-                {
-                    distBest = weightedDist;
-                    _proxyBlock = &block;
-                }
-
-            nextBlock:;
-            }
+            // Otherwise use the center proxy block
+            if (_proxyBlock == -1) _proxyBlock = _centerProxyBlock;
         }
 
-        if (_proxyBlock)
+        if (_proxyBlock != -1)
         {
-            return bwebMap.getBuildPosition(
-                type,
-                _proxyBlock->Location() + BWAPI::TilePosition(_proxyBlock->width() / 2, _proxyBlock->height() / 2),
-                true);
+            auto location = buildLocationInBlock(type, bwebMap.Blocks()[_proxyBlock]);
+            if (location.isValid()) return location;
         }
     }
 
-    if (macroLocation == MacroLocation::HiddenTech && _hiddenTechBlock)
+    if (macroLocation == MacroLocation::HiddenTech && _hiddenTechBlock != -1)
     {
-        // Default BWEB selection will do fine here
-        return bwebMap.getBuildPosition(
-            type, 
-            _hiddenTechBlock->Location() + BWAPI::TilePosition(_hiddenTechBlock->width() / 2, _hiddenTechBlock->height() / 2),
-            true);
+        auto location = buildLocationInBlock(type, bwebMap.Blocks()[_hiddenTechBlock]);
+        if (location.isValid()) return location;
     }
 
 	if (type == BWAPI::UnitTypes::Protoss_Pylon)
@@ -738,9 +946,10 @@ void BuildingPlacer::reserveWall(const BuildOrder & buildOrder)
 
 bool BuildingPlacer::isCloseToProxyBlock(BWAPI::Unit unit)
 {
-    if (!_proxyBlock) return false;
+    if (_proxyBlock == -1) return false;
 
-    BWAPI::Position blockCenter =
-        BWAPI::Position(_proxyBlock->Location()) + BWAPI::Position(_proxyBlock->width() * 16, _proxyBlock->height() * 16);
-    return unit->getDistance(blockCenter) < 320;
+    return unit->getDistance(
+        BWAPI::Position(bwebMap.Blocks()[_proxyBlock].Location()) +
+        BWAPI::Position(bwebMap.Blocks()[_proxyBlock].width() * 16, bwebMap.Blocks()[_proxyBlock].height() * 16))
+            < 320;
 }

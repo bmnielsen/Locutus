@@ -23,8 +23,10 @@ class BuildingPlacer
 
 	// BWEB-related stuff
 	LocutusWall		    _wall;
-    const BWEB::Block * _proxyBlock;
-    const BWEB::Block * _hiddenTechBlock;
+    int                 _hiddenTechBlock;
+    std::map<BWTA::BaseLocation*, int> _baseProxyBlocks; // Best proxy block for each base
+    int                 _centerProxyBlock;      // Proxy block suitable for when we don't know the enemy base
+    int                 _proxyBlock;            // Chosen proxy block
 
 public:
 
@@ -54,6 +56,8 @@ public:
 
 	// BWEB-related stuff
 	void				initializeBWEB();
+    void                findHiddenTechBlock();
+    void                findProxyBlocks();
 	BWAPI::TilePosition placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation);
 	void				reserveWall(const BuildOrder & buildOrder);
 	LocutusWall&		getWall() {	return _wall; }

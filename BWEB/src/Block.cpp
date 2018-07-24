@@ -250,7 +250,7 @@ namespace BWEB
                     newBlock.insertSmall(here);
                     newBlock.insertSmall(here + TilePosition(0, 2));
                 }
-                // Pylon and 2 medium
+                // Two pylons and 2 medium
 				if (width == 5) {
 					newBlock.insertSmall(here);
 					newBlock.insertSmall(here + TilePosition(0, 2));
