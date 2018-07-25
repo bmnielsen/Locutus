@@ -931,22 +931,23 @@ void CombatCommander::updateScoutDefenseSquad()
     // Chase the scout unless there is an enemy unit in the region that isn't a scout
     bool hasScout = false;
     bool hasNonScout = true;
-    for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
+    for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
     {
-        if (BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) == myRegion)
+        // Was the unit last seen in our main region?
+        if (!ui.second.lastPosition.isValid()) continue;
+        if (BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition)) != myRegion) continue;
+
+        // Is this a scout?
+        // Workers are not considered scouts if one has attacked recently
+        if (ui.second.type == BWAPI::UnitTypes::Zerg_Overlord ||
+            (ui.second.type.isWorker() && _enemyWorkerAttackedAt < (BWAPI::Broodwar->getFrameCount() - 120)))
         {
-            // Is this a scout?
-            // Workers are not considered scouts if one has attacked recently
-            if (unit->getType() == BWAPI::UnitTypes::Zerg_Overlord ||
-                (unit->getType().isWorker() && _enemyWorkerAttackedAt < (BWAPI::Broodwar->getFrameCount() - 120)))
-            {
-                hasScout = true;
-            }
-            else
-            {
-                hasNonScout = true;
-                break;
-            }
+            hasScout = true;
+        }
+        else
+        {
+            hasNonScout = true;
+            break;
         }
     }
 
