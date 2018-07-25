@@ -1322,9 +1322,10 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         // The logic is:
         // - If we have seen a cloaked combat unit, we definitely need detection
         // - If our opponent model tells us they might soon get cloaked combat units, get
-        //   them unless we are currently scouting the enemy base and have seen no sign of cloak tech
+        //   them unless the opponent is terran or we are currently scouting the enemy base
+        //   and have seen no sign of cloak tech
 		if (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
-            (OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
+            (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
                 !ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech())))
 		{
 			if (_selfRace == BWAPI::Races::Protoss &&

@@ -274,6 +274,8 @@ void CombatCommander::updateDefuseSquads()
 // Currently we put all dark templar that aren't being used for drops or base defense in here
 void CombatCommander::updateHarassSquads()
 {
+    if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Protoss) return;
+
     // Collect active squads with the base they are harassing
     auto enemyBases = InformationManager::Instance().getEnemyBases();
     std::vector<std::pair<Squad*, BWTA::BaseLocation*>> activeSquads;
