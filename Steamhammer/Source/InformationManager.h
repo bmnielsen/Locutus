@@ -99,6 +99,7 @@ public:
     void					onUnitDestroy(BWAPI::Unit unit);
 
 	bool					isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries);
+	bool					isEnemyBuildingNearby(BWAPI::Position position, int threshold);
     int						getNumUnits(BWAPI::UnitType type,BWAPI::Player player) const;
     bool					nearbyForceHasCloaked(BWAPI::Position p,BWAPI::Player player,int radius);
 

@@ -418,7 +418,8 @@ void InformationManager::updateBaseLocationInfo()
 
 		for (BWTA::BaseLocation * startLocation : BWTA::getStartLocations()) 
 		{
-			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()), true)) 
+			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()), true) ||
+                isEnemyBuildingNearby(startLocation->getPosition(), 1500))
 			{
 				updateOccupiedRegions(BWTA::getRegion(startLocation->getTilePosition()), _enemy);
 
@@ -744,6 +745,24 @@ bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region, bool ign
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
 			if (BWTA::getRegion(BWAPI::TilePosition(ui.lastPosition)) == region) 
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool InformationManager::isEnemyBuildingNearby(BWAPI::Position position, int threshold)
+{
+	for (const auto & kv : _unitData[_enemy].getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
+		{
+			if (ui.lastPosition.getApproxDistance(position) < threshold) 
 			{
 				return true;
 			}
