@@ -3,6 +3,9 @@
 #include "Squad.h"
 #include "MapTools.h"
 #include "UnitUtil.h"
+#include "MathUtil.h"
+
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
@@ -93,33 +96,60 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
 {
     if (!combatUnit || !target) return true;
 
-    // If there isn't an enemy resource depot at the order position, then let our units pick their targets at will
-    // This is so we don't ignore outlying buildings after we've already razed the center of the base
-    bool resourceDepotAtOrderPosition = false;
-    for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
-    {
-        if (unit.second.type.isResourceDepot() && order.getPosition() == unit.second.lastPosition)
-        {
-            resourceDepotAtOrderPosition = true;
-            break;
-        }
-    }
-    if (!resourceDepotAtOrderPosition) return false;
-
     // Check if this unit is currently performing a run-by of a bunker
     // If so, ignore all targets while we are doing the run-by
     auto bunkerRunBySquad = CombatCommander::Instance().getSquadData().getSquad(this).getBunkerRunBySquad(combatUnit);
-    if (bunkerRunBySquad)
+    if (bunkerRunBySquad && bunkerRunBySquad->isPerformingRunBy(combatUnit))
     {
-        // We consider ourselves as doing the run-by when either:
-        // - We are still in firing range of the bunker
-        // - We are closer to the bunker than our current run-by position
-        int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
-        auto runByPosition = bunkerRunBySquad->getRunByPosition(combatUnit, order.getPosition());
-        int distanceToBunker = combatUnit->getDistance(bunkerRunBySquad->getBunker());
-        if (distanceToBunker < (bunkerRange + 32) || distanceToBunker < combatUnit->getDistance(runByPosition))
+        return true;
+    }
+
+    // If the target base is no longer owned by the enemy, let our units pick their targets at will
+    // This is so we don't ignore outlying buildings after we've already razed the center of the base
+    auto base = InformationManager::Instance().baseAt(BWAPI::TilePosition(order.getPosition()));
+    if (!base || base->getOwner() != BWAPI::Broodwar->enemy()) return false;
+
+    // In some cases we want to ignore solitary bunkers and units covered by them
+    // This may be because we have done a run-by or are waiting to do one
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran)
+    {
+        // First try to find a solitary bunker
+        BWAPI::Unit solitaryBunker = nullptr;
+        for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
         {
-            return true;
+            if (!unit->exists() || !unit->isVisible() || !unit->isCompleted()) continue;
+            if (unit->getType() != BWAPI::UnitTypes::Terran_Bunker) continue;
+
+            // Break if this is the second bunker
+            if (solitaryBunker)
+            {
+                solitaryBunker = nullptr;
+                break;
+            }
+
+            solitaryBunker = unit;
+        }
+
+        // If it was found, do the checks
+        if (solitaryBunker)
+        {
+            // The target is the bunker: ignore it if we are closer to the order position
+            if (target->getType() == BWAPI::UnitTypes::Terran_Bunker)
+            {
+                int unitDist;
+                int bunkerDist;
+                bwemMap.GetPath(combatUnit->getPosition(), order.getPosition(), &unitDist);
+                bwemMap.GetPath(solitaryBunker->getPosition(), order.getPosition(), &bunkerDist);
+                if (unitDist != -1 && bunkerDist != -1 && unitDist < (bunkerDist - 128)) return true;
+            }
+
+            // The target isn't a bunker: ignore it if we can't attack it without coming under fire
+            else
+            {
+                int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
+                int ourRange = std::max(0, UnitUtil::GetAttackRange(combatUnit, target) - 64); // be pessimistic and subtract two tiles
+                if (target->getDistance(solitaryBunker) < (bunkerRange - ourRange + 32)) return true;
+            }
         }
     }
 
@@ -131,7 +161,8 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
         order.getType() == SquadOrderTypes::KamikazeAttack)
     {
         if (combatUnit->getDistance(order.getPosition()) > 500 &&
-            target->getType().isWorker()) return true;
+            target->getType().isWorker() &&
+            !target->isConstructing()) return true;
     }
 
     // Consider outlying buildings
@@ -201,10 +232,19 @@ void MicroManager::regroup(
 			Micro::AttackMove(unit, unit->getPosition());
             continue;
 		}
+        
+        // If we are rushing, maybe add this unit to a bunker attack squad
+        // It will handle keeping our distance until we want to attack or run-by
+        if (StrategyManager::Instance().isRushing() &&
+            CombatCommander::Instance().getSquadData().getSquad(this).addUnitToBunkerAttackSquadIfClose(unit))
+        {
+            continue;
+        }
 
         // Determine position to move towards
         // If we are a long way away from the vanguard unit and not near an enemy, move towards it
-        BWAPI::Position regroupTo = (vanguard && !nearEnemy[unit] && vanguard->getDistance(unit) > 500)
+        BWAPI::Position regroupTo = 
+            (vanguard && !nearEnemy[unit] && (StrategyManager::Instance().isRushing() || vanguard->getDistance(unit) > 500 || !nearEnemy[vanguard]))
             ? vanguard->getPosition()
             : regroupPosition;
 

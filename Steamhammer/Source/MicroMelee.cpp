@@ -2,6 +2,7 @@
 #include "UnitUtil.h"
 #include "BuildingPlacer.h"
 #include "StrategyManager.h"
+#include "CombatCommander.h"
 
 using namespace UAlbertaBot;
 
@@ -43,6 +44,7 @@ void MicroMelee::executeMicro(const BWAPI::Unitset & targets)
 void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 {
     const BWAPI::Unitset & meleeUnits = getUnits();
+    Squad & squad = CombatCommander::Instance().getSquadData().getSquad(this);
 
 	BWAPI::Unitset meleeUnitTargets;
 	for (const auto target : targets) 
@@ -107,13 +109,34 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 				BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets);
 				if (target)
 				{
-					Micro::AttackUnit(meleeUnit, target);
+                    // Bunkers are handled by a special micro manager
+                    if (target->getType() == BWAPI::UnitTypes::Terran_Bunker &&
+                        target->isCompleted())
+                    {
+                        squad.addUnitToBunkerAttackSquad(target->getPosition(), meleeUnit);
+                    }
+                    else
+                        Micro::AttackUnit(meleeUnit, target);
 				}
-				else if (meleeUnit->getDistance(order.getPosition()) > 96)
+                // There are no targets. Move to the order position if not already close.
+                else if (meleeUnit->getDistance(order.getPosition()) > 96)
 				{
-					// There are no targets. Move to the order position if not already close.
-                    InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(order.getPosition(), order.getType() == SquadOrderTypes::Attack);
-                    //Micro::Move(meleeUnit, order.getPosition());
+                    // If this unit is doing a bunker run-by, get the position it should move towards
+                    auto bunkerRunBySquad = squad.getBunkerRunBySquad(meleeUnit);
+                    if (bunkerRunBySquad)
+                    {
+                        InformationManager::Instance().getLocutusUnit(meleeUnit)
+                            .moveTo(bunkerRunBySquad->getRunByPosition(meleeUnit, order.getPosition()));
+                    }
+
+                    // Otherwise, maybe add it to a bunker attack squad
+                    else if (!StrategyManager::Instance().isRushing() ||
+                        order.getType() == SquadOrderTypes::KamikazeAttack ||
+                        !squad.addUnitToBunkerAttackSquadIfClose(meleeUnit))
+                    {
+                        // Neither are appropriate, move towards the order position
+                        InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(order.getPosition(), order.getType() == SquadOrderTypes::Attack);
+                    }
 				}
 			}
 		}
@@ -131,6 +154,8 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 {
 	int bestScore = -999999;
 	BWAPI::Unit bestTarget = nullptr;
+
+    BWAPI::Position myPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(meleeUnit, 5);
 
 	for (const auto target : targets)
 	{
@@ -152,18 +177,27 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
         // Kamikaze and rush attacks ignore all tier 2+ combat units
         if ((StrategyManager::Instance().isRushing() || order.getType() == SquadOrderTypes::KamikazeAttack) &&
             UnitUtil::IsCombatUnit(target) && 
-            !UnitUtil::IsTierOneCombatUnit(target->getType()))
+            !UnitUtil::IsTierOneCombatUnit(target->getType())
+            && !target->getType().isWorker())
         {
             continue;
         }
 
-        // When on the attack, don't attack units that can kite us unless they are in range
+        // When on the attack, don't attack units that can kite us or workers that are running away
         bool inWeaponRange = meleeUnit->isInWeaponRange(target);
+        BWAPI::Position targetPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(target, 5);
         if (!inWeaponRange && order.getType() != SquadOrderTypes::Defend &&
             (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon ||
-            target->getType() == BWAPI::UnitTypes::Terran_Vulture))
+            target->getType() == BWAPI::UnitTypes::Terran_Vulture ||
+            (target->getType().isWorker() && target->isMoving() && range <= myPositionInFiveFrames.getApproxDistance(targetPositionInFiveFrames))))
         {
             continue;
+        }
+
+        // When rushing, prioritize workers that are building something
+        if (StrategyManager::Instance().isRushing() && target->getType().isWorker() && target->isConstructing())
+        {
+            score += 4 * 32;
         }
 
 		// Adjust for special features.
@@ -302,17 +336,18 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 	// Medics and ordinary combat units. Include workers that are doing stuff.
 	if (targetType == BWAPI::UnitTypes::Terran_Medic ||
 		targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
-		targetType == BWAPI::UnitTypes::Protoss_Reaver)
+		targetType == BWAPI::UnitTypes::Protoss_Reaver ||
+        targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
 	{
 		return 12;
 	}
 	if (targetType.groundWeapon() != BWAPI::WeaponTypes::None && !targetType.isWorker())
 	{
-		return 12;
+		return 11;
 	}
 	if (targetType.isWorker() && (target->isRepairing() || target->isConstructing() || unitNearNarrowChokepoint(target)))
 	{
-		return 12;
+		return 11;
 	}
 	// next priority is bored workers and turrets
 	if (targetType.isWorker() || targetType == BWAPI::UnitTypes::Terran_Missile_Turret)

@@ -18,6 +18,8 @@
 #include "MicroTanks.h"
 #include "MicroTransports.h"
 
+#include "MicroBunkerAttackSquad.h"
+
 namespace UAlbertaBot
 {
 
@@ -54,7 +56,7 @@ class Squad
     CombatSimulation    sim;
 
     // Sub-squads specializing in enemy bunkers
-    std::map<BWAPI::Unit, MicroBunkerAttackSquad> bunkerAttackSquads;
+    std::map<BWAPI::Position, MicroBunkerAttackSquad> bunkerAttackSquads;
 
 	std::map<BWAPI::Unit, bool>	_nearEnemy;
 
@@ -95,7 +97,8 @@ public:
 	void                setSquadOrder(const SquadOrder & so);
 	const SquadOrder &  getSquadOrder()	const;
 
-    void                        addUnitToBunkerAttackSquad(BWAPI::Unit bunker, BWAPI::Unit unit);
+    void                        addUnitToBunkerAttackSquad(BWAPI::Position bunkerPosition, BWAPI::Unit unit);
+    bool                        addUnitToBunkerAttackSquadIfClose(BWAPI::Unit unit);
     MicroBunkerAttackSquad *    getBunkerRunBySquad(BWAPI::Unit unit);
 
 	int					getCombatSimRadius() const { return _combatSimRadius; };
@@ -113,6 +116,6 @@ public:
 	const bool			hasCombatUnits()	const;
 	const bool			isOverlordHunterSquad() const;
 
-    bool                hasMicroManager(MicroManager* microManager) const;
+    bool                hasMicroManager(const MicroManager* microManager) const;
 };
 }

@@ -277,16 +277,6 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
 
         debug << "\nResult after " << (step * 24) << " frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second << " gain " << (result.second - result.first);
 
-        // We short-circuit if nothing has happened after 2 seconds
-        if (step == 2 && fap.playerScores().first == initial.first && fap.playerScores().second == initial.second)
-        {
-#ifdef COMBATSIM_DEBUG
-            debug << "\nNo result";
-            if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
-#endif
-            return 0;
-        }
-
         // We short-circuit if our army is bigger and we project a gain after 3 or more seconds
         if (step >= 3 && result.second > result.first && fap.playerScores().first >= fap.playerScores().second)
         {
@@ -298,9 +288,9 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         }
 
         // While rushing, we are more aggressive
-        if (rushing && 
+        if (step >= 3 && rushing && 
             (fap.playerScores().first >= 300 || (!currentlyRetreating && fap.playerScores().first >= 100)) &&
-            (result.second - result.first) > -(fap.playerScores().first * step / 10))
+            (double)(fap.playerScores().second - initial.second) / (double)(fap.playerScores().first - initial.first) > 0.5)
         {
 #ifdef COMBATSIM_DEBUG
             debug << "\nRush mode: acceptable loss";
@@ -310,24 +300,40 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         }
     }
 
+    // We project no result
+    if (fap.playerScores().first == initial.first && fap.playerScores().second == initial.second)
+    {
+#ifdef COMBATSIM_DEBUG
+        debug << "\nNo result";
+        if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
+#endif
+        return 0;
+    }
+
     // We project a gain, but have a smaller army (otherwise we would have returned earlier)
     if (result.second > result.first)
     {
         // Treat this as a significant gain if it is at least 20 % of the difference in army strength
-        double percentageChange = (double)(result.second - result.first) / (double)(fap.playerScores().second - fap.playerScores().first);
-        debug << "\n% of army difference: " << percentageChange;
+//        double percentageChange = (double)(result.second - result.first) / (double)(fap.playerScores().second - fap.playerScores().first);
+//        debug << "\n% of army difference: " << percentageChange;
+//#ifdef COMBATSIM_DEBUG
+//        if (percentageChange < 0.2 || BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
+//#endif
+//        return percentageChange >= 0.2 ? 1 : -1;
+
+        // Above code weakens play vs. terran, let's just attack
 #ifdef COMBATSIM_DEBUG
-        if (percentageChange < 0.2 || BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
+        if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
 #endif
-        return percentageChange >= 0.2 ? 1 : 0;
+        return 1;
     }
 
     // At this point we project some kind of loss, otherwise we would have returned earlier
 
-    // Press the attack if our army vastly outnumbers theirs
-    if ((double)fap.playerScores().second / (double)fap.playerScores().first < 0.25)
+    // Press the attack if our army outnumbers theirs by a large margin
+    if ((double)fap.playerScores().second / (double)fap.playerScores().first < 0.6)
     {
-        debug << "\nTheir army is much smaller than ours; pressing the attack";
+        debug << "\nTheir army is significantly smaller than ours; pressing the attack";
 #ifdef COMBATSIM_DEBUG
         if (BWAPI::Broodwar->getFrameCount() % 10 == 0) Log().Debug() << debug.str();
 #endif

@@ -388,8 +388,11 @@ bool Squad::needsToRegroup()
     // Don't retreat if we are actively doing a run-by
     // TODO: Split the run-by units into their own squad
     for (auto & unit : _units)
-        if (getBunkerRunBySquad(unit))
+    {
+        auto bunkerRunBySquad = getBunkerRunBySquad(unit);
+        if (bunkerRunBySquad && bunkerRunBySquad->isPerformingRunBy(unit))
             return false;
+    }
 
 	// If we most recently retreated, don't attack again until retreatDuration frames have passed.
 	const int retreatDuration = 2 * 24;
@@ -613,11 +616,12 @@ BWAPI::Unit Squad::unitClosestToOrderPosition() const
 		}
 
 		int dist;
-		if (_hasGround)
+		if (_hasGround && bwemMap.GetArea(BWAPI::WalkPosition(unit->getPosition())))
 		{
 			// A ground or air-ground squad. Use ground distance.
 			// It is -1 if no ground path exists.
-			dist = MapTools::Instance().getGroundDistance(unit->getPosition(), _order.getPosition());
+            int dist;
+            bwemMap.GetPath(unit->getPosition(), _order.getPosition(), &dist);
 		}
 		else
 		{
@@ -817,15 +821,40 @@ void Squad::stimIfNeeded()
 	}
 }
 
-void Squad::addUnitToBunkerAttackSquad(BWAPI::Unit bunker, BWAPI::Unit unit)
+void Squad::addUnitToBunkerAttackSquad(BWAPI::Position bunkerPosition, BWAPI::Unit unit)
 {
-    bunkerAttackSquads[bunker].addUnit(bunker, unit);
+    bunkerAttackSquads[bunkerPosition].addUnit(bunkerPosition, unit);
+}
+
+bool Squad::addUnitToBunkerAttackSquadIfClose(BWAPI::Unit unit)
+{
+    int distToOrderPosition = unit->getDistance(_order.getPosition());
+
+    for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+    {
+        if (ui.second.type != BWAPI::UnitTypes::Terran_Bunker) continue;
+        if (ui.second.goneFromLastPosition) continue;
+        if (!ui.second.completed && ui.second.estimatedCompletionFrame > BWAPI::Broodwar->getFrameCount()) continue;
+        if (unit->getDistance(ui.second.lastPosition) > 1000) continue;
+
+        int unitDist;
+        int bunkerDist;
+        bwemMap.GetPath(unit->getPosition(), _order.getPosition(), &unitDist);
+        bwemMap.GetPath(ui.second.lastPosition, _order.getPosition(), &bunkerDist);
+        if (unitDist != -1 && bunkerDist != -1 && unitDist > (bunkerDist - 128))
+        {
+            bunkerAttackSquads[ui.second.lastPosition].addUnit(ui.second.lastPosition, unit);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 MicroBunkerAttackSquad * Squad::getBunkerRunBySquad(BWAPI::Unit unit)
 {
     for (auto& pair : bunkerAttackSquads)
-        if (pair.second.isPerformingRunBy(unit))
+        if (pair.second.isPerformingRunBy(unit) || pair.second.hasPerformedRunBy(unit))
             return &pair.second;
     return nullptr;
 }
@@ -941,7 +970,7 @@ const bool Squad::isOverlordHunterSquad() const
 	return true;
 }
 
-bool Squad::hasMicroManager(MicroManager* microManager) const
+bool Squad::hasMicroManager(const MicroManager* microManager) const
 {
     return
         &_microAirToAir == microManager ||

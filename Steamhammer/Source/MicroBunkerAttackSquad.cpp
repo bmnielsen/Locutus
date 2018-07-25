@@ -1,6 +1,8 @@
 #include "MicroBunkerAttackSquad.h"
 #include "Micro.h"
 #include "InformationManager.h"
+#include "CombatCommander.h"
+#include "MathUtil.h"
 
 const double pi = 3.14159265358979323846;
 
@@ -13,7 +15,7 @@ MicroBunkerAttackSquad::MicroBunkerAttackSquad() : _initialized(false)
 {
 }
 
-void addArcToSet(BWAPI::Position from, BWAPI::Unit target, double startAngle, double endAngle, int count, std::set<BWAPI::Position> & positions)
+void addArcToSet(BWAPI::Position from, BWAPI::Position bunkerPosition, double startAngle, double endAngle, int count, std::set<BWAPI::Position> & positions)
 {
     double a = startAngle;
     for (int i = 0; i < count; i++)
@@ -24,7 +26,7 @@ void addArcToSet(BWAPI::Position from, BWAPI::Unit target, double startAngle, do
 
         // The above calculates the exact position, but BW uses an approximate distance algorithm
         // Adjust it iteratively to get as close as possible without going over
-        int bestDist = target->getDistance(position);
+        int bestDist = MathUtil::EdgeToPointDistance(BWAPI::UnitTypes::Terran_Bunker, bunkerPosition, position);
         BWAPI::Position current = position;
         int currentDist = bestDist;
 
@@ -35,12 +37,12 @@ void addArcToSet(BWAPI::Position from, BWAPI::Unit target, double startAngle, do
         {
             double error = (currentDist - 190) / currentDist;
 
-            BWAPI::Position delta(current - target->getPosition());
+            BWAPI::Position delta(current - bunkerPosition);
             delta.x = (int)std::round((double)delta.x * error);
             delta.y = (int)std::round((double)delta.y * error);
 
             current = BWAPI::Position(current - delta);
-            currentDist = target->getDistance(current);
+            currentDist = MathUtil::EdgeToPointDistance(BWAPI::UnitTypes::Terran_Bunker, bunkerPosition, current);
 
             if (currentDist <= 192 && currentDist > bestDist)
             {
@@ -98,12 +100,12 @@ BWAPI::TilePosition getWalkableTileCloseTo(BWAPI::Position start, BWAPI::Positio
     return bestTile;
 }
 
-std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Unit bunker)
+std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Position bunkerPosition)
 {
     // Get the BWEM path to the bunker
     auto& chokes = bwemMap.GetPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
-        bunker->getPosition());
+        bunkerPosition);
     if (chokes.size() < 2) return std::vector<BWAPI::TilePosition>();
 
     // Extract the center of the last and second-to-last choke
@@ -111,11 +113,11 @@ std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Unit bunker)
     BWAPI::Position secondLastChoke(chokes[chokes.size() - 2]->Center());
 
     // If the last choke is sufficiently far away from the bunker, we don't need to reserve a path
-    if (bunker->getDistance(lastChoke) > 250) return std::vector<BWAPI::TilePosition>();
+    if (bunkerPosition.getApproxDistance(lastChoke) > 300) return std::vector<BWAPI::TilePosition>();
 
     // Reserve a path from the second-last choke to the bunker
     BWAPI::TilePosition start = getWalkableTileCloseTo(secondLastChoke, lastChoke);
-    BWAPI::TilePosition end = getWalkableTileCloseTo(bunker->getPosition(), lastChoke);
+    BWAPI::TilePosition end = getWalkableTileCloseTo(bunkerPosition, lastChoke);
 
     // If either are invalid, give up
     if (!start.isValid() || !end.isValid()) return std::vector<BWAPI::TilePosition>();
@@ -133,48 +135,48 @@ bool closeToReservedPath(BWAPI::Position position, std::vector<BWAPI::TilePositi
     return false;
 }
 
-bool bunkerBlocksNarrowChoke(BWAPI::Unit bunker)
+bool bunkerBlocksNarrowChoke(BWAPI::Position bunkerPosition)
 {
     // Get the BWEM path to the bunker
     auto& chokes = bwemMap.GetPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
-        bunker->getPosition());
+        bunkerPosition);
     if (chokes.size() < 2) return false;
 
     auto lastChoke = chokes[chokes.size() - 1];
     return lastChoke->Data() < 96 &&
-        bunker->getDistance(BWAPI::Position(lastChoke->Center())) < 160;
+        bunkerPosition.getApproxDistance(BWAPI::Position(lastChoke->Center())) < 200;
 }
 
-void MicroBunkerAttackSquad::initialize(BWAPI::Unit bunker)
+void MicroBunkerAttackSquad::initialize(BWAPI::Position bunkerPosition)
 {
     // Short-circuit if we have already initialized
     if (_initialized) return;
 
-    _bunker = bunker;
+    _bunkerPosition = bunkerPosition;
 
     // Reserve some tile positions for a path to the bunker
     // This will prevent us from blocking a choke with the first couple of goons
-    std::vector<BWAPI::TilePosition> reservedPath = getReservedPath(bunker);
+    std::vector<BWAPI::TilePosition> reservedPath = getReservedPath(bunkerPosition);
 
     // Generate the set of valid firing positions
 
     // Start by adding all possible positions
     addArcToSet(
-        bunker->getPosition() + BWAPI::Position(-BWAPI::UnitTypes::Terran_Bunker.dimensionLeft(), -BWAPI::UnitTypes::Terran_Bunker.dimensionUp()),
-        bunker, pi, 1.5*pi, 7, attackPositions);
+        bunkerPosition + BWAPI::Position(-BWAPI::UnitTypes::Terran_Bunker.dimensionLeft(), -BWAPI::UnitTypes::Terran_Bunker.dimensionUp()),
+        bunkerPosition, pi, 1.5*pi, 7, attackPositions);
     addArcToSet(
-        bunker->getPosition() + BWAPI::Position(BWAPI::UnitTypes::Terran_Bunker.dimensionRight(), -BWAPI::UnitTypes::Terran_Bunker.dimensionUp()),
-        bunker, 1.5*pi, 2.0*pi, 7, attackPositions);
+        bunkerPosition + BWAPI::Position(BWAPI::UnitTypes::Terran_Bunker.dimensionRight(), -BWAPI::UnitTypes::Terran_Bunker.dimensionUp()),
+        bunkerPosition, 1.5*pi, 2.0*pi, 7, attackPositions);
     addArcToSet(
-        bunker->getPosition() + BWAPI::Position(BWAPI::UnitTypes::Terran_Bunker.dimensionRight(), BWAPI::UnitTypes::Terran_Bunker.dimensionDown()),
-        bunker, 0, 0.5*pi, 7, attackPositions);
+        bunkerPosition + BWAPI::Position(BWAPI::UnitTypes::Terran_Bunker.dimensionRight(), BWAPI::UnitTypes::Terran_Bunker.dimensionDown()),
+        bunkerPosition, 0, 0.5*pi, 7, attackPositions);
     addArcToSet(
-        bunker->getPosition() + BWAPI::Position(-BWAPI::UnitTypes::Terran_Bunker.dimensionLeft(), BWAPI::UnitTypes::Terran_Bunker.dimensionDown()),
-        bunker, 0.5*pi, pi, 7, attackPositions);
+        bunkerPosition + BWAPI::Position(-BWAPI::UnitTypes::Terran_Bunker.dimensionLeft(), BWAPI::UnitTypes::Terran_Bunker.dimensionDown()),
+        bunkerPosition, 0.5*pi, pi, 7, attackPositions);
 
-    attackPositions.insert(bunker->getPosition() + BWAPI::Position(0, -192 - 16 - BWAPI::UnitTypes::Terran_Bunker.dimensionUp()));
-    attackPositions.insert(bunker->getPosition() + BWAPI::Position(0, 192 + 16 + BWAPI::UnitTypes::Terran_Bunker.dimensionDown()));
+    attackPositions.insert(bunkerPosition + BWAPI::Position(0, -192 - 16 - BWAPI::UnitTypes::Terran_Bunker.dimensionUp()));
+    attackPositions.insert(bunkerPosition + BWAPI::Position(0, 192 + 16 + BWAPI::UnitTypes::Terran_Bunker.dimensionDown()));
 
     // Now filter out undesirable positions:
     // - invalid
@@ -183,9 +185,9 @@ void MicroBunkerAttackSquad::initialize(BWAPI::Unit bunker)
     // - covered by a building
     // - close to our reserved path to the bunker
     // - bunker blocks choke and position is in same area as the bunker
-    int bunkerElevation = BWAPI::Broodwar->getGroundHeight(bunker->getTilePosition());
-    bool blocksNarrowChoke = bunkerBlocksNarrowChoke(bunker);
-    auto bunkerArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(bunker->getPosition()));
+    int bunkerElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(bunkerPosition));
+    bool blocksNarrowChoke = bunkerBlocksNarrowChoke(bunkerPosition);
+    auto bunkerArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(bunkerPosition));
     for (auto it = attackPositions.begin(); it != attackPositions.end(); )
     {
         if (!it->isValid() ||
@@ -246,18 +248,58 @@ void MicroBunkerAttackSquad::assignToPosition(BWAPI::Unit unit, std::set<BWAPI::
 void MicroBunkerAttackSquad::update()
 {
     _units.clear();
+
+    // Check for units that have completed their run-by
+    // They are moved to the kamikaze squad
+    for (auto it = unitsDoingRunBy.begin(); it != unitsDoingRunBy.end(); it++)
+    {
+        if (!it->second.isValid()) continue;
+        if (!it->first->exists())
+        {
+            it->second = BWAPI::Positions::Invalid;
+            continue;
+        }
+
+        // We are still doing the run-by if we are in firing range of the bunker
+        int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
+        int distanceToBunker = MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, it->first->getType(), it->first->getPosition());
+        if (distanceToBunker < (bunkerRange + 32)) continue;
+
+        // We are still doing the run-by if we are closer to the bunker than the current run-by position
+        if (distanceToBunker < it->first->getDistance(it->second))
+            continue;
+
+        // We are still doing the run-by if we are further away from the order position than the bunker is,
+        // unless we are closer to the order position than the bunker
+        int ourDistToOrderPosition;
+        int bunkerDistToOrderPosition;
+        int ourDistToBunker;
+        bwemMap.GetPath(it->first->getPosition(), it->second, &ourDistToOrderPosition);
+        bwemMap.GetPath(_bunkerPosition, it->second, &bunkerDistToOrderPosition);
+        bwemMap.GetPath(_bunkerPosition, it->first->getPosition(), &ourDistToBunker);
+        if (ourDistToOrderPosition > bunkerDistToOrderPosition && ourDistToOrderPosition > ourDistToBunker)
+            continue;
+
+        // The unit is finished with the run-by
+        it->second = BWAPI::Positions::Invalid;
+        
+        SquadData & squadData = CombatCommander::Instance().getSquadData();
+        Squad & kamikazeSquad = squadData.getSquad("Kamikaze");
+        if (squadData.canAssignUnitToSquad(it->first, kamikazeSquad))
+            squadData.assignUnitToSquad(it->first, kamikazeSquad);
+    }
 }
 
-void MicroBunkerAttackSquad::addUnit(BWAPI::Unit bunker, BWAPI::Unit unit)
+void MicroBunkerAttackSquad::addUnit(BWAPI::Position bunkerPosition, BWAPI::Unit unit)
 {
-    initialize(bunker);
+    if (bunkerPosition.isValid()) initialize(bunkerPosition);
 
     _units.insert(unit);
 }
 
-BWAPI::Position computeRunByPosition(BWAPI::Position unitPosition, BWAPI::Unit bunker, BWAPI::Position orderPosition)
+BWAPI::Position computeRunByPosition(BWAPI::Position unitPosition, BWAPI::Position bunkerPosition, BWAPI::Position orderPosition)
 {
-    BWAPI::Position p0 = bunker->getPosition();
+    BWAPI::Position p0 = bunkerPosition;
     BWAPI::Position p1 = orderPosition;
 
     double d = p0.getDistance(p1);
@@ -307,11 +349,18 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     // Can't run-by with no units
     if (_units.empty()) return;
 
-    // Never do a run-by if the enemy has siege tech
-    if (InformationManager::Instance().enemyHasSiegeTech()) return;
+    // Never do a run-by if the enemy has tier 2+ units or more than one bunker
+    for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+    {
+        if (unit.second.type == BWAPI::UnitTypes::Terran_Bunker && unit.second.lastPosition != _bunkerPosition) return;
+        if (unit.second.type.isBuilding()) continue;
+        if (!UnitUtil::IsCombatUnit(unit.second.type)) continue;
+        if (UnitUtil::IsTierOneCombatUnit(unit.second.type)) continue;
+        return;
+    }
 
     // Don't do a run-by if the bunker is very close to the order position
-    int distToOrderPosition = _bunker->getDistance(orderPosition);
+    int distToOrderPosition = MathUtil::EdgeToPointDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, orderPosition);
     if (distToOrderPosition < 128) return;
 
     // Don't do a run-by if the opponent has more than one bunker
@@ -323,10 +372,10 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
         if (!unit.first->exists() || unit.first->getHitPoints() <= 0)
             dead++;
 
-    if (dead > 3 && ((double)dead / unitsDoingRunBy.size() > 0.499)) return;
+    //if (dead > 3 && ((double)dead / unitsDoingRunBy.size() > 0.499)) return;
 
     // Gather the potential units to use in the run-by
-    int totalHealth = 0;
+    double totalHealth = 0;
     std::set<BWAPI::Unit> runByUnits;
     for (auto& unit : _units)
     {
@@ -336,21 +385,27 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
         // Don't assign units to a run-by that are heavily damaged
         if ((unit->getHitPoints() + unit->getShields()) < (unit->getType().maxHitPoints() + unit->getType().maxShields()) / 3) continue;
 
-        // Include all units closer than 300, but only include units closer than 240 in the health check
+        // Include all units closer than 400, but weight closer units higher in the health check
         // This is to make sure the units are relatively close to the bunker before we initiate the run-by
-        int distance = _bunker->getDistance(unit);
-        if (distance < 300) runByUnits.insert(unit);
-        if (distance < 240) totalHealth += unit->getHitPoints() + unit->getShields();
+        int distance = MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, unit->getType(), unit->getPosition());
+        if (distance < 400)
+        {
+            runByUnits.insert(unit);
+
+            // 1.0 at distance of 240, 0.0 at distance of 400
+            double healthFactor = std::max(std::min((double)(400 - distance) / 160.0, 1.0), 0.0);
+            totalHealth += (double)(unit->getHitPoints() + unit->getShields()) * healthFactor;
+        }
     }
 
     // Do the run-by when we have enough units, measured as equivalent of a goon's health. Thresholds:
-    // - If we are already doing a run-by, 1.5
+    // - If we are already doing a run-by, 2.0
     // - If the enemy has the marine range upgrade, 2.0 (we can't range down the bunker)
     // - If the bunker is not close to the order position, 2.5
     // - Otherwise, 3.0 (we can range down the bunker while we wait for a stronger force)
     double healthCutoff = BWAPI::UnitTypes::Protoss_Dragoon.maxHitPoints() + BWAPI::UnitTypes::Protoss_Dragoon.maxShields();
     if (dead < unitsDoingRunBy.size())
-        healthCutoff *= 1.5;
+        healthCutoff *= 2.0;
     else if (InformationManager::Instance().enemyHasInfantryRangeUpgrade())
         healthCutoff *= 2.0;
     else if (distToOrderPosition > 500)
@@ -358,7 +413,7 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     else
         healthCutoff *= 3.0;
 
-    if ((double)totalHealth >= healthCutoff)
+    if (totalHealth >= healthCutoff)
     {
         // Compute the centroid of the units in the run-by
         int centroidX = 0;
@@ -371,7 +426,7 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
         BWAPI::Position centroid(centroidX / runByUnits.size(), centroidY / runByUnits.size());
 
         // Compute the run-by position using the centroid
-        BWAPI::Position runByPosition = computeRunByPosition(centroid, _bunker, orderPosition);
+        BWAPI::Position runByPosition = computeRunByPosition(centroid, _bunkerPosition, orderPosition);
         Log().Get() << "Sending " << runByUnits.size() << " units on a run-by to " << BWAPI::TilePosition(runByPosition) << ". Order position: " << BWAPI::TilePosition(orderPosition);
 
         // Assign the units
@@ -415,14 +470,17 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
             if (isPerformingRunBy(unit)) continue;
             if (unitToAssignedPosition.find(unit) != unitToAssignedPosition.end()) continue;
 
-            if (unit->getDistance(_bunker) < 250)
+            if (MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, unit->getType(), unit->getPosition()) < 250)
                 assignToPosition(unit, std::set<BWAPI::Position>());
         }
     }
 
     // Perform micro for each unit
+    int unitsCloseToBunker = -1;
     for (auto& unit : _units)
     {
+        if (!unit->exists()) continue;
+
         // Handle run-by
         if (isPerformingRunBy(unit))
         {
@@ -430,18 +488,65 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
             continue;
         }
 
-        // Bail out if we are not attacking
-        if (squadIsRegrouping) continue;
-
         // Get our assigned position
         auto it = unitToAssignedPosition.find(unit);
 
         // We may not have an assigned position in some cases (not a goon, no goon range, etc.)
         if (it == unitToAssignedPosition.end())
         {
-            Micro::AttackUnit(unit, _bunker);
+            // Attack if the unit is already very close to the bunker
+            int distanceToBunker = MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, unit->getType(), unit->getPosition());
+            if (distanceToBunker < 32)
+            {
+                attack(unit);
+                continue;
+            }
+
+            // Attack if this unit is close to the bunker and the squad has a large number of units
+            if (!squadIsRegrouping && _units.size() > 8)
+            {
+                attack(unit);
+                continue;
+            }
+
+            // Attack if this unit and at least 4 others are close to the bunker
+            if (!squadIsRegrouping && distanceToBunker < 300)
+            {
+                if (unitsCloseToBunker == -1)
+                {
+                    unitsCloseToBunker = 0;
+                    for (auto & u : _units)
+                        if (MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, u->getType(), u->getPosition()) < 300)
+                            unitsCloseToBunker++;
+                }
+
+                if (unitsCloseToBunker > 4)
+                {
+                    attack(unit);
+                    continue;
+                }
+            }
+
+            // Otherwise loiter outside of bunker range and wait until we should either do a run-by or attack it
+            int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
+            if (distanceToBunker <= (bunkerRange + 48))
+            {
+                InformationManager::Instance().getLocutusUnit(unit).fleeFrom(_bunkerPosition);
+            }
+            else if (distanceToBunker > 240)
+            {
+                InformationManager::Instance().getLocutusUnit(unit).moveTo(_bunkerPosition);
+            }
+            else
+            {
+                Micro::Stop(unit);
+            }
+
             continue;
         }
+
+        // Bail out if we are not attacking
+        if (squadIsRegrouping) continue;
 
         // If we aren't already there, move towards our assigned position
         if (unit->getPosition().getDistance(it->second) > 2)
@@ -477,8 +582,27 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
 
         // Otherwise fire away
         else
-            Micro::AttackUnit(unit, _bunker);
+        {
+            attack(unit);
+        }
     }
+}
+
+void MicroBunkerAttackSquad::attack(BWAPI::Unit unit)
+{
+    // If we can find the bunker unit, attack it
+    for (auto enemyUnit : BWAPI::Broodwar->enemy()->getUnits())
+    {
+        if (!enemyUnit->exists() || !enemyUnit->isVisible()) continue;
+        if (enemyUnit->getType() != BWAPI::UnitTypes::Terran_Bunker) continue;
+        if (enemyUnit->getPosition() != _bunkerPosition) continue;
+
+        Micro::AttackUnit(unit, enemyUnit);
+        return;
+    }
+
+    // The bunker isn't visible, move towards it
+    Micro::Move(unit, _bunkerPosition);
 }
 
 bool MicroBunkerAttackSquad::isPerformingRunBy(BWAPI::Unit unit) 
@@ -487,6 +611,14 @@ bool MicroBunkerAttackSquad::isPerformingRunBy(BWAPI::Unit unit)
     auto it = unitsDoingRunBy.find(unit);
     if (it == unitsDoingRunBy.end()) return false;
     return it->second.isValid();
+}
+
+bool MicroBunkerAttackSquad::hasPerformedRunBy(BWAPI::Unit unit) 
+{
+    // The unit has performed a run-by if its run-by waypoint is now invalid
+    auto it = unitsDoingRunBy.find(unit);
+    if (it == unitsDoingRunBy.end()) return false;
+    return !it->second.isValid();
 }
 
 BWAPI::Position MicroBunkerAttackSquad::getRunByPosition(BWAPI::Unit unit, BWAPI::Position orderPosition)

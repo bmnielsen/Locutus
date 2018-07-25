@@ -35,6 +35,6 @@ public:
     Squad &         getSquad(const std::string & squadName);
     const Squad &   getSquad(const std::string & squadName) const;
     const std::map<std::string, Squad> & getSquads() const;
-    Squad &         getSquad(MicroManager * microManager);
+    Squad &         getSquad(const MicroManager * microManager);
 };
 }

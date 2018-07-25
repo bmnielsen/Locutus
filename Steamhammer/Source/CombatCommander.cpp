@@ -55,8 +55,11 @@ void CombatCommander::initializeSquads()
 	// The flying squad separates air units so they can act independently.
 	_squadData.addSquad(Squad("Flying", mainAttackOrder, AttackPriority));
 
-    // The kamikaze squad is an attack squad that (almost) never retreats
-    // We put zealots in here that can no longer fight efficiently, for example if the enemy has air or ranged units
+    // The kamikaze squad is an attack squad that never retreats
+    // We might put units here in the following situations:
+    // - We have zealots that can no longer fight efficiently, for example if the enemy has air or ranged units
+    // - The units have done a bunker run-by, so we don't want them to retreat
+    // - The squad wants to retreat but these units are caught behind enemy lines
     _squadData.addSquad(Squad("Kamikaze", mainAttackOrder, KamikazePriority));
 
 	// The recon squad carries out reconnaissance in force to deny enemy bases.
@@ -1657,8 +1660,9 @@ void CombatCommander::releaseWorkers()
 
 void CombatCommander::finishedRushing()
 {
-    // Against zerg we don't have to do anything special, we can continue with zealots
-    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg) return;
+    // Only move zealots to the kamikaze squad vs. protoss
+    // Against other races the zealots can still be useful
+    if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Protoss) return;
 
     // When we are finished rushing, all units from the ground squad go into the kamikaze squad
     Squad & groundSquad = _squadData.getSquad("Ground");
@@ -1717,18 +1721,6 @@ void CombatCommander::drawSquadInformation(int x, int y)
 // Choose a point of attack for the given squad (which may be null).
 BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 {
-/*
-Handled earlier in Locutus
-
-	// 0. If we're defensive, look for a front line to hold. No attacks.
-	if (!_goAggressive)
-	{
-		return getDefenseLocation();
-	}
-*/
-
-	// Otherwise we are aggressive. Look for a spot to attack.
-
 	// Ground and air considerations.
 	bool hasGround = true;
 	bool hasAir = false;

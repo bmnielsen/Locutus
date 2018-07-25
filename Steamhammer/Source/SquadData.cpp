@@ -207,7 +207,7 @@ const Squad & SquadData::getSquad(const std::string & squadName) const
     return _squads.at(squadName);
 }
 
-Squad & SquadData::getSquad(MicroManager * microManager)
+Squad & SquadData::getSquad(const MicroManager * microManager)
 {
     for (auto& squad : _squads)
         if (squad.second.hasMicroManager(microManager))

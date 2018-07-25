@@ -245,7 +245,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
                 if (target->getType() == BWAPI::UnitTypes::Terran_Bunker &&
                     target->isCompleted())
                 {
-                    squad.addUnitToBunkerAttackSquad(target, rangedUnit);
+                    squad.addUnitToBunkerAttackSquad(target->getPosition(), rangedUnit);
                 }
 				else if (Config::Micro::KiteWithRangedUnits)
 				{
@@ -267,12 +267,10 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
                     {
                         InformationManager::Instance().getLocutusUnit(rangedUnit)
                             .moveTo(bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
-                        //Micro::Move(rangedUnit, bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
                     }
                     else
                     {
                         InformationManager::Instance().getLocutusUnit(rangedUnit).moveTo(order.getPosition(), order.getType() == SquadOrderTypes::Attack);
-                        //Micro::Move(rangedUnit, order.getPosition());
                     }
 				}
 			}
