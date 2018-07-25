@@ -10,6 +10,7 @@ class LocutusUnit
 
     // Used for pathing
     BWAPI::Position                     targetPosition;
+    BWAPI::Position                     currentlyMovingTowards;
     std::deque<const BWEM::ChokePoint*> waypoints;
     BWAPI::Unit                         mineralWalkingPatch;
     int                                 lastMoveFrame;
@@ -36,6 +37,7 @@ public:
     LocutusUnit()
         : unit(nullptr)
         , targetPosition(BWAPI::Positions::Invalid)
+        , currentlyMovingTowards(BWAPI::Positions::Invalid)
         , mineralWalkingPatch(nullptr)
         , lastMoveFrame(0)
         , lastAttackStartedAt(0)
@@ -47,6 +49,7 @@ public:
     LocutusUnit(BWAPI::Unit unit)
         : unit(unit)
         , targetPosition(BWAPI::Positions::Invalid)
+        , currentlyMovingTowards(BWAPI::Positions::Invalid)
         , mineralWalkingPatch(nullptr)
         , lastMoveFrame(0)
         , lastAttackStartedAt(0)

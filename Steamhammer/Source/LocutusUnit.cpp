@@ -61,6 +61,7 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     // Clear any existing waypoints
     waypoints.clear();
     targetPosition = BWAPI::Positions::Invalid;
+    currentlyMovingTowards = BWAPI::Positions::Invalid;
     mineralWalkingPatch = nullptr;
 
     // If the unit is already in the same region, just move it directly
@@ -128,7 +129,10 @@ void LocutusUnit::updateMoveWaypoints()
     if (waypoints.empty())
     {
         if (BWAPI::Broodwar->getFrameCount() - lastMoveFrame > BWAPI::Broodwar->getLatencyFrames())
+        {
             targetPosition = BWAPI::Positions::Invalid;
+            currentlyMovingTowards = BWAPI::Positions::Invalid;
+        }
         return;
     }
 
@@ -138,19 +142,19 @@ void LocutusUnit::updateMoveWaypoints()
         return;
     }
 
-    // If the unit command is no longer to move towards the first waypoint, clear the waypoints
+    // If the unit command is no longer to move towards our current target, clear the waypoints
     // This means we have ordered the unit to do something else in the meantime
     BWAPI::UnitCommand currentCommand(unit->getLastCommand());
-    BWAPI::Position firstWaypointPosition((*waypoints.begin())->Center());
-    if (currentCommand.getType() != BWAPI::UnitCommandTypes::Move || currentCommand.getTargetPosition() != firstWaypointPosition)
+    if (currentCommand.getType() != BWAPI::UnitCommandTypes::Move || currentCommand.getTargetPosition() != currentlyMovingTowards)
     {
         waypoints.clear();
         targetPosition = BWAPI::Positions::Invalid;
+        currentlyMovingTowards = BWAPI::Positions::Invalid;
         return;
     }
 
-    // Wait until the unit is close to the current waypoint
-    if (unit->getDistance(firstWaypointPosition) > 100) return;
+    // Wait until the unit is close to the current target
+    if (unit->getDistance(currentlyMovingTowards) > 100) return;
 
     // Move to the next waypoint
     waypoints.pop_front();
@@ -202,7 +206,24 @@ void LocutusUnit::moveToNextWaypoint()
         return;
     }
 
-    Micro::Move(unit, BWAPI::Position(nextWaypoint->Center()));
+    // Get the next position after this waypoint
+    BWAPI::Position next = targetPosition;
+    if (waypoints.size() > 1) next = BWAPI::Position(waypoints[1]->Center());
+
+    // Move to the part of the choke closest to the next position
+    int bestDist = INT_MAX;
+    for (auto walkPosition : nextWaypoint->Geometry())
+    {
+        BWAPI::Position pos(walkPosition);
+        int dist = pos.getApproxDistance(next);
+        if (dist < bestDist)
+        {
+            bestDist = dist;
+            currentlyMovingTowards = pos;
+        }
+    }
+
+    Micro::Move(unit, currentlyMovingTowards);
     lastMoveFrame = BWAPI::Broodwar->getFrameCount();
 }
 
@@ -280,6 +301,7 @@ void LocutusUnit::mineralWalk()
 
         waypoints.clear();
         targetPosition = BWAPI::Positions::Invalid;
+        currentlyMovingTowards = BWAPI::Positions::Invalid;
         mineralWalkingPatch = nullptr;
         return;
     }
