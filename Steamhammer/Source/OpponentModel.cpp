@@ -925,7 +925,7 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 		double factor = result[strategy];
 		strategyCount[strategy] = strategyCount[strategy] + 1;
         
-        double aging = std::pow(strategyCount[strategy], 1.2);
+        double aging = std::pow(strategyCount[strategy], 1.1);
 
         log << "Aging factor " << aging << "; initial weight " << factor;
 
