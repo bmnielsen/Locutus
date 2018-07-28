@@ -1810,6 +1810,18 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 		}
 	}
 
+    // 1b. If we haven't found the enemy start location yet, pick an unexplored start location
+    if (!InformationManager::Instance().getEnemyMainBaseLocation())
+    {
+        for (BWTA::BaseLocation * startLocation : BWTA::getStartLocations())
+        {
+            if (!BWAPI::Broodwar->isExplored(startLocation->getTilePosition()))
+            {
+                return startLocation->getPosition();
+            }
+        }
+    }
+
 	// 2. Attack known enemy buildings.
 	// We assume that a terran can lift the buildings; otherwise, the squad must be able to attack ground.
 	if (canAttackGround || BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran)

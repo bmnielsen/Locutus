@@ -1,8 +1,11 @@
 #include "MicroMelee.h"
 #include "UnitUtil.h"
+#include "MathUtil.h"
 #include "BuildingPlacer.h"
 #include "StrategyManager.h"
 #include "CombatCommander.h"
+
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
@@ -156,6 +159,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 	BWAPI::Unit bestTarget = nullptr;
 
     BWAPI::Position myPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(meleeUnit, 5);
+    bool inOrderPositionArea = bwemMap.GetArea(meleeUnit->getTilePosition()) == bwemMap.GetArea(BWAPI::TilePosition(order.getPosition()));
 
 	for (const auto target : targets)
 	{
@@ -183,15 +187,25 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
             continue;
         }
 
-        // When on the attack, don't attack units that can kite us or workers that are running away
+        // Consider whether to attack enemies that are outside of our weapon range when on the attack
         bool inWeaponRange = meleeUnit->isInWeaponRange(target);
-        BWAPI::Position targetPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(target, 5);
-        if (!inWeaponRange && order.getType() != SquadOrderTypes::Defend &&
-            (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon ||
-            target->getType() == BWAPI::UnitTypes::Terran_Vulture ||
-            (target->getType().isWorker() && target->isMoving() && range <= myPositionInFiveFrames.getApproxDistance(targetPositionInFiveFrames))))
+        if (!inWeaponRange && order.getType() != SquadOrderTypes::Defend)
         {
-            continue;
+            // Never chase units that can kite us easily
+            if (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon ||
+                target->getType() == BWAPI::UnitTypes::Terran_Vulture) continue;
+
+            // Check if the target is moving away from us
+            BWAPI::Position targetPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(target, 5);
+            if (target->isMoving() && 
+                range <= MathUtil::EdgeToEdgeDistance(meleeUnit->getType(), myPositionInFiveFrames, target->getType(), targetPositionInFiveFrames))
+            {
+                // Never chase workers
+                if (target->getType().isWorker()) continue;
+
+                // When rushing, don't chase anything when outside the order position area
+                if (StrategyManager::Instance().isRushing() && !inOrderPositionArea) continue;
+            }
         }
 
         // When rushing, prioritize workers that are building something
