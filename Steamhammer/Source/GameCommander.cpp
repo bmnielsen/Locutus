@@ -139,6 +139,20 @@ void GameCommander::update()
 	}
 
 	drawDebugInterface();
+
+    if (BWAPI::Broodwar->getFrameCount() % 2000 == 1999)
+    {
+        int count = 0;
+        for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+        {
+            if (UnitUtil::IsCombatUnit(unit) && unit->isCompleted())
+            {
+                ++count;
+            }
+        }
+
+        Log().Get() << "Summary: " << count << " combat units, " << UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Probe) << " workers, " << BWAPI::Broodwar->self()->minerals() << " minerals, " << BWAPI::Broodwar->self()->gas() << " gas";
+    }
 }
 
 void GameCommander::drawDebugInterface()
@@ -397,6 +411,12 @@ void GameCommander::setCombatUnits()
 void GameCommander::surrender()
 {
 	_surrenderTime = BWAPI::Broodwar->getFrameCount();
+}
+
+void GameCommander::onEnd(bool isWinner)
+{
+    OpponentModel::Instance().setWin(isWinner);
+    OpponentModel::Instance().write();
 }
 
 void GameCommander::onUnitShow(BWAPI::Unit unit)			

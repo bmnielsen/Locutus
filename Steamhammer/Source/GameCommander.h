@@ -73,6 +73,7 @@ public:
     void drawGameInformation(int x, int y);
 	void drawUnitOrders();
 
+    void onEnd(bool isWinner);
 	void onUnitShow(BWAPI::Unit unit);
 	void onUnitHide(BWAPI::Unit unit);
 	void onUnitCreate(BWAPI::Unit unit);

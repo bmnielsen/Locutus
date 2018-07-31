@@ -22,6 +22,8 @@ namespace { auto & bwebMap = BWEB::Map::Instance(); }
 // This gets called when the bot starts.
 void UAlbertaBotModule::onStart()
 {
+    gameEnded = false;
+
     // Uncomment this when we need to debug log stuff before the config file is parsed
     //Config::Debug::LogDebug = true;
 
@@ -77,12 +79,17 @@ void UAlbertaBotModule::onStart()
 
 void UAlbertaBotModule::onEnd(bool isWinner)
 {
-	OpponentModel::Instance().setWin(isWinner);
-	OpponentModel::Instance().write();
+    if (gameEnded) return;
+
+    GameCommander::Instance().onEnd(isWinner);
+
+    gameEnded = true;
 }
 
 void UAlbertaBotModule::onFrame()
 {
+    if (gameEnded) return;
+
     if (!Config::ConfigFile::ConfigFileFound)
     {
         BWAPI::Broodwar->drawBoxScreen(0,0,450,100, BWAPI::Colors::Black, true);
@@ -108,25 +115,13 @@ void UAlbertaBotModule::onFrame()
     }
 
 	GameCommander::Instance().update();
-
-	if (BWAPI::Broodwar->getFrameCount() % 2000 == 1999)
-	{
-		int count = 0;
-		for (const auto unit : BWAPI::Broodwar->self()->getUnits())
-		{
-			if (UnitUtil::IsCombatUnit(unit) && unit->isCompleted())
-			{
-				++count;
-			}
-		}
-
-		Log().Get() << "Summary: " << count << " combat units, " << UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Probe) << " workers, " << BWAPI::Broodwar->self()->minerals() << " minerals, " << BWAPI::Broodwar->self()->gas() << " gas";
-	}
 }
 
 void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 {
-	if (unit->getType().isMineralField())
+    if (gameEnded) return;
+
+    if (unit->getType().isMineralField())
 		bwemMap.OnMineralDestroyed(unit);
 	else if (unit->getType().isSpecialBuilding())
 		bwemMap.OnStaticBuildingDestroyed(unit);
@@ -138,44 +133,60 @@ void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 
 void UAlbertaBotModule::onUnitMorph(BWAPI::Unit unit)
 {
-	bwebMap.onUnitMorph(unit);
+    if (gameEnded) return;
+
+    bwebMap.onUnitMorph(unit);
 
 	GameCommander::Instance().onUnitMorph(unit);
 }
 
 void UAlbertaBotModule::onSendText(std::string text) 
 { 
+    if (gameEnded) return;
+
 	ParseUtils::ParseTextCommand(text);
 }
 
 void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 { 
-	bwebMap.onUnitDiscover(unit);
+    if (gameEnded) return;
+
+    bwebMap.onUnitDiscover(unit);
 
 	GameCommander::Instance().onUnitCreate(unit);
 }
 
 void UAlbertaBotModule::onUnitDiscover(BWAPI::Unit unit)
 { 
-	bwebMap.onUnitDiscover(unit);
+    if (gameEnded) return;
+
+    bwebMap.onUnitDiscover(unit);
 }
 
 void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 {
-	GameCommander::Instance().onUnitComplete(unit);
+    if (gameEnded) return;
+
+    GameCommander::Instance().onUnitComplete(unit);
 }
 
 void UAlbertaBotModule::onUnitShow(BWAPI::Unit unit)
 { 
-	GameCommander::Instance().onUnitShow(unit);
+    if (gameEnded) return;
+
+    GameCommander::Instance().onUnitShow(unit);
 }
 
 void UAlbertaBotModule::onUnitHide(BWAPI::Unit unit)
 { 
-	GameCommander::Instance().onUnitHide(unit);
+    if (gameEnded) return;
+
+    GameCommander::Instance().onUnitHide(unit);
 }
 
 void UAlbertaBotModule::onUnitRenegade(BWAPI::Unit unit)
 { 
+    if (gameEnded) return;
+
 	GameCommander::Instance().onUnitRenegade(unit);
 }
