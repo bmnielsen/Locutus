@@ -75,6 +75,8 @@
 
         private static int crashes;
 
+        private static int timeouts;
+
         private static StreamWriter logFile = null;
 
         public static void Main(string[] args)
@@ -213,15 +215,10 @@
 
                     Run(trainingOpponent[0], map, true, false, timeout, noOverwrite);
 
-                    if (!currentGame.HaveResult)
-                    {
-                        crashes++;
-                    }
-
                     var result = currentGame.HaveResult ? (currentGame.Won ? "win" : "loss") : "crash";
                     File.AppendAllText(resultsFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.ExpectedOpponentStrategy};{currentGame.OpponentStrategy};{result}\n");
 
-                    Output("Overall score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
+                    Output("Overall score is {0} wins {1} losses {2} crashes {3} timeouts", wins, losses, crashes, timeouts);
                     logFile.Flush();
                 }
             }
@@ -235,12 +232,7 @@
                 {
                     Run(opponent, map, isHeadless, false, timeout, noOverwrite);
 
-                    if (!currentGame.HaveResult)
-                    {
-                        crashes++;
-                    }
-
-                    Output("Score is {0} wins {1} losses {2} crashes/timeouts", wins, losses, crashes);
+                    Output("Score is {0} wins {1} losses {2} crashes {3} timeouts", wins, losses, crashes, timeouts);
 
                     count++;
                     if (count >= limit) break;
@@ -313,6 +305,27 @@
             }
 
             ProcessOutputFiles(opponent, map, showReplay);
+
+            if (!currentGame.HaveResult)
+            {
+                Output("Result: Timeout");
+                timeouts++;
+            }
+            else if (currentGame.Won)
+            {
+                Output("Result: Won");
+                wins++;
+            }
+            else if (currentGame.Crashed)
+            {
+                Output("Result: Crashed");
+                crashes++;
+            }
+            else
+            {
+                Output("Result: Loss");
+                losses++;
+            }
         }
 
         private static void ProcessOutputFiles(string opponent, string map, bool showReplay)
@@ -332,7 +345,7 @@
 
         private static void HandleResults(string file, bool mine)
         {
-            if (currentGame.HaveResult)
+            if (currentGame.HaveResult && (!mine || !currentGame.Crashed))
             {
                 return;
             }
@@ -349,17 +362,14 @@
                 currentGame.HaveResult = true;
                 currentGame.ResultTimestamp = DateTime.UtcNow;
                 currentGame.Won = mine ? results.IsWinner : !results.IsWinner;
-
-                if (currentGame.Won)
+                if (mine)
                 {
-                    Output("Result: Won");
-                    wins++;
+                    currentGame.Crashed = false;
                 }
-                else
-                {
-                    Output("Result: Loss");
-                    losses++;
-                }
+            }
+            else if (mine)
+            {
+                currentGame.Crashed = true;
             }
         }
 
@@ -580,6 +590,8 @@
             public bool HaveResult { get; set; }
 
             public DateTime ResultTimestamp { get; set; }
+
+            public bool Crashed { get; set; }
 
             public bool Won { get; set; }
 
