@@ -20,6 +20,7 @@ struct UnitInfo
     BWAPI::UnitType type;
     bool            completed;
 	int				estimatedCompletionFrame;
+    bool            isFlying;
 
     UnitInfo()
         : unitID(0)
@@ -33,6 +34,7 @@ struct UnitInfo
         , type(BWAPI::UnitTypes::None)
         , completed(false)
 		, estimatedCompletionFrame(0)
+        , isFlying(false)
 	{
     }
 
@@ -48,6 +50,7 @@ struct UnitInfo
 		, type(unit->getType())
 		, completed(unit->isCompleted())
 		, estimatedCompletionFrame(ComputeCompletionFrame(unit))
+        , isFlying(unit->isFlying())
 	{
 	}
 

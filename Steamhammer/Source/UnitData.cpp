@@ -60,6 +60,7 @@ void UnitData::updateUnit(BWAPI::Unit unit)
 	ui.type         = unit->getType();
     ui.completed    = unit->isCompleted();
 	ui.estimatedCompletionFrame = UnitInfo::ComputeCompletionFrame(unit);
+    ui.isFlying     = unit->isFlying();
 }
 
 void UnitData::removeUnit(BWAPI::Unit unit)

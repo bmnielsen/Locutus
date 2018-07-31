@@ -33,17 +33,24 @@ void StrategyManager::update()
     // Check if we should stop a rush
     if (_rushing)
     {
-        // Stop the rush when the enemy has some non-tier-1 combat units
+        // Stop the rush when the enemy has some non-tier-1 combat units or a flying building
         int nonTierOneCombatUnits = 0;
+        bool flyingBuilding = false;
         for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
         {
+            if (unit.second.type.isBuilding() && unit.second.isFlying)
+            {
+                flyingBuilding = true;
+                break;
+            }
+
             if (unit.second.type.isBuilding()) continue;
             if (!UnitUtil::IsCombatUnit(unit.second.type)) continue;
             if (UnitUtil::IsTierOneCombatUnit(unit.second.type)) continue;
             nonTierOneCombatUnits++;
         }
 
-        if (nonTierOneCombatUnits >= 3 ||
+        if (flyingBuilding || nonTierOneCombatUnits >= 3 ||
             (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran && nonTierOneCombatUnits > 0))
         {
             _rushing = false;
