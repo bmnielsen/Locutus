@@ -303,7 +303,7 @@ namespace BWEB
 
 		// Reset hole and get a new path
 		currentHole = TilePositions::None;
-		currentPath = findPath(mapBWEM, *this, startTile, endTile, ignoreOverlap);
+		currentPath = findPath(mapBWEM, *this, startTile, endTile, false, true, ignoreOverlap);
 
 		// Quick check to see if the path contains our end point
 		if (find(currentPath.begin(), currentPath.end(), endTile) == currentPath.end()) {

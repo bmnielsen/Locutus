@@ -123,6 +123,7 @@ namespace BWEB
 		void draw(), onStart(), onUnitDiscover(Unit), onUnitDestroy(Unit), onUnitMorph(Unit);
 		static Map &Instance();
 		int overlapGrid[256][256] = {};
+		bool usedTilesGrid[256][256] = {};
 
 		/// This is just put here so AStar can use it for now
 		UnitType overlapsCurrentWall(TilePosition tile, int width = 1, int height = 1);
@@ -228,7 +229,7 @@ namespace BWEB
 		void findBlocks(BWAPI::Race);
 		void findBlocks();
 
-		vector<TilePosition> findPath(BWEM::Map&, BWEB::Map&, const TilePosition, const TilePosition, bool ignoreOverlap = false, bool ignoreWalls = false, bool diagonal = false);
+		vector<TilePosition> findPath(BWEM::Map&, BWEB::Map&, const TilePosition, const TilePosition, bool inSameArea = false, bool ignoreUsedTiles = false, bool ignoreOverlap = false, bool ignoreWalls = false, bool diagonal = false);
 	};
 
 	// This namespace contains functions which could be used for backward compatibility

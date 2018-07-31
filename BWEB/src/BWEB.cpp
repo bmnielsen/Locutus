@@ -44,6 +44,7 @@ namespace BWEB
 				TilePosition t(x, y);
 				if (!t.isValid()) continue;
 				usedTiles.insert(t);
+                usedTilesGrid[x][y] = true;
 			}
 		}
 	}
@@ -67,6 +68,7 @@ namespace BWEB
 				TilePosition t(x, y);
 				if (!t.isValid()) continue;
 				usedTiles.erase(t);
+				usedTilesGrid[x][y] = false;
 			}
 		}
 	}
@@ -300,7 +302,7 @@ namespace BWEB
 			for (auto y = location.y; y < location.y + type.tileHeight(); y++)	{
 				TilePosition tile(x, y);
 				if (!tile.isValid() || !Broodwar->isBuildable(tile)) return false;
-				if (usedTiles.find(tile) != usedTiles.end()) return false;
+				if (usedTilesGrid[x][y]) return false;
 				if (reserveGrid[x][y] > 0) return false;
 				if (type.isResourceDepot() && !Broodwar->canBuildHere(tile, type)) return false;
                 if (Broodwar->hasCreep(tile)) return false;
