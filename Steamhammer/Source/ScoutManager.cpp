@@ -571,7 +571,7 @@ bool ScoutManager::gasSteal()
 	else
 	{
 		// We don't see the geyser yet. Move toward it.
-		Micro::Move(_workerScout, _enemyGeyser->getInitialPosition());
+        InformationManager::Instance().getLocutusUnit(_workerScout).moveTo(_enemyGeyser->getInitialPosition());
 		_gasStealStatus = "Moving to steal gas";
 	}
 	return true;
