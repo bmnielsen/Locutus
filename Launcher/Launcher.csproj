@@ -49,6 +49,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="docker.dotnet">
+      <Version>3.125.2</Version>
+    </PackageReference>
     <PackageReference Include="newtonsoft.json">
       <Version>11.0.2</Version>
     </PackageReference>

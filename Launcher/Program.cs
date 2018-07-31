@@ -7,6 +7,8 @@
     using System.IO;
     using System.Linq;
     using System.Threading;
+    using Docker.DotNet;
+    using Docker.DotNet.Models;
     using Newtonsoft.Json;
 
     public class Program
@@ -66,6 +68,8 @@
 
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
 
+        private static DockerClient dockerClient;
+
         // State for current game
         private static GameData currentGame;
 
@@ -81,6 +85,9 @@
 
         public static void Main(string[] args)
         {
+            dockerClient = new DockerClientConfiguration(new Uri("npipe://./pipe/docker_engine"))
+                .CreateClient();
+
             Go(args);
 
 #if DEBUG
@@ -326,6 +333,8 @@
                 Output("Result: Loss");
                 losses++;
             }
+
+            KillContainers();
         }
 
         private static void ProcessOutputFiles(string opponent, string map, bool showReplay)
@@ -579,6 +588,36 @@
 
             Console.WriteLine(format);
             logFile?.WriteLine(format);
+        }
+
+        private static void KillContainers()
+        {
+            Thread.Sleep(1000);
+
+            var runningContainers = dockerClient.Containers.ListContainersAsync(
+                new ContainersListParameters
+                    {
+                        All = true,
+                        Filters = 
+                            new Dictionary<string, IDictionary<string, bool>>
+                                {
+                                    {
+                                        "status", new Dictionary<string, bool>
+                                                      {
+                                                          {
+                                                              "running",
+                                                              true
+                                                          }
+                                                      }
+                                          }
+                                      }
+                    }).GetAwaiter().GetResult();
+
+            foreach (var container in runningContainers.Where(x => x.Names.Any(n => n.Contains(currentGame.Id))))
+            {
+                dockerClient.Containers.StopContainerAsync(container.ID, new ContainerStopParameters());
+                Console.WriteLine("Stopped container {0}", container.Names[0]);
+            }
         }
 
         private class GameData
