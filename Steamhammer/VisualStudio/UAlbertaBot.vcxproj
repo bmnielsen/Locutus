@@ -180,6 +180,7 @@
     <ClCompile Include="..\Source\OpponentModel.cpp" />
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
     <ClCompile Include="..\Source\ParseUtils.cpp" />
+    <ClCompile Include="..\Source\PathFinding.cpp" />
     <ClCompile Include="..\Source\PlayerSnapshot.cpp" />
     <ClCompile Include="..\Source\TechCompleteProductionGoal.cpp" />
     <ClCompile Include="..\source\ProductionManager.cpp" />
@@ -262,6 +263,7 @@
     <ClInclude Include="..\Source\OpponentModel.h" />
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\ParseUtils.h" />
+    <ClInclude Include="..\Source\PathFinding.h" />
     <ClInclude Include="..\Source\PlayerSnapshot.h" />
     <ClInclude Include="..\Source\ProductionGoal.h" />
     <ClInclude Include="..\source\ProductionManager.h" />

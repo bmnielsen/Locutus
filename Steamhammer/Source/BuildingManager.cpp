@@ -4,6 +4,7 @@
 #include "ProductionManager.h"
 #include "ScoutManager.h"
 #include "UnitUtil.h"
+#include "PathFinding.h"
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
@@ -176,15 +177,14 @@ void BuildingManager::constructAssignedBuildings()
         {
             // Move towards the position if:
             // - it hasn't been explored yet
-            // - it is in a different map area (so may require custom patching to reach)
+            // - it is in a different map area (so may require custom pathing to reach)
             // - it is still far away
             bool moveToPosition = !isBuildingPositionExplored(b) ||
                 bwemMap.GetNearestArea(b.builderUnit->getTilePosition()) != bwemMap.GetNearestArea(b.finalPosition);
             if (!moveToPosition)
             {
-                int distance;
-                bwemMap.GetPath(b.builderUnit->getPosition(), BWAPI::Position(b.finalPosition), &distance);
-                moveToPosition = distance > 200;
+                int distance = PathFinding::GetGroundDistance(b.builderUnit->getPosition(), BWAPI::Position(b.finalPosition));
+                moveToPosition = distance == -1 || distance > 200;
             }
 
 			if (moveToPosition)

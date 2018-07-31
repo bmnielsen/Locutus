@@ -3,6 +3,7 @@
 #include "InformationManager.h"
 #include "CombatCommander.h"
 #include "MathUtil.h"
+#include "PathFinding.h"
 
 const double pi = 3.14159265358979323846;
 
@@ -76,34 +77,10 @@ bool isDragoonWalkable(BWAPI::Position position)
     return true;
 }
 
-BWAPI::TilePosition getWalkableTileCloseTo(BWAPI::Position start, BWAPI::Position end)
-{
-    BWAPI::TilePosition startTile(start);
-    BWAPI::TilePosition bestTile = BWAPI::TilePositions::Invalid;
-    double bestDist = DBL_MAX;
-    for (int x = startTile.x - 3; x < startTile.x + 3; x++)
-        for (int y = startTile.y - 3; y < startTile.y + 3; y++)
-        {
-            BWAPI::TilePosition tile(x, y);
-            if (!tile.isValid()) continue;
-            if (!bwemMap.GetArea(tile)) continue;
-            if (bwebMap.usedTiles.find(tile) != bwebMap.usedTiles.end()) continue;
-
-            double dist = end.getDistance(BWAPI::Position(tile) + BWAPI::Position(16, 16));
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                bestTile = tile;
-            }
-        }
-
-    return bestTile;
-}
-
 std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Position bunkerPosition)
 {
     // Get the BWEM path to the bunker
-    auto& chokes = bwemMap.GetPath(
+    auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
         bunkerPosition);
     if (chokes.size() < 2) return std::vector<BWAPI::TilePosition>();
@@ -116,14 +93,14 @@ std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Position bunkerPosition)
     if (bunkerPosition.getApproxDistance(lastChoke) > 300) return std::vector<BWAPI::TilePosition>();
 
     // Reserve a path from the second-last choke to the bunker
-    BWAPI::TilePosition start = getWalkableTileCloseTo(secondLastChoke, lastChoke);
-    BWAPI::TilePosition end = getWalkableTileCloseTo(bunkerPosition, lastChoke);
+    BWAPI::TilePosition start = PathFinding::NearbyPathfindingTile(BWAPI::TilePosition(secondLastChoke));
+    BWAPI::TilePosition end = PathFinding::NearbyPathfindingTile(BWAPI::TilePosition(bunkerPosition));
 
     // If either are invalid, give up
     if (!start.isValid() || !end.isValid()) return std::vector<BWAPI::TilePosition>();
 
     // Get the path
-    return bwebMap.findPath(bwemMap, bwebMap, start, end, true, true);
+    return bwebMap.findPath(bwemMap, bwebMap, start, end, true, true, true);
 }
 
 bool closeToReservedPath(BWAPI::Position position, std::vector<BWAPI::TilePosition> & reservedPath)
@@ -138,7 +115,7 @@ bool closeToReservedPath(BWAPI::Position position, std::vector<BWAPI::TilePositi
 bool bunkerBlocksNarrowChoke(BWAPI::Position bunkerPosition)
 {
     // Get the BWEM path to the bunker
-    auto& chokes = bwemMap.GetPath(
+    auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
         bunkerPosition);
     if (chokes.size() < 2) return false;
@@ -271,12 +248,9 @@ void MicroBunkerAttackSquad::update()
 
         // We are still doing the run-by if we are further away from the order position than the bunker is,
         // unless we are closer to the order position than the bunker
-        int ourDistToOrderPosition;
-        int bunkerDistToOrderPosition;
-        int ourDistToBunker;
-        bwemMap.GetPath(it->first->getPosition(), it->second, &ourDistToOrderPosition);
-        bwemMap.GetPath(_bunkerPosition, it->second, &bunkerDistToOrderPosition);
-        bwemMap.GetPath(_bunkerPosition, it->first->getPosition(), &ourDistToBunker);
+        int ourDistToOrderPosition = PathFinding::GetGroundDistance(it->first->getPosition(), it->second);
+        int bunkerDistToOrderPosition = PathFinding::GetGroundDistance(_bunkerPosition, it->second);
+        int ourDistToBunker = PathFinding::GetGroundDistance(_bunkerPosition, it->first->getPosition());
         if (ourDistToOrderPosition > bunkerDistToOrderPosition && ourDistToOrderPosition > ourDistToBunker)
             continue;
 

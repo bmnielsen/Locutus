@@ -6,6 +6,7 @@
 #include "OpponentModel.h"
 #include "Random.h"
 #include "UnitUtil.h"
+#include "PathFinding.h"
 
 using namespace UAlbertaBot;
 
@@ -243,8 +244,7 @@ void CombatCommander::updateDefuseSquads()
                     if (unit->getType() != BWAPI::UnitTypes::Protoss_Zealot) continue;
                     if (!_squadData.canAssignUnitToSquad(unit, squad)) continue;
 
-                    int dist;
-                    bwemMap.GetPath(unit->getPosition(), base->getPosition(), &dist);
+                    int dist = PathFinding::GetGroundDistance(unit->getPosition(), base->getPosition());
                     if (dist > -1 && dist < bestDist)
                     {
                         bestDist = dist;
@@ -597,7 +597,7 @@ BWAPI::Position CombatCommander::getReconLocation() const
         if (vanguard)
         {
             attackSquadAreas.insert(bwemMap.GetNearestArea(BWAPI::WalkPosition(vanguard->getPosition())));
-            for (auto choke : bwemMap.GetPath(vanguard->getPosition(), groundSquad.getSquadOrder().getPosition()))
+            for (auto choke : PathFinding::GetChokePointPath(vanguard->getPosition(), groundSquad.getSquadOrder().getPosition()))
             {
                 attackSquadAreas.insert(choke->GetAreas().first);
                 attackSquadAreas.insert(choke->GetAreas().second);
@@ -1199,7 +1199,7 @@ void CombatCommander::updateBaseDefenseSquads()
             int rushDistance = INT_MAX;
             if (enemyBaseLocation)
             {
-                bwemMap.GetPath(wall.gapCenter, enemyBaseLocation->getPosition(), &rushDistance);
+                rushDistance = PathFinding::GetGroundDistance(wall.gapCenter, enemyBaseLocation->getPosition());
             }
             else
             {
@@ -1207,8 +1207,7 @@ void CombatCommander::updateBaseDefenseSquads()
                 {
                     if (base == mainBaseLocation) continue;
 
-                    int baseDistance;
-                    bwemMap.GetPath(wall.gapCenter, base->getPosition(), &baseDistance);
+                    int baseDistance = PathFinding::GetGroundDistance(wall.gapCenter, base->getPosition());
                     if (baseDistance < rushDistance)
                         rushDistance = baseDistance;
                 }
@@ -1218,8 +1217,7 @@ void CombatCommander::updateBaseDefenseSquads()
             int zerglingArrivalFrame = 2600 + rushDistance / BWAPI::UnitTypes::Zerg_Zergling.topSpeed();
 
             // Now subtract the approximate number of frames it will take our workers to get to the wall
-            int wallDistance;
-            bwemMap.GetPath(wall.gapCenter, mainBaseLocation->getPosition(), &wallDistance);
+            int wallDistance = PathFinding::GetGroundDistance(wall.gapCenter, mainBaseLocation->getPosition());
             int workerMovementFrames = 1.3 * wallDistance / BWAPI::UnitTypes::Protoss_Probe.topSpeed();
 
             Log().Debug() << "Active wall cannons: " << activeWallCannons << "; rush distance: " << rushDistance << "; arrival frame: " << zerglingArrivalFrame << "; worker frames: " << workerMovementFrames;
@@ -1697,8 +1695,7 @@ bool CombatCommander::onTheDefensive()
     BWAPI::Unit groundVanguard = _squadData.getSquad("Ground").unitClosestToOrderPosition();
     if (groundVanguard)
     {
-        int distanceFromNatural;
-        bwemMap.GetPath(groundVanguard->getPosition(), base->getPosition(), &distanceFromNatural);
+        int distanceFromNatural = PathFinding::GetGroundDistance(groundVanguard->getPosition(), base->getPosition());
         if (distanceFromNatural > 1500) return false;
     }
 
@@ -1867,9 +1864,8 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
             if (InformationManager::Instance().getBaseOwner(base) != BWAPI::Broodwar->neutral()) continue;
 
             // If there is no path to the base, continue
-            int dist;
-            auto path = bwemMap.GetPath(squadCenter, base->getPosition(), &dist);
-            if (dist == -1) continue;
+            auto path = PathFinding::GetChokePointPath(squadCenter, base->getPosition());
+            if (path.empty()) continue;
 
             // A choke requires mineral walking if we have put something in Ext
             for (auto choke : path)

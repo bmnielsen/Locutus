@@ -2,8 +2,7 @@
 #include "GameCommander.h"
 #include "OpponentModel.h"
 #include "UnitUtil.h"
-
-namespace { auto & bwemMap = BWEM::Map::Instance(); }
+#include "PathFinding.h"
 
 using namespace UAlbertaBot;
 
@@ -455,8 +454,7 @@ BWAPI::Unit GameCommander::getScoutWorker()
 			!unit->isCarryingGas() &&
 			unit->getOrder() != BWAPI::Orders::MiningMinerals)
 		{
-            int dist;
-            bwemMap.GetPath(unit->getPosition(), mapCenter, &dist);
+            int dist = PathFinding::GetGroundDistance(unit->getPosition(), mapCenter);
 			if (dist < bestDist)
 			{
 				bestDist = dist;

@@ -4,8 +4,7 @@
 #include "UnitUtil.h"
 #include "MathUtil.h"
 #include "MapGrid.h"
-
-namespace { auto & bwemMap = BWEM::Map::Instance(); }
+#include "PathFinding.h"
 
 using namespace UAlbertaBot;
 
@@ -421,10 +420,8 @@ bool Squad::needsToRegroup()
         BWAPI::Position simPosition(unitClosest->getPosition());
         if (closestPosition.isValid() && closestDist > 32)
         {
-            int ourDistToOrderPosition;
-            int theirDistToOrderPosition;
-            bwemMap.GetPath(unitClosest->getPosition(), _order.getPosition(), &ourDistToOrderPosition);
-            bwemMap.GetPath(closestPosition, _order.getPosition(), &theirDistToOrderPosition);
+            int ourDistToOrderPosition = PathFinding::GetGroundDistance(unitClosest->getPosition(), _order.getPosition());
+            int theirDistToOrderPosition = PathFinding::GetGroundDistance(closestPosition, _order.getPosition());
             if (ourDistToOrderPosition != -1 && theirDistToOrderPosition != -1 &&
                 ourDistToOrderPosition > (theirDistToOrderPosition + 32))
             {
@@ -616,12 +613,11 @@ BWAPI::Unit Squad::unitClosestToOrderPosition() const
 		}
 
 		int dist;
-		if (_hasGround && bwemMap.GetArea(BWAPI::WalkPosition(unit->getPosition())))
+		if (_hasGround)
 		{
 			// A ground or air-ground squad. Use ground distance.
 			// It is -1 if no ground path exists.
-            int dist;
-            bwemMap.GetPath(unit->getPosition(), _order.getPosition(), &dist);
+            int dist = PathFinding::GetGroundDistance(unit->getPosition(), _order.getPosition());
 		}
 		else
 		{
@@ -837,10 +833,8 @@ bool Squad::addUnitToBunkerAttackSquadIfClose(BWAPI::Unit unit)
         if (!ui.second.completed && ui.second.estimatedCompletionFrame > BWAPI::Broodwar->getFrameCount()) continue;
         if (unit->getDistance(ui.second.lastPosition) > 1000) continue;
 
-        int unitDist;
-        int bunkerDist;
-        bwemMap.GetPath(unit->getPosition(), _order.getPosition(), &unitDist);
-        bwemMap.GetPath(ui.second.lastPosition, _order.getPosition(), &bunkerDist);
+        int unitDist = PathFinding::GetGroundDistance(unit->getPosition(), _order.getPosition());
+        int bunkerDist = PathFinding::GetGroundDistance(ui.second.lastPosition, _order.getPosition());
         if (unitDist != -1 && bunkerDist != -1 && unitDist > (bunkerDist - 128))
         {
             bunkerAttackSquads[ui.second.lastPosition].addUnit(ui.second.lastPosition, unit);

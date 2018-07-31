@@ -3,6 +3,7 @@
 #include "InformationManager.h"
 #include "Micro.h"
 #include "MapTools.h"
+#include "PathFinding.h"
 
 const double pi = 3.14159265358979323846;
 
@@ -72,7 +73,7 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     }
 
     // Get the BWEM path
-    auto& path = bwemMap.GetPath(unit->getPosition(), position);
+    auto& path = PathFinding::GetChokePointPath(unit->getPosition(), position);
     if (path.empty()) return false;
 
     // Detect when we can't use the BWEM path:
@@ -103,7 +104,7 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     // Attempt to generate an alternate path if possible
     if (!bwemPathValid || bwemPathNarrow)
     {
-        auto alternatePath = pathAvoidingUnusableChokes(unit->getPosition(), position, unit->getType().width());
+        auto alternatePath = PathFinding::GetChokePointPathAvoidingUndesirableChokePoints(unit->getPosition(), position, unit->getType().width());
         if (!alternatePath.empty())
         {
             waypoints.clear();
@@ -184,15 +185,15 @@ void LocutusUnit::moveToNextWaypoint()
         // If exactly one of them requires traversing the choke point to reach, pick it
         // Otherwise pick the furthest
 
-        int firstLength;
+        int firstLength = PathFinding::GetGroundDistance(unit->getPosition(), firstPatch->getInitialPosition());
         bool firstTraversesChoke = false;
-        for (auto choke : bwemMap.GetPath(unit->getPosition(), firstPatch->getInitialPosition(), &firstLength))
+        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), firstPatch->getInitialPosition()))
             if (choke == nextWaypoint)
                 firstTraversesChoke = true;
 
-        int secondLength;
+        int secondLength = PathFinding::GetGroundDistance(unit->getPosition(), secondPatch->getInitialPosition());
         bool secondTraversesChoke = false;
-        for (auto choke : bwemMap.GetPath(unit->getPosition(), secondPatch->getInitialPosition(), &secondLength))
+        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), secondPatch->getInitialPosition()))
             if (choke == nextWaypoint)
                 secondTraversesChoke = true;
 
@@ -270,12 +271,11 @@ void LocutusUnit::mineralWalk()
                 continue;
 
             // Check that there is a path to the tile
-            int pathLength;
-            auto path = bwemMap.GetPath(unit->getPosition(), tileCenter, &pathLength);
+            int pathLength = PathFinding::GetGroundDistance(unit->getPosition(), tileCenter);
             if (pathLength == -1) continue;
 
             // The path should not cross the choke we're mineral walking
-            for (auto choke : path)
+            for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), tileCenter))
                 if (choke == *waypoints.begin())
                     goto cnt;
 
@@ -458,94 +458,6 @@ bool LocutusUnit::isStuck() const
 
     return potentiallyStuckSince > 0 &&
         potentiallyStuckSince < (BWAPI::Broodwar->getFrameCount() - BWAPI::Broodwar->getLatencyFrames() - 10);
-}
-
-// Basically BWEB's path find alorithm modified to use BWEM chokepoints
-std::vector<const BWEM::ChokePoint *> LocutusUnit::pathAvoidingUnusableChokes(
-    BWAPI::Position start, 
-    BWAPI::Position target, 
-    int minChokeWidth,
-    int desiredChokeWidth)
-{
-    const BWEM::Area * startArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(start));
-    const BWEM::Area * targetArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(target));
-
-    struct Node {
-        Node(const BWEM::ChokePoint * choke, int const dist, const BWEM::Area * toArea, const BWEM::ChokePoint * parent) 
-            : choke{ choke }, dist{ dist }, toArea{ toArea }, parent{ parent } { }
-        mutable const BWEM::ChokePoint * choke;
-        mutable int dist;
-        mutable const BWEM::Area * toArea;
-        mutable const BWEM::ChokePoint * parent = nullptr;
-    };
-
-    const auto validChoke = [](const BWEM::ChokePoint * choke, int minChokeWidth) {
-        return !choke->Blocked() && !choke->Ext() && choke->Data() >= minChokeWidth;
-    };
-
-    const auto chokeDist = [](const BWEM::ChokePoint * choke, int dist, int desiredChokeWidth) {
-        // Give too narrow chokes a large penalty, so they are only used if there is no other option
-        if (choke->Data() < desiredChokeWidth) return dist + 2000;
-        return dist;
-    };
-
-    const auto chokeTo = [](const BWEM::ChokePoint * choke, const BWEM::Area * from) {
-        return (from == choke->GetAreas().first)
-            ? choke->GetAreas().second
-            : choke->GetAreas().first;
-    };
-
-    const auto createPath = [](const Node& node, std::map<const BWEM::ChokePoint *, const BWEM::ChokePoint *> & parentMap) {
-        std::vector<const BWEM::ChokePoint *> path;
-        const BWEM::ChokePoint * current = node.choke;
-
-        while (current)
-        {
-            path.push_back(current);
-            current = parentMap[current];
-        }
-
-        std::reverse(path.begin(), path.end());
-
-        return path;
-    };
-
-    auto cmp = [](Node left, Node right) { return left.dist > right.dist; };
-    std::priority_queue<Node, std::vector<Node>, decltype(cmp)> nodeQueue(cmp);
-    for (auto choke : startArea->ChokePoints())
-        if (validChoke(choke, minChokeWidth))
-            nodeQueue.emplace(
-                choke,
-                chokeDist(choke, start.getApproxDistance(BWAPI::Position(choke->Center())), desiredChokeWidth),
-                chokeTo(choke, startArea),
-                nullptr);
-
-    std::map<const BWEM::ChokePoint *, const BWEM::ChokePoint *> parentMap;
-
-    while (!nodeQueue.empty()) {
-        auto const current = nodeQueue.top();
-        nodeQueue.pop();
-
-        // Set parent
-        parentMap[current.choke] = current.parent;
-
-        // If at target, return path
-        // We're ignoring the distance from this last choke to the target position; it's an unlikely
-        // edge case that there is an alternate choke giving a significantly better result
-        if (current.toArea == targetArea)
-            return createPath(current, parentMap);
-
-        // Add valid connected chokes we haven't visited yet
-        for (auto choke : current.toArea->ChokePoints())
-            if (validChoke(choke, minChokeWidth) && parentMap.find(choke) == parentMap.end())
-                nodeQueue.emplace(
-                    choke, 
-                    chokeDist(choke, current.dist + choke->DistanceFrom(current.choke), desiredChokeWidth), 
-                    chokeTo(choke, current.toArea), 
-                    current.choke);
-    }
-
-    return {};
 }
 
 void LocutusUnit::updateGoon()

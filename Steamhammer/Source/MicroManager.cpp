@@ -4,8 +4,7 @@
 #include "MapTools.h"
 #include "UnitUtil.h"
 #include "MathUtil.h"
-
-namespace { auto & bwemMap = BWEM::Map::Instance(); }
+#include "PathFinding.h"
 
 using namespace UAlbertaBot;
 
@@ -136,10 +135,8 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
             // The target is the bunker: ignore it if we are closer to the order position
             if (target->getType() == BWAPI::UnitTypes::Terran_Bunker)
             {
-                int unitDist;
-                int bunkerDist;
-                bwemMap.GetPath(combatUnit->getPosition(), order.getPosition(), &unitDist);
-                bwemMap.GetPath(solitaryBunker->getPosition(), order.getPosition(), &bunkerDist);
+                int unitDist = PathFinding::GetGroundDistance(combatUnit->getPosition(), order.getPosition());
+                int bunkerDist = PathFinding::GetGroundDistance(solitaryBunker->getPosition(), order.getPosition());
                 if (unitDist != -1 && bunkerDist != -1 && unitDist < (bunkerDist - 128)) return true;
             }
 

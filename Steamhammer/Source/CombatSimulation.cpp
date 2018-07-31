@@ -2,10 +2,9 @@
 #include "FAP.h"
 #include "UnitUtil.h"
 #include "StrategyManager.h"
+#include "PathFinding.h"
 
 //#define COMBATSIM_DEBUG 1
-
-namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
@@ -239,7 +238,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     if (myUnitsCentroid.isValid() && enemyUnitsCentroid.isValid() && !airBattle && !rushing)
     {
         // Are we attacking through a narrow choke?
-        for (auto choke : bwemMap.GetPath(myUnitsCentroid, enemyUnitsCentroid))
+        for (auto choke : PathFinding::GetChokePointPath(myUnitsCentroid, enemyUnitsCentroid))
         {
             if (choke->Data() < 96)
             {

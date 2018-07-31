@@ -3,8 +3,7 @@
 
 #include "InformationManager.h"
 #include "UnitUtil.h"
-
-namespace { auto & bwemMap = BWEM::Map::Instance(); }
+#include "PathFinding.h"
 
 using namespace UAlbertaBot;
 
@@ -108,8 +107,7 @@ void PlayerSnapshot::takeEnemy()
                     }
                 }
 
-                int distanceToMove;
-                bwemMap.GetPath(ui.lastPosition, enemyBase->getPosition(), &distanceToMove);
+                int distanceToMove = PathFinding::GetGroundDistance(ui.lastPosition, enemyBase->getPosition());
                 int framesToMove = std::floor(((double)distanceToMove / ui.type.topSpeed()) * 1.1);
 
                 startFrame = BWAPI::Broodwar->getFrameCount() - framesToMove;

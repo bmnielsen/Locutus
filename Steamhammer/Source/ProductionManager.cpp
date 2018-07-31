@@ -4,10 +4,9 @@
 #include "UnitUtil.h"
 #include "TechCompleteProductionGoal.h"
 #include "UpgradeCompleteProductionGoal.h"
+#include "PathFinding.h"
 
 using namespace UAlbertaBot;
-
-namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
 ProductionManager::ProductionManager()
 	: _lastProductionFrame				 (0)
@@ -839,11 +838,8 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	if (!moveWorker) return;
 
 	// how many frames it will take us to move to the building location
-	// Use bwem pathfinding if direct distance is likely to be wrong
 	// We add some time since the actual pathfinding of the workers is bad
-	int distanceToMove = moveWorker->getDistance(walkToPosition);
-	if (distanceToMove > 200)
-		bwemMap.GetPath(moveWorker->getPosition(), walkToPosition, &distanceToMove);
+	int distanceToMove = PathFinding::GetGroundDistance(moveWorker->getPosition(), walkToPosition);
 	double framesToMove = (distanceToMove / BWAPI::Broodwar->self()->getRace().getWorker().topSpeed()) * 1.4;
 
 	// Don't move if the dependencies won't be done in time
