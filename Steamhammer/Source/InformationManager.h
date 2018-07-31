@@ -50,6 +50,11 @@ class InformationManager
     std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
     int                             bulletsSeenAtExtendedMarineRange;
 
+    // All enemy walls we have detected
+    // First set in the pair: the forward tiles in the wall. These tiles are covered by the wall buildings.
+    // Second set in the pair: all tiles behind or part of the wall.
+    std::map<const BWEM::ChokePoint*, std::pair<std::set<BWAPI::TilePosition>, std::set<BWAPI::TilePosition>>> enemyWalls;
+
     // Caches of enemy unit statistics, used to track upgrades
     std::map<BWAPI::WeaponType, int> enemyWeaponDamage;
     std::map<BWAPI::WeaponType, int> enemyWeaponRange;
@@ -85,6 +90,9 @@ class InformationManager
 	void					updateGoneFromLastPosition();
     void                    updateBullets();
 
+    void                    detectEnemyWall(BWAPI::Unit unit);
+    void                    detectBrokenEnemyWall(BWAPI::UnitType type, BWAPI::TilePosition tile);
+
 public:
 
     void                    update();
@@ -97,6 +105,9 @@ public:
 	void					onUnitMorph(BWAPI::Unit unit)       { updateUnit(unit); maybeAddBase(unit); }
     void					onUnitRenegade(BWAPI::Unit unit)    { updateUnit(unit); }
     void					onUnitDestroy(BWAPI::Unit unit);
+    void                    onNewEnemyUnit(BWAPI::Unit unit)    { detectEnemyWall(unit); }
+    void                    onEnemyBuildingLanded(BWAPI::Unit unit);
+    void                    onEnemyBuildingFlying(BWAPI::UnitType type, BWAPI::Position lastPosition);
 
 	bool					isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries);
 	bool					isEnemyBuildingNearby(BWAPI::Position position, int threshold);
@@ -104,6 +115,10 @@ public:
     bool					nearbyForceHasCloaked(BWAPI::Position p,BWAPI::Player player,int radius);
 
     void                    getNearbyForce(std::vector<UnitInfo> & unitInfo,BWAPI::Position p,BWAPI::Player player,int radius);
+
+    bool                    isEnemyWallBuilding(BWAPI::Unit unit);
+    bool                    isBehindEnemyWall(BWAPI::Unit attacker, BWAPI::Unit target);
+    bool                    isBehindEnemyWall(BWAPI::TilePosition tile);
 
     const UIMap &           getUnitInfo(BWAPI::Player player) const;
 

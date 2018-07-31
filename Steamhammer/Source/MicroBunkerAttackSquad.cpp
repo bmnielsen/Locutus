@@ -323,6 +323,9 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     // Can't run-by with no units
     if (_units.empty()) return;
 
+    // Don't run-by a bunker that is part of or behind a wall
+    if (InformationManager::Instance().isBehindEnemyWall(BWAPI::TilePosition(_bunkerPosition))) return;
+
     // Never do a run-by if the enemy has tier 2+ units or more than one bunker
     for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
     {

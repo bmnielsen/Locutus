@@ -6,6 +6,10 @@
 #include "ProductionManager.h"
 #include "Random.h"
 #include "UnitUtil.h"
+#include "PathFinding.h"
+
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
@@ -728,6 +732,240 @@ void InformationManager::updateBullets()
     }
 }
 
+bool trace(BWAPI::TilePosition tile, BWAPI::TilePosition wallTile, int direction, std::set<BWAPI::TilePosition> & wallTiles)
+{
+    Log().Debug() << "Wall tracing from " << tile << "; wall " << wallTile << "; direction=" << direction;
+
+    BWAPI::TilePosition start = tile;
+
+    while (true)
+    {
+        // Move one tile in the desired direction
+        BWAPI::TilePosition next;
+        BWAPI::TilePosition nextWall;
+        if (tile.x == wallTile.x)
+        {
+            next = tile + BWAPI::TilePosition(direction, 0);
+            nextWall = wallTile + BWAPI::TilePosition(direction, 0);
+        }
+        else
+        {
+            next = tile + BWAPI::TilePosition(0, direction);
+            nextWall = wallTile + BWAPI::TilePosition(0, direction);
+        }
+
+        // If the next tile or next wall tile is not walkable, we've hit the end of the wall
+        if (!bwebMap.isWalkable(next) || !bwebMap.isWalkable(nextWall)) return true;
+
+        // If the next tile is occupied, we've hit a "concave" corner of the wall
+        if (bwebMap.usedTilesGrid[next.x][next.y])
+        {
+            nextWall = next;
+            next = tile;
+            direction = (next.x == nextWall.x) ? nextWall.x - wallTile.x : nextWall.y - wallTile.y;
+        }
+
+        // If the next wall tile is not occupied, we've hit a "convex" corner of the wall
+        if (!bwebMap.usedTilesGrid[nextWall.x][nextWall.y])
+        {
+            next = nextWall;
+            nextWall = wallTile;
+            direction = (next.x == nextWall.x) ? next.x - tile.x : next.y - tile.y;
+        }
+
+        // If we have reached the start tile again, this wasn't a wall, we're just tracing around some buildings
+        if (tile != next && next == start) return false;
+
+        // Add the wall tile and continue
+        tile = next;
+        wallTile = nextWall;
+        wallTiles.insert(wallTile);
+
+        Log().Debug() << "Next " << tile << "; wall " << wallTile << "; direction=" << direction;
+    }
+}
+
+void floodFill(BWAPI::TilePosition start, std::set<BWAPI::TilePosition> & visited)
+{
+    std::queue<BWAPI::TilePosition> tileQueue;
+    tileQueue.push(start);
+    while (!tileQueue.empty())
+    {
+        BWAPI::TilePosition current = tileQueue.front();
+        tileQueue.pop();
+
+        if (!current.isValid()) continue;
+        if (visited.find(current) != visited.end()) continue;
+        if (!bwebMap.isWalkable(current)) continue;
+
+        visited.insert(current);
+
+        tileQueue.push(current + BWAPI::TilePosition(1, 0));
+        tileQueue.push(current + BWAPI::TilePosition(0, 1));
+        tileQueue.push(current + BWAPI::TilePosition(-1, 0));
+        tileQueue.push(current + BWAPI::TilePosition(0, -1));
+    }
+}
+
+// Called on any new enemy unit discovery or when a flying building lands
+// If it is near a chokepoint, we check if it creates a wall
+void InformationManager::detectEnemyWall(BWAPI::Unit unit)
+{
+    if (!unit->getType().isBuilding()) return;
+
+    // Ensure BWEB has the building registered
+    bwebMap.onUnitDiscover(unit);
+
+    auto area = bwemMap.GetNearestArea(unit->getTilePosition());
+
+    // Find each nearby unblocked choke
+    for (auto choke : area->ChokePoints())
+        if (!choke->Blocked() && unit->getDistance(BWAPI::Position(choke->Center())) < 320)
+        {
+            // If we have already registered a wall for this choke, no need to continue
+            if (enemyWalls.find(choke) != enemyWalls.end()) continue;
+
+            // Determine which area is on our side of the wall
+            int firstDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().first->Top()), getMyMainBaseLocation()->getPosition());
+            int secondDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().second->Top()), getMyMainBaseLocation()->getPosition());
+            auto closestArea = (firstDist < secondDist) ? choke->GetAreas().first : choke->GetAreas().second;
+            auto furthestArea = (firstDist < secondDist) ? choke->GetAreas().second : choke->GetAreas().first;
+
+            // Check if there is a path between the areas
+            BWAPI::TilePosition start = PathFinding::NearbyPathfindingTile(BWAPI::TilePosition(furthestArea->Top()));
+            BWAPI::TilePosition end = PathFinding::NearbyPathfindingTile(BWAPI::TilePosition(closestArea->Top()));
+            if (!start.isValid() || !end.isValid())
+            {
+                Log().Get() << "Warning: Could not find tiles for wall detection pathing";
+                continue;
+            }
+
+            if (!bwebMap.findPath(bwemMap, bwebMap, start, end, true, false, true).empty()) continue;
+
+            // Find another path ignoring buildings
+            auto path = bwebMap.findPath(bwemMap, bwebMap, start, end, true, true, true);
+            if (path.empty())
+            {
+                Log().Get() << "Warning: Could not get path ignoring wall buildings";
+                continue;
+            }
+
+            // When the path hits a building, try to trace the wall
+            std::set<BWAPI::TilePosition> wallTiles;
+            BWAPI::TilePosition last = BWAPI::TilePositions::Invalid;
+            for (auto tile : path)
+            {
+                if (!bwebMap.usedTilesGrid[tile.x][tile.y])
+                {
+                    last = tile;
+                    continue;
+                }
+
+                // Follow the path at least until we hit an empty tile
+                if (!last.isValid()) continue;
+
+                // Try to trace at this location
+                if (trace(last, tile, 1, wallTiles) &&
+                    trace(last, tile, -1, wallTiles))
+                {
+                    wallTiles.insert(tile);
+                    break;
+                }
+
+                wallTiles.clear();
+                last = BWAPI::TilePositions::Invalid;
+            }
+
+            if (wallTiles.empty())
+            {
+                Log().Get() << "Warning: Unable to trace probable wall near choke @ " << BWAPI::TilePosition(choke->Center());
+                continue;
+            }
+
+            Log().Get() << "Detected wall near choke @ " << BWAPI::TilePosition(choke->Center());
+
+            // Now do a flood fill to get all of the tiles that are part of or behind the wall
+            std::set<BWAPI::TilePosition> tilesBehindWall = wallTiles;
+            floodFill(start, tilesBehindWall);
+
+            // Add to our set of walls
+            enemyWalls[choke] = std::make_pair(wallTiles, tilesBehindWall);
+        }
+}
+
+// Called when an enemy unit has been destroyed or lifted off
+void InformationManager::detectBrokenEnemyWall(BWAPI::UnitType type, BWAPI::TilePosition tile)
+{
+    if (!type.isBuilding()) return;
+
+    // For each wall...
+    for (auto it = enemyWalls.begin(); it != enemyWalls.end(); )
+    {
+        // ...check if any tiles in the building are in its wallTiles set
+        auto& wallTiles = it->second.first;
+        for (auto x = tile.x; x < tile.x + type.tileWidth(); x++)
+            for (auto y = tile.y; y < tile.y + type.tileHeight(); y++)
+                if (wallTiles.find(BWAPI::TilePosition(x, y)) != wallTiles.end())
+                {
+                    // ...and if so, erase the wall
+                    Log().Get() << "Detected broken wall near choke @ " << BWAPI::TilePosition(it->first->Center());
+                    it = enemyWalls.erase(it);
+                    goto nextWall;
+                }
+
+        it++;
+
+    nextWall:;
+    }
+}
+
+// Is the unit part of an enemy wall?
+bool InformationManager::isEnemyWallBuilding(BWAPI::Unit unit)
+{
+    if (!unit->getType().isBuilding()) return false;
+
+    for (auto & wall : enemyWalls)
+        for (auto x = unit->getTilePosition().x; x < unit->getTilePosition().x + unit->getType().tileWidth(); x++)
+            for (auto y = unit->getTilePosition().y; y < unit->getTilePosition().y + unit->getType().tileHeight(); y++)
+                if (wall.second.first.find(BWAPI::TilePosition(x, y)) != wall.second.first.end())
+                    return true;
+
+    return false;
+}
+
+// Returns true if there is a wall between the attacker and the target
+// Returns false if the target itself is part of the wall
+bool InformationManager::isBehindEnemyWall(BWAPI::Unit attacker, BWAPI::Unit target)
+{
+    if (enemyWalls.empty()) return false;
+    if (isEnemyWallBuilding(target)) return false;
+
+    // Find the closest enemy wall, ignoring walls that are far away
+    int bestDist = INT_MAX;
+    std::set<BWAPI::TilePosition> * tilesBehindWall = nullptr;
+    for (auto & wall : enemyWalls)
+    {
+        int dist = attacker->getDistance(BWAPI::Position(wall.first->Center()));
+        if (dist < bestDist && dist < 500)
+        {
+            bestDist = dist;
+            tilesBehindWall = &wall.second.second;
+        }
+    }
+    if (!tilesBehindWall) return false;
+
+    // Target is behind the wall if its position is in the set
+    return tilesBehindWall->find(target->getTilePosition()) != tilesBehindWall->end();
+}
+
+// Returns true if the give tile is either part of an enemy wall or is in the area behind the wall
+bool InformationManager::isBehindEnemyWall(BWAPI::TilePosition tile)
+{
+    for (auto & wall : enemyWalls)
+        if (wall.second.second.find(tile) != wall.second.second.end()) return true;
+    return false;
+}
+
 bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries) 
 {
 	// invalid regions aren't considered the same, but they will both be null
@@ -1296,6 +1534,38 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
     {
         _myUnitGrid.unitDestroyed(unit->getType(), unit->getPosition());
     }
+
+    if (unit->getPlayer() == _enemy)
+    {
+        detectBrokenEnemyWall(unit->getType(), unit->getTilePosition());
+    }
+}
+
+void InformationManager::onEnemyBuildingLanded(BWAPI::Unit building)
+{
+    // Check if this building forms a wall
+    detectEnemyWall(building);
+}
+
+void InformationManager::onEnemyBuildingFlying(BWAPI::UnitType type, BWAPI::Position lastPosition)
+{
+    // Compute the tile position
+    BWAPI::TilePosition tile(lastPosition - BWAPI::Position(type.tileWidth() * 16 - 1, type.tileHeight() * 16 - 1));
+
+    // Update BWEB
+    for (auto x = tile.x; x < tile.x + type.tileWidth(); x++)
+    {
+        for (auto y = tile.y; y < tile.y + type.tileHeight(); y++)
+        {
+            BWAPI::TilePosition t(x, y);
+            if (!t.isValid()) continue;
+            bwebMap.usedTiles.erase(t);
+            bwebMap.usedTilesGrid[x][y] = false;
+        }
+    }
+
+    // The building might have been forming a wall
+    detectBrokenEnemyWall(type, tile);
 }
 
 // Only returns units believed to be completed.

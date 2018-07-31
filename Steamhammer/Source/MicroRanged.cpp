@@ -304,6 +304,13 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 			continue;
 		}
 
+        // Skip targets safe behind a wall
+        if (range > UnitUtil::GetAttackRange(rangedUnit, target) &&
+            InformationManager::Instance().isBehindEnemyWall(rangedUnit, target))
+        {
+            continue;
+        }
+
 		// Let's say that 1 priority step is worth 160 pixels (5 tiles).
 		// We care about unit-target range and target-order position distance.
 		int score = 5 * 32 * priority - range;
@@ -415,6 +422,13 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 				score -= 32;
 			}
 		}
+
+        // For wall buildings, prefer the ones with lower health
+        if (InformationManager::Instance().isEnemyWallBuilding(target) &&
+            target->getType() == BWAPI::UnitTypes::Terran_Supply_Depot)
+        {
+            score += 128;
+        }
 
 		if (score > bestScore)
 		{
@@ -714,7 +728,14 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
         return;
     }
 
-    // Compute unit ranges
+    // If the target is behind a wall, don't kite
+    if (InformationManager::Instance().isBehindEnemyWall(rangedUnit, target))
+    {
+        Micro::AttackUnit(rangedUnit, target);
+        return;
+    }
+
+    // Compute target unit range
     int targetRange(target->getType().groundWeapon().maxRange());
     if (InformationManager::Instance().enemyHasInfantryRangeUpgrade())
     {
@@ -822,7 +843,7 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
     {
         if (distToTarget > 16)
         {
-            Micro::Move(rangedUnit, target->getPosition());
+            InformationManager::Instance().getLocutusUnit(rangedUnit).moveTo(target->getPosition());
         }
         else
         {

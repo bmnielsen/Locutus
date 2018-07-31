@@ -164,11 +164,13 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
 
     // Consider outlying buildings
     // Static defenses are handled separately so we can consider run-bys as a squad
-    // TODO: Detect when the building is part of a wall and act accordingly
     if (target->getType().isBuilding())
     {
         // Never ignore static defenses
         if (target->isCompleted() && UnitUtil::CanAttackGround(target)) return false;
+
+        // Never ignore buildings that are part of walls
+        if (InformationManager::Instance().isEnemyWallBuilding(target)) return false;
 
         // Otherwise, let's ignore this and find something better to attack
         return true;

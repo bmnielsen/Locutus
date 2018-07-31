@@ -172,8 +172,18 @@ void ScoutManager::update()
 		releaseWorkerScout();
 	}
 
+    // If the worker scout is blocked outside a wall, release it.
+    if (_workerScout &&
+        InformationManager::Instance().getEnemyMainBaseLocation() &&
+        InformationManager::Instance().isBehindEnemyWall(InformationManager::Instance().getEnemyMainBaseLocation()->getTilePosition()) &&
+        !InformationManager::Instance().isBehindEnemyWall(_workerScout->getTilePosition()))
+    {
+        releaseWorkerScout();
+    }
+
     // If we want to scout while safe, and the scout is no longer safe, release it
-    if (_workerScout && _scoutCommand == MacroCommandType::ScoutWhileSafe)
+    if (_workerScout && _scoutCommand == MacroCommandType::ScoutWhileSafe &&
+        !InformationManager::Instance().isBehindEnemyWall(_workerScout->getTilePosition()))
     {
         bool scoutSafe = _workerScout->getHitPoints() > BWAPI::UnitTypes::Protoss_Probe.maxHitPoints() / 2;
         if (scoutSafe)

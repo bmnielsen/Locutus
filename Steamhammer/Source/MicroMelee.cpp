@@ -206,6 +206,9 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
                 // When rushing, don't chase anything when outside the order position area
                 if (StrategyManager::Instance().isRushing() && !inOrderPositionArea) continue;
             }
+
+            // Skip targets behind a wall
+            if (InformationManager::Instance().isBehindEnemyWall(meleeUnit, target)) continue;
         }
 
         // When rushing, prioritize workers that are building something

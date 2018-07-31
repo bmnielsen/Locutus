@@ -1,5 +1,8 @@
 #include "Common.h"
 #include "UnitData.h"
+#include "InformationManager.h"
+
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
@@ -33,6 +36,12 @@ void UnitData::updateGoneFromLastPosition()
 			BWAPI::Broodwar->isVisible(BWAPI::TilePosition(ui.lastPosition)))
 		{
 			ui.goneFromLastPosition = true;
+
+            // If this is a building that can fly, assume it lifted off
+            if (ui.type.isFlyingBuilding())
+            {
+                InformationManager::Instance().onEnemyBuildingFlying(ui.type, ui.lastPosition);
+            }
 		}
 	}
 }
@@ -45,9 +54,27 @@ void UnitData::updateUnit(BWAPI::Unit unit)
     {
 		++numUnits[unit->getType().getID()];
 		unitMap[unit] = UnitInfo();
+        if (unit->getPlayer() == BWAPI::Broodwar->enemy())
+            InformationManager::Instance().onNewEnemyUnit(unit);
     }
     
 	UnitInfo & ui   = unitMap[unit];
+
+    // Check for buildings that have taken off or landed
+    if (unit->getType().isBuilding() && unit->isFlying() != ui.isFlying)
+    {
+        // The building has taken off since we last saw its previous (landed) position
+        if (unit->isFlying() && !ui.goneFromLastPosition && ui.lastPosition.isValid())
+        {
+            InformationManager::Instance().onEnemyBuildingFlying(unit->getType(), ui.lastPosition);
+        }
+
+        // The building has landed
+        else if (!unit->isFlying())
+        {
+            InformationManager::Instance().onEnemyBuildingLanded(unit);
+        }
+    }
 
     ui.unit         = unit;
 	ui.updateFrame	= BWAPI::Broodwar->getFrameCount();
