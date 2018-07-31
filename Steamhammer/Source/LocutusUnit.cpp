@@ -84,9 +84,11 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     bool bwemPathNarrow = false;
     for (const BWEM::ChokePoint * chokepoint : path)
     {
+        ChokeData & chokeData = *((ChokeData*)chokepoint->Ext());
+
         // Mineral walking data is stored in Ext, choke width is stored in Data (see MapTools)
-        if ((chokepoint->Ext() && !unit->getType().isWorker()) ||
-            (chokepoint->Data() < unit->getType().width()))
+        if ((chokeData.requiresMineralWalk && !unit->getType().isWorker()) ||
+            (chokeData.width < unit->getType().width()))
         {
             bwemPathValid = false;
             break;
@@ -94,7 +96,7 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
 
         // Check for narrow chokes
         // TODO: Fix this, our units just get confused
-        //if (avoidNarrowChokes && chokepoint->Data() < 96)
+        //if (avoidNarrowChokes && ((ChokeData*)chokepoint->Ext())->width < 96)
         //    bwemPathNarrow = true;
 
         // Push the waypoints on this pass on the assumption that we can use them
@@ -154,8 +156,14 @@ void LocutusUnit::updateMoveWaypoints()
         return;
     }
 
-    // Wait until the unit is close to the current target
+    // Wait until the unit is close enough to the current target
     if (unit->getDistance(currentlyMovingTowards) > 100) return;
+
+    // If the current target is a narrow ramp, wait until we're even closer
+    // We want to make sure we go up the ramp far enough to see anything potentially blocking the ramp
+    ChokeData & chokeData = *((ChokeData*)(*waypoints.begin())->Ext());
+    if (chokeData.width < 96 && chokeData.isRamp && !BWAPI::Broodwar->isVisible(chokeData.highElevationTile))
+        return;
 
     // Move to the next waypoint
     waypoints.pop_front();
@@ -176,10 +184,10 @@ void LocutusUnit::moveToNextWaypoint()
     const BWEM::ChokePoint * nextWaypoint = *waypoints.begin();
 
     // Check if the next waypoint needs to be mineral walked
-    if (nextWaypoint->Ext())
+    if (((ChokeData*)nextWaypoint->Ext())->requiresMineralWalk)
     {
-        BWAPI::Unit firstPatch = ((MineralWalkChoke*)nextWaypoint->Ext())->firstMineralPatch;
-        BWAPI::Unit secondPatch = ((MineralWalkChoke*)nextWaypoint->Ext())->secondMineralPatch;
+        BWAPI::Unit firstPatch = ((ChokeData*)nextWaypoint->Ext())->firstMineralPatch;
+        BWAPI::Unit secondPatch = ((ChokeData*)nextWaypoint->Ext())->secondMineralPatch;
 
         // Determine which mineral patch to target
         // If exactly one of them requires traversing the choke point to reach, pick it
@@ -207,20 +215,32 @@ void LocutusUnit::moveToNextWaypoint()
         return;
     }
 
-    // Get the next position after this waypoint
-    BWAPI::Position next = targetPosition;
-    if (waypoints.size() > 1) next = BWAPI::Position(waypoints[1]->Center());
+    // Determine the position on the choke to move towards
 
-    // Move to the part of the choke closest to the next position
-    int bestDist = INT_MAX;
-    for (auto walkPosition : nextWaypoint->Geometry())
+    // If it is a narrow ramp, move towards the point with highest elevation
+    // We do this to make sure we explore the higher elevation part of the ramp before bugging out if it is blocked
+    ChokeData & chokeData = *((ChokeData*)nextWaypoint->Ext());
+    if (chokeData.width < 96 && chokeData.isRamp)
     {
-        BWAPI::Position pos(walkPosition);
-        int dist = pos.getApproxDistance(next);
-        if (dist < bestDist)
+        currentlyMovingTowards = BWAPI::Position(chokeData.highElevationTile) + BWAPI::Position(16, 16);
+    }
+    else
+    {
+        // Get the next position after this waypoint
+        BWAPI::Position next = targetPosition;
+        if (waypoints.size() > 1) next = BWAPI::Position(waypoints[1]->Center());
+
+        // Move to the part of the choke closest to the next position
+        int bestDist = INT_MAX;
+        for (auto walkPosition : nextWaypoint->Geometry())
         {
-            bestDist = dist;
-            currentlyMovingTowards = pos;
+            BWAPI::Position pos(walkPosition);
+            int dist = pos.getApproxDistance(next);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                currentlyMovingTowards = pos;
+            }
         }
     }
 

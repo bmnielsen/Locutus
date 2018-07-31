@@ -121,7 +121,7 @@ bool bunkerBlocksNarrowChoke(BWAPI::Position bunkerPosition)
     if (chokes.size() < 2) return false;
 
     auto lastChoke = chokes[chokes.size() - 1];
-    return lastChoke->Data() < 96 &&
+    return ((ChokeData*)lastChoke->Ext())->width < 96 &&
         bunkerPosition.getApproxDistance(BWAPI::Position(lastChoke->Center())) < 200;
 }
 

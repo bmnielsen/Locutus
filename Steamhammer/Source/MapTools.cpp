@@ -3,7 +3,10 @@
 #include "BuildingPlacer.h"
 #include "InformationManager.h"
 
+const double pi = 3.14159265358979323846;
+
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
@@ -34,12 +37,53 @@ MapTools::MapTools()
         for (const BWEM::ChokePoint * choke : area.ChokePoints())
             chokes.insert(choke);
 
-    // Store the width of each chokepoint in its data field
+    // Store a ChokeData object for each choke
     for (const BWEM::ChokePoint * choke : chokes)
     {
+        choke->SetExt(new ChokeData(choke));
+        ChokeData & chokeData = *((ChokeData*)choke->Ext());
+
+        // Compute the choke width
         // Because the ends are themselves walkable tiles, we need to add a bit of padding to estimate the actual walkable width of the choke
         int width = BWAPI::Position(choke->Pos(choke->end1)).getApproxDistance(BWAPI::Position(choke->Pos(choke->end2))) + 15;
-        choke->SetData(width);
+        chokeData.width = width;
+
+        // Determine if the choke is a ramp
+        int firstAreaElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(choke->GetAreas().first->Top()));
+        int secondAreaElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(choke->GetAreas().second->Top()));
+        if (firstAreaElevation != secondAreaElevation)
+        {
+            chokeData.isRamp = true;
+
+            // For narrow ramps with a difference in elevation, compute a tile at high elevation close to the choke
+            // We will use this for pathfinding
+            if (chokeData.width < 96)
+            {
+                // Start by computing the angle of the choke
+                BWAPI::Position chokeDelta(choke->Pos(choke->end1) - choke->Pos(choke->end2));
+                double chokeAngle = atan2(chokeDelta.y, chokeDelta.x);
+
+                // Now find a tile a bit away from the middle of the choke that is at high elevation
+                int highestElevation = std::max(firstAreaElevation, secondAreaElevation);
+                BWAPI::Position center(choke->Center());
+                BWAPI::TilePosition closestToCenter = BWAPI::TilePositions::Invalid;
+                for (int step = 0; step <= 6; step++)
+                    for (int direction = -1; direction <= 1; direction += 2)
+                    {
+                        BWAPI::TilePosition tile(BWAPI::Position(
+                            center.x - (int)std::round(16 * step * std::cos(chokeAngle + direction * (pi / 2.0))),
+                            center.y - (int)std::round(16 * step * std::sin(chokeAngle + direction * (pi / 2.0)))));
+
+                        if (!tile.isValid()) continue;
+                        if (!bwebMap.isWalkable(tile)) continue;
+
+                        if (BWAPI::Broodwar->getGroundHeight(tile) == highestElevation)
+                        {
+                            chokeData.highElevationTile = tile;
+                        }
+                    }
+            }
+        }
     }
 
     // On Plasma, we enrich the BWEM chokepoints with data about mineral walking
@@ -48,6 +92,7 @@ MapTools::MapTools()
         // Process each choke
         for (const BWEM::ChokePoint * choke : chokes)
         {
+            ChokeData & chokeData = *((ChokeData*)choke->Ext());
             BWAPI::Position chokeCenter(choke->Center());
 
             // Determine if the choke is blocked by eggs, and grab the close mineral patches
@@ -85,7 +130,9 @@ MapTools::MapTools()
 
             if (!blockedByEggs) continue;
 
-            choke->SetExt(new MineralWalkChoke(closestMineralPatch, secondClosestMineralPatch));
+            chokeData.requiresMineralWalk = true;
+            chokeData.firstMineralPatch = closestMineralPatch;
+            chokeData.secondMineralPatch = secondClosestMineralPatch;
         }
     }
 

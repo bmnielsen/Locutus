@@ -1867,9 +1867,9 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
             auto path = PathFinding::GetChokePointPath(squadCenter, base->getPosition());
             if (path.empty()) continue;
 
-            // A choke requires mineral walking if we have put something in Ext
+            // Skip bases behind chokes that require mineral walking
             for (auto choke : path)
-                if (choke->Ext())
+                if (((ChokeData*)choke->Ext())->requiresMineralWalk)
                     goto nextBase;
 
             return base->getPosition();

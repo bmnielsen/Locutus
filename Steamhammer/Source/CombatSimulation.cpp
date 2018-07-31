@@ -240,7 +240,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         // Are we attacking through a narrow choke?
         for (auto choke : PathFinding::GetChokePointPath(myUnitsCentroid, enemyUnitsCentroid))
         {
-            if (choke->Data() < 96)
+            if (((ChokeData*)choke->Ext())->width < 96)
             {
                 narrowChoke = true;
                 debug << "\nFight crosses narrow choke";

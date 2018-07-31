@@ -11,14 +11,24 @@
 namespace UAlbertaBot
 {
 
-struct MineralWalkChoke
+struct ChokeData
 {
+    int width;
+
+    bool isRamp;
+    BWAPI::TilePosition highElevationTile;
+
+    bool requiresMineralWalk;
     BWAPI::Unit firstMineralPatch;
     BWAPI::Unit secondMineralPatch;
 
-    MineralWalkChoke(BWAPI::Unit _firstMineralPatch, BWAPI::Unit _secondMineralPatch) 
-        : firstMineralPatch(_firstMineralPatch)
-        , secondMineralPatch(_secondMineralPatch)
+    ChokeData(const BWEM::ChokePoint* choke)
+        : width(0)
+        , isRamp(false)
+        , highElevationTile(BWAPI::TilePosition(choke->Center()))
+        , requiresMineralWalk(false)
+        , firstMineralPatch(nullptr)
+        , secondMineralPatch(nullptr)
     {};
 };
 
