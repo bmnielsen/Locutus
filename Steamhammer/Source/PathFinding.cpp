@@ -50,8 +50,9 @@ std::vector<const BWEM::ChokePoint *> PathFinding::GetChokePointPathAvoidingUnde
     int minChokeWidth,
     int desiredChokeWidth)
 {
-    const BWEM::Area * startArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(start));
-    const BWEM::Area * targetArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(target));
+    const BWEM::Area * startArea = bwemMap.GetArea(BWAPI::WalkPosition(start));
+    const BWEM::Area * targetArea = bwemMap.GetArea(BWAPI::WalkPosition(target));
+    if (!startArea || !targetArea) return {};
 
     struct Node {
         Node(const BWEM::ChokePoint * choke, int const dist, const BWEM::Area * toArea, const BWEM::ChokePoint * parent)

@@ -592,9 +592,10 @@ BWAPI::Position CombatCommander::getReconLocation() const
     if (!groundSquad.isEmpty())
     {
         BWAPI::Unit vanguard = groundSquad.unitClosestToOrderPosition();
-        if (vanguard)
+        const BWEM::Area * vanguardArea = vanguard ? bwemMap.GetArea(BWAPI::WalkPosition(vanguard->getPosition())) : nullptr;
+        if (vanguardArea)
         {
-            attackSquadAreas.insert(bwemMap.GetNearestArea(BWAPI::WalkPosition(vanguard->getPosition())));
+            attackSquadAreas.insert(vanguardArea);
             for (auto choke : PathFinding::GetChokePointPath(vanguard->getPosition(), groundSquad.getSquadOrder().getPosition()))
             {
                 attackSquadAreas.insert(choke->GetAreas().first);
@@ -610,7 +611,10 @@ BWAPI::Position CombatCommander::getReconLocation() const
 	{
         if (InformationManager::Instance().getBaseOwner(base) != BWAPI::Broodwar->neutral()) continue; // not neutral
         if (MapTools::Instance().getGroundTileDistance(base->getPosition(), mainPosition) == -1) continue; // not reachable by ground
-        if (attackSquadAreas.find(bwemMap.GetNearestArea(base->getTilePosition())) != attackSquadAreas.end()) continue; // will be attacked
+
+        // already on route being taken by the ground squad
+        auto area = bwemMap.GetArea(base->getTilePosition());
+        if (attackSquadAreas.find(area) != attackSquadAreas.end()) continue;
 
         int proximityToEnemyBase = MapTools::Instance().closestBaseDistance(base, enemyBases);
         double proximityFactor = proximityToEnemyBase > 0 ? proximityToEnemyBase : 1.0;
@@ -1733,7 +1737,7 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 
 	// 1. Attack an enemy base
 	// Only if the squad can attack ground. Lift the command center and it is no longer counted as a base.
-	if (canAttackGround)
+	if (canAttackGround || !hasAir)
 	{
         // Weight this by:
         // - How much static defense is at the base
@@ -1825,7 +1829,7 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 		{
 			const UnitInfo & ui = kv.second;
 
-			if (ui.type.isBuilding() && ui.lastPosition.isValid() && !ui.goneFromLastPosition)
+			if (ui.type.isBuilding() && ui.lastPosition.isValid() && !ui.goneFromLastPosition && bwemMap.GetArea(BWAPI::WalkPosition(ui.lastPosition)))
 			{
 				return ui.lastPosition;
 			}

@@ -65,8 +65,9 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     currentlyMovingTowards = BWAPI::Positions::Invalid;
     mineralWalkingPatch = nullptr;
 
-    // If the unit is already in the same region, just move it directly
-    if (bwemMap.GetNearestArea(BWAPI::WalkPosition(position)) == bwemMap.GetNearestArea(BWAPI::WalkPosition(unit->getPosition())))
+    // If the unit is already in the same area, just move it directly
+    auto targetArea = bwemMap.GetArea(BWAPI::WalkPosition(position));
+    if (!targetArea || targetArea == bwemMap.GetArea(BWAPI::WalkPosition(unit->getPosition())))
     {
         Micro::Move(unit, position);
         return true;
