@@ -180,7 +180,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 
 		// 0. Parse all the openings.
 		// Besides making them all available, this checks that they are syntatically valid.
-		std::vector<const std::string> openingNames;		// in case we want to make a random choice
+		std::vector<std::string> openingNames;		// in case we want to make a random choice
 		if (strategy.HasMember("Strategies") && strategy["Strategies"].IsObject())
 		{
 			const rapidjson::Value & strategies = strategy["Strategies"];
