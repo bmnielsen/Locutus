@@ -1694,7 +1694,8 @@ bool CombatCommander::onTheDefensive()
         : InformationManager::Instance().getMyMainBaseLocation();
 
     // First check: Our ground or air squads are fighting a good distance away from the base
-    BWAPI::Unit groundVanguard = _squadData.getSquad("Ground").unitClosestToOrderPosition();
+    Squad & groundSquad = _squadData.getSquad("Ground");
+    BWAPI::Unit groundVanguard = groundSquad.unitClosestToOrderPosition();
     if (groundVanguard)
     {
         int distanceFromNatural = PathFinding::GetGroundDistance(groundVanguard->getPosition(), base->getPosition());
@@ -1708,6 +1709,7 @@ bool CombatCommander::onTheDefensive()
     // Our squads are empty or close to home. We're on the defensive if an enemy combat unit is close to our base
     for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
         if (UnitUtil::IsCombatUnit(ui.second.type) &&
+            !ui.second.goneFromLastPosition &&
             ui.second.lastPosition.getApproxDistance(base->getPosition()) < 1500)
             return true;
 

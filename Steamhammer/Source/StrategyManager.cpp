@@ -203,19 +203,19 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
                 numForges++;
 
 			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway
-				&& unit->getRemainingTrainTime() < 48)
+				&& unit->getRemainingTrainTime() < 12)
 				idleGateways++;
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Stargate
-				&& unit->getRemainingTrainTime() < 48)
+				&& unit->getRemainingTrainTime() < 12)
 				idleStargates++;
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Robotics_Facility
-				&& unit->getRemainingTrainTime() < 48)
+				&& unit->getRemainingTrainTime() < 12)
 				idleRoboFacilities++;
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge
-				&& unit->getRemainingUpgradeTime() < 48)
+				&& unit->getRemainingUpgradeTime() < 12)
 				idleForges++;
 			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Cybernetics_Core
-				&& unit->getRemainingUpgradeTime() < 48)
+				&& unit->getRemainingUpgradeTime() < 12)
                 idleCyberCores++;
 		}
 
@@ -1918,7 +1918,7 @@ double StrategyManager::getProductionSaturation(BWAPI::UnitType producer) const
             && unit->isPowered())
         {
             numFacilities++;
-            if (unit->getRemainingTrainTime() < 48) idleFacilities++;
+            if (unit->getRemainingTrainTime() < 12) idleFacilities++;
         }
 
     if (numFacilities == 0) return 0.0;

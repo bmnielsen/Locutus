@@ -602,7 +602,7 @@ BWAPI::Unit Squad::unitClosestToOrderPosition() const
 
 	UAB_ASSERT(_order.getPosition().isValid(), "bad order position");
 
-	for (const auto unit : _units)
+	for (auto unit : _units)
 	{
 		// Non-combat units should be ignored for this calculation.
 		if (unit->getType().isDetector() ||
@@ -623,7 +623,7 @@ BWAPI::Unit Squad::unitClosestToOrderPosition() const
 		{
 			// An all-air squad. Use air distance (which is what unit->getDistance() gives).
 			dist = unit->getDistance(_order.getPosition());
-		}
+        }
 
 		if (dist < closestDist && dist != -1)
 		{
