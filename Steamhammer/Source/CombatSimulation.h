@@ -10,8 +10,9 @@ namespace UAlbertaBot
 class CombatSimulation
 {
 private:
-    BWAPI::Position simPosition;
+    BWAPI::Position myVanguard;
     BWAPI::Position myUnitsCentroid;
+    BWAPI::Position enemyVanguard;
     BWAPI::Position enemyUnitsCentroid;
     bool airBattle;
     int enemyZerglings;
@@ -22,7 +23,7 @@ public:
 
 	CombatSimulation();
 
-	void setCombatUnits(const BWAPI::Position & center, const int radius, bool visibleOnly, bool ignoreBunkers);
+	void setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Position _enemyVanguard, const int radius, bool visibleOnly, bool ignoreBunkers);
 
 	int simulateCombat(bool currentlyRetreating);
 };

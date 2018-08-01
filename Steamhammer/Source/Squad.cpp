@@ -376,14 +376,6 @@ bool Squad::needsToRegroup()
 		}
 	}
 
-	BWAPI::Unit unitClosest = unitClosestToOrderPosition();
-
-	if (!unitClosest)
-	{
-		_regroupStatus = std::string("No closest unit");
-		return false;
-	}
-
     // Don't retreat if we are actively doing a run-by
     // TODO: Split the run-by units into their own squad
     for (auto & unit : _units)
@@ -400,36 +392,7 @@ bool Squad::needsToRegroup()
 	if (!retreat)
 	{
         // All other checks are done. Finally do the expensive combat simulation.
-
-        // Find the closest enemy to our vanguard unit
-        int closestDist = INT_MAX;
-        BWAPI::Position closestPosition = BWAPI::Positions::Invalid;
-        for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
-        {
-            if (ui.second.goneFromLastPosition) continue;
-            int dist = ui.second.lastPosition.getApproxDistance(unitClosest->getPosition());
-            if (dist < closestDist)
-            {
-                closestDist = dist;
-                closestPosition = ui.second.lastPosition;
-            }
-        }
-
-        // If that enemy is closer to our order position (ground distance), run the combat
-        // sim around the midway point between the units
-        BWAPI::Position simPosition(unitClosest->getPosition());
-        if (closestPosition.isValid() && closestDist > 32)
-        {
-            int ourDistToOrderPosition = PathFinding::GetGroundDistance(unitClosest->getPosition(), _order.getPosition());
-            int theirDistToOrderPosition = PathFinding::GetGroundDistance(closestPosition, _order.getPosition());
-            if (ourDistToOrderPosition != -1 && theirDistToOrderPosition != -1 &&
-                ourDistToOrderPosition > (theirDistToOrderPosition + 32))
-            {
-                simPosition = (simPosition + closestPosition) / 2;
-            }
-        }
-        
-        double score = runCombatSim(simPosition);
+        int score = runCombatSim(_order.getPosition());
 
 		retreat = score < 0;
 		_lastRetreatSwitch = BWAPI::Broodwar->getFrameCount();
@@ -594,13 +557,18 @@ BWAPI::Position Squad::calcRegroupPosition()
 	return regroup;
 }
 
-// Return the unit closest to the order position (not actually closest to the enemy).
 BWAPI::Unit Squad::unitClosestToOrderPosition() const
 {
-	BWAPI::Unit closest = nullptr;
-	int closestDist = 100000;
+    return unitClosestTo(_order.getPosition());
+}
 
-	UAB_ASSERT(_order.getPosition().isValid(), "bad order position");
+// Return the unit closest to the order position
+BWAPI::Unit Squad::unitClosestTo(BWAPI::Position position, bool debug) const
+{
+	BWAPI::Unit closest = nullptr;
+	int closestDist = INT_MAX;
+
+	UAB_ASSERT(position.isValid(), "bad position");
 
 	for (auto unit : _units)
 	{
@@ -617,12 +585,12 @@ BWAPI::Unit Squad::unitClosestToOrderPosition() const
 		{
 			// A ground or air-ground squad. Use ground distance.
 			// It is -1 if no ground path exists.
-            int dist = PathFinding::GetGroundDistance(unit->getPosition(), _order.getPosition());
+            dist = PathFinding::GetGroundDistance(unit->getPosition(), position);
 		}
 		else
 		{
 			// An all-air squad. Use air distance (which is what unit->getDistance() gives).
-			dist = unit->getDistance(_order.getPosition());
+			dist = unit->getDistance(position);
         }
 
 		if (dist < closestDist && dist != -1)
@@ -853,14 +821,34 @@ MicroBunkerAttackSquad * Squad::getBunkerRunBySquad(BWAPI::Unit unit)
     return nullptr;
 }
 
-double Squad::runCombatSim(BWAPI::Position center)
+int Squad::runCombatSim(BWAPI::Position targetPosition)
 {
+    // Get our "vanguard unit"
+    BWAPI::Unit ourVanguard = unitClosestTo(targetPosition, true);
+    if (!ourVanguard) return 1; // We have no units
+
+    // Get the enemy "vanguard unit"
+    int closestDist = INT_MAX;
+    BWAPI::Position enemyVanguard = BWAPI::Positions::Invalid;
+    for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+    {
+        if (ui.second.goneFromLastPosition) continue;
+        int dist = ui.second.isFlying || ourVanguard->isFlying()
+            ? ui.second.lastPosition.getApproxDistance(ourVanguard->getPosition())
+            : PathFinding::GetGroundDistance(ui.second.lastPosition, ourVanguard->getPosition());
+        if (dist < closestDist && dist != -1)
+        {
+            closestDist = dist;
+            enemyVanguard = ui.second.lastPosition;
+        }
+    }
+    if (!enemyVanguard.isValid()) return 1; // Enemy has no units
+
     // Special case: ignore enemy bunkers if:
     // - Our squad is entirely ranged goons
     // - The enemy doesn't have the marine range upgrade
     // - The enemy doesn't have any other units in the combat sim radius
     // - None of our goons are moving into range of an enemy bunker (unless they are in a bunker attack squad)
-    
     bool ignoreBunkers = 
         BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge) &&
         !InformationManager::Instance().enemyHasInfantryRangeUpgrade();
@@ -871,7 +859,7 @@ double Squad::runCombatSim(BWAPI::Position center)
         for (auto const & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
         {
             if (UnitUtil::IsCombatUnit(ui.second.type) && ui.second.type != BWAPI::UnitTypes::Terran_Bunker &&
-                !ui.second.goneFromLastPosition && ui.second.lastPosition.getApproxDistance(center) < _combatSimRadius)
+                !ui.second.goneFromLastPosition && ui.second.lastPosition.getApproxDistance(enemyVanguard) < _combatSimRadius)
             {
                 ignoreBunkers = false;
                 goto breakBunkerCheck;
@@ -924,7 +912,7 @@ double Squad::runCombatSim(BWAPI::Position center)
     int radius = _combatSimRadius;
     if (StrategyManager::Instance().isRushing()) radius /= 2;
 
-    sim.setCombatUnits(center, radius, _fightVisibleOnly, ignoreBunkers);
+    sim.setCombatUnits(ourVanguard->getPosition(), enemyVanguard, radius, _fightVisibleOnly, ignoreBunkers);
     return sim.simulateCombat(_lastRetreatSwitchVal);
 }
 

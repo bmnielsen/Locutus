@@ -92,6 +92,7 @@ public:
 	BWAPI::Position     calcCenter() const;
 	BWAPI::Position     calcRegroupPosition();
     BWAPI::Unit		    unitClosestToOrderPosition() const;
+    BWAPI::Unit		    unitClosestTo(BWAPI::Position position, bool debug = false) const;
 
 	const BWAPI::Unitset &  getUnits() const;
 	void                setSquadOrder(const SquadOrder & so);
@@ -103,7 +104,7 @@ public:
 
 	int					getCombatSimRadius() const { return _combatSimRadius; };
 	void				setCombatSimRadius(int radius) { _combatSimRadius = radius; };
-    double              runCombatSim(BWAPI::Position center);
+    int                 runCombatSim(BWAPI::Position position);
 
 	bool				getFightVisible() const { return _fightVisibleOnly; };
 	void				setFightVisible(bool visibleOnly) { _fightVisibleOnly = visibleOnly; };
