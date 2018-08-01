@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "UnitData.h"
 #include "InformationManager.h"
+#include "MathUtil.h"
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
@@ -29,20 +30,44 @@ void UnitData::updateGoneFromLastPosition()
 	{
 		UnitInfo & ui(kv.second);
 
-		if (!ui.goneFromLastPosition &&
-			ui.lastPosition.isValid() &&   // should be always true
-			ui.unit &&                     // should be always true
-			!ui.unit->isVisible() &&
-			BWAPI::Broodwar->isVisible(BWAPI::TilePosition(ui.lastPosition)))
-		{
-			ui.goneFromLastPosition = true;
+        // Skip if not applicable
+        if (ui.goneFromLastPosition ||
+            !ui.lastPosition.isValid() ||
+            !ui.unit ||
+            ui.unit->isVisible()) continue;
+
+        // If the last position is now visible, the unit is gone
+        if (BWAPI::Broodwar->isVisible(BWAPI::TilePosition(ui.lastPosition)))
+        {
+            ui.goneFromLastPosition = true;
 
             // If this is a building that can fly, assume it lifted off
             if (ui.type.isFlyingBuilding())
             {
                 InformationManager::Instance().onEnemyBuildingFlying(ui.type, ui.lastPosition);
             }
-		}
+        }
+
+        // If the unit is a sieged tank, assume it is gone from its last position
+        // if we haven't seen it in 10 seconds and have a unit that it would otherwise
+        // fire upon
+        else if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode &&
+            ui.updateFrame < (BWAPI::Broodwar->getFrameCount() - 240))
+        {
+            // Look for a unit inside the tank's sight range
+            // TODO: Could also look for a unit inside the tank's weapon range that the enemy can see
+            for (auto unit : BWAPI::Broodwar->self()->getUnits())
+                if (MathUtil::EdgeToEdgeDistance(
+                    unit->getType(),
+                    unit->getPosition(),
+                    BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode,
+                    ui.lastPosition) <= BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.sightRange())
+                {
+                    Log().Debug() << "Assuming tank @ " << BWAPI::TilePosition(ui.lastPosition) << " is gone from that position";
+                    ui.goneFromLastPosition = true;
+                    break;
+                }
+        }
 	}
 }
 
