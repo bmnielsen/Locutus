@@ -446,9 +446,9 @@ namespace UAlbertaBot {
         fu.operator=(funew);
     }
 
-    FastAPproximation::FAPUnit::FAPUnit(BWAPI::Unit u) : FAPUnit(UnitInfo(u), u->getGroundWeaponCooldown()) {}
+    FastAPproximation::FAPUnit::FAPUnit(BWAPI::Unit u) : FAPUnit(UnitInfo(u)) {}
 
-    FastAPproximation::FAPUnit::FAPUnit(UnitInfo ui, int _attackCooldownRemaining)
+    FastAPproximation::FAPUnit::FAPUnit(UnitInfo ui)
         : x(ui.lastPosition.x), y(ui.lastPosition.y),
 
         speed(InformationManager::Instance().getUnitTopSpeed(ui.player, ui.type)),
@@ -474,7 +474,7 @@ namespace UAlbertaBot {
         airMinRange(ui.type.airWeapon().minRange()),
         airDamageType(ui.type.airWeapon().damageType()),
 
-        attackCooldownRemaining(_attackCooldownRemaining),
+        attackCooldownRemaining(std::max(0, ui.groundWeaponCooldownFrame - BWAPI::Broodwar->getFrameCount())),
 
         unitType(ui.type),
         isOrganic(ui.type.isOrganic()),
