@@ -826,8 +826,8 @@ void InformationManager::detectEnemyWall(BWAPI::Unit unit)
             if (enemyWalls.find(choke) != enemyWalls.end()) continue;
 
             // Determine which area is on our side of the wall
-            int firstDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().first->Top()), getMyMainBaseLocation()->getPosition());
-            int secondDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().second->Top()), getMyMainBaseLocation()->getPosition());
+            int firstDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().first->Top()), getMyMainBaseLocation()->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
+            int secondDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().second->Top()), getMyMainBaseLocation()->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
             auto closestArea = (firstDist < secondDist) ? choke->GetAreas().first : choke->GetAreas().second;
             auto furthestArea = (firstDist < secondDist) ? choke->GetAreas().second : choke->GetAreas().first;
 

@@ -584,7 +584,6 @@ BWAPI::Unit Squad::unitClosestTo(BWAPI::Position position, bool debug) const
 		if (_hasGround)
 		{
 			// A ground or air-ground squad. Use ground distance.
-			// It is -1 if no ground path exists.
             dist = PathFinding::GetGroundDistance(unit->getPosition(), position);
 		}
 		else
@@ -792,6 +791,8 @@ void Squad::addUnitToBunkerAttackSquad(BWAPI::Position bunkerPosition, BWAPI::Un
 
 bool Squad::addUnitToBunkerAttackSquadIfClose(BWAPI::Unit unit)
 {
+    if (unit->isFlying()) return false;
+
     int distToOrderPosition = unit->getDistance(_order.getPosition());
 
     for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))

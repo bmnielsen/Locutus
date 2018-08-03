@@ -1201,7 +1201,7 @@ void CombatCommander::updateBaseDefenseSquads()
             int rushDistance = INT_MAX;
             if (enemyBaseLocation)
             {
-                rushDistance = PathFinding::GetGroundDistance(wall.gapCenter, enemyBaseLocation->getPosition());
+                rushDistance = PathFinding::GetGroundDistance(wall.gapCenter, enemyBaseLocation->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
             }
             else
             {
@@ -1209,7 +1209,7 @@ void CombatCommander::updateBaseDefenseSquads()
                 {
                     if (base == mainBaseLocation) continue;
 
-                    int baseDistance = PathFinding::GetGroundDistance(wall.gapCenter, base->getPosition());
+                    int baseDistance = PathFinding::GetGroundDistance(wall.gapCenter, base->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
                     if (baseDistance < rushDistance)
                         rushDistance = baseDistance;
                 }
@@ -1219,7 +1219,7 @@ void CombatCommander::updateBaseDefenseSquads()
             int zerglingArrivalFrame = 2600 + rushDistance / BWAPI::UnitTypes::Zerg_Zergling.topSpeed();
 
             // Now subtract the approximate number of frames it will take our workers to get to the wall
-            int wallDistance = PathFinding::GetGroundDistance(wall.gapCenter, mainBaseLocation->getPosition());
+            int wallDistance = PathFinding::GetGroundDistance(wall.gapCenter, mainBaseLocation->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
             int workerMovementFrames = 1.3 * wallDistance / BWAPI::UnitTypes::Protoss_Probe.topSpeed();
 
             Log().Debug() << "Active wall cannons: " << activeWallCannons << "; rush distance: " << rushDistance << "; arrival frame: " << zerglingArrivalFrame << "; worker frames: " << workerMovementFrames;

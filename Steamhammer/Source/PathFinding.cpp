@@ -7,21 +7,27 @@ namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
-int PathFinding::GetGroundDistance(BWAPI::Position start, BWAPI::Position end)
+int PathFinding::GetGroundDistance(BWAPI::Position start, BWAPI::Position end, PathFindingOptions options)
 {
-    // If either of the points is not in a BWEM area, it is probably over unwalkable terrain.
-    if (!bwemMap.GetArea(BWAPI::WalkPosition(start)) || !bwemMap.GetArea(BWAPI::WalkPosition(end)))
-        return -1;
+    // Parse options
+    bool useNearestBWEMArea = ((int)options & (int)PathFindingOptions::UseNearestBWEMArea) != 0;
+
+    // If either of the points is not in a BWEM area, fall back to air distance unless the caller overrides this
+    if (!useNearestBWEMArea && (!bwemMap.GetArea(BWAPI::WalkPosition(start)) || !bwemMap.GetArea(BWAPI::WalkPosition(end))))
+        return start.getApproxDistance(end);
 
     int dist;
     bwemMap.GetPath(start, end, &dist);
     return dist;
 }
 
-const BWEM::CPPath PathFinding::GetChokePointPath(BWAPI::Position start, BWAPI::Position end)
+const BWEM::CPPath PathFinding::GetChokePointPath(BWAPI::Position start, BWAPI::Position end, PathFindingOptions options)
 {
+    // Parse options
+    bool useNearestBWEMArea = ((int)options & (int)PathFindingOptions::UseNearestBWEMArea) != 0;
+
     // If either of the points is not in a BWEM area, it is probably over unwalkable terrain
-    if (!bwemMap.GetArea(BWAPI::WalkPosition(start)) || !bwemMap.GetArea(BWAPI::WalkPosition(end)))
+    if (!useNearestBWEMArea && (!bwemMap.GetArea(BWAPI::WalkPosition(start)) || !bwemMap.GetArea(BWAPI::WalkPosition(end))))
         return BWEM::CPPath();
 
     return bwemMap.GetPath(start, end);
@@ -47,11 +53,15 @@ BWAPI::TilePosition PathFinding::NearbyPathfindingTile(BWAPI::TilePosition start
 std::vector<const BWEM::ChokePoint *> PathFinding::GetChokePointPathAvoidingUndesirableChokePoints(
     BWAPI::Position start,
     BWAPI::Position target,
+    PathFindingOptions options,
     int minChokeWidth,
     int desiredChokeWidth)
 {
-    const BWEM::Area * startArea = bwemMap.GetArea(BWAPI::WalkPosition(start));
-    const BWEM::Area * targetArea = bwemMap.GetArea(BWAPI::WalkPosition(target));
+    // Parse options
+    bool useNearestBWEMArea = ((int)options & (int)PathFindingOptions::UseNearestBWEMArea) != 0;
+
+    const BWEM::Area * startArea = useNearestBWEMArea ? bwemMap.GetNearestArea(BWAPI::WalkPosition(start)) : bwemMap.GetArea(BWAPI::WalkPosition(start));
+    const BWEM::Area * targetArea = useNearestBWEMArea ? bwemMap.GetNearestArea(BWAPI::WalkPosition(target)) : bwemMap.GetArea(BWAPI::WalkPosition(target));
     if (!startArea || !targetArea) return {};
 
     struct Node {

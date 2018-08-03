@@ -410,7 +410,7 @@ void BuildingPlacer::findHiddenTechBlock()
     {
         if (base == _myBase) continue;
 
-        for (auto choke : PathFinding::GetChokePointPath(base->getPosition(), _myBase->getPosition()))
+        for (auto choke : PathFinding::GetChokePointPath(base->getPosition(), _myBase->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea))
         {
             areasToAvoid.insert(choke->GetAreas().first);
             areasToAvoid.insert(choke->GetAreas().second);
@@ -437,13 +437,13 @@ void BuildingPlacer::findHiddenTechBlock()
             if (bwebMap.canAddBlock(tile, 5, 4))
             {
                 BWAPI::Position blockCenter = BWAPI::Position(tile) + BWAPI::Position(5 * 16, 4 * 16);
-                dist = PathFinding::GetGroundDistance(blockCenter, _myBase->getPosition());
+                dist = PathFinding::GetGroundDistance(blockCenter, _myBase->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 if (dist == -1 || dist > 3000) continue;
             }
             else if (bwebMap.canAddBlock(tile, 8, 2))
             {
                 BWAPI::Position blockCenter = BWAPI::Position(tile) + BWAPI::Position(8 * 16, 2 * 16);
-                dist = PathFinding::GetGroundDistance(blockCenter, _myBase->getPosition());
+                dist = PathFinding::GetGroundDistance(blockCenter, _myBase->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 if (dist == -1 || dist > 3000) continue;
             }
             else
@@ -610,7 +610,7 @@ void BuildingPlacer::findProxyBlocks()
                 }
 
                 // Compute distance, abort if it is not connected
-                int dist = PathFinding::GetGroundDistance(base->getPosition(), blockCenter);
+                int dist = PathFinding::GetGroundDistance(base->getPosition(), blockCenter, PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 if (dist == -1)
                 {
                     debug << "Not connected";
@@ -643,7 +643,7 @@ void BuildingPlacer::findProxyBlocks()
             // On 4+ player maps where the center isn't buildable, prefer locations closest to our main
             if (enemyStartLocations.size() >= 3 && minDist < ((double)maxDist * 0.75))
             {
-                int distToOurMain = PathFinding::GetGroundDistance(blockCenter, mainPosition);
+                int distToOurMain = PathFinding::GetGroundDistance(blockCenter, mainPosition, PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 if (distToOurMain > minDist)
                 {
                     debug << "rejecting for center, large variance and too far from our main";
@@ -810,7 +810,8 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
             // Now compute the distance
             blockData.dist = PathFinding::GetGroundDistance(
                 BWAPI::Position(closeTo) + BWAPI::Position(16, 16),
-                BWAPI::Position(blockData.pylon) + BWAPI::Position(32, 32));
+                BWAPI::Position(blockData.pylon) + BWAPI::Position(32, 32),
+                PathFinding::PathFindingOptions::UseNearestBWEMArea);
 
             // If this block isn't ground-connected to the desired position, don't consider it
             if (blockData.dist == -1) continue;

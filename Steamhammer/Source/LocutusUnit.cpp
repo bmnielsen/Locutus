@@ -65,7 +65,7 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     currentlyMovingTowards = BWAPI::Positions::Invalid;
     mineralWalkingPatch = nullptr;
 
-    // If the unit is already in the same area, just move it directly
+    // If the unit is already in the same area, or the target doesn't have an area, just move it directly
     auto targetArea = bwemMap.GetArea(BWAPI::WalkPosition(position));
     if (!targetArea || targetArea == bwemMap.GetArea(BWAPI::WalkPosition(unit->getPosition())))
     {
@@ -74,7 +74,7 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     }
 
     // Get the BWEM path
-    auto& path = PathFinding::GetChokePointPath(unit->getPosition(), position);
+    auto& path = PathFinding::GetChokePointPath(unit->getPosition(), position, PathFinding::PathFindingOptions::UseNearestBWEMArea);
     if (path.empty()) return false;
 
     // Detect when we can't use the BWEM path:
@@ -107,7 +107,11 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
     // Attempt to generate an alternate path if possible
     if (!bwemPathValid || bwemPathNarrow)
     {
-        auto alternatePath = PathFinding::GetChokePointPathAvoidingUndesirableChokePoints(unit->getPosition(), position, unit->getType().width());
+        auto alternatePath = PathFinding::GetChokePointPathAvoidingUndesirableChokePoints(
+            unit->getPosition(), 
+            position, 
+            PathFinding::PathFindingOptions::UseNearestBWEMArea, 
+            unit->getType().width());
         if (!alternatePath.empty())
         {
             waypoints.clear();
@@ -194,15 +198,15 @@ void LocutusUnit::moveToNextWaypoint()
         // If exactly one of them requires traversing the choke point to reach, pick it
         // Otherwise pick the furthest
 
-        int firstLength = PathFinding::GetGroundDistance(unit->getPosition(), firstPatch->getInitialPosition());
+        int firstLength = PathFinding::GetGroundDistance(unit->getPosition(), firstPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
         bool firstTraversesChoke = false;
-        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), firstPatch->getInitialPosition()))
+        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), firstPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea))
             if (choke == nextWaypoint)
                 firstTraversesChoke = true;
 
-        int secondLength = PathFinding::GetGroundDistance(unit->getPosition(), secondPatch->getInitialPosition());
+        int secondLength = PathFinding::GetGroundDistance(unit->getPosition(), secondPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
         bool secondTraversesChoke = false;
-        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), secondPatch->getInitialPosition()))
+        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), secondPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea))
             if (choke == nextWaypoint)
                 secondTraversesChoke = true;
 
@@ -292,11 +296,11 @@ void LocutusUnit::mineralWalk()
                 continue;
 
             // Check that there is a path to the tile
-            int pathLength = PathFinding::GetGroundDistance(unit->getPosition(), tileCenter);
+            int pathLength = PathFinding::GetGroundDistance(unit->getPosition(), tileCenter, PathFinding::PathFindingOptions::UseNearestBWEMArea);
             if (pathLength == -1) continue;
 
             // The path should not cross the choke we're mineral walking
-            for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), tileCenter))
+            for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), tileCenter, PathFinding::PathFindingOptions::UseNearestBWEMArea))
                 if (choke == *waypoints.begin())
                     goto cnt;
 

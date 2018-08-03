@@ -82,7 +82,8 @@ std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Position bunkerPosition)
     // Get the BWEM path to the bunker
     auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
-        bunkerPosition);
+        bunkerPosition, 
+        PathFinding::PathFindingOptions::UseNearestBWEMArea);
     if (chokes.size() < 2) return std::vector<BWAPI::TilePosition>();
 
     // Extract the center of the last and second-to-last choke
@@ -117,7 +118,8 @@ bool bunkerBlocksNarrowChoke(BWAPI::Position bunkerPosition)
     // Get the BWEM path to the bunker
     auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
-        bunkerPosition);
+        bunkerPosition,
+        PathFinding::PathFindingOptions::UseNearestBWEMArea);
     if (chokes.size() < 2) return false;
 
     auto lastChoke = chokes[chokes.size() - 1];
@@ -248,9 +250,9 @@ void MicroBunkerAttackSquad::update()
 
         // We are still doing the run-by if we are further away from the order position than the bunker is,
         // unless we are closer to the order position than the bunker
-        int ourDistToOrderPosition = PathFinding::GetGroundDistance(it->first->getPosition(), it->second);
-        int bunkerDistToOrderPosition = PathFinding::GetGroundDistance(_bunkerPosition, it->second);
-        int ourDistToBunker = PathFinding::GetGroundDistance(_bunkerPosition, it->first->getPosition());
+        int ourDistToOrderPosition = PathFinding::GetGroundDistance(it->first->getPosition(), it->second, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+        int bunkerDistToOrderPosition = PathFinding::GetGroundDistance(_bunkerPosition, it->second, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+        int ourDistToBunker = PathFinding::GetGroundDistance(_bunkerPosition, it->first->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
         if (ourDistToOrderPosition > bunkerDistToOrderPosition && ourDistToOrderPosition > ourDistToBunker)
             continue;
 

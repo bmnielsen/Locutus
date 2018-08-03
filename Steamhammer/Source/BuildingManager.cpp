@@ -175,16 +175,17 @@ void BuildingManager::constructAssignedBuildings()
 		}
 		else if (!b.builderUnit->isConstructing())
         {
-            // Move towards the position if:
+            // Move towards the position if either:
             // - it hasn't been explored yet
-            // - it is in a different map area (so may require custom pathing to reach)
             // - it is still far away
-            bool moveToPosition = !isBuildingPositionExplored(b) ||
-                bwemMap.GetNearestArea(b.builderUnit->getTilePosition()) != bwemMap.GetNearestArea(b.finalPosition);
+            bool moveToPosition = !isBuildingPositionExplored(b);
             if (!moveToPosition)
             {
-                int distance = PathFinding::GetGroundDistance(b.builderUnit->getPosition(), BWAPI::Position(b.finalPosition));
-                moveToPosition = distance == -1 || distance > 200;
+                int distance = PathFinding::GetGroundDistance(
+                    b.builderUnit->getPosition(), 
+                    BWAPI::Position(b.finalPosition), 
+                    PathFinding::PathFindingOptions::UseNearestBWEMArea);
+                moveToPosition = distance > 200 || (distance == -1 && b.builderUnit->getPosition().getApproxDistance(BWAPI::Position(b.finalPosition)) > 200);
             }
 
 			if (moveToPosition)
