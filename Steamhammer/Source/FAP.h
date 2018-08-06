@@ -2,6 +2,8 @@
 
 #include "UnitData.h"
 
+//#define FAP_DEBUG 1
+
 namespace UAlbertaBot {
 
     struct FastAPproximation {
@@ -67,8 +69,13 @@ namespace UAlbertaBot {
         void clearState();
 
     private:
+#ifdef FAP_DEBUG
+        std::ofstream debug;
+#endif
+
         std::vector<FAPUnit> player1, player2;
 
+        int frame;
         bool didSomething;
         void dealDamage(const FastAPproximation::FAPUnit &fu, int damage,
             BWAPI::DamageType damageType) const;

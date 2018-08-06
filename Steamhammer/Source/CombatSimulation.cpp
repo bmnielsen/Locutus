@@ -4,7 +4,7 @@
 #include "StrategyManager.h"
 #include "PathFinding.h"
 
-#define COMBATSIM_DEBUG 1
+//#define COMBATSIM_DEBUG 1
 
 using namespace UAlbertaBot;
 
@@ -103,9 +103,11 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 		}
 	}
 
+#ifdef COMBATSIM_DEBUG
     std::ostringstream debug;
     debug << "Adding units to combat sim";
     debug << "\nEnemy units near " << BWAPI::TilePosition(enemyVanguard);
+#endif
 
     // Add the enemy units and compute the centroid
     if (!enemyUnits.empty())
@@ -114,7 +116,9 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 
         for (auto& unit : enemyUnits)
         {
+#ifdef COMBATSIM_DEBUG
             debug << "\n" << unit.type << " @ " << BWAPI::TilePosition(unit.lastPosition);
+#endif
 
             fap.addIfCombatUnitPlayer2(unit);
             enemyUnitsCentroid += unit.lastPosition;
@@ -140,7 +144,9 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 		}
 	}
 
+#ifdef COMBATSIM_DEBUG
     debug << "\nOur units near " << BWAPI::TilePosition(myVanguard);
+#endif
 
     // Add our units and compute the centroid
     if (!myUnits.empty())
@@ -149,7 +155,9 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 
         for (auto& unit : myUnits)
         {
+#ifdef COMBATSIM_DEBUG
             debug << "\n" << unit->getType() << " @ " << unit->getTilePosition();
+#endif
 
             fap.addIfCombatUnitPlayer1(unit);
             myUnitsCentroid += unit->getPosition();
@@ -206,8 +214,10 @@ std::pair<int, int> CombatSimulation::simulate(int frames, bool narrowChoke, int
 
 int CombatSimulation::simulateCombat(bool currentlyRetreating)
 {
+#ifdef COMBATSIM_DEBUG
     std::ostringstream debug;
     debug << "combat sim" << (currentlyRetreating ? " (retreating)" : " (attacking)");
+#endif
 
     bool rushing = StrategyManager::Instance().isRushing();
 
@@ -223,13 +233,16 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
             if (((ChokeData*)choke->Ext())->width < 96)
             {
                 narrowChoke = true;
+#ifdef COMBATSIM_DEBUG
                 debug << "\nFight crosses narrow choke";
+#endif
             }
         }
 
         // Is there an elevation difference?
         elevationDifference = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(enemyVanguard))
             - BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(myUnitsCentroid));
+#ifdef COMBATSIM_DEBUG
         if (elevationDifference > 0)
         {
             debug << "\nFight is uphill";
@@ -238,11 +251,14 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         {
             debug << "\nFight is downhill";
         }
+#endif
     }
 
+#ifdef COMBATSIM_DEBUG
     if (enemyZerglings > 10) debug << "\nEnemy army consists of " << enemyZerglings << " zerglings; decreasing its expected efficiency";
-
     debug << "\nInitial values: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
+#endif
+
     std::pair<int, int> initial = fap.playerScores();
 
     // Sim six seconds into the future, one second at a time
@@ -251,7 +267,9 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     {
         result = simulate(24, narrowChoke, elevationDifference, initial);
 
+#ifdef COMBATSIM_DEBUG
         debug << "\nResult after " << (step * 24) << " frames: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second << " gain " << (result.second - result.first);
+#endif
 
         // We short-circuit if we project a gain after 3 or more seconds and either:
         // - our army is bigger
@@ -297,8 +315,8 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     // Press the attack if our army outnumbers theirs by a good margin
     if ((double)fap.playerScores().second / (double)fap.playerScores().first < 0.6)
     {
-        debug << "\nTheir army is significantly smaller than ours; pressing the attack";
 #ifdef COMBATSIM_DEBUG
+        debug << "\nTheir army is significantly smaller than ours; pressing the attack";
         Log().Debug() << debug.str();
 #endif
         return 1;
@@ -309,7 +327,9 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     // If we have the smaller army, we're fighting much more cost-effectively
     double ourPercentageChange = (double)result.first / (double)initial.first;
     double theirPercentageChange = (double)result.second / (double)initial.second;
+#ifdef COMBATSIM_DEBUG
     debug << "\nOur % change: " << ourPercentageChange << "; their % change: " << theirPercentageChange;
+#endif
     if (ourPercentageChange < theirPercentageChange)
     {
 #ifdef COMBATSIM_DEBUG

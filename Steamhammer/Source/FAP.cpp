@@ -2,6 +2,8 @@
 #include "BWAPI.h"
 #include "InformationManager.h"
 #include "MathUtil.h"
+#include "Logger.h"
+#include "Random.h"
 
 UAlbertaBot::FastAPproximation fap;
 
@@ -10,7 +12,14 @@ UAlbertaBot::FastAPproximation fap;
 
 namespace UAlbertaBot {
 
-    FastAPproximation::FastAPproximation() {}
+    FastAPproximation::FastAPproximation() {
+#ifdef FAP_DEBUG
+        std::ostringstream filename;
+        filename << "bwapi-data/write/combatsim-" << Random::Instance().index(10000) << ".csv";
+        debug.open(filename.str());
+        debug << "bwapi frame;sim frame;self;unit type;unit id;score;x;y;health;shields;cooldown;target type;target id;target x;target y;target dist;action;new x;new y";
+#endif
+    }
 
     void FastAPproximation::addUnitPlayer1(FAPUnit fu) { player1.push_back(fu); }
 
@@ -38,6 +47,7 @@ namespace UAlbertaBot {
             didSomething = false;
 
             isimulate();
+            frame++;
 
             if (!didSomething)
                 break;
@@ -98,7 +108,12 @@ namespace UAlbertaBot {
         return { &player1, &player2 };
     }
 
-    void FastAPproximation::clearState() { player1.clear(), player2.clear(); }
+    void FastAPproximation::clearState() {
+        player1.clear(), player2.clear(), frame = 0;
+#ifdef FAP_DEBUG
+        debug.flush();
+#endif
+    }
 
     void FastAPproximation::dealDamage(const FastAPproximation::FAPUnit &fu,
         int damage,
@@ -152,6 +167,10 @@ namespace UAlbertaBot {
         const FastAPproximation::FAPUnit &fu,
         std::vector<FastAPproximation::FAPUnit> &enemyUnits) {
 
+#ifdef FAP_DEBUG
+        debug << "\n" << BWAPI::Broodwar->getFrameCount() << ";" << frame << ";" << (fu.player==BWAPI::Broodwar->self()) << ";" << fu.unitType << ";" << fu.id << ";" << score(fu) << ";" << fu.x << ";" << fu.y << ";" << fu.health << ";" << fu.shields << ";" << fu.attackCooldownRemaining;
+#endif
+
         bool kite = false;
         if (fu.attackCooldownRemaining) {
             if (fu.unitType == BWAPI::UnitTypes::Terran_Vulture ||
@@ -163,6 +182,9 @@ namespace UAlbertaBot {
 
             if (!kite)
             {
+#ifdef FAP_DEBUG
+                debug << ";;;;;;;;";
+#endif
                 didSomething = true;
                 return;
             }
@@ -195,6 +217,13 @@ namespace UAlbertaBot {
             }
         }
 
+#ifdef FAP_DEBUG
+        if (closestEnemy != enemyUnits.end())
+            debug << ";" << closestEnemy->unitType << ";" << closestEnemy->id << ";" << closestEnemy->x << ";" << closestEnemy->y << ";" << closestDist;
+        else
+            debug << ";;;;;";
+#endif
+
         if (kite)
         {
             if (closestEnemy != enemyUnits.end() &&
@@ -205,7 +234,15 @@ namespace UAlbertaBot {
 
                 fu.x -= (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
                 fu.y -= (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy)));
+
+#ifdef FAP_DEBUG
+                debug << ";kite;" << fu.x << ";" << fu.y;
+#endif
             }
+#ifdef FAP_DEBUG
+            else
+                debug << ";idle;" << fu.x << ";" << fu.y;
+#endif
 
             didSomething = true;
             return;
@@ -241,6 +278,10 @@ namespace UAlbertaBot {
                 unitDeath(temp, enemyUnits);
             }
 
+#ifdef FAP_DEBUG
+            debug << ";attack;" << fu.x << ";" << fu.y;
+#endif
+
             didSomething = true;
             return;
         }
@@ -250,9 +291,17 @@ namespace UAlbertaBot {
             fu.x += (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
             fu.y += (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy)));
 
+#ifdef FAP_DEBUG
+            debug << ";move;" << fu.x << ";" << fu.y;
+#endif
+
             didSomething = true;
             return;
         }
+
+#ifdef FAP_DEBUG
+        debug << ";idle;" << fu.x << ";" << fu.y;
+#endif
     }
 
     void FastAPproximation::medicsim(const FAPUnit &fu,
