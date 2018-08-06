@@ -551,9 +551,7 @@ namespace UAlbertaBot {
             airCooldown /= 2;
         }
 
-        if (ui.unit && ui.unit->isVisible() && !ui.unit->isFlying()) {
-            elevation = BWAPI::Broodwar->getGroundHeight(ui.unit->getTilePosition());
-        }
+        elevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(ui.lastPosition));
 
         //groundMaxRange *= groundMaxRange;
         //groundMinRange *= groundMinRange;
