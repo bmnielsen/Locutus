@@ -1,6 +1,7 @@
 #include "FAP.h"
 #include "BWAPI.h"
 #include "InformationManager.h"
+#include "MathUtil.h"
 
 UAlbertaBot::FastAPproximation fap;
 
@@ -134,19 +135,10 @@ namespace UAlbertaBot {
         fu.health -= std::max(128, damage);
     }
 
-    int inline FastAPproximation::distButNotReally(
+    int inline FastAPproximation::distance(
         const FastAPproximation::FAPUnit &u1,
         const FastAPproximation::FAPUnit &u2) const {
-        unsigned int min = abs((int)(u1.x - u2.x));
-        unsigned int max = abs((int)(u1.y - u2.y));
-        if (max < min)
-            std::swap(min, max);
-
-        if (min < (max >> 2))
-            return max;
-
-        unsigned int minCalc = (3 * min) >> 3;
-        return (minCalc >> 5) + minCalc + max - (max >> 4) - (max >> 6);
+        return MathUtil::EdgeToEdgeDistance(u1.unitType, BWAPI::Position(u1.x, u1.y), u2.unitType, BWAPI::Position(u2.x, u2.y));
     }
 
     bool FastAPproximation::isSuicideUnit(BWAPI::UnitType ut) {
@@ -183,7 +175,7 @@ namespace UAlbertaBot {
             ++enemyIt) {
             if (enemyIt->flying) {
                 if (fu.airDamage) {
-                    int d = distButNotReally(fu, *enemyIt);
+                    int d = distance(fu, *enemyIt);
                     if ((closestEnemy == enemyUnits.end() || d < closestDist) &&
                         d >= fu.airMinRange) {
                         closestDist = d;
@@ -193,7 +185,7 @@ namespace UAlbertaBot {
             }
             else {
                 if (fu.groundDamage) {
-                    int d = distButNotReally(fu, *enemyIt);
+                    int d = distance(fu, *enemyIt);
                     if ((closestEnemy == enemyUnits.end() || d < closestDist) &&
                         d >= fu.groundMinRange) {
                         closestDist = d;
@@ -270,7 +262,7 @@ namespace UAlbertaBot {
 
         for (auto it = friendlyUnits.begin(); it != friendlyUnits.end(); ++it) {
             if (it->isOrganic && it->health < it->maxHealth && !it->didHealThisFrame) {
-                int d = distButNotReally(fu, *it);
+                int d = distance(fu, *it);
                 if (closestHealable == friendlyUnits.end() || d < closestDist) {
                     closestHealable = it;
                     closestDist = d;
@@ -300,7 +292,7 @@ namespace UAlbertaBot {
             ++enemyIt) {
             if (enemyIt->flying) {
                 if (fu.airDamage) {
-                    int d = distButNotReally(fu, *enemyIt);
+                    int d = distance(fu, *enemyIt);
                     if ((closestEnemy == enemyUnits.end() || d < closestDist) &&
                         d >= fu.airMinRange) {
                         closestDist = d;
@@ -310,7 +302,7 @@ namespace UAlbertaBot {
             }
             else {
                 if (fu.groundDamage) {
-                    int d = distButNotReally(fu, *enemyIt);
+                    int d = distance(fu, *enemyIt);
                     if ((closestEnemy == enemyUnits.end() || d < closestDist) &&
                         d >= fu.groundMinRange) {
                         closestDist = d;

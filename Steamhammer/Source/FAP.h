@@ -72,7 +72,7 @@ namespace UAlbertaBot {
         bool didSomething;
         void dealDamage(const FastAPproximation::FAPUnit &fu, int damage,
             BWAPI::DamageType damageType) const;
-        int distButNotReally(const FastAPproximation::FAPUnit &u1,
+        int distance(const FastAPproximation::FAPUnit &u1,
             const FastAPproximation::FAPUnit &u2) const;
         bool isSuicideUnit(BWAPI::UnitType ut);
         void unitsim(const FAPUnit &fu, std::vector<FAPUnit> &enemyUnits);
