@@ -46,7 +46,7 @@ namespace UAlbertaBot {
 
     const auto score = [](const FastAPproximation::FAPUnit &fu) {
         if (fu.health && fu.maxHealth)
-            return ((fu.score * fu.health) / (fu.maxHealth * 2)) +
+            return ((fu.score * (fu.health * 3 + fu.shields) + fu.score) / (fu.maxHealth * 3 + fu.maxShields)) +
             (fu.unitType == BWAPI::UnitTypes::Terran_Bunker) *
             BWAPI::UnitTypes::Terran_Marine.destroyScore() * 4;
         return 0;
