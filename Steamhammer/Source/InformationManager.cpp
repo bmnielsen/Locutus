@@ -272,6 +272,10 @@ bool InformationManager::closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition 
 
 void InformationManager::update()
 {
+    // Update the upgrade trackers first, as they adjust the grids when the range or damage changes
+    for (auto & upgradeTracker : _upgradeTrackers)
+        upgradeTracker.second.update(getUnitInfo(upgradeTracker.first), getUnitGrid(upgradeTracker.first));
+
 	updateUnitInfo();
 	updateBaseLocationInfo();
 	updateTheBases();
@@ -2127,79 +2131,39 @@ bool InformationManager::enemyHasInfantryRangeUpgrade()
 	return false;
 }
 
+UpgradeTracker & InformationManager::getUpgradeTracker(BWAPI::Player player)
+{
+    auto it = _upgradeTrackers.find(player);
+    if (it != _upgradeTrackers.end()) return it->second;
+
+    _upgradeTrackers.emplace(std::make_pair(player, UpgradeTracker(player)));
+    it = _upgradeTrackers.find(player);
+    return it->second;
+}
+
 int InformationManager::getWeaponDamage(BWAPI::Player player, BWAPI::WeaponType wpn)
 {
-    if (player == BWAPI::Broodwar->self()) return player->damage(wpn);
-
-    int last = enemyWeaponDamage[wpn];
-    int current = player->damage(wpn);
-    if (current > last)
-    {
-        enemyWeaponDamage[wpn] = current;
-        return current;
-    }
-
-    return last;
+    return getUpgradeTracker(player).getWeaponDamage(wpn);
 }
 
 int InformationManager::getWeaponRange(BWAPI::Player player, BWAPI::WeaponType wpn)
 {
-    if (player == BWAPI::Broodwar->self()) return player->weaponMaxRange(wpn);
-
-    int last = enemyWeaponRange[wpn];
-    int current = player->weaponMaxRange(wpn);
-    if (current > last)
-    {
-        enemyWeaponRange[wpn] = current;
-        return current;
-    }
-
-    return last;
+    return getUpgradeTracker(player).getWeaponRange(wpn);
 }
 
 int InformationManager::getUnitCooldown(BWAPI::Player player, BWAPI::UnitType type)
 {
-    if (player == BWAPI::Broodwar->self()) return player->weaponDamageCooldown(type);
-
-    int last = enemyUnitCooldown[type];
-    int current = player->weaponDamageCooldown(type);
-    if (current > last)
-    {
-        enemyUnitCooldown[type] = current;
-        return current;
-    }
-
-    return last;
+    return getUpgradeTracker(player).getUnitCooldown(type);
 }
 
 double InformationManager::getUnitTopSpeed(BWAPI::Player player, BWAPI::UnitType type)
 {
-    if (player == BWAPI::Broodwar->self()) return player->topSpeed(type);
-
-    double last = enemyUnitTopSpeed[type];
-    double current = player->topSpeed(type);
-    if (current > last)
-    {
-        enemyUnitTopSpeed[type] = current;
-        return current;
-    }
-
-    return last;
+    return getUpgradeTracker(player).getUnitTopSpeed(type);
 }
 
 int InformationManager::getUnitArmor(BWAPI::Player player, BWAPI::UnitType type)
 {
-    if (player == BWAPI::Broodwar->self()) return player->armor(type);
-
-    int last = enemyUnitArmor[type];
-    int current = player->armor(type);
-    if (current > last)
-    {
-        enemyUnitArmor[type] = current;
-        return current;
-    }
-
-    return last;
+    return getUpgradeTracker(player).getUnitArmor(type);
 }
 
 // Our nearest shield battery, by air distance.

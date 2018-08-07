@@ -7,6 +7,7 @@
 #include "UnitData.h"
 #include "LocutusUnit.h"
 #include "LocutusMapGrid.h"
+#include "UpgradeTracker.h"
 
 namespace UAlbertaBot
 {
@@ -48,6 +49,8 @@ class InformationManager
     LocutusMapGrid                      _myUnitGrid;
     LocutusMapGrid                      _enemyUnitGrid;
 
+    std::map<BWAPI::Player, UpgradeTracker> _upgradeTrackers;
+
     std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
     int                             bulletsSeenAtExtendedMarineRange;
 
@@ -55,13 +58,6 @@ class InformationManager
     // First set in the pair: the forward tiles in the wall. These tiles are covered by the wall buildings.
     // Second set in the pair: all tiles behind or part of the wall.
     std::map<const BWEM::ChokePoint*, std::pair<std::set<BWAPI::TilePosition>, std::set<BWAPI::TilePosition>>> enemyWalls;
-
-    // Caches of enemy unit statistics, used to track upgrades
-    std::map<BWAPI::WeaponType, int> enemyWeaponDamage;
-    std::map<BWAPI::WeaponType, int> enemyWeaponRange;
-    std::map<BWAPI::UnitType, int> enemyUnitCooldown;
-    std::map<BWAPI::UnitType, double> enemyUnitTopSpeed;
-    std::map<BWAPI::UnitType, int> enemyUnitArmor;
 
 	InformationManager();
 
@@ -93,6 +89,8 @@ class InformationManager
 
     void                    detectEnemyWall(BWAPI::Unit unit);
     void                    detectBrokenEnemyWall(BWAPI::UnitType type, BWAPI::TilePosition tile);
+
+    UpgradeTracker&         getUpgradeTracker(BWAPI::Player player);
 
 public:
 

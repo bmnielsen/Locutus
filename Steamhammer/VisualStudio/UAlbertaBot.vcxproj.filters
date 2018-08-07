@@ -243,6 +243,9 @@
     <ClCompile Include="..\Source\PathFinding.cpp">
       <Filter>game\util</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\UpgradeTracker.cpp">
+      <Filter>game\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -442,6 +445,9 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\PathFinding.h">
+      <Filter>game\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\UpgradeTracker.h">
       <Filter>game\util</Filter>
     </ClInclude>
   </ItemGroup>
