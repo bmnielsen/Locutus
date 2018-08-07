@@ -36,6 +36,9 @@ InformationManager::InformationManager()
 	, _enemyHasInfantryRangeUpgrade(false)
 
 	, _enemyBaseStation(nullptr)
+
+    , _myUnitGrid(BWAPI::Broodwar->self())
+    , _enemyUnitGrid(BWAPI::Broodwar->enemy())
 {
 	initializeTheBases();
 	initializeRegionInformation();

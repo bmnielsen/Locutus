@@ -20,14 +20,6 @@ void LocutusUnit::update()
 
     if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon) updateGoon();
 
-    if (unit->getPosition() != lastPosition)
-    {
-        if (lastPosition.isValid())
-            InformationManager::Instance().getMyUnitGrid().unitMoved(unit->getType(), lastPosition, unit->getPosition());
-        else
-            InformationManager::Instance().getMyUnitGrid().unitCreated(unit->getType(), unit->getPosition());
-    }
-
     lastPosition = unit->getPosition();
 
     // If a worker is stuck, order it to move again
@@ -363,7 +355,7 @@ void LocutusUnit::fleeFrom(BWAPI::Position position)
         if (!BWAPI::Broodwar->isWalkable(walk)) return false;
 
         // Not blocked by one of our own units
-        if (InformationManager::Instance().getMyUnitGrid().get(walk) > 0)
+        if (InformationManager::Instance().getMyUnitGrid().getCollision(walk) > 0)
             return false;
 
         return true;

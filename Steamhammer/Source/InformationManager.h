@@ -46,6 +46,7 @@ class InformationManager
 
     std::map<BWAPI::Unit, LocutusUnit>  _myUnits;
     LocutusMapGrid                      _myUnitGrid;
+    LocutusMapGrid                      _enemyUnitGrid;
 
     std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
     int                             bulletsSeenAtExtendedMarineRange;
@@ -196,6 +197,8 @@ public:
 
     LocutusUnit&            getLocutusUnit(BWAPI::Unit unit);
     LocutusMapGrid&         getMyUnitGrid() { return _myUnitGrid; };
+    LocutusMapGrid&         getEnemyUnitGrid() { return _enemyUnitGrid; };
+    LocutusMapGrid&         getUnitGrid(BWAPI::Player player) { return player == BWAPI::Broodwar->self() ? _myUnitGrid : _enemyUnitGrid; };
 
 	// yay for singletons!
 	static InformationManager & Instance();

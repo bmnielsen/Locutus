@@ -40,6 +40,7 @@ void UnitData::updateGoneFromLastPosition()
         if (BWAPI::Broodwar->isVisible(BWAPI::TilePosition(ui.lastPosition)))
         {
             ui.goneFromLastPosition = true;
+            InformationManager::Instance().getUnitGrid(ui.player).unitDestroyed(ui.type, ui.lastPosition);
 
             // If this is a building that can fly, assume it lifted off
             if (ui.type.isFlyingBuilding())
@@ -65,6 +66,7 @@ void UnitData::updateGoneFromLastPosition()
                 {
                     Log().Debug() << "Assuming tank @ " << BWAPI::TilePosition(ui.lastPosition) << " is gone from that position";
                     ui.goneFromLastPosition = true;
+                    InformationManager::Instance().getUnitGrid(ui.player).unitDestroyed(ui.type, ui.lastPosition);
                     break;
                 }
         }
@@ -79,11 +81,22 @@ void UnitData::updateUnit(BWAPI::Unit unit)
     {
 		++numUnits[unit->getType().getID()];
 		unitMap[unit] = UnitInfo();
+
+        InformationManager::Instance().getUnitGrid(unit->getPlayer()).unitCreated(unit->getType(), unit->getPosition());
+
         if (unit->getPlayer() == BWAPI::Broodwar->enemy())
             InformationManager::Instance().onNewEnemyUnit(unit);
     }
     
 	UnitInfo & ui   = unitMap[unit];
+
+    // Update the grid:
+    // - Units that have moved
+    // - Units that were gone from their last position and have reappeared
+    if (ui.lastPosition.isValid() && !ui.goneFromLastPosition && (ui.lastPosition != unit->getPosition() || ui.type != unit->getType()))
+        InformationManager::Instance().getUnitGrid(unit->getPlayer()).unitMoved(unit->getType(), unit->getPosition(), ui.type, ui.lastPosition);
+    else if (ui.goneFromLastPosition)
+        InformationManager::Instance().getUnitGrid(unit->getPlayer()).unitCreated(unit->getType(), unit->getPosition());
 
     // Check for buildings that have taken off or landed
     if (unit->getType().isBuilding() && unit->isFlying() != ui.isFlying)
@@ -122,6 +135,14 @@ void UnitData::removeUnit(BWAPI::Unit unit)
 {
 	if (!unit) { return; }
 
+    // If the last position is valid, we have to update our grids
+    if (unitMap.find(unit) == unitMap.end())
+    {
+        UnitInfo & ui = unitMap[unit];
+        if (ui.lastPosition.isValid() && !ui.goneFromLastPosition)
+            InformationManager::Instance().getUnitGrid(unit->getPlayer()).unitDestroyed(unit->getType(), ui.lastPosition);
+    }
+
 	mineralsLost += unit->getType().mineralPrice();
 	gasLost += unit->getType().gasPrice();
 	--numUnits[unit->getType().getID()];
@@ -139,6 +160,10 @@ void UnitData::removeBadUnits()
 	{
 		if (badUnitInfo(iter->second))
 		{
+            // If the last position is valid, we have to update our grids
+            if (iter->second.lastPosition.isValid() && !iter->second.goneFromLastPosition)
+                InformationManager::Instance().getUnitGrid(iter->second.player).unitDestroyed(iter->second.type, iter->second.lastPosition);
+
 			numUnits[iter->second.type.getID()]--;
 			iter = unitMap.erase(iter);
 		}

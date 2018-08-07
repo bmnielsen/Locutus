@@ -828,11 +828,11 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
                 // Move closer if there is a friendly unit near the position
                 moveCloser = 
-                    InformationManager::Instance().getMyUnitGrid().get(position) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, -16)) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, -16)) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, 16)) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, 16)) > 0;
+                    InformationManager::Instance().getMyUnitGrid().getCollision(position) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(-16, -16)) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(16, -16)) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(16, 16)) > 0 ||
+                    InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(-16, 16)) > 0;
                 break;
             }
         }
