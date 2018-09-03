@@ -505,7 +505,7 @@ namespace UAlbertaBot
 				}
 			}
 
-		Log().Debug() << "Initializing end tile: nat@" << p1 << ";choke@" << p0 << ";start@" << center(start) << ";final@" << center(bestTile);
+		Log().Debug() << "Initializing end tile: nat@" << BWAPI::TilePosition(p1) << ";choke@" << BWAPI::TilePosition(p0) << ";start@" << BWAPI::TilePosition(center(start)) << ";final@" << BWAPI::TilePosition(center(bestTile));
 
 		bwebMap.endTile = bestTile;
 	}
@@ -1115,6 +1115,109 @@ namespace UAlbertaBot
 		return result;
 	}
 
+    // For whatever reason none of the walls are generated properly on Fortress.
+    // Might have something to do with the eggs, but I can't be arsed to debug it
+    // properly right now.
+	LocutusWall fortressWall()
+	{
+		LocutusWall result;
+
+        // 12 o'clock
+		if (bwebMap.getNatural().y < 20)
+		{
+			result.pylon = BWAPI::TilePosition(82, 13);
+			result.forge = BWAPI::TilePosition(79, 16);
+			result.gateway = BWAPI::TilePosition(76, 13);
+			result.cannons.push_back(BWAPI::TilePosition(80, 14));
+			result.cannons.push_back(BWAPI::TilePosition(80, 12));
+			result.cannons.push_back(BWAPI::TilePosition(82, 15));
+			result.cannons.push_back(BWAPI::TilePosition(78, 11));
+			result.cannons.push_back(BWAPI::TilePosition(80, 10));
+
+			result.gapEnd1 = center(BWAPI::TilePosition(76, 13));
+			result.gapEnd1 = center(BWAPI::TilePosition(74, 13));
+			result.gapCenter = center(BWAPI::TilePosition(75, 13));
+			result.gapSize = 4;
+
+			bwebMap.startTile = BWAPI::TilePosition(79, 7);
+			bwebMap.endTile = BWAPI::TilePosition(77, 18);
+		}
+
+        // 3 o'clock
+        else if (bwebMap.getNatural().x > 100)
+		{
+			result.pylon = BWAPI::TilePosition(112, 79);
+			result.forge = BWAPI::TilePosition(107, 78);
+			result.gateway = BWAPI::TilePosition(108, 75);
+			result.cannons.push_back(BWAPI::TilePosition(110, 78));
+			result.cannons.push_back(BWAPI::TilePosition(112, 77));
+			result.cannons.push_back(BWAPI::TilePosition(112, 75));
+			result.cannons.push_back(BWAPI::TilePosition(110, 80));
+			result.cannons.push_back(BWAPI::TilePosition(114, 76));
+
+			result.gapEnd1 = center(BWAPI::TilePosition(109, 75));
+			result.gapEnd1 = center(BWAPI::TilePosition(109, 73));
+			result.gapCenter = center(BWAPI::TilePosition(109, 74));
+			result.gapSize = 4;
+
+			bwebMap.startTile = BWAPI::TilePosition(115, 76);
+			bwebMap.endTile = BWAPI::TilePosition(105, 77);
+		}
+
+        // 6 o'clock
+        else if (bwebMap.getNatural().y > 100)
+		{
+			result.pylon = BWAPI::TilePosition(43, 114);
+			result.forge = BWAPI::TilePosition(49, 114);
+			result.gateway = BWAPI::TilePosition(46, 111);
+			result.cannons.push_back(BWAPI::TilePosition(47, 114));
+			result.cannons.push_back(BWAPI::TilePosition(45, 114));
+			result.cannons.push_back(BWAPI::TilePosition(48, 116));
+			result.cannons.push_back(BWAPI::TilePosition(44, 112));
+			result.cannons.push_back(BWAPI::TilePosition(40, 113));
+
+			result.gapEnd1 = center(BWAPI::TilePosition(46, 111));
+			result.gapEnd1 = center(BWAPI::TilePosition(46, 109));
+			result.gapCenter = center(BWAPI::TilePosition(46, 110));
+			result.gapSize = 4;
+
+			bwebMap.startTile = BWAPI::TilePosition(49, 120);
+			bwebMap.endTile = BWAPI::TilePosition(52, 110);
+		}
+
+        // 9 o'clock
+        else
+		{
+			result.pylon = BWAPI::TilePosition(14, 49);
+			result.forge = BWAPI::TilePosition(16, 52);
+			result.gateway = BWAPI::TilePosition(18, 49);
+			result.cannons.push_back(BWAPI::TilePosition(16, 50));
+			result.cannons.push_back(BWAPI::TilePosition(16, 48));
+			result.cannons.push_back(BWAPI::TilePosition(14, 51));
+			result.cannons.push_back(BWAPI::TilePosition(14, 53));
+			result.cannons.push_back(BWAPI::TilePosition(14, 47));
+
+			result.gapEnd1 = center(BWAPI::TilePosition(18, 52));
+			result.gapEnd1 = center(BWAPI::TilePosition(18, 50));
+			result.gapCenter = center(BWAPI::TilePosition(18, 51));
+			result.gapSize = 4;
+
+			bwebMap.startTile = BWAPI::TilePosition(11, 55);
+			bwebMap.endTile = BWAPI::TilePosition(25, 50);
+		}
+
+		// Add overlap
+		for (auto const& placement : result.placements())
+		{
+			bwebMap.addOverlap(placement.second, placement.first.tileWidth(), placement.first.tileHeight());
+		}
+
+		// Analyze wall geo
+		analyzeWallGeo(result);
+
+		return result;
+	}
+
     // At the Luna 10 o'clock start position, BWEM connects the main and natural through a third area, which messes everything up
     LocutusWall luna10Oclock()
     {
@@ -1257,6 +1360,7 @@ namespace UAlbertaBot
         // Map-specific hard-coded walls
         if (BWAPI::Broodwar->mapHash() == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") return destinationWall();
         if (BWAPI::Broodwar->mapHash() == "0a41f144c6134a2204f3d47d57cf2afcd8430841") return matchPointWall();
+        if (BWAPI::Broodwar->mapHash() == "83320e505f35c65324e93510ce2eafbaa71c9aa1") return fortressWall();
         if (BWAPI::Broodwar->mapHash() == "33527b4ce7662f83485575c4b1fcad5d737dfcf1"
             && bwebMap.getNatural().y < BWAPI::TilePosition(bwemMap.Center()).y
             && bwebMap.getNatural().x < BWAPI::TilePosition(bwemMap.Center()).x) return luna10Oclock();
@@ -1274,6 +1378,7 @@ namespace UAlbertaBot
         initializeEndTile();
         bwebMap.startTile = (BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + BWAPI::TilePosition(bwebMap.mainChoke->Center()) + bwebMap.naturalTile) / 4;
         bwebMap.setStartTile();
+        Log().Debug() << "Start tile: " << bwebMap.startTile;
 
         // Create the wall
 		Log().Debug() << "Creating wall; tight=" << tight;
