@@ -32,7 +32,7 @@
                                                             "sscai/(3)Tau Cross.scx",
                                                             "sscai/(4)Andromeda.scx",
                                                             "sscai/(4)Circuit Breaker.scx",
-                                                            "sscai/(4)Electric Circuit.scx",
+                                                            //"sscai/(4)Electric Circuit.scx",
                                                             "sscai/(4)Empire of the Sun.scm",
                                                             "sscai/(4)Fighting Spirit.scx",
                                                             "sscai/(4)Icarus.scm",
@@ -65,6 +65,20 @@
                                                                "cig/(4)NeoSniperRidge2.0.scx",
                                                                "cig/(4)Python1.3.scx"
                                                            };
+
+        private static readonly List<string> AiideMaps = new List<string>
+                                                        {
+                                                            "aiide/(2)Benzene.scx",
+                                                            "aiide/(2)Destination.scx",
+                                                            "aiide/(2)HeartbreakRidge.scx",
+                                                            "aiide/(3)Aztec.scx",
+                                                            "aiide/(3)TauCross.scx",
+                                                            "aiide/(4)Andromeda.scx",
+                                                            "aiide/(4)CircuitBreaker.scx",
+                                                            "aiide/(4)EmpireoftheSun.scm",
+                                                            "aiide/(4)Fortress.scx",
+                                                            "aiide/(4)Python.scx"
+                                                        };
 
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
 
@@ -145,8 +159,9 @@
             }
 
             var maps = args.Contains("cig") ? CigMaps : Maps;
+            maps = args.Contains("aiide") ? AiideMaps : maps;
 
-            foreach (var arg in args.Where(x => x != "ui" && x != "cig"))
+            foreach (var arg in args.Where(x => x != "ui" && x != "cig" && x != "aiide"))
             {
                 var map = maps.FirstOrDefault(
                     x => CultureInfo.InvariantCulture.CompareInfo.IndexOf(x, arg, CompareOptions.IgnoreCase) >= 0);
