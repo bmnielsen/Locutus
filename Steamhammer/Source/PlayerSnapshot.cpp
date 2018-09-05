@@ -107,7 +107,11 @@ void PlayerSnapshot::takeEnemy()
                     }
                 }
 
-                int distanceToMove = PathFinding::GetGroundDistance(ui.lastPosition, enemyBase->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
+                int distanceToMove = PathFinding::GetGroundDistance(
+                    ui.lastPosition, 
+                    enemyBase->getPosition(), 
+                    ui.type,
+                    PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 int framesToMove = std::floor(((double)distanceToMove / ui.type.topSpeed()) * 1.1);
 
                 startFrame = BWAPI::Broodwar->getFrameCount() - framesToMove;

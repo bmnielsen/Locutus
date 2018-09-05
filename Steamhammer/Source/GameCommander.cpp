@@ -474,7 +474,7 @@ BWAPI::Unit GameCommander::getScoutWorker()
 			!unit->isCarryingGas() &&
 			unit->getOrder() != BWAPI::Orders::MiningMinerals)
 		{
-            int dist = PathFinding::GetGroundDistance(unit->getPosition(), mapCenter);
+            int dist = PathFinding::GetGroundDistance(unit->getPosition(), mapCenter, unit->getType());
 			if (dist < bestDist)
 			{
 				bestDist = dist;

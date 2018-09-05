@@ -839,7 +839,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 
 	// how many frames it will take us to move to the building location
 	// We add some time since the actual pathfinding of the workers is bad
-	int distanceToMove = PathFinding::GetGroundDistance(moveWorker->getPosition(), walkToPosition, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+	int distanceToMove = PathFinding::GetGroundDistance(moveWorker->getPosition(), walkToPosition, BWAPI::UnitTypes::Protoss_Probe, PathFinding::PathFindingOptions::UseNearestBWEMArea);
 	double framesToMove = (distanceToMove / BWAPI::Broodwar->self()->getRace().getWorker().topSpeed()) * 1.4;
 
 	// Don't move if the dependencies won't be done in time

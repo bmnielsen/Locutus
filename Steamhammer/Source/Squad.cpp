@@ -584,7 +584,7 @@ BWAPI::Unit Squad::unitClosestTo(BWAPI::Position position, bool debug) const
 		if (_hasGround)
 		{
 			// A ground or air-ground squad. Use ground distance.
-            dist = PathFinding::GetGroundDistance(unit->getPosition(), position);
+            dist = PathFinding::GetGroundDistance(unit->getPosition(), position, unit->getType());
 		}
 		else
 		{
@@ -802,7 +802,7 @@ bool Squad::addUnitToBunkerAttackSquadIfClose(BWAPI::Unit unit)
         if (!ui.second.completed && ui.second.estimatedCompletionFrame > BWAPI::Broodwar->getFrameCount()) continue;
         if (unit->getDistance(ui.second.lastPosition) > 1000) continue;
 
-        int unitDist = PathFinding::GetGroundDistance(unit->getPosition(), _order.getPosition());
+        int unitDist = PathFinding::GetGroundDistance(unit->getPosition(), _order.getPosition(), unit->getType());
         int bunkerDist = PathFinding::GetGroundDistance(ui.second.lastPosition, _order.getPosition());
         if (unitDist != -1 && bunkerDist != -1 && unitDist > (bunkerDist - 128))
         {

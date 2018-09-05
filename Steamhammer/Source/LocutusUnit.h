@@ -13,6 +13,8 @@ class LocutusUnit
     BWAPI::Position                     currentlyMovingTowards;
     std::deque<const BWEM::ChokePoint*> waypoints;
     BWAPI::Unit                         mineralWalkingPatch;
+    const BWEM::Area*                   mineralWalkingTargetArea;
+    BWAPI::Position                     mineralWalkingStartPosition;
     int                                 lastMoveFrame;
 
     // Used for various things, like detecting stuck goons and updating our collision matrix
@@ -34,6 +36,8 @@ public:
         , targetPosition(BWAPI::Positions::Invalid)
         , currentlyMovingTowards(BWAPI::Positions::Invalid)
         , mineralWalkingPatch(nullptr)
+        , mineralWalkingTargetArea(nullptr)
+        , mineralWalkingStartPosition(BWAPI::Positions::Invalid)
         , lastMoveFrame(0)
         , lastAttackStartedAt(0)
         , lastPosition(BWAPI::Positions::Invalid)
@@ -46,6 +50,8 @@ public:
         , targetPosition(BWAPI::Positions::Invalid)
         , currentlyMovingTowards(BWAPI::Positions::Invalid)
         , mineralWalkingPatch(nullptr)
+        , mineralWalkingTargetArea(nullptr)
+        , mineralWalkingStartPosition(BWAPI::Positions::Invalid)
         , lastMoveFrame(0)
         , lastAttackStartedAt(0)
         , lastPosition(BWAPI::Positions::Invalid)

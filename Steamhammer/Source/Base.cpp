@@ -17,6 +17,7 @@ Base::Base(BWAPI::TilePosition pos)
 	, ownedSince(0)
 	, lastScouted(0)
 	, spiderMined(false)
+	, requiresMineralWalkFromEnemyStartLocations(false)
 {
 	++BaseID;
 }
@@ -32,6 +33,7 @@ Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
     , ownedSince(0)
     , lastScouted(0)
     , spiderMined(false)
+    , requiresMineralWalkFromEnemyStartLocations(false)
 {
 	DistanceMap resourceDistances(pos, BaseResourceRange, false);
 

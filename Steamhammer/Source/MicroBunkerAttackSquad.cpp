@@ -83,6 +83,7 @@ std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Position bunkerPosition)
     auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
         bunkerPosition, 
+        BWAPI::UnitTypes::Protoss_Dragoon,
         PathFinding::PathFindingOptions::UseNearestBWEMArea);
     if (chokes.size() < 2) return std::vector<BWAPI::TilePosition>();
 
@@ -119,6 +120,7 @@ bool bunkerBlocksNarrowChoke(BWAPI::Position bunkerPosition)
     auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
         bunkerPosition,
+        BWAPI::UnitTypes::Protoss_Dragoon,
         PathFinding::PathFindingOptions::UseNearestBWEMArea);
     if (chokes.size() < 2) return false;
 
@@ -250,9 +252,9 @@ void MicroBunkerAttackSquad::update()
 
         // We are still doing the run-by if we are further away from the order position than the bunker is,
         // unless we are closer to the order position than the bunker
-        int ourDistToOrderPosition = PathFinding::GetGroundDistance(it->first->getPosition(), it->second, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-        int bunkerDistToOrderPosition = PathFinding::GetGroundDistance(_bunkerPosition, it->second, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-        int ourDistToBunker = PathFinding::GetGroundDistance(_bunkerPosition, it->first->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
+        int ourDistToOrderPosition = PathFinding::GetGroundDistance(it->first->getPosition(), it->second, BWAPI::UnitTypes::Protoss_Dragoon, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+        int bunkerDistToOrderPosition = PathFinding::GetGroundDistance(_bunkerPosition, it->second, BWAPI::UnitTypes::Protoss_Dragoon, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+        int ourDistToBunker = PathFinding::GetGroundDistance(_bunkerPosition, it->first->getPosition(), BWAPI::UnitTypes::Protoss_Dragoon, PathFinding::PathFindingOptions::UseNearestBWEMArea);
         if (ourDistToOrderPosition > bunkerDistToOrderPosition && ourDistToOrderPosition > ourDistToBunker)
             continue;
 

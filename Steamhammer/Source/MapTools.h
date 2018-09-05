@@ -13,22 +13,29 @@ namespace UAlbertaBot
 
 struct ChokeData
 {
+    const BWEM::ChokePoint* _choke;
+
     int width;
 
     bool isRamp;
     BWAPI::TilePosition highElevationTile;
 
     bool requiresMineralWalk;
-    BWAPI::Unit firstMineralPatch;
-    BWAPI::Unit secondMineralPatch;
+    BWAPI::Unit firstAreaMineralPatch;          // Mineral patch to use when moving towards the first area in the chokepoint's GetAreas()
+    BWAPI::Position firstAreaStartPosition;     // Start location to move to that should give visibility of firstAreaMineralPatch
+    BWAPI::Unit secondAreaMineralPatch;         // Mineral patch to use when moving towards the second area in the chokepoint's GetAreas()
+    BWAPI::Position secondAreaStartPosition;    // Start location to move to that should give visibility of secondAreaMineralPatch
 
     ChokeData(const BWEM::ChokePoint* choke)
-        : width(0)
+        : _choke(choke)
+        , width(0)
         , isRamp(false)
         , highElevationTile(BWAPI::TilePosition(choke->Center()))
         , requiresMineralWalk(false)
-        , firstMineralPatch(nullptr)
-        , secondMineralPatch(nullptr)
+        , firstAreaMineralPatch(nullptr)
+        , firstAreaStartPosition(BWAPI::Positions::Invalid)
+        , secondAreaMineralPatch(nullptr)
+        , secondAreaStartPosition(BWAPI::Positions::Invalid)
     {};
 };
 
@@ -47,6 +54,8 @@ class MapTools
 	std::vector< std::vector<bool> >
 						_depotBuildable;
 	bool				_hasIslandBases;
+	bool				_hasMineralWalkChokes;
+	int				    _minChokeWidth;
 
     MapTools();
 
@@ -80,6 +89,8 @@ public:
 	BWAPI::TilePosition	getNextExpansion(bool hidden, bool wantMinerals, bool wantGas);
 
 	bool	hasIslandBases() const { return _hasIslandBases; };
+	bool	hasMineralWalkChokes() const { return _hasMineralWalkChokes; };
+    bool    getMinChokeWidth() const { return _minChokeWidth; };
 };
 
 }

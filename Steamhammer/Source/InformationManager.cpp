@@ -65,6 +65,49 @@ void InformationManager::initializeTheBases()
 			_theBases[base] = new Base(base->getTilePosition());
 		}
 	}
+
+    // If the map has mineral walking chokes, flag the bases that require mineral walking for the enemy to reach
+    // Logically this means we can send a probe from our starting location to the base, but the enemy cannot
+    // send a combat unit from any of their potential starting locations to the base
+    if (MapTools::Instance().hasMineralWalkChokes())
+    {
+        // First gather the possible enemy start locations
+        std::deque<BWAPI::TilePosition> potentialEnemyStartLocations(BWAPI::Broodwar->getStartLocations());
+        for (auto it = potentialEnemyStartLocations.begin(); it != potentialEnemyStartLocations.end();)
+            if (*it == BWAPI::Broodwar->self()->getStartLocation())
+                it = potentialEnemyStartLocations.erase(it);
+            else
+                it++;
+
+        // Now loop all of the bases and do the required pathing
+        for (auto& base : _theBases)
+        {
+            // Skip bases that can't be accessed from our starting location
+            int distFromOurBase = PathFinding::GetGroundDistance(
+                base.first->getPosition(),
+                BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation()),
+                BWAPI::UnitTypes::Protoss_Probe,
+                PathFinding::PathFindingOptions::UseNearestBWEMArea);
+            if (distFromOurBase == -1) continue;
+
+            // Check all of the potential enemy start locations and flip to false
+            // if any are accessible
+            base.second->requiresMineralWalkFromEnemyStartLocations = true;
+            for (auto& tile : potentialEnemyStartLocations)
+            {
+                int distFromEnemyStartLocation = PathFinding::GetGroundDistance(
+                    base.first->getPosition(),
+                    BWAPI::Position(tile),
+                    BWAPI::UnitTypes::Zerg_Zergling,
+                    PathFinding::PathFindingOptions::UseNearestBWEMArea);
+                if (distFromEnemyStartLocation != -1)
+                {
+                    base.second->requiresMineralWalkFromEnemyStartLocations = false;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 // Set up _mainBaseLocations and _occupiedLocations.
@@ -833,8 +876,16 @@ void InformationManager::detectEnemyWall(BWAPI::Unit unit)
             if (enemyWalls.find(choke) != enemyWalls.end()) continue;
 
             // Determine which area is on our side of the wall
-            int firstDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().first->Top()), getMyMainBaseLocation()->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
-            int secondDist = PathFinding::GetGroundDistance(BWAPI::Position(choke->GetAreas().second->Top()), getMyMainBaseLocation()->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
+            int firstDist = PathFinding::GetGroundDistance(
+                BWAPI::Position(choke->GetAreas().first->Top()), 
+                getMyMainBaseLocation()->getPosition(), 
+                BWAPI::UnitTypes::Protoss_Dragoon, 
+                PathFinding::PathFindingOptions::UseNearestBWEMArea);
+            int secondDist = PathFinding::GetGroundDistance(
+                BWAPI::Position(choke->GetAreas().second->Top()), 
+                getMyMainBaseLocation()->getPosition(), 
+                BWAPI::UnitTypes::Protoss_Dragoon,
+                PathFinding::PathFindingOptions::UseNearestBWEMArea);
             auto closestArea = (firstDist < secondDist) ? choke->GetAreas().first : choke->GetAreas().second;
             auto furthestArea = (firstDist < secondDist) ? choke->GetAreas().second : choke->GetAreas().first;
 

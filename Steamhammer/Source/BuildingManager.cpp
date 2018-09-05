@@ -184,6 +184,7 @@ void BuildingManager::constructAssignedBuildings()
                 int distance = PathFinding::GetGroundDistance(
                     b.builderUnit->getPosition(), 
                     BWAPI::Position(b.finalPosition), 
+                    BWAPI::UnitTypes::Protoss_Probe,
                     PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 moveToPosition = distance > 200 || (distance == -1 && b.builderUnit->getPosition().getApproxDistance(BWAPI::Position(b.finalPosition)) > 200);
             }
