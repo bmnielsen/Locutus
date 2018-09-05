@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "UnitData.h"
 #include "InformationManager.h"
+#include "UnitUtil.h"
 #include "MathUtil.h"
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
@@ -119,8 +120,19 @@ void UnitData::updateUnit(BWAPI::Unit unit)
     ui.player       = unit->getPlayer();
 	ui.lastPosition = unit->getPosition();
 	ui.goneFromLastPosition = false;
-	ui.lastHealth   = unit->getHitPoints();
-    ui.lastShields  = unit->getShields();
+
+    // Cloaked units show up with 0 hit points and shields, so default to max and otherwise don't touch them
+    if (!UnitUtil::IsUndetected(unit))
+    {
+        ui.lastHealth = unit->getHitPoints();
+        ui.lastShields = unit->getShields();
+    }
+    else if (ui.lastHealth == 0)
+    {
+        ui.lastHealth = unit->getType().maxHitPoints();
+        ui.lastShields = unit->getType().maxShields();
+    }
+
 	ui.unitID       = unit->getID();
 	ui.type         = unit->getType();
     ui.completed    = unit->isCompleted();

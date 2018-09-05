@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "MapGrid.h"
+#include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
@@ -185,7 +186,7 @@ void MapGrid::update()
 	{
 		if (unit->exists() &&
 			(unit->isCompleted() || unit->getType().isBuilding()) &&
-			unit->getHitPoints() > 0 &&
+			(unit->getHitPoints() > 0 || UnitUtil::IsUndetected(unit)) &&
 			unit->getType() != BWAPI::UnitTypes::Unknown) 
 		{
 			getCell(unit).oppUnits.insert(unit);

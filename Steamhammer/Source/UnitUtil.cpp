@@ -58,7 +58,7 @@ bool UnitUtil::IsComingStaticDefense(BWAPI::UnitType type)
 // This is a combat unit for purposes of combat simulation.
 bool UnitUtil::IsCombatSimUnit(BWAPI::Unit unit)
 {
-	if (!unit->isCompleted() || !unit->isPowered() || unit->getHitPoints() == 0)
+	if (!IsUndetected(unit) && (!unit->isCompleted() || !unit->isPowered() || unit->getHitPoints() == 0))
 	{
 		return false;
 	}
@@ -432,6 +432,11 @@ int UnitUtil::GetWeaponDamageToWorker(BWAPI::Unit attacker)
 
 	// Assume it is Normal or Concussive damage, though there are other possibilities.
 	return damage;
+}
+
+bool UnitUtil::IsUndetected(BWAPI::Unit unit)
+{
+    return (unit->isCloaked() || unit->getType().hasPermanentCloak()) && !unit->isDetected();
 }
 
 // All our units, whether completed or not.

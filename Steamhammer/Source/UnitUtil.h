@@ -40,6 +40,8 @@ namespace UnitUtil
 	bool GoodUnderDarkSwarm(BWAPI::Unit attacker);
 	bool GoodUnderDarkSwarm(BWAPI::UnitType attacker);
 
+    bool IsUndetected(BWAPI::Unit unit);
+
 	int GetAllUnitCount(BWAPI::UnitType type);
 	int GetCompletedUnitCount(BWAPI::UnitType type);
 	int GetUncompletedUnitCount(BWAPI::UnitType type);

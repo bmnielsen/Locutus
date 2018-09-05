@@ -45,7 +45,7 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
             if (ignoreBunkers && unit->getType() == BWAPI::UnitTypes::Terran_Bunker) continue;
             if (rushing && unit->getType().isFlyer()) continue;
 
-			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit))
+			if (UnitUtil::IsCombatSimUnit(unit))
 			{
                 enemyUnits.push_back(unit);
 				if (Config::Debug::DrawCombatSimulationInfo)
