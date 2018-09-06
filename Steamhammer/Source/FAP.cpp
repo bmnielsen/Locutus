@@ -195,6 +195,7 @@ namespace UAlbertaBot {
 
         for (auto enemyIt = enemyUnits.begin(); enemyIt != enemyUnits.end();
             ++enemyIt) {
+            if (enemyIt->undetected) continue;
             if (enemyIt->flying) {
                 if (fu.airDamage) {
                     int d = distance(fu, *enemyIt);
@@ -503,6 +504,8 @@ namespace UAlbertaBot {
         armor(InformationManager::Instance().getUnitArmor(ui.player, ui.type)),
         flying(ui.type.isFlyer()),
 
+        undetected(ui.undetected),
+
         groundDamage(InformationManager::Instance().getWeaponDamage(ui.player, ui.type.groundWeapon())),
         groundCooldown(ui.type.groundWeapon().damageFactor() && ui.type.maxGroundHits() ? InformationManager::Instance().getUnitCooldown(ui.player, ui.type) / (ui.type.groundWeapon().damageFactor() * ui.type.maxGroundHits()) : 0),
         groundMaxRange(InformationManager::Instance().getWeaponRange(ui.player, ui.type.groundWeapon())),
@@ -632,6 +635,7 @@ namespace UAlbertaBot {
         isOrganic = other.isOrganic;
         didHealThisFrame = other.didHealThisFrame;
         elevation = other.elevation;
+        undetected = other.undetected;
         player = other.player;
 
         return *this;

@@ -120,9 +120,10 @@ void UnitData::updateUnit(BWAPI::Unit unit)
     ui.player       = unit->getPlayer();
 	ui.lastPosition = unit->getPosition();
 	ui.goneFromLastPosition = false;
+    ui.undetected = UnitUtil::IsUndetected(unit);
 
     // Cloaked units show up with 0 hit points and shields, so default to max and otherwise don't touch them
-    if (!UnitUtil::IsUndetected(unit))
+    if (!ui.undetected)
     {
         ui.lastHealth = unit->getHitPoints();
         ui.lastShields = unit->getShields();

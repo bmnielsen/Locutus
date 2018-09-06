@@ -28,6 +28,8 @@ namespace UAlbertaBot {
             mutable bool flying = 0;
             mutable int elevation = -1;
 
+            mutable bool undetected = false;
+
             mutable BWAPI::UnitSizeType unitSize;
 
             mutable int groundDamage = 0;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "UnitUtil.h"
 
 namespace UAlbertaBot
 {
@@ -22,6 +23,7 @@ struct UnitInfo
 	int				estimatedCompletionFrame;
     bool            isFlying;
     int             groundWeaponCooldownFrame; // Frame the ground weapon will be out of cooldown
+    bool            undetected; // Whether the unit is currently cloaked and not detected
 
     UnitInfo()
         : unitID(0)
@@ -37,6 +39,7 @@ struct UnitInfo
 		, estimatedCompletionFrame(0)
         , isFlying(false)
         , groundWeaponCooldownFrame(0)
+        , undetected(false)
 	{
     }
 
@@ -54,6 +57,7 @@ struct UnitInfo
 		, estimatedCompletionFrame(ComputeCompletionFrame(unit))
         , isFlying(unit->isFlying())
         , groundWeaponCooldownFrame(BWAPI::Broodwar->getFrameCount() + unit->getGroundWeaponCooldown())
+        , undetected(UnitUtil::IsUndetected(unit))
 	{
 	}
 
