@@ -71,6 +71,8 @@ class Squad
 	void			loadTransport();
 	void			stimIfNeeded();
 
+    void            updateBlockScouting();
+
 public:
 
 	Squad(const std::string & name, SquadOrder order, size_t priority);

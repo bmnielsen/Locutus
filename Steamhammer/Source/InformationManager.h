@@ -144,6 +144,8 @@ public:
 	int						getMyNumGeysers();
 	void					getMyGasCounts(int & nRefineries, int & nFreeGeysers);
 
+    bool                    haveWeTakenOurNatural();
+
 	bool					getEnemyProxy() { return _enemyProxy; };
 
 	void					maybeChooseNewMainBase();

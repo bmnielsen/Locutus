@@ -6,6 +6,9 @@
 #include "MapGrid.h"
 #include "PathFinding.h"
 
+namespace { auto & bwemMap = BWEM::Map::Instance(); }
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
+
 using namespace UAlbertaBot;
 
 Squad::Squad()
@@ -79,6 +82,12 @@ void Squad::update()
 		_microTransports.update();
 		// And fall through to let the rest of the drop squad attack.
 	}
+
+    if (_order.getType() == SquadOrderTypes::BlockEnemyScout)
+    {
+        updateBlockScouting();
+        return;
+    }
 
 	bool needToRegroup = needsToRegroup();
     
@@ -967,4 +976,112 @@ bool Squad::hasMicroManager(const MicroManager* microManager) const
         &_microRanged == microManager ||
         &_microTanks == microManager ||
         &_microTransports == microManager;
+}
+
+void Squad::updateBlockScouting()
+{
+    ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
+    if (_units.size() < chokeData.blockScoutPositions.size()) return;
+
+    // Assign a position to each unit
+    std::map<BWAPI::Unit, BWAPI::Position> assignedPositions;
+    std::set<BWAPI::Position> positions(chokeData.blockScoutPositions);
+
+    // First pass: combat units already in position
+    for (auto unit : _units)
+        if (!unit->getType().isWorker())
+        {
+            auto it = positions.find(unit->getPosition());
+            if (it == positions.end()) continue;
+            positions.erase(it);
+            assignedPositions[unit] = unit->getPosition();
+        }
+
+    // Second pass: combat units not already in position
+    for (auto unit : _units)
+        if (!unit->getType().isWorker() && assignedPositions.find(unit) == assignedPositions.end())
+        {
+            UAB_ASSERT(!positions.empty(), "no block position for combat unit");
+
+            assignedPositions[unit] = *positions.begin();
+            positions.erase(positions.begin());
+        }
+
+    // Third pass: workers already in position
+    for (auto unit : _units)
+        if (unit->getType().isWorker())
+        {
+            auto it = positions.find(unit->getPosition());
+            if (it == positions.end()) continue;
+            positions.erase(it);
+            assignedPositions[unit] = unit->getPosition();
+        }
+
+    // Fourth pass: workers not already in position
+    for (auto unit : _units)
+        if (unit->getType().isWorker() && !positions.empty() && assignedPositions.find(unit) == assignedPositions.end())
+        {
+            assignedPositions[unit] = *positions.begin();
+            positions.erase(positions.begin());
+        }
+
+    // Issue orders
+    for (auto it = _units.begin(); it != _units.end(); )
+    {
+        auto unit = *it;
+
+        BWAPI::Position pos;
+        auto assignment = assignedPositions.find(unit);
+        if (assignment != assignedPositions.end())
+            pos = assignment->second;
+        else
+        {
+            if (!unit->getType().isWorker()) goto nextUnit;
+
+            // This is a probe that is being replaced by a combat unit
+            // We wait until the replacement unit is close by, then mineral walk back to base
+
+            // Handle unit that is currently mineral walking
+            if (unit->getOrder() == BWAPI::Orders::MoveToMinerals)
+            {
+                // Release the unit from the squad when it gets far enough away
+                if (unit->getDistance(BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(4, 4)) > 100)
+                {
+                    if (unit->getType().isWorker()) WorkerManager::Instance().finishedWithWorker(unit);
+                    it = _units.erase(it);
+                    continue;
+                }
+                goto nextUnit;
+            }
+            
+            // Check if there is a combat unit close by
+            for (auto other : _units)
+                if (other != unit && !other->getType().isWorker() && other->getDistance(unit) < 10)
+                {
+                    // Start mineral walking
+                    for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())
+                    {
+                        if (!staticNeutral->getType().isMineralField()) continue;
+                        if (!staticNeutral->exists() || !staticNeutral->isVisible()) continue;
+                        if (bwemMap.GetNearestArea(staticNeutral->getTilePosition()) != bwebMap.mainArea) continue;
+                        Micro::RightClick(unit, staticNeutral);
+                        goto nextUnit;
+                    }
+                }
+
+            // Otherwise set the position to our current position and fall through
+            pos = unit->getPosition();
+        }
+
+        // If we aren't at the desired position, move there
+        if (unit->getPosition() != pos)
+            Micro::Move(unit, pos);
+
+        // Otherwise hold position
+        else
+            unit->holdPosition();
+
+    nextUnit:;
+        it++;
+    }
 }

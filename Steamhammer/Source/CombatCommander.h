@@ -22,6 +22,7 @@ class CombatCommander
 
 	int			    _enemyWorkerAttackedAt;
 
+    void            updateBlockScoutingSquad();
     void            updateScoutDefenseSquad();
 	void            updateBaseDefenseSquads();
 	void			updateHarassSquads();
@@ -97,6 +98,8 @@ public:
 		_goAggressive = aggressive;  
 	}
 	bool getAggression() const { return _goAggressive; };
+
+    void blockScouting();
 	
 	void pullWorkers(int n);
 	void releaseWorkers();

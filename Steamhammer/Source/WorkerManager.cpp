@@ -53,6 +53,9 @@ void WorkerManager::updateWorkerStatus()
 			continue;     // the worker list includes drones in the egg
 		}
 
+        // Workers with a combat order are managed fully by CombatCommander
+        if (workerData.getWorkerJob(worker) == WorkerData::Combat) continue;
+
 		// TODO temporary debugging - see Micro::Move
 		// UAB_ASSERT(UnitUtil::IsValidUnit(worker), "bad worker");
 

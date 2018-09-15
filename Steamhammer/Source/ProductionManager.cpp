@@ -933,6 +933,10 @@ void ProductionManager::executeCommand(MacroCommand command)
 	{
 		CombatCommander::Instance().releaseWorkers();
 	}
+	else if (cmd == MacroCommandType::BlockEnemyScout)
+	{
+		CombatCommander::Instance().blockScouting();
+	}
 	else if (cmd == MacroCommandType::Nonadaptive)
 	{
 		StrategyBossZerg::Instance().setNonadaptive(true);

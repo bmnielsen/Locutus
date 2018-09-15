@@ -334,7 +334,28 @@ void InformationManager::update()
     {
         LocutusUnit& locutusUnit = getLocutusUnit(unit);
 
-        if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && true)
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot && true)
+        {
+            anyDebugUnits = true;
+
+            debug << "\n" << unit->getType() << " " << unit->getID() << " @ " << unit->getPosition() << ": ";
+
+            debug << "command: " << unit->getLastCommand().getType() << ",frame=" << (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame());
+            if (unit->getLastCommand().getTarget())
+                debug << ",target=" << unit->getLastCommand().getTarget()->getType() << " " << unit->getLastCommand().getTarget()->getID() << " @ " << unit->getLastCommand().getTarget()->getPosition() << ",dist=" << unit->getLastCommand().getTarget()->getDistance(unit);
+            else if (unit->getLastCommand().getTargetPosition())
+                debug << ",targetpos " << unit->getLastCommand().getTargetPosition();
+
+            debug << ". order: " << unit->getOrder();
+            if (unit->getOrderTarget())
+                debug << ",target=" << unit->getOrderTarget()->getType() << " " << unit->getOrderTarget()->getID() << " @ " << unit->getOrderTarget()->getPosition() << ",dist=" << unit->getOrderTarget()->getDistance(unit);
+            else if (unit->getOrderTargetPosition())
+                debug << ",targetpos " << unit->getOrderTargetPosition();
+
+            debug << ". isMoving=" << unit->isMoving() << ";isattackframe=" << unit->isAttackFrame() << ";isstartingattack=" << unit->isStartingAttack() << ";cooldown=" << unit->getGroundWeaponCooldown();
+        }
+
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon && false)
         {
             anyDebugUnits = true;
 
@@ -384,11 +405,11 @@ void InformationManager::update()
             debug << ". isMoving=" << unit->isMoving();
         }
 
-        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && false)
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && true)
         {
             anyDebugUnits = true;
 
-            debug << "\n" << unit->getType() << " " << unit->getID() << " @ " << unit->getPosition() << ": ";
+            debug << "\n" << unit->getType() << " " << unit->getID() << " @ " << unit->getPosition() << "^" << BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(unit->getPosition())) << ": ";
 
             debug << "command: " << unit->getLastCommand().getType() << ",frame=" << (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame());
             if (unit->getLastCommand().getTarget())
@@ -1689,6 +1710,26 @@ Base* InformationManager::baseAt(BWAPI::TilePosition baseTilePosition)
 	}
 
     return nullptr;
+}
+
+bool InformationManager::haveWeTakenOurNatural() 
+{
+    // Might not have a natural
+    if (!getMyNaturalLocation()) return false;
+
+    // Do we own the base?
+    if (BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(getMyNaturalLocation())) return true;
+
+    // Is either the natural nexus or a wall building in our building manager queue?
+    LocutusWall& wall = BuildingPlacer::Instance().getWall();
+    for (auto queuedBuilding : BuildingManager::Instance().buildingsQueued())
+        if (wall.containsBuildingAt(queuedBuilding->finalPosition) ||
+            (queuedBuilding->type.isResourceDepot() && queuedBuilding->finalPosition == getMyNaturalLocation()->getTilePosition()))
+        {
+            return true;
+        }
+
+    return false;
 }
 
 // We have complated combat units (excluding workers).

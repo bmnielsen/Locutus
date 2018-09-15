@@ -31,3 +31,25 @@ int MathUtil::EdgeToPointDistance(BWAPI::UnitType type, BWAPI::Position center, 
     // Compute distance
     return BWAPI::Positions::Origin.getApproxDistance(BWAPI::Position(xDist, yDist));
 }
+
+bool MathUtil::Overlaps(BWAPI::UnitType firstType, BWAPI::Position firstCenter, BWAPI::UnitType secondType, BWAPI::Position secondCenter)
+{
+    // Compute bounding boxes
+    BWAPI::Position firstTopLeft = firstCenter + BWAPI::Position(-firstType.dimensionLeft(), -firstType.dimensionUp());
+    BWAPI::Position firstBottomRight = firstCenter + BWAPI::Position(firstType.dimensionRight(), firstType.dimensionDown());
+    BWAPI::Position secondTopLeft = secondCenter + BWAPI::Position(-secondType.dimensionLeft(), -secondType.dimensionUp());
+    BWAPI::Position secondBottomRight = secondCenter + BWAPI::Position(secondType.dimensionRight(), secondType.dimensionDown());
+
+    return firstBottomRight.x >= secondTopLeft.x && secondBottomRight.x >= firstTopLeft.x &&
+        firstBottomRight.y >= secondTopLeft.y && secondBottomRight.y >= firstTopLeft.y;
+}
+
+bool MathUtil::Overlaps(BWAPI::UnitType type, BWAPI::Position center, BWAPI::Position point)
+{
+    // Compute bounding box
+    BWAPI::Position topLeft = center + BWAPI::Position(-type.dimensionLeft(), -type.dimensionUp());
+    BWAPI::Position bottomRight = center + BWAPI::Position(type.dimensionRight(), type.dimensionDown());
+
+    return bottomRight.x >= point.x && point.x >= topLeft.x &&
+        bottomRight.y >= point.y && point.y >= topLeft.y;
+}

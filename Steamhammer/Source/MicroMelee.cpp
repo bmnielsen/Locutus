@@ -6,6 +6,7 @@
 #include "CombatCommander.h"
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
@@ -41,6 +42,54 @@ void MicroMelee::getTargets(BWAPI::Unitset & targets) const
 
 void MicroMelee::executeMicro(const BWAPI::Unitset & targets) 
 {
+    // Do some special micro if the squad is defending a narrow choke
+    // TODO: This isn't working
+    /*
+    if (order.getType() == SquadOrderTypes::Defend)
+    {
+        BWAPI::Position squadCenter = CombatCommander::Instance().getSquadData().getSquad(this).calcCenter();
+        Log().Debug() << "center: " << squadCenter << "; main choke: " << BWAPI::Position(bwebMap.mainChoke->Center()) << " = " << BWAPI::Position(bwebMap.mainChoke->Center()).getApproxDistance(squadCenter);
+
+        // Try to find a choke close to where the squad is defending
+        const BWEM::ChokePoint* defendingChoke = nullptr;
+        for (auto choke : MapTools::Instance().getAllChokepoints())
+            if (BWAPI::Position(choke->Center()).getApproxDistance(squadCenter) < 150)
+            {
+                defendingChoke = choke;
+                break;
+            }
+
+        if (defendingChoke)
+        {
+            ChokeData & chokeData = *((ChokeData*)defendingChoke->Ext());
+            if (chokeData.blockScoutPositions.size() == 1)
+            {
+                BWAPI::Position pos = *chokeData.blockScoutPositions.begin();
+
+                // Move the closest unit to the block position and hold position there
+                BWAPI::Unit closestUnit = nullptr;
+                int bestDist = INT_MAX;
+                for (auto unit : getUnits())
+                {
+                    int dist = unit->getDistance(pos);
+                    if (dist < bestDist)
+                    {
+                        closestUnit = unit;
+                        bestDist = dist;
+                    }
+                }
+                if (closestUnit)
+                {
+                    if (closestUnit->getPosition() == pos)
+                        closestUnit->holdPosition();
+                    else
+                        InformationManager::Instance().getLocutusUnit(closestUnit).moveTo(pos);
+                }
+            }
+        }
+    }
+    */
+
 	assignTargets(targets);
 }
 
@@ -67,6 +116,9 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 
 	for (const auto meleeUnit : meleeUnits)
 	{
+        // We may have issued a command to this unit earlier when defending a narrow choke
+        if (meleeUnit->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount()) continue;
+
 		if (meleeUnit->isBurrowed())
 		{
 			// For now, it would burrow only if irradiated. Leave it.

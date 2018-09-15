@@ -3,6 +3,7 @@
 #include "BuildingPlacer.h"
 #include "InformationManager.h"
 #include "PathFinding.h"
+#include "MathUtil.h"
 
 const double pi = 3.14159265358979323846;
 
@@ -33,22 +34,21 @@ MapTools::MapTools()
 	}
 
     // Get all of the BWEM chokepoints
-    std::set<const BWEM::ChokePoint*> chokes;
     for (const auto & area : bwemMap.Areas())
         for (const BWEM::ChokePoint * choke : area.ChokePoints())
-            chokes.insert(choke);
+            _allChokepoints.insert(choke);
 
     _minChokeWidth = INT_MAX;
 
     // Store a ChokeData object for each choke
-    for (const BWEM::ChokePoint * choke : chokes)
+    for (const BWEM::ChokePoint * choke : _allChokepoints)
     {
         choke->SetExt(new ChokeData(choke));
         ChokeData & chokeData = *((ChokeData*)choke->Ext());
 
         // Compute the choke width
         // Because the ends are themselves walkable tiles, we need to add a bit of padding to estimate the actual walkable width of the choke
-        int width = BWAPI::Position(choke->Pos(choke->end1)).getApproxDistance(BWAPI::Position(choke->Pos(choke->end2))) + 15;
+        int width = BWAPI::Position(choke->Pos(choke->end1)).getDistance(BWAPI::Position(choke->Pos(choke->end2))) + 15;
 
         // On Fortress for some reason BWEM doesn't set the ends of the blocked chokes properly
         // Just set them to something usable
@@ -65,33 +65,103 @@ MapTools::MapTools()
         {
             chokeData.isRamp = true;
 
-            // For narrow ramps with a difference in elevation, compute a tile at high elevation close to the choke
-            // We will use this for pathfinding
-            if (chokeData.width < 96)
+            // For narrow ramps, compute the tile nearest the center where the elevation
+            // changes from low to high ground
+            if (chokeData.width < 128)
             {
-                // Start by computing the angle of the choke
-                BWAPI::Position chokeDelta(choke->Pos(choke->end1) - choke->Pos(choke->end2));
-                double chokeAngle = atan2(chokeDelta.y, chokeDelta.x);
+                BWAPI::Position chokeCenter = BWAPI::Position(choke->Center()) + BWAPI::Position(4, 4);
+                int lowGroundElevation = std::min(firstAreaElevation, secondAreaElevation);
+                int highGroundElevation = std::max(firstAreaElevation, secondAreaElevation);
 
-                // Now find a tile a bit away from the middle of the choke that is at high elevation
-                int highestElevation = std::max(firstAreaElevation, secondAreaElevation);
-                BWAPI::Position center(choke->Center());
-                BWAPI::TilePosition closestToCenter = BWAPI::TilePositions::Invalid;
-                for (int step = 0; step <= 6; step++)
-                    for (int direction = -1; direction <= 1; direction += 2)
+                // Generate a set of low-ground tiles near the choke, ignoring "holes"
+                std::set<BWAPI::TilePosition> lowGroundTiles;
+                for (int x = -5; x <= 5; x++)
+                    for (int y = -5; y <= 5; y++)
                     {
-                        BWAPI::TilePosition tile(BWAPI::Position(
-                            center.x - (int)std::round(16 * step * std::cos(chokeAngle + direction * (pi / 2.0))),
-                            center.y - (int)std::round(16 * step * std::sin(chokeAngle + direction * (pi / 2.0)))));
-
+                        BWAPI::TilePosition tile = BWAPI::TilePosition(choke->Center()) + BWAPI::TilePosition(x, y);
                         if (!tile.isValid()) continue;
-                        if (!bwebMap.isWalkable(tile)) continue;
-
-                        if (BWAPI::Broodwar->getGroundHeight(tile) == highestElevation)
+                        if (BWAPI::Broodwar->getGroundHeight(tile) != lowGroundElevation) continue;
+                        if (BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(1, 0)) == lowGroundElevation ||
+                            BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(0, 1)) == lowGroundElevation ||
+                            BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(-1, 0)) == lowGroundElevation ||
+                            BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(0, -1)) == lowGroundElevation)
                         {
-                            chokeData.highElevationTile = tile;
+                            lowGroundTiles.insert(tile);
                         }
                     }
+
+                const auto inChokeCenter = [this](BWAPI::Position pos) {
+                    BWAPI::Position end1 = findClosestUnwalkablePosition(pos, pos, 64);
+                    if (!end1.isValid()) return false;
+
+                    BWAPI::Position end2 = findClosestUnwalkablePosition(BWAPI::Position(pos.x + pos.x - end1.x, pos.y + pos.y - end1.y), pos, 32);
+                    if (!end2.isValid()) return false;
+
+                    if (end1.getDistance(end2) < end1.getDistance(pos)) return false;
+
+                    return std::abs(end1.getDistance(pos) - end2.getDistance(pos)) < 2;
+                };
+
+                // Find the nearest position to the choke center that is on the high-ground border
+                // This means that it is on the high ground and adjacent to one of the low-ground tiles found above
+                int bestDist = INT_MAX;
+                for (int x = -64; x <= 64; x++)
+                    for (int y = -64; y <= 64; y++)
+                    {
+                        BWAPI::Position pos = chokeCenter + BWAPI::Position(x, y);
+                        if (!pos.isValid()) continue;
+                        if (pos.x % 32 > 0 && pos.x % 32 < 31 && pos.y % 32 > 0 && pos.y % 32 < 31) continue;
+                        if (!BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(pos))) continue;
+                        if (BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(pos)) != highGroundElevation) continue;
+                        if (lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(1, 0))) == lowGroundTiles.end() &&
+                            lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(-1, 0))) == lowGroundTiles.end() &&
+                            lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(0, 1))) == lowGroundTiles.end() &&
+                            lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(0, -1))) == lowGroundTiles.end())
+                            continue;
+                        if (!inChokeCenter(pos)) continue;
+
+                        int dist = pos.getDistance(chokeCenter);
+                        if (dist < bestDist)
+                        {
+                            chokeData.highElevationTile = BWAPI::TilePosition(pos);
+                            bestDist = dist;
+                        }
+                    }
+            }
+        }
+
+        // If the choke is narrow, generate positions where we can block the enemy worker scout
+        if (chokeData.width < 128)
+        {
+            // Initial center position using the BWEM data
+            BWAPI::Position centerPoint = BWAPI::Position(choke->Center()) + BWAPI::Position(4, 4);
+            BWAPI::Position end1 = findClosestUnwalkablePosition(centerPoint, centerPoint, 64);
+            BWAPI::Position end2 = findClosestUnwalkablePosition(BWAPI::Position(centerPoint.x + centerPoint.x - end1.x, centerPoint.y + centerPoint.y - end1.y), centerPoint, 32);
+            if (!end1.isValid() || !end2.isValid())
+            {
+                end1 = BWAPI::Position(choke->Pos(choke->end1)) + BWAPI::Position(4, 4);
+                end2 = BWAPI::Position(choke->Pos(choke->end2)) + BWAPI::Position(4, 4);
+            }
+
+            // If the center is not really in the center, move it
+            double end1Dist = end1.getDistance(centerPoint);
+            double end2Dist = end2.getDistance(centerPoint);
+            if (std::abs(end1Dist - end2Dist) > 2.0)
+            {
+                centerPoint = BWAPI::Position((end1.x + end2.x) / 2, (end1.y + end2.y) / 2);
+                end1Dist = end1.getDistance(centerPoint);
+                end2Dist = end2.getDistance(centerPoint);
+            }
+
+            // We can block the choke with one probe if the gap distance is less than 40 pixels
+            if (std::max(end1Dist, end2Dist) < 40.0)
+                chokeData.blockScoutPositions.insert(centerPoint);
+            else
+            {
+                // We need more than one probe, find the positions between the ends and compute the blocking positions
+                std::vector<BWAPI::Position> path;
+                findPath(end1, end2, path);
+                computeScoutBlockingPositions(path, chokeData.blockScoutPositions);
             }
         }
     }
@@ -104,7 +174,7 @@ MapTools::MapTools()
         _hasMineralWalkChokes = true;
 
         // Process each choke
-        for (const BWEM::ChokePoint * choke : chokes)
+        for (const BWEM::ChokePoint * choke : _allChokepoints)
         {
             ChokeData & chokeData = *((ChokeData*)choke->Ext());
             BWAPI::Position chokeCenter(choke->Center());
@@ -170,7 +240,7 @@ MapTools::MapTools()
         _hasMineralWalkChokes = true;
 
         // Process each choke
-        for (const BWEM::ChokePoint * choke : chokes)
+        for (const BWEM::ChokePoint * choke : _allChokepoints)
         {
             // On Fortress the mineral walking chokes are all considered blocked by BWEM
             if (!choke->Blocked()) continue;
@@ -229,6 +299,195 @@ MapTools::MapTools()
 	// TODO testing
 	//BWAPI::TilePosition homePosition = BWAPI::Broodwar->self()->getStartLocation();
 	//BWAPI::Broodwar->printf("start position %d,%d", homePosition.x, homePosition.y);
+}
+
+BWAPI::Position MapTools::findClosestUnwalkablePosition(BWAPI::Position start, BWAPI::Position closeTo, int searchRadius)
+{
+    BWAPI::Position bestPos = BWAPI::Positions::Invalid;
+    int bestDist = INT_MAX;
+    for (int x = start.x - searchRadius; x <= start.x + searchRadius; x++)
+        for (int y = start.y - searchRadius; y <= start.y + searchRadius; y++)
+        {
+            BWAPI::Position current(x, y);
+            if (!current.isValid()) continue;
+            if (BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(current))) continue;
+            int dist = current.getDistance(closeTo);
+            if (dist < bestDist)
+            {
+                bestPos = current;
+                bestDist = dist;
+            }
+        }
+
+    return bestPos;
+}
+
+// Finds all walkable positions on the direct path between the start and end positions
+void MapTools::findPath(BWAPI::Position start, BWAPI::Position end, std::vector<BWAPI::Position> & result)
+{
+    std::set<BWAPI::Position> added;
+    int distTotal = std::round(start.getDistance(end));
+    int xdiff = end.x - start.x;
+    int ydiff = end.y - start.y;
+    for (int distStop = 0; distStop <= distTotal; distStop++)
+    {
+        BWAPI::Position pos(
+            start.x + std::round(((double)distStop / distTotal) * xdiff),
+            start.y + std::round(((double)distStop / distTotal) * ydiff));
+
+        if (!pos.isValid()) continue;
+        if (!BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(pos))) continue;
+        if (added.find(pos) != added.end()) continue;
+
+        result.push_back(pos);
+        added.insert(pos);
+    }
+}
+
+// Finds two positions that block the given positions
+void MapTools::computeScoutBlockingPositions(std::vector<BWAPI::Position> toBlock, std::set<BWAPI::Position> & result)
+{
+    if (toBlock.empty()) return;
+
+    std::ostringstream debug;
+    debug << "Determining blocking positions:";
+
+    const auto walkableByWorker = [](BWAPI::Position position) {
+        for (int x = position.x - BWAPI::UnitTypes::Protoss_Probe.dimensionLeft(); x <= position.x + BWAPI::UnitTypes::Protoss_Probe.dimensionRight(); x += 8)
+            for (int y = position.y - BWAPI::UnitTypes::Protoss_Probe.dimensionUp(); y <= position.y + BWAPI::UnitTypes::Protoss_Probe.dimensionDown(); y += 8)
+                if (!BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(BWAPI::Position(x, y))))
+                    return false;
+        return true;
+    };
+
+    // Step 1: remove positions on both ends that the enemy worker cannot stand on because of unwalkable terrain
+    for (int i = 0; i < 2; i++)
+    {
+        BWAPI::Position start = *toBlock.begin();
+        for (auto it = toBlock.begin(); it != toBlock.end(); it = toBlock.erase(it))
+            if (walkableByWorker(*it))
+                break;
+
+        std::reverse(toBlock.begin(), toBlock.end());
+    }
+
+    // Step 2: gather potential positions to place a probe that block the enemy unit locations at both ends
+    struct BlockPositionData {
+        BWAPI::Position pos;
+        int distFromEnemy;
+        int blockedPositions;
+    };
+    std::vector<std::vector<BlockPositionData>> candidatePositions = { std::vector<BlockPositionData>(), std::vector<BlockPositionData>() };
+    int overallMaxDistFromEnemy = 0;
+    std::vector<int> maxDistFromEnemy = { 0, 0 };
+    for (int i = 0; i < 2; i++)
+    {
+        debug << "\n";
+
+        BWAPI::Position enemyPosition = *toBlock.begin();
+        for (int x = enemyPosition.x - 11; x <= enemyPosition.x + 11; x++)
+            for (int y = enemyPosition.y - 11; y <= enemyPosition.y + 11; y++)
+            {
+                BWAPI::Position pos(x, y);
+
+                // Is this a valid position for the probe?
+                if (!pos.isValid()) continue;
+                if (!walkableByWorker(pos)) continue;
+
+                // Does it block at least the first enemy position?
+                int blockedPositions = 0;
+                for (auto blockPos : toBlock)
+                    if (!MathUtil::Overlaps(BWAPI::UnitTypes::Protoss_Probe, blockPos, BWAPI::UnitTypes::Protoss_Probe, pos))
+                        break;
+                    else
+                        blockedPositions++;
+                if (blockedPositions == 0) continue;
+
+                // If we found a position that blocks everything, return it
+                if (blockedPositions == toBlock.size())
+                {
+                    result.insert(pos);
+                    return;
+                }
+
+                // Get the distance to the enemy position and store the largest we find
+                int distFromEnemy = pos.getApproxDistance(enemyPosition);
+                if (distFromEnemy > maxDistFromEnemy[i]) maxDistFromEnemy[i] = distFromEnemy;
+                if (distFromEnemy > overallMaxDistFromEnemy) overallMaxDistFromEnemy = distFromEnemy;
+
+                candidatePositions[i].emplace_back(BlockPositionData{
+                    pos,
+                    distFromEnemy,
+                    blockedPositions });
+                debug << "," << pos << ":" << distFromEnemy << ":" << blockedPositions;
+            }
+
+        std::reverse(toBlock.begin(), toBlock.end());
+    }
+
+    // Step 3: find a combination that blocks all positions
+    for (int distFromEnemy = overallMaxDistFromEnemy; distFromEnemy >= 0; distFromEnemy--)
+    {
+        std::vector<BWAPI::Position> toBlockCopy(toBlock);
+        for (int i = 0; i < 2; i++)
+        {
+            int targetDistance = std::min(distFromEnemy, maxDistFromEnemy[i]);
+
+            // Find the best position that satisfies the target distance
+            BWAPI::Position bestPos = BWAPI::Positions::Invalid;
+            int bestScore = 0;
+            for (auto & posData : candidatePositions[i])
+            {
+                if (posData.distFromEnemy != targetDistance) continue;
+                if (!result.empty() && MathUtil::Overlaps(BWAPI::UnitTypes::Protoss_Probe, *result.begin(), BWAPI::UnitTypes::Protoss_Probe, posData.pos)) continue;
+                if (posData.blockedPositions > bestScore)
+                {
+                    bestPos = posData.pos;
+                    bestScore = posData.blockedPositions;
+                }
+            }
+            if (!bestPos.isValid()) goto nextDist;
+
+            result.insert(bestPos);
+        }
+
+        debug << "\nConsidering " << *result.begin() << " " << *result.rbegin();
+
+        // Remove positions now blocked
+        for (auto it = toBlockCopy.begin(); it != toBlockCopy.end();)
+        {
+            if (!walkableByWorker(*it))
+            {
+                it = toBlockCopy.erase(it);
+                continue;
+            }
+
+            for (auto pos : result)
+                if (MathUtil::Overlaps(BWAPI::UnitTypes::Protoss_Probe, *it, BWAPI::UnitTypes::Protoss_Probe, pos))
+                {
+                    it = toBlockCopy.erase(it);
+                    goto nextInToBlock;
+                }
+
+            it++;
+
+        nextInToBlock:;
+        }
+
+        // Return if we found a valid combination
+        if (toBlockCopy.empty())
+        {
+            //Log().Debug() << debug.str();
+            return;
+        }
+
+        debug << ": " << toBlockCopy.size() << " remaining";
+
+    nextDist:;
+        result.clear();
+    }
+
+    //Log().Debug() << debug.str();
 }
 
 // Read the map data from BWAPI and remember which 32x32 build tiles are walkable.

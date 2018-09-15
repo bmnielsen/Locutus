@@ -18,8 +18,9 @@ const size_t ReconPriority = 2;
 const size_t HarassPriority = 3;
 const size_t BaseDefensePriority = 4;
 const size_t ScoutDefensePriority = 5;
-const size_t DropPriority = 6;         // don't steal from Drop squad for Defense squad
-const size_t KamikazePriority = 7;
+const size_t BlockScoutingPriority = 6;
+const size_t DropPriority = 7;         // don't steal from Drop squad for Defense squad
+const size_t KamikazePriority = 8;
 
 // The attack squads.
 const int AttackRadius = 800;
@@ -106,7 +107,8 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 	{
 		updateIdleSquad();
 		updateDropSquads();
-		updateScoutDefenseSquad();
+        updateBlockScoutingSquad();
+        updateScoutDefenseSquad();
 		updateBaseDefenseSquads();
 		updateHarassSquads();
         updateDefuseSquads();
@@ -735,13 +737,10 @@ void CombatCommander::updateAttackSquads()
 		int radius = DefensivePositionRadius;
 
         // Determine the position to defend
-        LocutusWall& wall = BuildingPlacer::Instance().getWall();
-        BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
-        BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
-
         BWAPI::Position defendPosition;
 
         // If we have a wall at the natural, defend it
+        LocutusWall& wall = BuildingPlacer::Instance().getWall();
         if (wall.exists())
         {
             defendPosition = wall.gapCenter;
@@ -749,31 +748,28 @@ void CombatCommander::updateAttackSquads()
         }
 
         // If we have taken the natural, defend it
-        else if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
+        else if (InformationManager::Instance().haveWeTakenOurNatural())
         {
+            BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
             defendPosition = natural->getPosition();
+
+            // Defend the natural choke if we have one and our combat sim says it is safe to do so
+            if (bwebMap.naturalChoke && groundSquad.runCombatSim(BWAPI::Position(bwebMap.naturalChoke->Center())) >= 0)
+            {
+                defendPosition = BWAPI::Position(bwebMap.naturalChoke->Center()) + BWAPI::Position(4, 4);
+            }
         }
 
         // Otherwise defend the main
         else
         {
+            BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
             defendPosition = base->getPosition();
 
-            // Defend the main choke if:
-            // - it is the only non-blocked choke out of the main
-            // - our combat sim says it is safe to do so
-            if (bwebMap.mainChoke && bwebMap.mainArea)
+            // Defend the main choke if we have one and our combat sim says it is safe to do so
+            if (bwebMap.mainChoke && groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) >= 0)
             {
-                int mainChokes = 0;
-                for (auto choke : bwebMap.mainArea->ChokePoints())
-                    if (!choke->Blocked())
-                        mainChokes++;
-
-                if (mainChokes == 1 && 
-                    groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) >= 0)
-                {
-                    defendPosition = BWAPI::Position(bwebMap.mainChoke->Center());
-                }
+                defendPosition = BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(4, 4);
             }
         }
 
@@ -912,6 +908,127 @@ void CombatCommander::updateDropSquads()
                 transportSpotsRemaining -= unit->getType().spaceRequired();
             }
         }
+    }
+}
+
+void CombatCommander::blockScouting()
+{
+    // This just creates the squad so it will be handled on the next cycle
+    if (bwebMap.mainChoke)
+    {
+        ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
+        if (chokeData.blockScoutPositions.empty()) return;
+
+        SquadOrder blockScout(SquadOrderTypes::BlockEnemyScout, BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(4, 4), 0, "Block enemy scout");
+        _squadData.addSquad(Squad("Block scout", blockScout, BlockScoutingPriority));
+    }
+}
+
+void CombatCommander::updateBlockScoutingSquad()
+{
+    if (!_squadData.squadExists("Block scout")) return;
+
+    Squad & blockRampSquad = _squadData.getSquad("Block scout");
+    ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
+
+    // Disband the squad when either:
+    // - we have gone aggressive and have at least one combat unit
+    // - we are taking our natural
+    // TODO: Make it a bit more nuanced and support "opening" the choke for friendly units
+    if (InformationManager::Instance().haveWeTakenOurNatural() || 
+        (_goAggressive && (
+            UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Zealot) > 0 ||
+            UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) > 0 ||
+            UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) > 0)))
+    {
+        blockRampSquad.clear();
+        _squadData.removeSquad("Block scout");
+        return;
+    }
+
+    // Disband the squad if the enemy has a combat unit close to it
+    for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
+        if (unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320 &&
+            !unit->getType().isWorker() &&
+            UnitUtil::IsCombatUnit(unit))
+        {
+            blockRampSquad.clear();
+            _squadData.removeSquad("Block scout");
+            return;
+        }
+
+    // Assign zealots to the squad as they become available
+    int zealotCount = 0;
+    for (auto unit : blockRampSquad.getUnits()) if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot) zealotCount++;
+    if (zealotCount < chokeData.blockScoutPositions.size())
+    {
+        for (auto unit : _combatUnits)
+        {
+            if (unit->getType() != BWAPI::UnitTypes::Protoss_Zealot) continue;
+            if (!_squadData.canAssignUnitToSquad(unit, blockRampSquad)) continue;
+
+            _squadData.assignUnitToSquad(unit, blockRampSquad);
+            return;
+        }
+    }
+
+    if (!blockRampSquad.isEmpty()) return;
+
+    // The squad is not active (we haven't assigned any probes)
+    // We will do so just in time to block the earliest expected arrival of the enemy scout
+
+    // How many frames will it take our probes to get to the choke?
+    int distToChoke = PathFinding::GetGroundDistance(
+        InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
+        blockRampSquad.getSquadOrder().getPosition(),
+        BWAPI::UnitTypes::Protoss_Probe,
+        PathFinding::PathFindingOptions::UseNearestBWEMArea);
+    int framesToChoke = 
+        std::floor(((double)distToChoke / BWAPI::UnitTypes::Protoss_Probe.topSpeed()) * 1.1);
+
+    // How many frames (worst-case) will it take the enemy worker to get to the choke?
+    int framesToClosestEnemyBase = INT_MAX;
+    for (BWTA::BaseLocation * base : BWTA::getStartLocations())
+    {
+        if (base == InformationManager::Instance().getMyMainBaseLocation()) continue;
+
+        int dist = PathFinding::GetGroundDistance(
+            base->getPosition(),
+            blockRampSquad.getSquadOrder().getPosition(),
+            BWAPI::UnitTypes::Protoss_Probe,
+            PathFinding::PathFindingOptions::UseNearestBWEMArea);
+
+        // If an enemy base is not ground-connected to ours, disband the squad
+        if (dist == -1)
+        {
+            blockRampSquad.clear();
+            _squadData.removeSquad("Block scout");
+            return;
+        }
+
+        int frames = std::floor(((double)dist / BWAPI::UnitTypes::Protoss_Probe.topSpeed()) * 1.1);
+        if (frames < framesToClosestEnemyBase)
+        {
+            framesToClosestEnemyBase = frames;
+        }
+    }
+
+    // Assume the enemy sends their scout at 8 supply (approx. frame 1100)
+    // Include a small buffer for variations in how good our estimates are
+    int fillSquadAt = 1100 + framesToClosestEnemyBase - framesToChoke - 200;
+    if (fillSquadAt > BWAPI::Broodwar->getFrameCount()) return;
+
+    // Add the units
+    for (auto unit : _combatUnits)
+    {
+        if (blockRampSquad.getUnits().size() >= chokeData.blockScoutPositions.size()) break;
+
+        if (!unit->getType().isWorker()) continue;
+        if (unit->isCarryingMinerals() || unit->isCarryingGas()) continue;
+        if (!_squadData.canAssignUnitToSquad(unit, blockRampSquad)) continue;
+
+        WorkerManager::Instance().setCombatWorker(unit);
+        _squadData.assignUnitToSquad(unit, blockRampSquad);
     }
 }
 

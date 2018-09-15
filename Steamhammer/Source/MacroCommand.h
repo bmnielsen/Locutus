@@ -11,7 +11,7 @@ enum class MacroCommandType
 	, ScoutIfNeeded
 	, ScoutLocation
 	, ScoutOnceOnly
-	, ScoutWhileSafe   // TODO unimplemented
+	, ScoutWhileSafe
 	, StealGas
 	, StartGas
 	, StopGas
@@ -23,6 +23,7 @@ enum class MacroCommandType
 	, PullWorkers
 	, PullWorkersLeaving
 	, ReleaseWorkers
+    , BlockEnemyScout
 	, Nonadaptive
 	, GiveUp
 	, QueueBarrier
@@ -54,6 +55,7 @@ public:
 			, MacroCommandType::PullWorkers
 			, MacroCommandType::PullWorkersLeaving
 			, MacroCommandType::ReleaseWorkers
+			, MacroCommandType::BlockEnemyScout
 			, MacroCommandType::Nonadaptive
 			, MacroCommandType::GiveUp
 			, MacroCommandType::QueueBarrier
@@ -165,6 +167,10 @@ public:
 		if (t == MacroCommandType::ReleaseWorkers)
 		{
 			return "go release workers";
+		}
+		if (t == MacroCommandType::BlockEnemyScout)
+		{
+			return "go block enemy scout";
 		}
 		if (t == MacroCommandType::Nonadaptive)
 		{
