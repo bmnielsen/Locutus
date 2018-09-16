@@ -1092,7 +1092,9 @@ bool ScoutManager::pylonHarass()
         // Lure if:
         // - We have never lured before, OR
         // - Our previous lure pylon caused a reacton from enemy workers
-        else if (lureCausesEnemyWorkerReaction)
+        // Currently only enabled for Iron, most other good bots have adapted so this doesn't really help
+        else if (lureCausesEnemyWorkerReaction
+            && InformationManager::Instance().getEnemyName().find("iron") != std::string::npos)
         {
             _pylonHarassState = PylonHarassStates::ReadyForLure;
         }
