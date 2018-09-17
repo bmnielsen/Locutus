@@ -1054,7 +1054,7 @@ void CombatCommander::updateScoutDefenseSquad()
 
     // Chase the scout unless there is an enemy unit in the region that isn't a scout
     bool hasScout = false;
-    bool hasNonScout = true;
+    bool hasNonScout = false;
     for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
     {
         // Was the unit last seen in our main region?
@@ -1082,14 +1082,14 @@ void CombatCommander::updateScoutDefenseSquad()
         return;
     }
 
-    // Pull a dragoon that is already in the main
+    // Pull a dragoon that is already in the main, or if we are defensive, a random one
     // Usually this will end up being the first dragoon we produce
     if (scoutDefenseSquad.isEmpty())
     {
         for (const auto unit : _combatUnits)
         {
             if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
-                BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) == myRegion &&
+                (!_goAggressive || BWTA::getRegion(BWAPI::TilePosition(unit->getPosition())) == myRegion) &&
                 _squadData.canAssignUnitToSquad(unit, scoutDefenseSquad))
             {
                 _squadData.assignUnitToSquad(unit, scoutDefenseSquad);

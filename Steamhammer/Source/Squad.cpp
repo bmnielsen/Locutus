@@ -842,17 +842,21 @@ int Squad::runCombatSim(BWAPI::Position targetPosition)
     BWAPI::Position enemyVanguard = BWAPI::Positions::Invalid;
     for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
     {
+        if (_fightVisibleOnly && (!ui.first || !ui.first->exists() || !ui.first->isVisible())) continue;
+
         if (ui.second.goneFromLastPosition) continue;
         int dist = ui.second.isFlying || ourVanguard->isFlying()
             ? ui.second.lastPosition.getApproxDistance(ourVanguard->getPosition())
             : PathFinding::GetGroundDistance(ui.second.lastPosition, ourVanguard->getPosition());
-        if (dist < closestDist && dist != -1)
+
+        int range = UnitUtil::GetAttackRangeAssumingUpgrades(ui.second.type, ourVanguard->getType());
+        if (dist < (range + 64) && dist < closestDist && dist != -1)
         {
             closestDist = dist;
             enemyVanguard = ui.second.lastPosition;
         }
     }
-    if (!enemyVanguard.isValid()) return 1; // Enemy has no units
+    if (!enemyVanguard.isValid()) return 1; // Enemy has no units in range
 
     // Special case: ignore enemy bunkers if:
     // - Our squad is entirely ranged goons
