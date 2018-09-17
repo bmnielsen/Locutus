@@ -334,7 +334,7 @@ void InformationManager::update()
     {
         LocutusUnit& locutusUnit = getLocutusUnit(unit);
 
-        if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot && true)
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot && false)
         {
             anyDebugUnits = true;
 
@@ -405,7 +405,28 @@ void InformationManager::update()
             debug << ". isMoving=" << unit->isMoving();
         }
 
-        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && true)
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && false)
+        {
+            anyDebugUnits = true;
+
+            debug << "\n" << unit->getType() << " " << unit->getID() << " @ " << unit->getPosition() << "^" << BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(unit->getPosition())) << ": ";
+
+            debug << "command: " << unit->getLastCommand().getType() << ",frame=" << (BWAPI::Broodwar->getFrameCount() - unit->getLastCommandFrame());
+            if (unit->getLastCommand().getTarget())
+                debug << ",target=" << unit->getLastCommand().getTarget()->getType() << " " << unit->getLastCommand().getTarget()->getID() << " @ " << unit->getLastCommand().getTarget()->getPosition() << ",dist=" << unit->getLastCommand().getTarget()->getDistance(unit);
+            else if (unit->getLastCommand().getTargetPosition())
+                debug << ",targetpos " << unit->getLastCommand().getTargetPosition();
+
+            debug << ". order: " << unit->getOrder();
+            if (unit->getOrderTarget())
+                debug << ",target=" << unit->getOrderTarget()->getType() << " " << unit->getOrderTarget()->getID() << " @ " << unit->getOrderTarget()->getPosition() << ",dist=" << unit->getOrderTarget()->getDistance(unit);
+            else if (unit->getOrderTargetPosition())
+                debug << ",targetpos " << unit->getOrderTargetPosition();
+
+            debug << ". isMoving=" << unit->isMoving();
+        }        
+        
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_High_Templar && true)
         {
             anyDebugUnits = true;
 

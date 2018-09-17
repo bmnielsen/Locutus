@@ -172,6 +172,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	int numZealots = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Zealot);
 	int numDragoons = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dragoon);
 	int numDarkTemplar = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar);
+	int numHighTemplar = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_High_Templar);
+	int numArchons = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Archon) + numHighTemplar / 2;
 	int numReavers = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Reaver);
 	int numCorsairs = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Corsair);
 	int numCarriers = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Carrier);
@@ -256,6 +258,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	bool buildObserver = InformationManager::Instance().enemyHasMobileCloakTech(); // Really cloaked combat units
 	double zealotRatio = 0.0;
 	double goonRatio = 0.0;
+    double archonRatio = 0.0;
 
     // On Plasma, transition to carriers on two bases or if our proxy gateways die
     // We will still build ground units as long as we have an active proxy gateway
@@ -268,14 +271,34 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	// Initial ratios
 	if (_openingGroup == "zealots")
 	{
-		zealotRatio = 1.0;
-        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+        zealotRatio = 1.0;
+
+        if (!isRushing() && BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+        {
             getZealotSpeed = true;
+            getGoonRange = true;
+            zealotRatio = 0.7;
+            goonRatio = 0.3;
+
+            if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0)
+            {
+                zealotRatio = 0.6;
+                goonRatio = 0.25;
+                archonRatio = 0.15;
+            }
+        }
     }
 	else if (_openingGroup == "dragoons" || _openingGroup == "drop")
 	{
 		getGoonRange = true;
 		goonRatio = 1.0;
+
+        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg &&
+            UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0)
+        {
+            goonRatio = 0.85;
+            archonRatio = 0.15;
+        }
 	}
     else if (_openingGroup == "dark templar")
     {
@@ -316,7 +339,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         if (InformationManager::Instance().enemyHasAirCombatUnits())
         {
             getGoonRange = true;
-            goonRatio = 1.0;
+            goonRatio += zealotRatio;
             zealotRatio = 0.0;
         }
 
@@ -332,22 +355,18 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
                     ui.second.type == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode) tanks++;
 
             // Scales from 1:1 to 3:1
-            double desiredZealotRatio = 0.5 + std::min((double)tanks / 40.0, 0.25);
-            double actualZealotRatio = numDragoons == 0 ? 1.0 : (double)numZealots / (double)numDragoons;
-            if (desiredZealotRatio > actualZealotRatio)
-            {
-                zealotRatio = 1.0;
-                goonRatio = 0.0;
-            }
+            zealotRatio = 0.5 + std::min((double)tanks / 40.0, 0.25);
+            goonRatio = 1.0 - zealotRatio;
         }
 
-        // If we are currently gas blocked, train some zealots
+        // If we are currently gas blocked, train zealots
         if (zealotRatio < 0.5 && idleGateways > 2 && self->gas() < 400 && self->minerals() > 700 && self->minerals() > self->gas() * 3)
         {
             // Get zealot speed if we have a lot of zealots
             if (numZealots > 5) getZealotSpeed = true;
-            zealotRatio = 0.7;
-            goonRatio = 0.3;
+            zealotRatio = 1.0;
+            goonRatio = 0.0;
+            archonRatio = 0.0;
         }
 
         // After getting third and a large army, build a fixed number of DTs unless many are dying
@@ -364,6 +383,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         {
             zealotRatio = 1.0;
             goonRatio = 0.0;
+            archonRatio = 0.0;
         }
 
         // Upgrade when appropriate:
@@ -380,7 +400,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     if (!startedAssimilator && (
         getGoonRange || getZealotSpeed || getCarrierCapacity || upgradeGround || upgradeAir ||
         buildDarkTemplar || buildCorsairs || buildCarriers || buildReaver || buildObserver ||
-        (buildGround && goonRatio > 0.0)))
+        (buildGround && zealotRatio < 1.0)))
     {
         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Assimilator, 1));
     }
@@ -544,13 +564,61 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	// Normal gateway units
 	if (buildGround && idleGateways > 0)
 	{
-		int zealots = std::round(zealotRatio * idleGateways);
-		int goons = idleGateways - zealots;
+        int zealots = 0;
+        int goons = 0;
+        int highTemplar = 0;
+
+        int total = numZealots + numDragoons + numArchons;
+        if (total == 0)
+        {
+            zealots = std::round(zealotRatio * idleGateways);
+            goons = idleGateways - zealots;
+        }
+        else
+        {
+            while (idleGateways > 0)
+            {
+                double zealotScore = zealotRatio < 0.01 ? 1000.0 : ((double)numZealots / total) / zealotRatio;
+                double goonScore = goonRatio < 0.01 ? 2.0 : ((double)numDragoons / total) / goonRatio;
+                double archonScore = archonRatio < 0.01 ? 1000.0 : ((double)numArchons / total) / archonRatio;
+                if (archonScore <= zealotScore && archonScore <= goonScore)
+                {
+                    if (highTemplar % 2 == 1)
+                    {
+                        idleGateways -= 1;
+                        highTemplar += 1;
+                    }
+                    else
+                    {
+                        idleGateways -= 2;
+                        highTemplar += 2;
+                    }
+                    numArchons++;
+                    total++;
+                }
+                else if (goonScore <= zealotScore && goonScore <= archonScore)
+                {
+                    goons++;
+                    numDragoons++;
+                    total++;
+                    idleGateways--;
+                }
+                else
+                {
+                    zealots++;
+                    numZealots++;
+                    total++;
+                    idleGateways--;
+                }
+            }
+        }
 
 		if (zealots > 0)
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Zealot, numZealots + zealots));
 		if (goons > 0)
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + goons));
+		if (highTemplar > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_High_Templar, numHighTemplar + highTemplar));
 	}
 
     // Corsairs
@@ -635,39 +703,6 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     {
         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 1));
     }
-
-	// If we're doing a corsair thing and it's still working, slowly add more.
-	if (_enemyRace == BWAPI::Races::Zerg &&
-		hasStargate &&
-		numCorsairs < 6 &&
-		self->deadUnitCount(BWAPI::UnitTypes::Protoss_Corsair) == 0)
-	{
-		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
-	}
-
-	// Maybe get some static defense against air attack.
-	const int enemyAirToGround =
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Wraith, BWAPI::Broodwar->enemy()) / 8 +
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Battlecruiser, BWAPI::Broodwar->enemy()) / 3 +
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Scout, BWAPI::Broodwar->enemy()) / 5 +
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Zerg_Mutalisk, BWAPI::Broodwar->enemy()) / 6;
-	if (enemyAirToGround > 0)
-	{
-		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Photon_Cannon, enemyAirToGround));
-	}
-
-	// If the map has islands, get drop after we have 3 bases.
-	if (Config::Macro::ExpandToIslands && numNexusCompleted >= 3 && MapTools::Instance().hasIslandBases() 
-		&& UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) > 0)
-	{
-		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Shuttle, 1));
-	}
-
-	// if we want to expand, insert a nexus into the build order
-	//if (shouldExpandNow())
-	//{
-	//	goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Nexus, numNexusAll + 1));
-	//}
 
 	return goal;
 }

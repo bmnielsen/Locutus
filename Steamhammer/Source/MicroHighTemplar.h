@@ -7,6 +7,9 @@ namespace UAlbertaBot
 {
 class MicroHighTemplar : public MicroManager
 {
+private:
+    void merge(BWAPI::Unit first, BWAPI::Unit second);
+
 public:
 
 	MicroHighTemplar();
