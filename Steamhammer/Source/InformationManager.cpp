@@ -36,13 +36,14 @@ InformationManager::InformationManager()
 	, _enemyHasInfantryRangeUpgrade(false)
 
 	, _enemyBaseStation(nullptr)
+	, _enemyNaturalBaseLocation(nullptr)
 
     , _myUnitGrid(BWAPI::Broodwar->self())
     , _enemyUnitGrid(BWAPI::Broodwar->enemy())
 {
 	initializeTheBases();
 	initializeRegionInformation();
-	initializeNaturalBase();
+	_myNaturalBaseLocation = getNaturalBase(getMyMainBaseLocation());
 
     // Normalize the enemy name by converting it to lowercase and removing spaces
     _enemyName = BWAPI::Broodwar->enemy()->getName();
@@ -122,40 +123,28 @@ void InformationManager::initializeRegionInformation()
 
 // Figure out what base is our "natural expansion". In rare cases, there might be none.
 // Prerequisite: Call initializeRegionInformation() first.
-void InformationManager::initializeNaturalBase()
+BWTA::BaseLocation * InformationManager::getNaturalBase(BWTA::BaseLocation * main)
 {
 	// We'll go through the bases and pick the best one as the natural.
 	BWTA::BaseLocation * bestBase = nullptr;
 	double bestScore = 0.0;
 
-	BWAPI::TilePosition homeTile = _self->getStartLocation();
-	BWAPI::Position myBasePosition(homeTile);
-
 	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 	{
-		double score = 0.0;
+        if (base == main) continue;
 
-		BWAPI::TilePosition tile = base->getTilePosition();
+        // Get ground distance and abort if not connected
+        int dist = PathFinding::GetGroundDistance(
+            main->getPosition(), 
+            base->getPosition(), 
+            BWAPI::UnitTypes::Protoss_Probe, 
+            PathFinding::PathFindingOptions::UseNearestBWEMArea);
+        if (dist == -1) continue;
 
-		// The main is not the natural.
-		if (tile == homeTile)
-		{
-			continue;
-		}
+        // Score the base
+        double score = -dist;
 
-		// Ww want to be close to our own base.
-		double distanceFromUs = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), myBasePosition);
-
-		// If it is not connected, skip it. Islands do this.
-		if (!BWTA::isConnected(homeTile, tile) || distanceFromUs < 0)
-		{
-			continue;
-		}
-
-		// Add up the score.
-		score = -distanceFromUs;
-
-		// More resources -> better.
+        // More resources -> better.
 		score += 0.01 * base->minerals() + 0.02 * base->gas();
 
 		if (!bestBase || score > bestScore)
@@ -165,8 +154,7 @@ void InformationManager::initializeNaturalBase()
 		}
 	}
 
-	// bestBase may be null on unusual maps.
-	_myNaturalBaseLocation = bestBase;
+    return bestBase;
 }
 
 // A base is inferred to exist at the given position, without having been seen.
@@ -1191,6 +1179,15 @@ BWAPI::Unit InformationManager::getBaseDepot(BWTA::BaseLocation * base)
 BWTA::BaseLocation * InformationManager::getMyNaturalLocation()
 {
 	return _myNaturalBaseLocation;
+}
+
+BWTA::BaseLocation * InformationManager::getEnemyNaturalLocation()
+{
+    if (_enemyNaturalBaseLocation) return _enemyNaturalBaseLocation;
+    if (!getEnemyMainBaseLocation()) return nullptr;
+
+    _enemyNaturalBaseLocation = getNaturalBase(getEnemyMainBaseLocation());
+    return _enemyNaturalBaseLocation;
 }
 
 // All bases owned by me.

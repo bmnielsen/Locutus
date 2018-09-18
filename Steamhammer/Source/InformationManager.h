@@ -39,6 +39,7 @@ class InformationManager
 	std::map<BWAPI::Player, UnitData>                   _unitData;
 	std::map<BWAPI::Player, BWTA::BaseLocation *>       _mainBaseLocations;
 	BWTA::BaseLocation *								_myNaturalBaseLocation;  // whether taken yet or not; may be null
+	BWTA::BaseLocation *								_enemyNaturalBaseLocation;  // null until we know the enemy main (and on some maps also afterwards)
 	std::map<BWAPI::Player, std::set<BWTA::Region *> >  _occupiedRegions;        // contains any building
 	std::map<BWTA::BaseLocation *, Base *>				_theBases;
 	BWAPI::Unitset										_staticDefense;
@@ -63,7 +64,7 @@ class InformationManager
 
 	void					initializeTheBases();
 	void                    initializeRegionInformation();
-	void					initializeNaturalBase();
+	BWTA::BaseLocation *	getNaturalBase(BWTA::BaseLocation * main);
 
 	int                     getIndex(BWAPI::Player player) const;
 
@@ -132,6 +133,7 @@ public:
 	int         			getBaseLastScouted(BWTA::BaseLocation * base);
 	BWAPI::Unit 			getBaseDepot(BWTA::BaseLocation * base);
 	BWTA::BaseLocation *	getMyNaturalLocation();
+	BWTA::BaseLocation *	getEnemyNaturalLocation();
     std::vector<BWTA::BaseLocation *> getBases(BWAPI::Player player);
     std::vector<BWTA::BaseLocation *> getMyBases() { return getBases(BWAPI::Broodwar->self()); }
     std::vector<BWTA::BaseLocation *> getEnemyBases() { return getBases(BWAPI::Broodwar->enemy()); }
