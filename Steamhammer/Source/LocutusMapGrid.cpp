@@ -55,7 +55,7 @@ void LocutusMapGrid::unitCreated(BWAPI::UnitType type, BWAPI::Position position)
         add(type, 
             InformationManager::Instance().getWeaponRange(_player, type.groundWeapon()), 
             position, 
-            InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()),
+            InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
 
         // For sieged tanks, subtract the area close to the tank
@@ -64,7 +64,7 @@ void LocutusMapGrid::unitCreated(BWAPI::UnitType type, BWAPI::Position position)
             add(type,
                 type.groundWeapon().minRange(),
                 position,
-                -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()),
+                -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
                 groundThreat);
         }
     }
@@ -74,7 +74,7 @@ void LocutusMapGrid::unitCreated(BWAPI::UnitType type, BWAPI::Position position)
         add(type, 
             InformationManager::Instance().getWeaponRange(_player, type.airWeapon()),
             position, 
-            InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()),
+            InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
     }
 
@@ -114,7 +114,7 @@ void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position positio
         add(type,
             InformationManager::Instance().getWeaponRange(_player, type.groundWeapon()),
             position,
-            -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()),
+            -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
 
         // For sieged tanks, add back the area close to the tank
@@ -123,7 +123,7 @@ void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position positio
             add(type,
                 type.groundWeapon().minRange(),
                 position,
-                InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()),
+                InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
                 groundThreat);
         }
     }
@@ -133,7 +133,7 @@ void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position positio
         add(type,
             InformationManager::Instance().getWeaponRange(_player, type.airWeapon()),
             position,
-            -InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()),
+            -InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
     }
 
@@ -173,13 +173,13 @@ void LocutusMapGrid::unitWeaponRangeUpgraded(BWAPI::UnitType type, BWAPI::Positi
         add(type,
             formerRange,
             position,
-            -InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()),
+            -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
 
         add(type,
             newRange,
             position,
-            InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()),
+            InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
     }
 
@@ -188,13 +188,13 @@ void LocutusMapGrid::unitWeaponRangeUpgraded(BWAPI::UnitType type, BWAPI::Positi
         add(type,
             formerRange,
             position,
-            -InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()),
+            -InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
 
         add(type,
             newRange,
             position,
-            InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()),
+            InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
     }
 }
