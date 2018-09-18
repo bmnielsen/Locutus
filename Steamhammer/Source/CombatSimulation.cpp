@@ -14,7 +14,6 @@ CombatSimulation::CombatSimulation()
     , enemyVanguard(BWAPI::Positions::Invalid)
     , enemyUnitsCentroid(BWAPI::Positions::Invalid)
     , airBattle(false)
-    , enemyZerglings(0)
 {
 }
 
@@ -27,7 +26,6 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
     myUnitsCentroid = BWAPI::Positions::Invalid;
     enemyVanguard = _enemyVanguard;
     enemyUnitsCentroid = BWAPI::Positions::Invalid;
-    enemyZerglings = 0;
     airBattle = false;
 
     std::vector<UnitInfo> enemyUnits;
@@ -122,7 +120,6 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 
             fap.addIfCombatUnitPlayer2(unit);
             enemyUnitsCentroid += unit.lastPosition;
-            if (unit.type == BWAPI::UnitTypes::Zerg_Zergling) enemyZerglings++;
         }
 
         enemyUnitsCentroid /= enemyUnits.size();
@@ -200,15 +197,6 @@ std::pair<int, int> CombatSimulation::simulate(int frames, bool narrowChoke, int
         }
     }
 
-    // If the enemy army consists of many zerglings, assume they won't be as effective
-    // FAP has trouble simming them as it allows units to stack
-    if (enemyZerglings > 10)
-    {
-        // Scales from 1.0 at 10 zerglings to 0.5 at 25 zerglings
-        double factor = std::min(0.5, 1.0 - (double)(enemyZerglings - 10) / 30.0);
-        ourChange = (int)std::ceil((double)ourChange * factor);
-    }
-
     return std::make_pair(ourChange, theirChange);
 }
 
@@ -255,7 +243,6 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     }
 
 #ifdef COMBATSIM_DEBUG
-    if (enemyZerglings > 10) debug << "\nEnemy army consists of " << enemyZerglings << " zerglings; decreasing its expected efficiency";
     debug << "\nInitial values: ours " << fap.playerScores().first << " theirs " << fap.playerScores().second;
 #endif
 

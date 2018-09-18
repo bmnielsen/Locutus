@@ -77,12 +77,18 @@ namespace UAlbertaBot {
 
         std::vector<FAPUnit> player1, player2;
 
+        // Current approach to collisions: allow two units to share the same grid cell, using half-tile resolution
+        // This seems to strike a reasonable balance between improving how large melee armies are simmed and avoiding
+        // expensive collision-based pathing calculations
+        unsigned short collision[512][512] = {};
+
         int frame;
         bool didSomething;
         void dealDamage(const FastAPproximation::FAPUnit &fu, int damage,
             BWAPI::DamageType damageType) const;
         int distance(const FastAPproximation::FAPUnit &u1,
             const FastAPproximation::FAPUnit &u2) const;
+        void updatePosition(const FAPUnit &fu, int x, int y);
         bool isSuicideUnit(BWAPI::UnitType ut);
         void unitsim(const FAPUnit &fu, std::vector<FAPUnit> &enemyUnits);
         void medicsim(const FAPUnit &fu, std::vector<FAPUnit> &friendlyUnits);

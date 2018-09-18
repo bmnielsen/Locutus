@@ -28,7 +28,11 @@ namespace UAlbertaBot {
             return;
         if (fu.groundDamage || fu.airDamage ||
             fu.unitType == BWAPI::UnitTypes::Terran_Medic)
+        {
             addUnitPlayer1(fu);
+            if (!fu.flying && fu.unitType != BWAPI::UnitTypes::Terran_Medic)
+                collision[fu.x / 16][fu.y / 16]++;
+        }
     }
 
     void FastAPproximation::addUnitPlayer2(FAPUnit fu) { player2.push_back(fu); }
@@ -36,7 +40,11 @@ namespace UAlbertaBot {
     void FastAPproximation::addIfCombatUnitPlayer2(FAPUnit fu) {
         if (fu.groundDamage || fu.airDamage ||
             fu.unitType == BWAPI::UnitTypes::Terran_Medic)
+        {
             addUnitPlayer2(fu);
+            if (!fu.flying && fu.unitType != BWAPI::UnitTypes::Terran_Medic)
+                collision[fu.x / 16][fu.y / 16]++;
+        }
     }
 
     void FastAPproximation::simulate(int nFrames) {
@@ -110,6 +118,8 @@ namespace UAlbertaBot {
 
     void FastAPproximation::clearState() {
         player1.clear(), player2.clear(), frame = 0;
+        memset(&collision[0][0], 0, sizeof(unsigned short) * 512 * 512);
+ 
 #ifdef FAP_DEBUG
         debug.flush();
 #endif
@@ -154,6 +164,22 @@ namespace UAlbertaBot {
         const FastAPproximation::FAPUnit &u1,
         const FastAPproximation::FAPUnit &u2) const {
         return MathUtil::EdgeToEdgeDistance(u1.unitType, BWAPI::Position(u1.x, u1.y), u2.unitType, BWAPI::Position(u2.x, u2.y));
+    }
+
+    void inline FastAPproximation::updatePosition(const FAPUnit &fu, int x, int y)
+    {
+        if (fu.flying || (fu.x / 16 == x / 16 && fu.y / 16 == y / 16)) {
+            fu.x = x;
+            fu.y = y;
+            return;
+        }
+
+        if (collision[x / 16][y / 16] > 1) return;
+
+        collision[fu.x / 16][fu.y / 16]--;
+        collision[x / 16][y / 16]++;
+        fu.x = x;
+        fu.y = y;
     }
 
     bool FastAPproximation::isSuicideUnit(BWAPI::UnitType ut) {
@@ -232,9 +258,9 @@ namespace UAlbertaBot {
                 closestDist <= (fu.groundMaxRange + fu.speed))
             {
                 int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
-
-                fu.x -= (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
-                fu.y -= (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy)));
+                updatePosition(fu,
+                    fu.x - (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy))),
+                    fu.y - (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy))));
 
 #ifdef FAP_DEBUG
                 debug << ";kite;" << fu.x << ";" << fu.y;
@@ -247,15 +273,6 @@ namespace UAlbertaBot {
 
             didSomething = true;
             return;
-        }
-
-        if (closestEnemy != enemyUnits.end() && closestDist <= fu.speed &&
-            !(fu.x == closestEnemy->x && fu.y == closestEnemy->y)) {
-            fu.x = closestEnemy->x;
-            fu.y = closestEnemy->y;
-            closestDist = 0;
-
-            didSomething = true;
         }
 
         if (closestEnemy != enemyUnits.end() &&
@@ -288,9 +305,9 @@ namespace UAlbertaBot {
         }
         else if (closestEnemy != enemyUnits.end() && closestDist > fu.speed) {
             int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
-
-            fu.x += (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
-            fu.y += (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy)));
+            updatePosition(fu,
+                fu.x + (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy))),
+                fu.y + (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy))));
 
 #ifdef FAP_DEBUG
             debug << ";move;" << fu.x << ";" << fu.y;

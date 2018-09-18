@@ -15,7 +15,6 @@ private:
     BWAPI::Position enemyVanguard;
     BWAPI::Position enemyUnitsCentroid;
     bool airBattle;
-    int enemyZerglings;
 
     std::pair<int, int> simulate(int frames, bool narrowChoke, int elevationDifference, std::pair<int, int> & initialScores);
 
