@@ -724,7 +724,7 @@ void CombatCommander::updateAttackSquads()
 		}
 	}
 
-	if (_goAggressive)
+	if (getAggression())
 	{
 		SquadOrder mainAttackOrder(SquadOrderTypes::Attack, getAttackLocation(&groundSquad), AttackRadius, "Attack enemy base");
 		groundSquad.setSquadOrder(mainAttackOrder);
@@ -910,6 +910,25 @@ void CombatCommander::updateDropSquads()
         }
     }
 }
+
+bool CombatCommander::getAggression() const 
+{ 
+    if (!_goAggressive) return false;
+
+    // For now go defensive if the enemy has dark templar and we don't have obs
+    // Lurkers aren't as bad since they can't move while cloaked, and wraiths / ghosts don't
+    // have high enough DPS to be very worrisome
+    if (InformationManager::Instance().enemyHasCloakedCombatUnits() &&
+        UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) < 1)
+    {
+        for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+            if (ui.second.type == BWAPI::UnitTypes::Protoss_Dark_Templar)
+                return false;
+    }
+
+    return true; 
+};
+
 
 void CombatCommander::blockScouting()
 {
@@ -1816,7 +1835,7 @@ void CombatCommander::finishedRushing()
 // This may be because we haven't gone aggressive yet, or if our squads have been pushed back close to our base
 bool CombatCommander::onTheDefensive()
 {
-    if (!_goAggressive) return true;
+    if (!getAggression()) return true;
 
     auto base = InformationManager::Instance().getMyNaturalLocation()
         ? InformationManager::Instance().getMyNaturalLocation()

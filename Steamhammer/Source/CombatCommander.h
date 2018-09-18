@@ -97,7 +97,7 @@ public:
 
 		_goAggressive = aggressive;  
 	}
-	bool getAggression() const { return _goAggressive; };
+	bool getAggression() const;
 
     void blockScouting();
 	
