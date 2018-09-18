@@ -74,6 +74,7 @@ class ScoutManager
 	void                            moveAirScout(BWAPI::Unit scout);
 	void                            drawScoutInformation(int x, int y);
     void                            calculateEnemyRegionVertices();
+    std::vector<BWAPI::Position>    calculateScoutVerticesForBase(BWTA::BaseLocation * base);
     void                            updatePylonHarassState();
 	bool							pylonHarass();
 
