@@ -195,12 +195,12 @@
                     trainingOpponents = File.ReadAllLines(opponent)
                         .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("-"))
                         .ToList();
-                    outputFilename = "trainingrun-" + Path.GetFileNameWithoutExtension(opponent) + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+                    outputFilename = "out\\trainingrun-" + Path.GetFileNameWithoutExtension(opponent) + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
                 }
                 else
                 {
                     trainingOpponents = new List<string> { opponent };
-                    outputFilename = "trainingrun-" + opponent + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+                    outputFilename = "out\\trainingrun-" + opponent + "-" + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
                 }
 
                 logFile = File.CreateText(outputFilename + ".log");
