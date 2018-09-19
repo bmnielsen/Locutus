@@ -1630,7 +1630,7 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
 
     if (unit->getPlayer() == _self)
     {
-        _myUnitGrid.unitDestroyed(unit->getType(), unit->getPosition());
+        _myUnitGrid.unitDestroyed(unit->getType(), unit->getPosition(), unit->isCompleted());
     }
 
     if (unit->getPlayer() == _enemy)

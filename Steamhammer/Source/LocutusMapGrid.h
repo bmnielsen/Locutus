@@ -32,8 +32,9 @@ public:
     LocutusMapGrid(BWAPI::Player player);
 
     void unitCreated(BWAPI::UnitType type, BWAPI::Position position);
+    void unitCompleted(BWAPI::UnitType type, BWAPI::Position position);
     void unitMoved(BWAPI::UnitType type, BWAPI::Position position, BWAPI::UnitType fromType, BWAPI::Position fromPosition);
-    void unitDestroyed(BWAPI::UnitType type, BWAPI::Position position);
+    void unitDestroyed(BWAPI::UnitType type, BWAPI::Position position, bool completed);
 
     void unitWeaponDamageUpgraded(BWAPI::UnitType type, BWAPI::Position position, BWAPI::WeaponType weapon, int formerDamage, int newDamage);
     void unitWeaponRangeUpgraded(BWAPI::UnitType type, BWAPI::Position position, BWAPI::WeaponType weapon, int formerRange, int newRange);

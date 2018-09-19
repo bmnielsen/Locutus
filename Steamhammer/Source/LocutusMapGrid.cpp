@@ -5,6 +5,10 @@
 
 using namespace UAlbertaBot;
 
+// We add a small buffer on detection and threat ranges
+// This slightly reduces the accuracy but means we don't have to worry about edge-to-edge calculations when querying
+const int RANGE_BUFFER = 24;
+
 LocutusMapGrid::LocutusMapGrid(BWAPI::Player player) : _player(player) 
 {
 #ifdef GRID_DEBUG
@@ -49,12 +53,19 @@ void LocutusMapGrid::unitCreated(BWAPI::UnitType type, BWAPI::Position position)
 #endif
 
     add(type, 0, position, 1, collision);
+}
+
+void LocutusMapGrid::unitCompleted(BWAPI::UnitType type, BWAPI::Position position)
+{
+#ifdef GRID_DEBUG
+    if (doDebug) debug << "\n" << BWAPI::Broodwar->getFrameCount() << ";complete;" << type << ";" << position.x << ";" << position.y << ";;;";
+#endif
 
     if (type.groundWeapon() != BWAPI::WeaponTypes::None)
     {
-        add(type, 
-            InformationManager::Instance().getWeaponRange(_player, type.groundWeapon()), 
-            position, 
+        add(type,
+            InformationManager::Instance().getWeaponRange(_player, type.groundWeapon()) + RANGE_BUFFER,
+            position,
             InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
 
@@ -62,7 +73,7 @@ void LocutusMapGrid::unitCreated(BWAPI::UnitType type, BWAPI::Position position)
         if (type.groundWeapon().minRange() > 0)
         {
             add(type,
-                type.groundWeapon().minRange(),
+                type.groundWeapon().minRange() - RANGE_BUFFER,
                 position,
                 -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
                 groundThreat);
@@ -71,16 +82,16 @@ void LocutusMapGrid::unitCreated(BWAPI::UnitType type, BWAPI::Position position)
 
     if (type.airWeapon() != BWAPI::WeaponTypes::None)
     {
-        add(type, 
-            InformationManager::Instance().getWeaponRange(_player, type.airWeapon()),
-            position, 
+        add(type,
+            InformationManager::Instance().getWeaponRange(_player, type.airWeapon()) + RANGE_BUFFER,
+            position,
             InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
     }
 
     if (type.isDetector())
     {
-        add(type, type.isBuilding() ? (7 * 32) : (11 * 32), position, 1, detection);
+        add(type, (type.isBuilding() ? (7 * 32) : (11 * 32)) + RANGE_BUFFER, position, 1, detection);
     }
 }
 
@@ -93,15 +104,16 @@ void LocutusMapGrid::unitMoved(BWAPI::UnitType type, BWAPI::Position position, B
     doDebug = false;
 #endif
 
-    unitDestroyed(fromType, fromPosition);
+    unitDestroyed(fromType, fromPosition, true);
     unitCreated(type, position);
+    unitCompleted(type, position);
 
 #ifdef GRID_DEBUG
     doDebug = true;
 #endif
 }
 
-void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position position)
+void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position position, bool completed)
 {
 #ifdef GRID_DEBUG
     if (doDebug) debug << "\n" << BWAPI::Broodwar->getFrameCount() << ";destroy;" << type << ";" << position.x << ";" << position.y << ";;;";
@@ -109,10 +121,14 @@ void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position positio
 
     add(type, 0, position, -1, collision);
 
+    // If the unit was a building that was destroyed or cancelled before being completed, we only
+    // need to update the collision grid
+    if (!completed) return;
+
     if (type.groundWeapon() != BWAPI::WeaponTypes::None)
     {
         add(type,
-            InformationManager::Instance().getWeaponRange(_player, type.groundWeapon()),
+            InformationManager::Instance().getWeaponRange(_player, type.groundWeapon()) + RANGE_BUFFER,
             position,
             -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
@@ -121,7 +137,7 @@ void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position positio
         if (type.groundWeapon().minRange() > 0)
         {
             add(type,
-                type.groundWeapon().minRange(),
+                type.groundWeapon().minRange() - RANGE_BUFFER,
                 position,
                 InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
                 groundThreat);
@@ -131,7 +147,7 @@ void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position positio
     if (type.airWeapon() != BWAPI::WeaponTypes::None)
     {
         add(type,
-            InformationManager::Instance().getWeaponRange(_player, type.airWeapon()),
+            InformationManager::Instance().getWeaponRange(_player, type.airWeapon()) + RANGE_BUFFER,
             position,
             -InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
@@ -139,7 +155,7 @@ void LocutusMapGrid::unitDestroyed(BWAPI::UnitType type, BWAPI::Position positio
 
     if (type.isDetector())
     {
-        add(type, type.isBuilding() ? (7 * 32) : (11 * 32), position, -1, detection);
+        add(type, (type.isBuilding() ? (7 * 32) : (11 * 32)) + RANGE_BUFFER, position, -1, detection);
     }
 }
 
@@ -171,13 +187,13 @@ void LocutusMapGrid::unitWeaponRangeUpgraded(BWAPI::UnitType type, BWAPI::Positi
     if (weapon.targetsGround())
     {
         add(type,
-            formerRange,
+            formerRange + RANGE_BUFFER,
             position,
             -InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
 
         add(type,
-            newRange,
+            newRange + RANGE_BUFFER,
             position,
             InformationManager::Instance().getWeaponDamage(_player, type.groundWeapon()) * type.maxGroundHits() * type.groundWeapon().damageFactor(),
             groundThreat);
@@ -186,13 +202,13 @@ void LocutusMapGrid::unitWeaponRangeUpgraded(BWAPI::UnitType type, BWAPI::Positi
     if (weapon.targetsAir())
     {
         add(type,
-            formerRange,
+            formerRange + RANGE_BUFFER,
             position,
             -InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
 
         add(type,
-            newRange,
+            newRange + RANGE_BUFFER,
             position,
             InformationManager::Instance().getWeaponDamage(_player, type.airWeapon()) * type.maxAirHits() * type.airWeapon().damageFactor(),
             airThreat);
