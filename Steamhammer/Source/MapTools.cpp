@@ -50,10 +50,10 @@ MapTools::MapTools()
         // Because the ends are themselves walkable tiles, we need to add a bit of padding to estimate the actual walkable width of the choke
         int width = BWAPI::Position(choke->Pos(choke->end1)).getDistance(BWAPI::Position(choke->Pos(choke->end2))) + 15;
 
-        // On Fortress for some reason BWEM doesn't set the ends of the blocked chokes properly
-        // Just set them to something usable
-        if (BWAPI::Broodwar->mapHash() == "83320e505f35c65324e93510ce2eafbaa71c9aa1" && choke->Blocked())
-            width += 32;
+        // BWEM tends to not set the endpoints of blocked chokes properly
+        // So bump up the width in these cases
+        // If there is a map with a narrow blocked choke it will break
+        if (choke->Blocked() && width == 15) width = 32;
 
         chokeData.width = width;
         if (width < _minChokeWidth) _minChokeWidth = width;

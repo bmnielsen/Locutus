@@ -7,6 +7,13 @@ namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 using namespace UAlbertaBot;
 
+inline bool validChoke(const BWEM::ChokePoint * choke, int minChokeWidth, bool allowMineralWalk) 
+{
+    if (((ChokeData*)choke->Ext())->width < minChokeWidth) return false;
+    if (allowMineralWalk && ((ChokeData*)choke->Ext())->requiresMineralWalk) return true;
+    return !choke->Blocked() && !((ChokeData*)choke->Ext())->requiresMineralWalk;
+}
+
 // Creates a BWEM-style choke point path using an algorithm similar to BWEB's tile-resolution path finding.
 // Used when we want to generate paths with additional constraints beyond what BWEM provides, like taking
 // choke width and mineral walking into consideration.
@@ -44,12 +51,6 @@ const BWEM::CPPath CustomChokePointPath(
         mutable int dist;
         mutable const BWEM::Area * toArea;
         mutable const BWEM::ChokePoint * parent = nullptr;
-    };
-
-    const auto validChoke = [](const BWEM::ChokePoint * choke, int minChokeWidth, bool allowMineralWalk) {
-        if (((ChokeData*)choke->Ext())->width < minChokeWidth) return false;
-        if (allowMineralWalk && ((ChokeData*)choke->Ext())->requiresMineralWalk) return true;
-        return !choke->Blocked() && !((ChokeData*)choke->Ext())->requiresMineralWalk;
     };
 
     const auto chokeTo = [](const BWEM::ChokePoint * choke, const BWEM::Area * from) {
@@ -92,7 +93,10 @@ const BWEM::CPPath CustomChokePointPath(
         auto const current = nodeQueue.top();
         nodeQueue.pop();
 
-        debug << "\nCurrent " << BWAPI::TilePosition(current.choke->Center());
+        debug << "\nCurrent " << BWAPI::TilePosition(current.choke->Center()) << "; dist=" << current.dist;
+
+        // If already has a parent, continue
+        if (parentMap.find(current.choke) != parentMap.end()) continue;
 
         // Set parent
         parentMap[current.choke] = current.parent;
@@ -156,7 +160,10 @@ const BWEM::CPPath PathFinding::GetChokePointPath(
     if (!useNearestBWEMArea && (!bwemMap.GetArea(BWAPI::WalkPosition(start)) || !bwemMap.GetArea(BWAPI::WalkPosition(end))))
         return BWEM::CPPath();
 
-    // We can use BWEM's default pathfinding if:
+    // Start with the BWEM path
+    auto bwemPath = bwemMap.GetPath(start, end, pathLength);
+
+    // We can always use BWEM's default pathfinding if:
     // - The minimum choke width is equal to or greater than the unit width
     // - The map doesn't have mineral walking chokes or the unit can't mineral walk
     // An exception to the second case is Plasma, where BWEM doesn't mark the mineral walking chokes as blocked
@@ -173,8 +180,23 @@ const BWEM::CPPath PathFinding::GetChokePointPath(
             (!MapTools::Instance().hasMineralWalkChokes() || !unitType.isWorker());
     }
 
-    if (canUseBwemPath) 
-        return bwemMap.GetPath(start, end, pathLength);
+    // If we can't automatically use it, validate the chokes
+    if (!canUseBwemPath && !bwemPath.empty())
+    {
+        canUseBwemPath = true;
+        for (auto choke : bwemPath)
+            if (!validChoke(choke, unitType.width(), unitType.isWorker()))
+            {
+                canUseBwemPath = false;
+                break;
+            }
+    }
+
+    // Use BWEM path if it is usable
+    if (canUseBwemPath)
+        return bwemPath;
+
+    // Otherwise do our own path analysis
     return CustomChokePointPath(start, end, useNearestBWEMArea, unitType, pathLength);
 }
 
