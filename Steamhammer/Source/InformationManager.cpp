@@ -132,6 +132,7 @@ BWTA::BaseLocation * InformationManager::getNaturalBase(BWTA::BaseLocation * mai
 	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 	{
         if (base == main) continue;
+        if (base->gas() == 0) continue;
 
         // Get ground distance and abort if not connected
         int dist = PathFinding::GetGroundDistance(
@@ -1738,6 +1739,19 @@ bool InformationManager::haveWeTakenOurNatural()
     // Do we own the base?
     if (BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(getMyNaturalLocation())) return true;
 
+    // Is a building at the natural or wall locations at the top of the production queue?
+    auto & queue = ProductionManager::Instance().getQueue();
+    if (!queue.isEmpty())
+    {
+        MacroAct topProductionQueue = ProductionManager::Instance().getQueue().getHighestPriorityItem().macroAct;
+        if (topProductionQueue.isBuilding() && (
+                topProductionQueue.getMacroLocation() == MacroLocation::Natural ||
+                topProductionQueue.getMacroLocation() == MacroLocation::Wall))
+        {
+            return true;
+        }
+    }
+
     // Is either the natural nexus or a wall building in our building manager queue?
     LocutusWall& wall = BuildingPlacer::Instance().getWall();
     for (auto queuedBuilding : BuildingManager::Instance().buildingsQueued())
@@ -1913,7 +1927,7 @@ bool InformationManager::enemyHasAntiAir()
 // Overlords and lifted buildings are excluded.
 // A queen's nest is not air tech--it's usually a prerequisite for hive
 // rather than to make queens. So we have to see a queen for it to count.
-// Protoss robo fac and terran starport are taken to imply air units.
+// Similarly a robotics facility is usually for obs so let's wait until we see a shuttle.
 bool InformationManager::enemyHasAirTech()
 {
 	// Latch: Once they're known to have the tech, they always have it.
@@ -1928,7 +1942,7 @@ bool InformationManager::enemyHasAirTech()
 
 		bool completed = ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount();
 
-		if ((ui.type.isFlyer() && ui.type != BWAPI::UnitTypes::Zerg_Overlord) ||
+		if ((ui.type.isFlyer() && ui.type != BWAPI::UnitTypes::Zerg_Overlord && ui.type != BWAPI::UnitTypes::Protoss_Observer) ||
 			(completed && ui.type == BWAPI::UnitTypes::Terran_Starport) ||
 			ui.type == BWAPI::UnitTypes::Terran_Control_Tower ||
 			ui.type == BWAPI::UnitTypes::Terran_Science_Facility ||
@@ -1937,9 +1951,6 @@ bool InformationManager::enemyHasAirTech()
 			(completed && ui.type == BWAPI::UnitTypes::Protoss_Stargate) ||
 			ui.type == BWAPI::UnitTypes::Protoss_Arbiter_Tribunal ||
 			ui.type == BWAPI::UnitTypes::Protoss_Fleet_Beacon ||
-			ui.type == BWAPI::UnitTypes::Protoss_Robotics_Facility ||
-			ui.type == BWAPI::UnitTypes::Protoss_Robotics_Support_Bay ||
-			ui.type == BWAPI::UnitTypes::Protoss_Observatory ||
 			(completed && ui.type == BWAPI::UnitTypes::Zerg_Spire) ||
 			ui.type == BWAPI::UnitTypes::Zerg_Greater_Spire)
 		{
@@ -1988,7 +1999,10 @@ bool InformationManager::enemyHasAirCombatUnits()
 	{
 		const UnitInfo & ui(kv.second);
 
-		if (!ui.type.isBuilding() && ui.type.isFlyer() && ui.type != BWAPI::UnitTypes::Zerg_Overlord && ui.type != BWAPI::UnitTypes::Zerg_Scourge)
+		if (!ui.type.isBuilding() && ui.type.isFlyer() && 
+            ui.type != BWAPI::UnitTypes::Zerg_Overlord && 
+            ui.type != BWAPI::UnitTypes::Protoss_Observer && 
+            ui.type != BWAPI::UnitTypes::Zerg_Scourge)
 		{
 			Log().Get() << "Detected enemy air combat unit";
 			_enemyHasAirCombatUnits = true;

@@ -951,13 +951,14 @@ void CombatCommander::updateBlockScoutingSquad()
     ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
 
     // Disband the squad when either:
+    // - we have a dragoon (it will kill any scout that comes into the base)
     // - we have gone aggressive and have at least one combat unit
     // - we are taking our natural
     // TODO: Make it a bit more nuanced and support "opening" the choke for friendly units
-    if (InformationManager::Instance().haveWeTakenOurNatural() || 
+    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) > 0 ||
+        InformationManager::Instance().haveWeTakenOurNatural() || 
         (_goAggressive && (
             UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Zealot) > 0 ||
-            UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) > 0 ||
             UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) > 0)))
     {
         blockRampSquad.clear();

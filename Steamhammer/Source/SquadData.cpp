@@ -168,11 +168,7 @@ void SquadData::assignUnitToSquad(BWAPI::Unit unit, Squad & squad)
     UAB_ASSERT_WARNING(canAssignUnitToSquad(unit, squad), "We shouldn't be re-assigning this unit!");
 
     Squad * previousSquad = getUnitSquad(unit);
-
-    if (previousSquad)
-    {
-        previousSquad->removeUnit(unit);
-    }
+    if (previousSquad) previousSquad->removeUnit(unit);
 
     squad.addUnit(unit);
 }

@@ -56,7 +56,7 @@ class ProductionManager
 
 	void				doExtractorTrick();
 
-	BWAPI::Unit getProducer(MacroAct t, BWAPI::Position closestTo = BWAPI::Positions::None) const;
+	BWAPI::Unit getProducer(MacroAct t, BWAPI::Position closestTo = BWAPI::Positions::None, std::set<BWAPI::Unit> * ineligibleProducers = nullptr) const;
 
 public:
 

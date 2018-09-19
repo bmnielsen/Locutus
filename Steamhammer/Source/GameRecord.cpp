@@ -481,7 +481,7 @@ void GameRecord::update()
 		{
 			frameEnemyGetsCombatUnits = now;
 		}
-		if (!frameEnemyGetsAirUnits && InformationManager::Instance().enemyHasAirTech())
+		if (!frameEnemyGetsAirUnits && InformationManager::Instance().enemyHasAirCombatUnits())
 		{
 			frameEnemyGetsAirUnits = now;
 		}

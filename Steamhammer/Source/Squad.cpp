@@ -1058,9 +1058,10 @@ void Squad::updateBlockScouting()
                 goto nextUnit;
             }
             
-            // Check if there is a combat unit close by
+            // Check if there is a combat unit close by that is moving towards this position
             for (auto other : _units)
-                if (other != unit && !other->getType().isWorker() && other->getDistance(unit) < 10)
+                if (other != unit && !other->getType().isWorker() && other->getDistance(unit) < 10 &&
+                    other->getOrder() == BWAPI::Orders::Move && unit->getDistance(other->getOrderTargetPosition()) < 10)
                 {
                     // Start mineral walking
                     for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())

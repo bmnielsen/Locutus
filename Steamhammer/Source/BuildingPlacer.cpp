@@ -822,12 +822,10 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
         }
 
         // Check the production queue to find what type of locations we most need right now
-        // Break when we reach the second pylon and have seen a different building type
+        // Break when we reach the next pylon, we assume it will give power to later buildings
         int availableLarge = poweredLarge;
         int availableMedium = poweredMedium;
         std::vector<bool> priority; // true for large, false for medium
-        bool firstPylon = true;
-        bool seenBuilding = false;
         const auto & queue = ProductionManager::Instance().getQueue();
         for (int i = queue.size() - 1; i >= 0; i--)
         {
@@ -836,23 +834,15 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
             // Only care about buildings
             if (!macroAct.isBuilding()) continue;
 
-            // When we see the second pylon after another building type, we can stop
-            // We assume that the next pylon will give power to any later buildings
-            if (macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Pylon && seenBuilding)
-            {
-                if (firstPylon)
-                    firstPylon = false;
-                else
-                    break;
-            }
+            // Break when we hit the next pylon
+            if (macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Pylon && i < (queue.size() - 1))
+                break;
 
             // Don't count buildings like nexuses and assimilators
             if (!macroAct.getUnitType().requiresPsi()) continue;
 
             if (macroAct.getUnitType().tileWidth() == 4)
             {
-                seenBuilding = true;
-
                 if (availableLarge > 0)
                     availableLarge--;
                 else
@@ -860,8 +850,6 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
             }
             else if (macroAct.getUnitType().tileWidth() == 3)
             {
-                seenBuilding = true;
-
                 if (availableMedium > 0)
                     availableMedium--;
                 else

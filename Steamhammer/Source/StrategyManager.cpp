@@ -91,7 +91,7 @@ const bool StrategyManager::shouldExpandNow() const
 		return false;
 	}
 
-	size_t numDepots = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Command_Center)
+	int numDepots = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Command_Center)
 		+ UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus)
 		+ UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Hatchery)
 		+ UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Lair)
@@ -571,7 +571,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         int total = numZealots + numDragoons + numArchons;
         if (total == 0)
         {
-            zealots = std::round(zealotRatio * idleGateways);
+            zealots = (int)std::round(zealotRatio * idleGateways);
             goons = idleGateways - zealots;
         }
         else

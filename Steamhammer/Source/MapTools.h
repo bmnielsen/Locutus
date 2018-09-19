@@ -100,7 +100,7 @@ public:
 
 	bool	hasIslandBases() const { return _hasIslandBases; };
 	bool	hasMineralWalkChokes() const { return _hasMineralWalkChokes; };
-    bool    getMinChokeWidth() const { return _minChokeWidth; };
+    int     getMinChokeWidth() const { return _minChokeWidth; };
 };
 
 }

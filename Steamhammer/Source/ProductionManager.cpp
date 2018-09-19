@@ -459,89 +459,68 @@ void ProductionManager::maybeReorderQueue()
 		return;
 	}
 
-	int minerals = getFreeMinerals();
-	int gas = getFreeGas();
+    // Initialize our resource counters with what is left after the top item
+    int minerals = getFreeMinerals() - top.mineralPrice();
+    int gas = getFreeGas() - top.gasPrice();
+    int supplyAvailable = BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() - top.supplyRequired();
 
-	// We can reorder the queue if: Case 1:
-	// We are waiting for gas and have excess minerals,
-	// and we can move a later no-gas item to the front,
-	// and we have the minerals to cover both
-	// and the moved item doesn't require more supply.
-	if (top.gasPrice() > 0 && top.gasPrice() > gas && top.mineralPrice() < minerals)
-	{
-		for (int i = _queue.size() - 2; i >= std::max(0, int(_queue.size()) - 5); --i)
-		{
-			const MacroAct & act = _queue[i].macroAct;
-			// Don't reorder a command or anything after it.
-			if (act.isCommand())
-			{
-				break;
-			}
-			BWAPI::Unit producer;
-			if (act.isUnit() &&
-				act.gasPrice() == 0 &&
-				act.mineralPrice() + top.mineralPrice() <= minerals &&
-				act.supplyRequired() <= top.supplyRequired() &&
-				(producer = getProducer(act)) &&
-				canMakeNow(producer, act))
-			{
-				if (Config::Debug::DrawQueueFixInfo)
-				{
-					BWAPI::Broodwar->printf("queue: pull to front gas-free %s @ %d", act.getName().c_str(), _queue.size() - i);
-				}
+    // If we can produce the top item, don't reorder it
+    BWAPI::Unit topProducer = getProducer(top);
+    if (minerals >= 0 && (top.gasPrice() == 0 || gas >= 0) && topProducer && canMakeNow(topProducer, top)) return;
 
-                Log().Get() << "Pulling " << act << " to front of queue";
+    // Keep a set of ineligible producers
+    std::set<BWAPI::Unit> ineligibleProducers;
+    if (topProducer && !top.isBuilding()) ineligibleProducers.insert(topProducer);
 
-				_queue.pullToTop(i);
-				return;
-			}
-		}
-	}
+    // Pull a later item to the top of the queue when:
+    // - It can be produced
+    // - It isn't produced by a unit that is needed for an earlier item
+    // - We have enough minerals to cover it and everything in front of it
+    // - We either have enough gas to cover it and everything in front of it, or it doesn't require gas
+    // - We either have enough supply to cover it and everything in front of it, or it doesn't require supply
+    for (int i = _queue.size() - 2; i >= 0; --i)
+    {
+        const MacroAct & act = _queue[i].macroAct;
 
-	// We can reorder the queue if: Case 2:
-	// We can't produce the next item
-	// and a later item can be produced
-	// and it does not require more supply than this item
-	// and we have the resources for both.
-	// This is where it starts to make a difference.
-	BWAPI::Unit topProducer = getProducer(top);
-	if (top.gasPrice() < gas &&
-		top.mineralPrice() < minerals &&
-		(!topProducer || !canMakeNow(topProducer,top)))
-	{
-		for (int i = _queue.size() - 2; i >= std::max(0, int(_queue.size()) - 5); --i)
-		{
-			const MacroAct & act = _queue[i].macroAct;
-			// Don't reorder a command or anything after it.
-			if (act.isCommand())
-			{
-				break;
-			}
-			BWAPI::Unit producer;
-			if (act.supplyRequired() <= top.supplyRequired() &&
-				act.gasPrice() + top.gasPrice() <= gas &&
-				act.mineralPrice() + top.mineralPrice() <= minerals &&
-				(producer = getProducer(act)) &&
-				canMakeNow(producer, act))
-			{
-				if (Config::Debug::DrawQueueFixInfo)
-				{
-					BWAPI::Broodwar->printf("queue: pull to front %s @ %d", act.getName().c_str(), _queue.size() - i);
-				}
-				_queue.pullToTop(i);
-				return;
-			}
-		}
-	}
+        if (act.isCommand()) break;
+
+        // If we run out of minerals we can abort now
+        minerals -= act.mineralPrice();
+        if (minerals < 0) break;
+
+        // Remove the other resources required by this item
+        BWAPI::Unit producer = getProducer(act, BWAPI::Positions::None, &ineligibleProducers);
+        if (producer && !act.isBuilding()) ineligibleProducers.insert(producer);
+        gas -= act.gasPrice();
+        supplyAvailable -= act.supplyRequired();
+
+        // Reorder the queue if this item can be produced
+        if (producer && canMakeNow(producer, act) &&
+            (act.gasPrice() == 0 || gas >= 0) &&
+            (act.supplyRequired() == 0 || supplyAvailable >= 0))
+        {
+            Log().Get() << "Pulling " << act << " to front of queue";
+
+            _queue.pullToTop(i);
+            return;
+        }
+    }
 }
 
 // Return null if no producer is found.
 // NOTE closestTo defaults to BWAPI::Positions::None, meaning we don't care.
-BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closestTo) const
+BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closestTo, std::set<BWAPI::Unit> * ineligibleProducers) const
 {
 	std::vector<BWAPI::Unit> candidateProducers;
-
 	act.getCandidateProducers(candidateProducers);
+
+    // If the caller specified a set of ineligible producers, remove them now
+    if (ineligibleProducers)
+        for (auto it = candidateProducers.begin(); it != candidateProducers.end(); )
+            if (ineligibleProducers->find(*it) != ineligibleProducers->end())
+                it = candidateProducers.erase(it);
+            else
+                it++;
 
 	// Trick: If we're producing a worker, choose the producer (command center, nexus,
 	// or larva) which is farthest from the main base. That way expansions are preferentially
