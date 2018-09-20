@@ -138,15 +138,25 @@
 
             if (args.Contains("latest"))
             {
-                try
+                bool firstTry = true;
+                while (true)
                 {
-                    File.Copy("C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.dll", true);
-                    File.Copy("C:\\Dev\\BW\\Locutus\\Locutus.json", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.json", true);
-                }
-                catch (Exception)
-                {
-                    Console.WriteLine("Could not copy latest version, file may be in use");
-                    return;
+                    try
+                    {
+                        File.Copy("C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.dll", true);
+                        File.Copy("C:\\Dev\\BW\\Locutus\\Locutus.json", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.json", true);
+                        break;
+                    }
+                    catch (Exception)
+                    {
+                        if (firstTry)
+                        {
+                            Console.WriteLine("Could not copy latest version, file may be in use. Waiting for it to free up.");
+                        }
+
+                        firstTry = false;
+                        Thread.Sleep(500);
+                    }
                 }
             }
 
