@@ -276,38 +276,58 @@ void CombatCommander::updateHarassSquads()
 {
     if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Protoss) return;
 
-    // Collect active squads with the base they are harassing
-    auto enemyBases = InformationManager::Instance().getEnemyBases();
+    // Collect all the bases we want to harass
     std::vector<std::pair<Squad*, BWTA::BaseLocation*>> activeSquads;
-    for (BWTA::Region * region : BWTA::getRegions())
+    for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
     {
-        BWAPI::Position regionCenter = region->getCenter();
-        if (!regionCenter.isValid()) continue;
-
         std::stringstream squadName;
-        squadName << "Harass " << regionCenter.x << " " << regionCenter.y;
+        squadName << "Harass " << base->getTilePosition();
 
-        // Find an enemy base in this region
-        BWTA::BaseLocation* base = nullptr;
-        for (auto & potentialBase : InformationManager::Instance().getEnemyBases())
-            if (potentialBase->getRegion() == region)
-            {
-                base = potentialBase;
-                break;
-            }
+        // Decide whether this base needs to be harassed
 
-        // If the enemy doesn't have a base here, make sure the squad is cleared
-        if (!base)
+        // Step 1: is it owned by the enemy?
+        bool harassBase = InformationManager::Instance().getBaseOwner(base) == BWAPI::Broodwar->enemy();
+        if (harassBase)
         {
-            if (_squadData.squadExists(squadName.str()))
-            {
-                _squadData.getSquad(squadName.str()).clear();
-            }
+            // Step 2: is there a ground path to it?
+            auto path = PathFinding::GetChokePointPath(
+                InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
+                base->getPosition(),
+                BWAPI::UnitTypes::Protoss_Dark_Templar,
+                PathFinding::PathFindingOptions::UseNearestBWEMArea);
+            harassBase = !path.empty();
 
+            if (harassBase)
+            {
+                // Step 3: is it covered by static detection?
+                // For now we will just check if there is static detection in any of the areas we will
+                // traverse along the path to the base
+                // TODO: Use detection grid and try to find a path that avoids static detection
+                std::set<const BWEM::Area *> areas;
+                for (auto choke : path)
+                {
+                    areas.insert(choke->GetAreas().first);
+                    areas.insert(choke->GetAreas().second);
+                }
+                for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+                    if (ui.second.type.isBuilding() && ui.second.type.isDetector() &&
+                        ui.second.lastPosition.isValid() && !ui.second.goneFromLastPosition &&
+                        areas.find(bwemMap.GetArea(BWAPI::TilePosition(ui.second.lastPosition))) != areas.end())
+                    {
+                        harassBase = false;
+                        break;
+                    }
+            }
+        }
+
+        // If we don't want to harass this base, make sure we clear any squad we already created for it
+        if (!harassBase)
+        {
+            if (_squadData.squadExists(squadName.str())) _squadData.getSquad(squadName.str()).clear();
             continue;
         }
 
-        // Ensure squad exists
+        // We want to harass this base, so make sure we have a squad for it
         if (!_squadData.squadExists(squadName.str()))
         {
             _squadData.addSquad(Squad(
@@ -337,6 +357,8 @@ void CombatCommander::updateHarassSquads()
 
     // Assign two units to each squad
     // Extra units will end up in the main attack squad
+    // Note that this does not reallocate units from one harassment squad to another, as
+    // we don't want our units wasting time pinging around between different bases
     auto it = activeSquads.begin();
     for (const auto unit : _combatUnits)
     {

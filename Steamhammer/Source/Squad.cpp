@@ -115,7 +115,6 @@ void Squad::update()
 
 		_microAirToAir.regroup(regroupPosition, vanguard, _nearEnemy);
 		_microMelee.regroup(regroupPosition, vanguard, _nearEnemy);
-		_microDarkTemplar.regroup(regroupPosition, vanguard, _nearEnemy);
 		_microRanged.regroup(regroupPosition, vanguard, _nearEnemy);
         _microCarriers.regroup(regroupPosition, vanguard, _nearEnemy);
 		_microTanks.regroup(regroupPosition, vanguard, _nearEnemy);
@@ -125,11 +124,14 @@ void Squad::update()
 		// No need to regroup. Execute micro.
 		_microAirToAir.execute();
 		_microMelee.execute();
-		_microDarkTemplar.execute();
 		_microRanged.execute();
         _microCarriers.execute();
 		_microTanks.execute();
 	}
+
+    // Dark templar handle retreating on their own
+    // No need to retreat them if the enemy has no detection
+    _microDarkTemplar.execute();
 
     // Execute micro for bunker squads
     for (auto& pair : bunkerAttackSquads)
@@ -279,8 +281,7 @@ void Squad::addUnitsToMicroManagers()
 			{
 				highTemplarUnits.insert(unit);
 			}
-			else if (_order.getType() == SquadOrderTypes::Harass &&
-                unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
 			{
 				darkTemplarUnits.insert(unit);
 			}

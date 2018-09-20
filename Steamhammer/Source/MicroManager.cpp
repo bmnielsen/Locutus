@@ -210,17 +210,15 @@ void MicroManager::regroup(
         if (unstickStuckUnit(unit)) continue;
 
 		// 1. A broodling should never retreat, but attack as long as it lives.
-		// 2. If none of its kind has died yet, a dark templar or lurker should not retreat.
-		// 3. A ground unit next to an enemy sieged tank should not move away.
-		// TODO 4. A unit in stay-home mode should stay home, not "regroup" away from home.
-		// TODO 5. A unit whose retreat path is blocked by enemies should do something else, at least attack-move.
+		// 2. A ground unit next to an enemy sieged tank should not move away.
+		// TODO 3. A unit in stay-home mode should stay home, not "regroup" away from home.
+		// TODO 4. A unit whose retreat path is blocked by enemies should do something else, at least attack-move.
 		if (buildScarabOrInterceptor(unit))
 		{
 			// We're done for this frame.
             continue;
 		}
 		else if (unit->getType() == BWAPI::UnitTypes::Zerg_Broodling ||
-			unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar && BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) == 0 ||
 			unit->getType() == BWAPI::UnitTypes::Zerg_Lurker && BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Zerg_Lurker) == 0 ||
 			(BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran &&
 			!unit->isFlying() &&

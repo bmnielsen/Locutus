@@ -9,6 +9,26 @@ MicroDarkTemplar::MicroDarkTemplar()
 { 
 }
 
+inline bool MicroDarkTemplar::isVulnerable(BWAPI::Position pos, LocutusMapGrid & enemyUnitGrid)
+{
+    return enemyUnitGrid.getDetection(pos) > 0 &&
+        enemyUnitGrid.getGroundThreat(pos) > 0;
+}
+
+inline bool MicroDarkTemplar::isSafe(BWAPI::WalkPosition pos, LocutusMapGrid & enemyUnitGrid)
+{
+    return BWAPI::Broodwar->isWalkable(pos) &&
+        enemyUnitGrid.getCollision(pos) == 0 &&
+        (enemyUnitGrid.getDetection(pos) == 0 ||
+            enemyUnitGrid.getGroundThreat(pos) == 0);
+}
+
+inline bool MicroDarkTemplar::attackOrder()
+{
+    return order.getType() == SquadOrderTypes::Attack ||
+        order.getType() == SquadOrderTypes::Harass;
+}
+
 void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 {
     if (!order.isCombatOrder()) return;
@@ -32,64 +52,89 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 		}
 	}
 
-    // Collect data on enemy detectors
-    // We include all known static detectors and visible mobile detectors
-    // TODO: Keep track of an enemy detection matrix
-    std::vector<std::pair<BWAPI::Position, BWAPI::UnitType>> enemyDetectors;
-    for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
-        if (!unit->getType().isBuilding() && unit->getType().isDetector())
-            enemyDetectors.push_back(std::make_pair(unit->getPosition(), unit->getType()));
-    for (auto const & ui : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
-        if (ui.second.type.isBuilding() && ui.second.type.isDetector() && !ui.second.goneFromLastPosition && ui.second.completed)
-            enemyDetectors.push_back(std::make_pair(ui.second.lastPosition, ui.second.type));
+    auto & enemyUnitGrid = InformationManager::Instance().getEnemyUnitGrid();
 
+    std::ostringstream debug;
+    debug << "DT micro:";
 	for (const auto meleeUnit : meleeUnits)
 	{
+        debug << "\n" << meleeUnit->getID() << " @ " << meleeUnit->getTilePosition() << ": ";
+
         if (unstickStuckUnit(meleeUnit))
         {
+            debug << "unstick";
             continue;
         }
 
-        // If in range of a detector, consider fleeing from it
-        for (auto const & detector : enemyDetectors)
-            if (meleeUnit->getDistance(detector.first) <= (detector.second.isBuilding() ? 9 * 32 : 12 * 32))
+        // If we are on the attack, are detected and can be attacked here, try to flee from detection
+        if (attackOrder() && isVulnerable(meleeUnit->getPosition(), enemyUnitGrid))
+        {
+            BWAPI::WalkPosition start = BWAPI::WalkPosition(meleeUnit->getPosition());
+            BWAPI::WalkPosition fleeTo = BWAPI::WalkPositions::Invalid;
+
+            for (int i = 2; i <= 10; i += 2)
+                for (int j = 0; j < i; j += 2)
+                {
+                    if (isSafe(start + BWAPI::WalkPosition(j, i - j), enemyUnitGrid))
+                        fleeTo = start + BWAPI::WalkPosition(j, i - j);
+                    else if (isSafe(start + BWAPI::WalkPosition(-j, i - j), enemyUnitGrid))
+                        fleeTo = start + BWAPI::WalkPosition(-j, i - j);
+                    else if (isSafe(start + BWAPI::WalkPosition(j, j - i), enemyUnitGrid))
+                        fleeTo = start + BWAPI::WalkPosition(j, j - i);
+                    else if (isSafe(start + BWAPI::WalkPosition(-j, j - i), enemyUnitGrid))
+                        fleeTo = start + BWAPI::WalkPosition(-j, j - i);
+                    else
+                        continue;
+
+                    // We found a position to flee to
+                    goto breakLoop;
+                }
+
+        breakLoop:;
+            if (fleeTo.isValid())
             {
-                if (!meleeUnit->isUnderAttack() && !UnitUtil::TypeCanAttackGround(detector.second)) continue;
-
-                InformationManager::Instance().getLocutusUnit(meleeUnit).fleeFrom(detector.first);
-                goto nextUnit; // continue outer loop
+                debug << "detected, fleeing to " << BWAPI::TilePosition(fleeTo);
+                InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(BWAPI::Position(fleeTo) + BWAPI::Position(4, 4));
+                continue; // next unit
             }
+        }
 
-		BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets);
-		if (target)
-		{
-			Micro::AttackUnit(meleeUnit, target);
-		}
-		else if (meleeUnit->getDistance(order.getPosition()) > 96)
-		{
-			// There are no targets. Move to the order position if not already close.
+		BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets, enemyUnitGrid);
+        if (target)
+        {
+            debug << "attacking target " << target->getType() << " @ " << target->getTilePosition();
+            Micro::AttackUnit(meleeUnit, target);
+        }
+        else if (meleeUnit->getDistance(order.getPosition()) > 96)
+        {
+            debug << "moving towards order position " << BWAPI::TilePosition(order.getPosition());
+            // There are no targets. Move to the order position if not already close.
             InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(order.getPosition());
-            //Micro::Move(meleeUnit, order.getPosition());
-		}
+        }
+        else
+            debug << "do nothing";
 
 		if (Config::Debug::DrawUnitTargetInfo)
 		{
 			BWAPI::Broodwar->drawLineMap(meleeUnit->getPosition(), meleeUnit->getTargetPosition(),
 				Config::Debug::ColorLineTarget);
 		}
-
-    nextUnit:;
 	}
+
+    //Log().Debug() << debug.str();
 }
 
 // Choose a target from the set, or null if we don't want to attack anything
-BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets)
+BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets, LocutusMapGrid & enemyUnitGrid)
 {
 	int bestScore = -999999;
 	BWAPI::Unit bestTarget = nullptr;
 
 	for (const auto target : targets)
 	{
+        // If we are on the attack, skip targets that are covered by detection
+        if (attackOrder() && isVulnerable(target->getPosition(), enemyUnitGrid)) continue;
+
 		const int priority = getAttackPriority(meleeUnit, target);		// 0..12
 		const int range = meleeUnit->getDistance(target);				// 0..map size in pixels
 		const int closerToGoal =										// positive if target is closer than us to the goal
@@ -176,7 +221,7 @@ BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unit
 		}
 	}
 
-	return shouldIgnoreTarget(meleeUnit, bestTarget) ? nullptr : bestTarget;
+    return bestTarget;
 }
 
 // get the attack priority of a type

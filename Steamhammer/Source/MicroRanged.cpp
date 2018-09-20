@@ -530,6 +530,13 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		}
 	}
 
+    // Observers are very high priority if we have dark templar
+    if (targetType == BWAPI::UnitTypes::Protoss_Observer &&
+        UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) > 0)
+    {
+        return 12;
+    }
+
 	// Wraiths, scouts, and goliaths strongly prefer air targets because they do more damage to air units.
 	if (rangedUnit->getType() == BWAPI::UnitTypes::Terran_Wraith ||
 		rangedUnit->getType() == BWAPI::UnitTypes::Protoss_Scout)
