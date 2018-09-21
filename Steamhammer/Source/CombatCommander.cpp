@@ -958,7 +958,7 @@ void CombatCommander::blockScouting()
     if (bwebMap.mainChoke)
     {
         ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
-        if (chokeData.blockScoutPositions.empty()) return;
+        if (chokeData.probeBlockScoutPositions.empty()) return;
 
         SquadOrder blockScout(SquadOrderTypes::BlockEnemyScout, BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(4, 4), 0, "Block enemy scout");
         _squadData.addSquad(Squad("Block scout", blockScout, BlockScoutingPriority));
@@ -972,45 +972,54 @@ void CombatCommander::updateBlockScoutingSquad()
     Squad & blockRampSquad = _squadData.getSquad("Block scout");
     ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
 
-    // Disband the squad when either:
-    // - we have a dragoon (it will kill any scout that comes into the base)
-    // - we have gone aggressive and have at least one combat unit
+    // Disband the squad when:
     // - we are taking our natural
-    // TODO: Make it a bit more nuanced and support "opening" the choke for friendly units
-    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) > 0 ||
-        InformationManager::Instance().haveWeTakenOurNatural() || 
-        (_goAggressive && (
-            UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Zealot) > 0 ||
-            UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) > 0)))
+    // - we have a dragoon close by (it will kill any scout that comes into the base)
+    // - we have gone aggressive and have at least one combat unit in our main that needs to get out
+    // - the enemy has a combat unit close by
+    // TODO: Support "opening" the choke for friendly units so it isn't all-or-nothing
+    bool disband = InformationManager::Instance().haveWeTakenOurNatural();
+    if (!disband)
+        for (auto unit : BWAPI::Broodwar->self()->getUnits())
+            if (unit->isCompleted() && (
+                (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
+                    unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320) ||
+                (_goAggressive && !unit->isFlying() && UnitUtil::IsCombatUnit(unit) &&
+                    bwemMap.GetArea(unit->getTilePosition()) == bwebMap.mainArea)))
+            {
+                disband = true;
+                break;
+            }
+    if (!disband)
+        for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
+            if (!unit->getType().isWorker() && UnitUtil::IsCombatUnit(unit) &&
+                unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320)
+            {
+                disband = true;
+            }
+    if (disband)
     {
         blockRampSquad.clear();
         _squadData.removeSquad("Block scout");
         return;
     }
 
-    // Disband the squad if the enemy has a combat unit close to it
-    for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
-        if (unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320 &&
-            !unit->getType().isWorker() &&
-            UnitUtil::IsCombatUnit(unit))
-        {
-            blockRampSquad.clear();
-            _squadData.removeSquad("Block scout");
-            return;
-        }
-
     // Assign zealots to the squad as they become available
-    int zealotCount = 0;
-    for (auto unit : blockRampSquad.getUnits()) if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot) zealotCount++;
-    if (zealotCount < chokeData.blockScoutPositions.size())
+    if (!chokeData.zealotBlockScoutPositions.empty())
     {
-        for (auto unit : _combatUnits)
+        int zealotCount = 0;
+        for (auto unit : blockRampSquad.getUnits()) if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot) zealotCount++;
+        if (zealotCount < chokeData.zealotBlockScoutPositions.size())
         {
-            if (unit->getType() != BWAPI::UnitTypes::Protoss_Zealot) continue;
-            if (!_squadData.canAssignUnitToSquad(unit, blockRampSquad)) continue;
+            for (auto unit : _combatUnits)
+            {
+                if (unit->getType() != BWAPI::UnitTypes::Protoss_Zealot) continue;
+                if (!_squadData.canAssignUnitToSquad(unit, blockRampSquad)) continue;
+                if (bwemMap.GetArea(unit->getTilePosition()) != bwebMap.mainArea) continue;
 
-            _squadData.assignUnitToSquad(unit, blockRampSquad);
-            return;
+                _squadData.assignUnitToSquad(unit, blockRampSquad);
+                return;
+            }
         }
     }
 
@@ -1063,7 +1072,7 @@ void CombatCommander::updateBlockScoutingSquad()
     // Add the units
     for (auto unit : _combatUnits)
     {
-        if (blockRampSquad.getUnits().size() >= chokeData.blockScoutPositions.size()) break;
+        if (blockRampSquad.getUnits().size() >= chokeData.probeBlockScoutPositions.size()) break;
 
         if (!unit->getType().isWorker()) continue;
         if (unit->isCarryingMinerals() || unit->isCarryingGas()) continue;

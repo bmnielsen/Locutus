@@ -53,3 +53,12 @@ bool MathUtil::Overlaps(BWAPI::UnitType type, BWAPI::Position center, BWAPI::Pos
     return bottomRight.x >= point.x && point.x >= topLeft.x &&
         bottomRight.y >= point.y && point.y >= topLeft.y;
 }
+
+bool MathUtil::Walkable(BWAPI::UnitType type, BWAPI::Position center)
+{
+    for (int x = center.x - type.dimensionLeft(); x <= center.x + type.dimensionRight(); x++)
+        for (int y = center.y - type.dimensionUp(); y <= center.y + type.dimensionDown(); y++)
+            if (!BWAPI::Broodwar->isWalkable(x / 8, y / 8))
+                return false;
+    return true;
+}

@@ -986,11 +986,48 @@ bool Squad::hasMicroManager(const MicroManager* microManager) const
 void Squad::updateBlockScouting()
 {
     ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
-    if (_units.size() < chokeData.blockScoutPositions.size()) return;
+
+    // Determine which set of block positions to use
+
+    // Normally we use the zealot positions once a zealot is added to the squad
+    bool useZealotPositions = containsUnitType(BWAPI::UnitTypes::Protoss_Zealot);
+
+    // But we need to handle the situation when going from one probe to two zealots specially
+    bool switchingFromOneToTwoUnits = false;
+    if (useZealotPositions &&
+        chokeData.zealotBlockScoutPositions.size() == 2 &&
+        chokeData.probeBlockScoutPositions.size() == 1)
+    {
+        int zealotCount = 0;
+        int probeCount = 0;
+        int probeInPosition = false;
+        int zealotNearPosition = false;
+        for (auto unit : _units)
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot)
+            {
+                zealotCount++;
+                zealotNearPosition = unit->getDistance(*chokeData.probeBlockScoutPositions.begin()) < 20;
+            }
+            else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe)
+            {
+                probeCount++;
+                probeInPosition = probeInPosition || unit->getPosition() == *chokeData.probeBlockScoutPositions.begin();
+            }
+
+        if (zealotCount == 1 && probeCount == 1 && probeInPosition && !zealotNearPosition)
+            switchingFromOneToTwoUnits = true;
+    }
+
+    std::set<BWAPI::Position> & blockPositions = 
+        (useZealotPositions && !switchingFromOneToTwoUnits)
+        ? chokeData.zealotBlockScoutPositions 
+        : chokeData.probeBlockScoutPositions;
+
+    if (_units.size() < blockPositions.size()) return;
 
     // Assign a position to each unit
     std::map<BWAPI::Unit, BWAPI::Position> assignedPositions;
-    std::set<BWAPI::Position> positions(chokeData.blockScoutPositions);
+    std::set<BWAPI::Position> positions(blockPositions);
 
     // First pass: combat units already in position
     for (auto unit : _units)
@@ -1004,12 +1041,32 @@ void Squad::updateBlockScouting()
 
     // Second pass: combat units not already in position
     for (auto unit : _units)
-        if (!unit->getType().isWorker() && assignedPositions.find(unit) == assignedPositions.end())
+        if (!unit->getType().isWorker() && 
+            assignedPositions.find(unit) == assignedPositions.end() &&
+            !positions.empty() &&
+            unit->getDistance(_order.getPosition()) < 96)
         {
-            UAB_ASSERT(!positions.empty(), "no block position for combat unit");
-
-            assignedPositions[unit] = *positions.begin();
-            positions.erase(positions.begin());
+            if (positions.size() == 1)
+            {
+                assignedPositions[unit] = *positions.begin();
+                if (!switchingFromOneToTwoUnits) positions.erase(positions.begin());
+            }
+            else
+            {
+                BWAPI::Position best = BWAPI::Positions::Invalid;
+                int bestDist = INT_MAX;
+                for (auto pos : positions)
+                {
+                    int dist = unit->getDistance(pos);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        best = pos;
+                    }
+                }
+                assignedPositions[unit] = best;
+                if (!switchingFromOneToTwoUnits) positions.erase(best);
+            }
         }
 
     // Third pass: workers already in position
@@ -1037,15 +1094,22 @@ void Squad::updateBlockScouting()
 
         BWAPI::Position pos;
         auto assignment = assignedPositions.find(unit);
+
+        // First case: this unit has an assigned position
         if (assignment != assignedPositions.end())
             pos = assignment->second;
+
+        // Second case: this unit is a combat unit without an assigned position
+        // It moves towards the order position (i.e. choke center) and is assigned
+        // a position when it gets closer
+        else if (!unit->getType().isWorker())
+            pos = _order.getPosition();
+
+        // Final case: this unit is a worker without an assigned position
+        // This means it is being replaced by a combat unit
+        // We wait until the replacement unit is close by, then mineral walk back to base
         else
         {
-            if (!unit->getType().isWorker()) goto nextUnit;
-
-            // This is a probe that is being replaced by a combat unit
-            // We wait until the replacement unit is close by, then mineral walk back to base
-
             // Handle unit that is currently mineral walking
             if (unit->getOrder() == BWAPI::Orders::MoveToMinerals)
             {
@@ -1059,10 +1123,10 @@ void Squad::updateBlockScouting()
                 goto nextUnit;
             }
             
-            // Check if there is a combat unit close by that is moving towards this position
+            // Check if there is a combat unit close by that is moving towards a position
             for (auto other : _units)
                 if (other != unit && !other->getType().isWorker() && other->getDistance(unit) < 10 &&
-                    other->getOrder() == BWAPI::Orders::Move && unit->getDistance(other->getOrderTargetPosition()) < 10)
+                    other->getOrder() == BWAPI::Orders::Move && unit->getDistance(other->getOrderTargetPosition()) < 30)
                 {
                     // Start mineral walking
                     for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())
@@ -1081,11 +1145,28 @@ void Squad::updateBlockScouting()
 
         // If we aren't at the desired position, move there
         if (unit->getPosition() != pos)
+        {
             Micro::Move(unit, pos);
+            goto nextUnit;
+        }
+
+        // If there is an enemy worker in range where we can attack it without moving, attack it
+        // We are a bit conservative to be absolutely sure we don't move
+        int desiredRange = (UnitUtil::GetAttackRangeAssumingUpgrades(unit->getType(), BWAPI::UnitTypes::Protoss_Probe) * 2) / 3;
+        for (auto enemy : BWAPI::Broodwar->enemy()->getUnits())
+            if (enemy->getType().isWorker() && enemy->getDistance(unit) <= desiredRange &&
+                MathUtil::EdgeToEdgeDistance(
+                    unit->getType(), 
+                    unit->getPosition(), 
+                    enemy->getType(), 
+                    InformationManager::Instance().predictUnitPosition(enemy, BWAPI::Broodwar->getRemainingLatencyFrames())) <= desiredRange)
+            {
+                Micro::AttackUnit(unit, enemy);
+                goto nextUnit;
+            }
 
         // Otherwise hold position
-        else
-            unit->holdPosition();
+        unit->holdPosition();
 
     nextUnit:;
         it++;

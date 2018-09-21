@@ -19,8 +19,8 @@ struct ChokeData
 
     bool isRamp;
     BWAPI::TilePosition highElevationTile;
-
-    std::set<BWAPI::Position> blockScoutPositions;  // Minimum set of positions we can put a probe to block an enemy worker scout from getting in
+    std::set<BWAPI::Position> probeBlockScoutPositions;  // Minimum set of positions we can put a probe to block an enemy worker scout from getting in
+    std::set<BWAPI::Position> zealotBlockScoutPositions; // Minimum set of positions we can put a zealot to block an enemy worker scout from getting in
 
     bool requiresMineralWalk;
     BWAPI::Unit firstAreaMineralPatch;          // Mineral patch to use when moving towards the first area in the chokepoint's GetAreas()
@@ -64,8 +64,8 @@ class MapTools
     MapTools();
 
     BWAPI::Position     findClosestUnwalkablePosition(BWAPI::Position start, BWAPI::Position closeTo, int searchRadius);
+    void                computeScoutBlockingPositions(BWAPI::Position center, BWAPI::UnitType type, std::set<BWAPI::Position> & result);
     void                findPath(BWAPI::Position start, BWAPI::Position end, std::vector<BWAPI::Position> & result);
-    void                computeScoutBlockingPositions(std::vector<BWAPI::Position> toBlock, std::set<BWAPI::Position> & result);
 
     void				setBWAPIMapData();					// reads in the map data from bwapi and stores it in our map format
 
@@ -76,6 +76,8 @@ public:
     static MapTools &	Instance();
 
     const std::set<const BWEM::ChokePoint *> & getAllChokepoints() const { return _allChokepoints; };
+
+    bool    blocksChokeFromScoutingWorker(BWAPI::Position pos, BWAPI::UnitType type);
 
 	int		getGroundTileDistance(BWAPI::TilePosition from, BWAPI::TilePosition to);
 	int		getGroundTileDistance(BWAPI::Position from, BWAPI::Position to);
