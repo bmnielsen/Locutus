@@ -558,6 +558,9 @@ bool ParseUtils::_ParseStrategy(
 						continue;
 					}
 
+                    // Weighted 0 (or less) in the config -> skip
+                    if (weight <= 0) continue;
+
                     // If we've used this strategy before, adjust the weight based on the result
 					std::string strategy = mix[i]["Strategy"].GetString();
                     if (strategyWeightFactors.find(strategy) != strategyWeightFactors.end())

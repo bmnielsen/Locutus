@@ -210,15 +210,30 @@ void ProductionManager::manageBuildOrderQueue()
 
 		const BuildOrderItem & currentItem = _queue.getHighestPriorityItem();
 
-        // On Plasma, delay building proxy buildings until we know where the enemy base is
-        if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
-            currentItem.macroAct.isBuilding() &&
-            currentItem.macroAct.getMacroLocation() == MacroLocation::Proxy &&
+        // In some builds we delay until we know the enemy location
+        // We will build probes or pylons while we wait
+        if (currentItem.macroAct.isCommand() &&
+            currentItem.macroAct.getCommandType().getType() == MacroCommandType::WaitUntilEnemyLocationKnown &&
             !InformationManager::Instance().getEnemyMainBaseLocation())
         {
-            // Queue a probe instead
-            _queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Probe);
+            // If our scouting probe died before finding the enemy base, abort
+            auto workerScout = ScoutManager::Instance().getWorkerScout();
+            if (!workerScout || !workerScout->exists())
+            {
+                Log().Get() << "Aborting wait until enemy location known - no worker scout";
+                _queue.doneWithHighestPriorityItem();
+                _lastProductionFrame = BWAPI::Broodwar->getFrameCount();
+                continue;
+            }
+
+            // If we're almost out of supply, queue a pylon
+            if (BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() < 3 &&
+                !BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Pylon))
+                _queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Pylon);
+            else
+                _queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Probe);
             return;
+
         }
 
         // BOSS queues too many of some units, so cancel this one if we don't want it
@@ -522,6 +537,16 @@ BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closest
             else
                 it++;
 
+    if (candidateProducers.empty()) return nullptr;
+
+    // If we're in proxy mode and this item is built by a gateway, prefer choosing a proxy gateway
+    if (StrategyManager::Instance().isProxying() && 
+        BuildingPlacer::Instance().getProxyBlockLocation().isValid() &&
+        act.whatBuilds() == BWAPI::UnitTypes::Protoss_Gateway)
+    {
+        closestTo = BuildingPlacer::Instance().getProxyBlockLocation();
+    }
+
 	// Trick: If we're producing a worker, choose the producer (command center, nexus,
 	// or larva) which is farthest from the main base. That way expansions are preferentially
 	// populated with less need to transfer workers.
@@ -813,7 +838,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	int gasRequired						= std::max(0, b.type.gasPrice() - getFreeGas());
 
 	// get a candidate worker to move to this location
-	BWAPI::Unit moveWorker				= WorkerManager::Instance().getMoveWorker(walkToPosition);
+	BWAPI::Unit moveWorker				= WorkerManager::Instance().getMoveWorker(walkToPosition, b.macroLocation);
 	if (!moveWorker) return;
 
 	// how many frames it will take us to move to the building location
@@ -895,9 +920,21 @@ void ProductionManager::executeCommand(MacroCommand command)
 	{
 		CombatCommander::Instance().setAggression(true);
 	}
+	else if (cmd == MacroCommandType::AggressiveAt)
+	{
+		CombatCommander::Instance().setAggressionAt(command.getAmount());
+	}
 	else if (cmd == MacroCommandType::Defensive)
 	{
 		CombatCommander::Instance().setAggression(false);
+	}
+	else if (cmd == MacroCommandType::Rushing)
+	{
+		StrategyManager::Instance().setRushing();
+	}
+	else if (cmd == MacroCommandType::Proxying)
+	{
+		StrategyManager::Instance().setProxying();
 	}
 	else if (cmd == MacroCommandType::PullWorkers)
 	{
@@ -916,7 +953,11 @@ void ProductionManager::executeCommand(MacroCommand command)
 	{
 		CombatCommander::Instance().blockScouting();
 	}
-	else if (cmd == MacroCommandType::Nonadaptive)
+    else if (cmd == MacroCommandType::WaitUntilEnemyLocationKnown)
+    {
+        // Handled earlier in production queue
+    }
+    else if (cmd == MacroCommandType::Nonadaptive)
 	{
 		StrategyBossZerg::Instance().setNonadaptive(true);
 	}
@@ -1212,8 +1253,12 @@ void ProductionManager::goOutOfBookAndClearQueue()
 {
 	_queue.clearAll();
 	_outOfBook = true;
-	CombatCommander::Instance().setAggression(true);
 	_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
+
+    // By default we go aggressive when the opening book is finished unless
+    // the opening tells us to wait until a certain frame
+    if (CombatCommander::Instance().getAggressionAt() < BWAPI::Broodwar->getFrameCount())
+        CombatCommander::Instance().setAggression(true);
 }
 
 // If we're in book, leave it and clear the queue.

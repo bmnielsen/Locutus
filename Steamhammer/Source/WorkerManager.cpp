@@ -2,6 +2,7 @@
 #include "WorkerManager.h"
 #include "Micro.h"
 #include "ProductionManager.h"
+#include "CombatCommander.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -9,6 +10,7 @@ using namespace UAlbertaBot;
 WorkerManager::WorkerManager() 
 	: previousClosestWorker(nullptr)
 	, _collectGas(true)
+	, proxyBuilder(nullptr)
 {
 }
 
@@ -20,6 +22,10 @@ WorkerManager & WorkerManager::Instance()
 
 void WorkerManager::update() 
 {
+    // Reset the proxy builder if it is dead
+    if (proxyBuilder && !proxyBuilder->exists())
+        proxyBuilder = nullptr;
+
 	// NOTE Combat workers are placed in a combat squad and get their orders there.
 	//      We ignore them here.
 	updateWorkerStatus();
@@ -248,7 +254,21 @@ void WorkerManager::handleIdleWorkers()
 
 		if (workerData.getWorkerJob(worker) == WorkerData::Idle) 
 		{
-			if (worker->isCarryingMinerals() || worker->isCarryingGas())
+            // If this is the proxy builder unit, let it stay there as long as we may want to
+            // build buildings there
+            if (worker == proxyBuilder)
+            {
+                BWAPI::Position proxyLocation = BuildingPlacer::Instance().getProxyBlockLocation();
+                if (StrategyManager::Instance().isProxying() &&
+                    !CombatCommander::Instance().getAggression() &&
+                    proxyLocation.isValid())
+                {
+                    Micro::Move(worker, proxyLocation);
+                }
+                else
+                    proxyBuilder = nullptr;
+            }
+			else if (worker->isCarryingMinerals() || worker->isCarryingGas())
 			{
 				// It's carrying something, set it to hand in its cargo.
 				setReturnCargoWorker(worker);         // only happens if there's a resource depot
@@ -598,6 +618,16 @@ void WorkerManager::finishedWithWorker(BWAPI::Unit unit)
 {
 	UAB_ASSERT(unit, "Unit was null");
 
+    // If the worker was building a proxy building, make sure it is marked as the proxy builder
+    if (!proxyBuilder && workerData.getWorkerJob(unit) == WorkerData::Build &&
+        StrategyManager::Instance().isProxying() &&
+        !CombatCommander::Instance().getAggression())
+    {
+        BWAPI::Position proxyLocation = BuildingPlacer::Instance().getProxyBlockLocation();
+        if (proxyLocation.isValid() && unit->getDistance(proxyLocation) < 320)
+            proxyBuilder = unit;
+    }
+
 	workerData.setWorkerJob(unit, WorkerData::Idle, nullptr);
 }
 
@@ -646,6 +676,18 @@ void WorkerManager::setBuildingWorker(BWAPI::Unit worker, Building & b)
 // set 'setJobAsBuilder' to false if we just want to see which worker will build a building
 BWAPI::Unit WorkerManager::getBuilder(const Building & b, bool setJobAsBuilder)
 {
+    // If the building should be built at the proxy, use the proxy builder if we already have it
+    if (b.macroLocation == MacroLocation::Proxy && proxyBuilder)
+    {
+        // If it is currently busy, return null
+        // The building will be built when the unit is available again
+        if (workerData.getWorkerJob(proxyBuilder) != WorkerData::Idle) 
+            return nullptr;
+        if (setJobAsBuilder)
+            workerData.setWorkerJob(proxyBuilder, WorkerData::Build, b.type);
+        return proxyBuilder;
+    }
+
 	// variables to hold the closest worker of each type to the building
 	BWAPI::Unit closestMovingWorker = nullptr;
 	BWAPI::Unit closestMiningWorker = nullptr;
@@ -656,6 +698,9 @@ BWAPI::Unit WorkerManager::getBuilder(const Building & b, bool setJobAsBuilder)
 	for (const auto unit : workerData.getWorkers())
 	{
         UAB_ASSERT(unit, "Unit was null");
+
+        // Don't use the proxy builder for non-proxy buildings
+        if (unit == proxyBuilder) continue;
 
         // gas steal building uses scout worker
         if (b.isWorkerScoutBuilding && (workerData.getWorkerJob(unit) == WorkerData::Scout))
@@ -712,6 +757,9 @@ BWAPI::Unit WorkerManager::getBuilder(const Building & b, bool setJobAsBuilder)
 	if (chosenWorker && setJobAsBuilder)
 	{
 		workerData.setWorkerJob(chosenWorker, WorkerData::Build, b.type);
+
+        // If this is a proxy building, assign the unit as the proxy builder
+        if (b.macroLocation == MacroLocation::Proxy) proxyBuilder = chosenWorker;
 	}
 
 	return chosenWorker;
@@ -727,8 +775,12 @@ void WorkerManager::setScoutWorker(BWAPI::Unit worker)
 
 // Choose a worker to move to the given location.
 // Don't give it any orders (that is for the caller).
-BWAPI::Unit WorkerManager::getMoveWorker(BWAPI::Position p)
+BWAPI::Unit WorkerManager::getMoveWorker(BWAPI::Position p, MacroLocation macroLocation)
 {
+    // If the target is the proxy and we have a proxy builder, return nullptr
+    // We don't need to move the worker ahead of time
+    if (macroLocation == MacroLocation::Proxy && proxyBuilder) return nullptr;
+
 	BWAPI::Unit closestWorker = nullptr;
 	int closestDistance = 0;
 
@@ -923,6 +975,9 @@ void WorkerManager::drawWorkerInformation(int x, int y)
 bool WorkerManager::isFree(BWAPI::Unit worker)
 {
     UAB_ASSERT(worker, "Worker was null");
+
+    // Proxy builder is not considered free
+    if (worker == proxyBuilder) return false;
 
 	WorkerData::WorkerJob job = workerData.getWorkerJob(worker);
 	return (job == WorkerData::Minerals || job == WorkerData::Idle) && worker->isCompleted();

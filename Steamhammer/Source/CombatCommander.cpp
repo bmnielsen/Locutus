@@ -2,6 +2,7 @@
 
 #include "Bases.h"
 #include "OpponentModel.h"
+#include "ProductionManager.h"
 #include "Random.h"
 #include "UnitUtil.h"
 #include "PathFinding.h"
@@ -20,7 +21,8 @@ const size_t BaseDefensePriority = 4;
 const size_t ScoutDefensePriority = 5;
 const size_t BlockScoutingPriority = 6;
 const size_t DropPriority = 7;         // don't steal from Drop squad for Defense squad
-const size_t KamikazePriority = 8;
+const size_t AttackFromProxyPriority = 8;
+const size_t KamikazePriority = 9;
 
 // The attack squads.
 const int AttackRadius = 800;
@@ -34,6 +36,7 @@ const int ReconRadius = 400;
 CombatCommander::CombatCommander() 
     : _initialized(false)
 	, _goAggressive(true)
+	, _goAggressiveAt(-1)
 	, _reconTarget(BWAPI::Positions::Invalid)   // it will be changed later
 	, _lastReconTargetChange(0)
 	, _enemyWorkerAttackedAt(0)
@@ -89,6 +92,11 @@ void CombatCommander::initializeSquads()
 		_squadData.addSquad(Squad("Drop", doDrop, DropPriority));
     }
 
+    // The proxy squad contains units built out of proxy gateways
+    // If we are aggressive units will be sent to attack the enemy base immediately, otherwise
+    // the proxy squad will decide when it makes sense to start the attack
+    _squadData.addSquad(Squad("Proxy", mainAttackOrder, AttackFromProxyPriority));
+
     _initialized = true;
 }
 
@@ -99,6 +107,9 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
         initializeSquads();
     }
 
+    if (!_goAggressive && _goAggressiveAt == BWAPI::Broodwar->getFrameCount())
+        setAggression(true);
+
     _combatUnits = combatUnits;
 
 	int frame8 = BWAPI::Broodwar->getFrameCount() % 8;
@@ -106,6 +117,8 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 	if (frame8 == 1)
 	{
 		updateIdleSquad();
+        updateKamikazeSquad();
+		updateProxySquad();
 		updateDropSquads();
         updateBlockScoutingSquad();
         updateScoutDefenseSquad();
@@ -123,8 +136,6 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 	loadOrUnloadBunkers();
 
 	_squadData.update();          // update() all the squads
-
-    updateKamikazeSquad();
 
 	cancelDyingItems();
 }
@@ -149,6 +160,13 @@ void CombatCommander::updateKamikazeSquad()
     Squad & kamikazeSquad = _squadData.getSquad("Kamikaze");
     SquadOrder kamikazeOrder(SquadOrderTypes::KamikazeAttack, getAttackLocation(&kamikazeSquad), AttackRadius, "Kamikaze attack enemy base");
     kamikazeSquad.setSquadOrder(kamikazeOrder);
+
+    // We don't do kamikaze attacks when we're on the defensive
+    if (!_goAggressive) return;
+
+    // We don't add units from the ground attack squad to the kamikaze squad while we have a proxy
+    // The proxy squad may add its units to the kamikaze squad
+    if (StrategyManager::Instance().isProxying()) return;
 
     Squad & groundSquad = _squadData.getSquad("Ground");
     if (groundSquad.isEmpty()) return;
@@ -210,6 +228,95 @@ void CombatCommander::updateKamikazeSquad()
         _squadData.assignUnitToSquad(unit, kamikazeSquad);
 
     Log().Get() << "Sent " << unitsToMove.size() << " units on a kamikaze attack";
+}
+
+void CombatCommander::updateProxySquad()
+{
+    Squad & proxySquad = _squadData.getSquad("Proxy");
+    
+    // Ensure squad is cleared when we are no longer proxying
+    if (!StrategyManager::Instance().isProxying())
+    {
+        proxySquad.clear();
+        return;
+    }
+
+    // Ensure we have a valid proxy location (should always be the case once we have units in the squad)
+    BWAPI::Position proxyLocation = BuildingPlacer::Instance().getProxyBlockLocation();
+    if (!proxyLocation.isValid())
+    {
+        proxySquad.clear();
+        return;
+    }
+
+    // Decide what to do with newly-completed units at the proxy
+    Squad & idleSquad = _squadData.getSquad("Idle");
+    Squad & kamikazeSquad = _squadData.getSquad("Kamikaze");
+    bool assignNewUnitsToProxy = onTheDefensive();
+    bool assignNewZealotsToKamikaze = _goAggressive && kamikazeSquad.containsUnitType(BWAPI::UnitTypes::Protoss_Zealot);
+    if (assignNewUnitsToProxy || assignNewZealotsToKamikaze) // otherwise they go into other squads
+    {
+        for (auto unit : _combatUnits)
+        {
+            if (!UnitUtil::IsCombatUnit(unit)) continue;
+            if (!idleSquad.containsUnit(unit)) continue;
+            if (unit->getDistance(proxyLocation) > 320) continue;
+
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot && assignNewZealotsToKamikaze &&
+                _squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+            {
+                _squadData.assignUnitToSquad(unit, kamikazeSquad);
+            }
+            else if (assignNewUnitsToProxy && _squadData.canAssignUnitToSquad(unit, proxySquad))
+                _squadData.assignUnitToSquad(unit, proxySquad);
+        }
+
+    }
+
+    // If we've gone aggressive since our last update, add all of our units to the kamikaze squad
+    // This gives us an aggressive first push
+    if (_goAggressive && _goAggressiveAt >= BWAPI::Broodwar->getFrameCount() - 8 &&
+        _goAggressiveAt <= BWAPI::Broodwar->getFrameCount())
+    {
+        std::vector<BWAPI::Unit> unitsToMove;
+        for (auto & unit : proxySquad.getUnits())
+            if (_squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+                unitsToMove.push_back(unit);
+
+        for (auto & unit : unitsToMove)
+            _squadData.assignUnitToSquad(unit, kamikazeSquad);
+
+        return;
+    }
+
+    // For now we use the default logic for picking a base to attack
+    if (_goAggressive)
+    {
+        SquadOrder mainAttackOrder(SquadOrderTypes::Attack, getAttackLocation(&proxySquad), AttackRadius, "Attack enemy base");
+        proxySquad.setSquadOrder(mainAttackOrder);
+    }
+
+    // Defend the proxy
+    else
+    {
+        // We defend the first choke between the proxy and the enemy main if valid and close by
+        // Otherwise we defend the proxy itself
+        BWAPI::Position defendPosition = proxyLocation;
+        auto enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
+        if (enemyBase)
+        {
+            auto path = PathFinding::GetChokePointPath(proxyLocation, enemyBase->getPosition(), BWAPI::UnitTypes::Protoss_Zealot, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+            if (!path.empty())
+            {
+                BWAPI::Position chokePosition = BWAPI::Position((*path.begin())->Center()) + BWAPI::Position(4, 4);
+                if (chokePosition.getApproxDistance(proxyLocation) < 640) 
+                    defendPosition = chokePosition;
+            }
+        }
+
+        SquadOrder mainDefendOrder(SquadOrderTypes::Hold, defendPosition, DefensivePositionRadius, "Defend the proxy");
+        proxySquad.setSquadOrder(mainDefendOrder);
+    }
 }
 
 void CombatCommander::updateDefuseSquads()
@@ -1451,7 +1558,7 @@ void CombatCommander::updateBaseDefenseSquads()
 
 		// Pull workers only in narrow conditions.
 		// Pulling workers (as implemented) can lead to big losses.
-		bool pullWorkers = !_goAggressive || (
+		bool pullWorkers = (!_goAggressive && (!StrategyManager::Instance().isProxying() || BWAPI::Broodwar->getFrameCount() < 4000)) || (
 			Config::Micro::WorkersDefendRush &&
 			(!staticDefense && numZerglingsInOurBase() > 0 || buildingRush() || groundDefendersNeeded < 4));
 
@@ -1958,14 +2065,9 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
                 double defenseFactor = defenseCount == 0 ? 1.0 : 1.0 / (1.0 + defenseCount);
 
                 // Importance of the base scales linearly with time, we don't care when it is 10 minutes old
-                // An exception is the enemy main, which we do not age until after frame 10000
                 double ageFactor = 1.0;
-                if (BWAPI::Broodwar->getFrameCount() > 10000 ||
-                    base != InformationManager::Instance().getEnemyMainBaseLocation())
-                {
-                    int age = BWAPI::Broodwar->getFrameCount() - InformationManager::Instance().getBaseOwnedSince(base);
-                    ageFactor = std::max(0.0, 14400.0 - age) / 14400.0;
-                }
+                int age = BWAPI::Broodwar->getFrameCount() - InformationManager::Instance().getBaseOwnedSince(base);
+                ageFactor = std::max(0.0, 14400.0 - age) / 14400.0;
 
                 double score = ageFactor * defenseFactor;
 				if (score > bestScore || !targetBase)

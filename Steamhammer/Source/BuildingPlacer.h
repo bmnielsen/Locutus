@@ -62,6 +62,7 @@ public:
 	void				reserveWall(const BuildOrder & buildOrder);
 	LocutusWall&		getWall() {	return _wall; }
     bool                isCloseToProxyBlock(BWAPI::Unit unit);
+    BWAPI::Position     getProxyBlockLocation() const;
 
 };
 }

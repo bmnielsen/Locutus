@@ -913,11 +913,7 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 
 		if (result.find(strategy) == result.end())
 		{
-            // Our proxy 2-gate is given a boost on 2-player maps
-            if (strategy == "Proxy9-9Gate" && BWAPI::Broodwar->getStartLocations().size() == 2)
-			    result[strategy] = 1.5;
-            else
-                result[strategy] = 1.0;
+            result[strategy] = 1.0;
 			strategyCount[strategy] = 0;
             strategyLosses[strategy] = 0;
 		}

@@ -1,5 +1,6 @@
 #include "MacroAct.h"
 #include "BuildingManager.h"
+#include "StrategyManager.h"
 
 #include <regex>
 
@@ -385,7 +386,22 @@ int MacroAct::supplyRequired() const
 // NOTE Because upgrades vary in price with level, this is context dependent.
 int MacroAct::mineralPrice(bool includeThen) const
 {
-	int price = includeThen && hasThen() ? getThen().mineralPrice() : 0;
+    int price = 0;
+
+    // Include price of the "then" component if appropriate
+    if (includeThen && hasThen())
+    {
+        // We usually use the then clause for buildings that are time-sensitive, like
+        // getting cannons up in time to thwart a rush. But if we are building something
+        // likely to be far away, don't bother reserving the resources unless we are rushing
+        if (StrategyManager::Instance().isRushing() || (
+            getThen().getMacroLocation() != MacroLocation::Center &&
+            getThen().getMacroLocation() != MacroLocation::Proxy &&
+            getThen().getMacroLocation() != MacroLocation::HiddenTech))
+        {
+            price = getThen().mineralPrice();
+        }
+    }
 
 	if (isCommand()) {
 		if (_macroCommandType.getType() == MacroCommandType::ExtractorTrickDrone ||

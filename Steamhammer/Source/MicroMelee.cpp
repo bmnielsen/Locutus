@@ -230,11 +230,12 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		// We care about unit-target range and target-order position distance.
 		int score = 2 * 32 * priority - range;
 
-        // Kamikaze and rush attacks ignore all tier 2+ combat units
+        // Kamikaze and rush attacks ignore all tier 2+ combat units unless they are closer to the order position and in weapon range
         if ((StrategyManager::Instance().isRushing() || order.getType() == SquadOrderTypes::KamikazeAttack) &&
             UnitUtil::IsCombatUnit(target) && 
-            !UnitUtil::IsTierOneCombatUnit(target->getType())
-            && !target->getType().isWorker())
+            !UnitUtil::IsTierOneCombatUnit(target->getType()) &&
+            !target->getType().isWorker() &&
+            (range > UnitUtil::GetAttackRange(meleeUnit, target) || closerToGoal < 0))
         {
             continue;
         }

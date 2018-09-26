@@ -65,6 +65,33 @@ void StrategyManager::update()
     }
 }
 
+void StrategyManager::onUnitDestroy(BWAPI::Unit unit)
+{
+    // If it's not our unit, we don't care.
+    if (!unit || unit->getPlayer() != BWAPI::Broodwar->self())
+    {
+        return;
+    }
+
+    // When proxying we need to consider what to do when a building dies
+    if (_proxying)
+    {
+        // If this building was at the proxy, break out of proxy mode, the enemy has found it
+        BWAPI::Position proxyLocation = BuildingPlacer::Instance().getProxyBlockLocation();
+        if (proxyLocation.isValid() && unit->getDistance(proxyLocation) <= 320)
+        {
+            _proxying = false;
+            CombatCommander::Instance().setAggression(true);
+        }
+
+        // Go aggressive if the lost unit is a pylon or a nexus
+        // This means the enemy is razing our main, and since we've lost supply we probably can't
+        // build up a larger army before making the push
+        if (!CombatCommander::Instance().getAggression() && unit->getType().supplyProvided() > 0)
+            CombatCommander::Instance().setAggression(true);
+    }
+}
+
 const BuildOrder & StrategyManager::getOpeningBookBuildOrder() const
 {
     auto buildOrderIt = _strategies.find(Config::Strategy::StrategyName);
@@ -125,14 +152,6 @@ void StrategyManager::initializeOpening()
 	{
 		_openingGroup = (*buildOrderItr).second._openingGroup;
 	}
-
-    // Is the build a rush build?
-    _rushing = 
-        Config::Strategy::StrategyName == "9-9Gate" ||
-        Config::Strategy::StrategyName == "9-9GateDefensive" ||
-        Config::Strategy::StrategyName == "Proxy9-9Gate";
-
-    if (_rushing) Log().Get() << "Enabled rush mode";
 }
 
 const std::string & StrategyManager::getOpeningGroup() const
@@ -189,16 +208,12 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	int idleRoboFacilities = 0;
 	int idleForges = 0;
 	int idleCyberCores = 0;
-    bool gatewaysAreAtProxy = true;
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		if (unit->isCompleted()
 			&& (!unit->getType().requiresPsi() || unit->isPowered()))
 		{
             if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway)
-            {
                 numGateways++;
-                gatewaysAreAtProxy = gatewaysAreAtProxy && BuildingPlacer::Instance().isCloseToProxyBlock(unit);
-            }
             else if (unit->getType() == BWAPI::UnitTypes::Protoss_Stargate)
                 numStargates++;
             else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge)
@@ -260,13 +275,15 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	double goonRatio = 0.0;
     double archonRatio = 0.0;
 
-    // On Plasma, transition to carriers on two bases or if our proxy gateways die
-    // We will still build ground units as long as we have an active proxy gateway
-    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
-        (numNexusAll >= 2 || numGateways == 0 || !gatewaysAreAtProxy))
+    // Transition to dragoons when we have gone aggressive from a non-rush proxy
+    if (_proxying && !_rushing && CombatCommander::Instance().getAggression())
     {
-        _openingGroup = "carriers";
+        _openingGroup = "dragoons";
     }
+
+    // On Plasma, transition to carriers on two bases or if our proxy gateways die
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" && (!_proxying || numNexusAll >= 2))
+        _openingGroup = "carriers";
 
 	// Initial ratios
 	if (_openingGroup == "zealots")
@@ -317,10 +334,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
             buildCorsairs = true;
 
-        // On Plasma, if we have at least one gateway and they are all at the proxy location, build ground units
-        if (numGateways > 0 && gatewaysAreAtProxy &&
-            BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
-            numZealots < 15)
+        // Build ground units while we have an active proxy
+        if (_proxying && (numZealots + numDragoons) < 15)
         {
             buildGround = true;
             zealotRatio = 1.0; // Will be switched to goons below when the enemy gets air units, which is fine
@@ -1462,6 +1477,9 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         {
             int cannons = 0;
             int frame = BWAPI::Broodwar->getFrameCount();
+            bool enemyMayBeZerg =
+                BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Protoss &&
+                BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran;
 
             // If we don't know the enemy plan, use the likely plan if:
             // - it is FastRush, since we won't have time to react to that later
@@ -1510,21 +1528,26 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
             default:
                 // We haven't scouted a dangerous plan directly
 
-                // Don't do anything if we already have the rough equivalent of a zealot and a dragoon
-                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Zealot) 
-                    + (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) * 2) >= 3)
+                // Don't do anything if we already have the rough equivalent of a zealot and a dragoon near the wall
+                int wallUnits = 0;
+                for (auto unit : BWAPI::Broodwar->self()->getUnits())
                 {
-                    break;
+                    if (unit->getDistance(BuildingPlacer::Instance().getWall().gapCenter) > 640) continue;
+                    if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot)
+                        wallUnits++;
+                    else if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon)
+                        wallUnits += 2;
                 }
+                if (wallUnits >= 3) break;
 
                 // We don't have scouting info
                 if (!ScoutManager::Instance().eyesOnEnemyBase())
                 {
-                    // Build two cannons immediately if the opponent does fast rushes
+                    // Build two cannons immediately if a zerg opponent does fast rushes
                     // Otherwise, scale cannons up gradually to protect against unscouted heavy pressure
                     if (frame > 4500)
                         cannons = 3;
-                    else if (frame > 4000 || OpponentModel::Instance().enemyCanFastRush())
+                    else if (frame > 4000 || (enemyMayBeZerg && OpponentModel::Instance().enemyCanFastRush()))
                         cannons = 2;
                     else if (frame > 3000)
                         cannons = 1;
@@ -1540,7 +1563,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
                     // If a zerg enemy is relatively low on workers, prepare for some heavy pressure
                     if (frame > 5000 && 
-                        BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && 
+                        enemyMayBeZerg && 
                         snap.getCount(BWAPI::UnitTypes::Zerg_Drone) < 11)
                     {
                         if (frame > 6000)
@@ -1608,6 +1631,10 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Only expand if we aren't on the defensive
     bool safeToMacro = !CombatCommander::Instance().onTheDefensive();
 
+    // Flag whether we are in rush mode from a macro perspective
+    // This is either because rush is specifically flagged or if we are doing a proxy build-up
+    bool rushing = isRushing() || (isProxying() && !CombatCommander::Instance().getAggression());
+
     // If we currently want dragoons, only expand once we have some
     // This helps when transitioning out of a rush or when we might be in trouble
     if (_openingGroup == "dragoons" && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 1)
@@ -1644,7 +1671,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
         (mineralPatches < desiredMineralPatches || gasBlocked) &&
-        !isRushing())
+        !rushing)
     {
         // Double-check that there is actually a place to expand to
         if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
@@ -1665,7 +1692,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         && probes < WorkerManager::Instance().getMaxWorkers()
         && WorkerManager::Instance().getNumIdleWorkers() < 5
         && (BWAPI::Broodwar->self()->supplyUsed() < 350 || BWAPI::Broodwar->self()->minerals() < 1500)
-        && (!isRushing() || probes < ((mineralPatches * 2) + 1)))
+        && (!rushing || probes < ((mineralPatches * 2) + 1)))
     {
         bool idleNexus = false;
         for (const auto unit : BWAPI::Broodwar->self()->getUnits())

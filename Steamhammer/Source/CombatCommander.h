@@ -16,6 +16,7 @@ class CombatCommander
     bool            _initialized;
 
 	bool			_goAggressive;
+    int             _goAggressiveAt;
 
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
@@ -32,6 +33,7 @@ class CombatCommander
 	void            updateIdleSquad();
     void            updateKamikazeSquad();
     void            updateDefuseSquads();
+    void            updateProxySquad();
 
 	void			loadOrUnloadBunkers();
 	void			doComsatScan();
@@ -93,11 +95,14 @@ public:
 			}
 
 			Log().Get() << "Went aggressive with " << count << " combat units and " << UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Probe) << " workers";
+            _goAggressiveAt = BWAPI::Broodwar->getFrameCount();
 		}
 
 		_goAggressive = aggressive;  
 	}
 	bool getAggression() const;
+    void setAggressionAt(int frame) { _goAggressiveAt = frame; };
+    int getAggressionAt() const { return _goAggressiveAt; };
 
     void blockScouting();
 	

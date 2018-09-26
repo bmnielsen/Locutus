@@ -450,6 +450,7 @@ void GameCommander::onUnitDestroy(BWAPI::Unit unit)
 	ProductionManager::Instance().onUnitDestroy(unit);
 	WorkerManager::Instance().onUnitDestroy(unit);
 	InformationManager::Instance().onUnitDestroy(unit); 
+	StrategyManager::Instance().onUnitDestroy(unit); 
 }
 
 void GameCommander::onUnitMorph(BWAPI::Unit unit)		

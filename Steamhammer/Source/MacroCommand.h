@@ -19,11 +19,15 @@ enum class MacroCommandType
 	, ExtractorTrickDrone
 	, ExtractorTrickZergling
 	, Aggressive
+	, AggressiveAt
 	, Defensive
+	, Rushing
+	, Proxying
 	, PullWorkers
 	, PullWorkersLeaving
 	, ReleaseWorkers
     , BlockEnemyScout
+    , WaitUntilEnemyLocationKnown
 	, Nonadaptive
 	, GiveUp
 	, QueueBarrier
@@ -51,11 +55,15 @@ public:
 			, MacroCommandType::ExtractorTrickDrone
 			, MacroCommandType::ExtractorTrickZergling
 			, MacroCommandType::Aggressive
+			, MacroCommandType::AggressiveAt
 			, MacroCommandType::Defensive
+			, MacroCommandType::Rushing
+			, MacroCommandType::Proxying
 			, MacroCommandType::PullWorkers
 			, MacroCommandType::PullWorkersLeaving
 			, MacroCommandType::ReleaseWorkers
 			, MacroCommandType::BlockEnemyScout
+			, MacroCommandType::WaitUntilEnemyLocationKnown
 			, MacroCommandType::Nonadaptive
 			, MacroCommandType::GiveUp
 			, MacroCommandType::QueueBarrier
@@ -98,6 +106,7 @@ public:
 	{
 		return
 			t == MacroCommandType::GasUntil ||
+			t == MacroCommandType::AggressiveAt ||
 			t == MacroCommandType::PullWorkers || 
 			t == MacroCommandType::PullWorkersLeaving;
 	}
@@ -152,10 +161,22 @@ public:
 		{
 			return "go aggressive";
 		}
+		if (t == MacroCommandType::AggressiveAt)
+		{
+			return "go aggressive at";
+		}
 		if (t == MacroCommandType::Defensive)
 		{
 			return "go defensive";
 		}
+        if (t == MacroCommandType::Rushing)
+        {
+            return "go rush";
+        }
+        if (t == MacroCommandType::Proxying)
+        {
+            return "go proxy";
+        }
 		if (t == MacroCommandType::PullWorkers)
 		{
 			return "go pull workers";
@@ -171,6 +192,10 @@ public:
 		if (t == MacroCommandType::BlockEnemyScout)
 		{
 			return "go block enemy scout";
+		}
+		if (t == MacroCommandType::WaitUntilEnemyLocationKnown)
+		{
+			return "go wait until enemy location known";
 		}
 		if (t == MacroCommandType::Nonadaptive)
 		{
