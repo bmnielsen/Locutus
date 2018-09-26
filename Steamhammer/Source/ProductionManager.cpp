@@ -251,7 +251,7 @@ void ProductionManager::manageBuildOrderQueue()
             if (type == BWAPI::UnitTypes::Protoss_Gateway)
             {
                 int gatewaysBuilding = BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
-                int gateways = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway);
+                int gateways = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway, true);
                 
                 skipThisItem = gateways > 0 && (
                     StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 ||
@@ -793,7 +793,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	{
 		// Get the set of unbuilt requirements for the building
 		std::set<BWAPI::UnitType> requirements;
-		for (auto req : b.type.requiredUnits())
+		for (auto & req : b.type.requiredUnits())
 			if (BWAPI::Broodwar->self()->completedUnitCount(req.first) == 0)
 				requirements.insert(req.first);
 

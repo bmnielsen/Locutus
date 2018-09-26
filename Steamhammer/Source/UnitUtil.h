@@ -43,7 +43,7 @@ namespace UnitUtil
     bool IsUndetected(BWAPI::Unit unit);
 
 	int GetAllUnitCount(BWAPI::UnitType type);
-	int GetCompletedUnitCount(BWAPI::UnitType type);
+	int GetCompletedUnitCount(BWAPI::UnitType type, bool onlyPowered = false);
 	int GetUncompletedUnitCount(BWAPI::UnitType type);
 
 	BWAPI::Unit GetNextCompletedBuildingOfType(BWAPI::UnitType type);

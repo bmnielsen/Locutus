@@ -486,12 +486,12 @@ int UnitUtil::GetAllUnitCount(BWAPI::UnitType type)
 }
 
 // Only our completed units.
-int UnitUtil::GetCompletedUnitCount(BWAPI::UnitType type)
+int UnitUtil::GetCompletedUnitCount(BWAPI::UnitType type, bool onlyPowered)
 {
 	int count = 0;
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
-		if (unit->getType() == type && unit->isCompleted())
+		if (unit->getType() == type && unit->isCompleted() && (!onlyPowered || !unit->getType().requiresPsi() || unit->isPowered()))
 		{
 			++count;
 		}
