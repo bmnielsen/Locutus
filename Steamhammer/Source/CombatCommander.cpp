@@ -1324,6 +1324,12 @@ void CombatCommander::updateBaseDefenseSquads()
             continue;
         }
 
+        // If a base in the region requires mineral walking to reach, we can't defend it with ground units
+        bool requiresMineralWalk = false;
+        for (auto base : myRegion->getBaseLocations())
+            if (InformationManager::Instance().getBase(base)->requiresMineralWalkFromEnemyStartLocations)
+                requiresMineralWalk = true;
+
         // Collect all of the enemy units in or near the region
         std::set<BWAPI::Unit> enemyUnits;
         for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
@@ -1562,7 +1568,7 @@ void CombatCommander::updateBaseDefenseSquads()
 			Config::Micro::WorkersDefendRush &&
 			(!staticDefense && numZerglingsInOurBase() > 0 || buildingRush() || groundDefendersNeeded < 4));
 
-		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, preferRangedUnits);
+		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, preferRangedUnits, requiresMineralWalk);
 
         // Add an observer if needed
         if (needsDetection && !defenseSquad.containsUnitType(BWAPI::UnitTypes::Protoss_Observer))
@@ -1624,7 +1630,13 @@ void CombatCommander::updateBaseDefenseSquads()
     }
 }
 
-void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool preferRangedUnits)
+void CombatCommander::updateDefenseSquadUnits(
+    Squad & defenseSquad, 
+    const size_t & flyingDefendersNeeded, 
+    const size_t & groundDefendersNeeded, 
+    bool pullWorkers, 
+    bool preferRangedUnits,
+    bool requiresMineralWalk)
 {
 	// if there's nothing left to defend, clear the squad
 	if (flyingDefendersNeeded == 0 && groundDefendersNeeded == 0)
@@ -1654,7 +1666,7 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	// add flying defenders
 	BWAPI::Unit defenderToAdd;
 	while (flyingDefendersNeeded > flyingDefendersAdded &&
-		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false, false, false)))
+		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false, false, false, requiresMineralWalk)))
 	{
 		UAB_ASSERT(!defenderToAdd->getType().isWorker(), "flying worker defender");
 		_squadData.assignUnitToSquad(defenderToAdd, defenseSquad);
@@ -1667,7 +1679,7 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	// add ground defenders if we still need them
     // We try to replace workers with combat units whenever possible (excess workers are removed in the next block)
 	while (groundDefendersNeeded > (groundDefendersAdded - workersInGroup) &&
-		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), false, pullWorkers, pullDistantWorkers, preferRangedUnits)))
+		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), false, pullWorkers, pullDistantWorkers, preferRangedUnits, requiresMineralWalk)))
 	{
 		if (defenderToAdd->getType().isWorker())
 		{
@@ -1706,7 +1718,13 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 
 // Choose a defender to join the base defense squad.
 BWAPI::Unit CombatCommander::findClosestDefender(
-    const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullCloseWorkers, bool pullDistantWorkers, bool preferRangedUnits)
+    const Squad & defenseSquad, 
+    BWAPI::Position pos, 
+    bool flyingDefender, 
+    bool pullCloseWorkers, 
+    bool pullDistantWorkers, 
+    bool preferRangedUnits,
+    bool requiresMineralWalk)
 {
 	BWAPI::Unit closestDefender = nullptr;
 	int minDistance = 99999;
@@ -1726,6 +1744,9 @@ BWAPI::Unit CombatCommander::findClosestDefender(
         {
             continue;
         }
+
+        if (requiresMineralWalk && !unit->isFlying() && !unit->getType().isWorker())
+            continue;
 
 		int dist = unit->getDistance(pos);
 

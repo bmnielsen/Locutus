@@ -63,6 +63,17 @@ void StrategyManager::update()
             }
         }
     }
+
+    // On maps with island bases or bases that require mineral walking to reach, switch to carriers in the late
+    // game if we have no idea where any enemy unit is.
+    // This probably means the enemy has taken one of these bases.
+    if (BWAPI::Broodwar->getFrameCount() > 20000 && 
+        (MapTools::Instance().hasIslandBases() || MapTools::Instance().hasMineralWalkChokes()) &&
+        InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()).empty())
+    {
+        Log().Get() << "Enemy has disappeared, assuming they are at an island and switching to carriers";
+        _openingGroup = "carriers";
+    }
 }
 
 void StrategyManager::onUnitDestroy(BWAPI::Unit unit)
@@ -1774,6 +1785,14 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
                 (base == InformationManager::Instance().getMyMainBaseLocation() ||
                     (base == InformationManager::Instance().getMyNaturalLocation() &&
                         BuildingPlacer::Instance().getWall().exists()))) continue;
+
+            // We don't build cannons at bases only accessible by mineral walking 
+            // unless the enemy has air combat units
+            if (InformationManager::Instance().getBase(base)->requiresMineralWalkFromEnemyStartLocations &&
+                !InformationManager::Instance().enemyHasAirCombatUnits())
+            {
+                continue;
+            }
 
             totalQueued += EnsureCannonsAtBase(base, 2, queue, true);
             if (totalQueued > 2) break;

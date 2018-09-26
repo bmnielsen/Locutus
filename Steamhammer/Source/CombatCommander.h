@@ -52,7 +52,7 @@ class CombatCommander
 	int             getNumType(BWAPI::Unitset & units, BWAPI::UnitType type);
 
 	BWAPI::Unit     findClosestDefender(
-        const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullCloseWorkers, bool pullDistantWorkers, bool preferRangedUnits);
+        const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullCloseWorkers, bool pullDistantWorkers, bool preferRangedUnits, bool requiresMineralWalk);
     BWAPI::Unit     findClosestWorkerToTarget(BWAPI::Unitset & unitsToAssign, BWAPI::Unit target);
 
 	BWAPI::Position getDefendLocation();
@@ -68,7 +68,7 @@ class CombatCommander
     int             getNumGroundDefendersInSquad(Squad & squad);
     int             getNumAirDefendersInSquad(Squad & squad);
 
-    void            updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool preferRangedUnits);
+    void            updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool preferRangedUnits, bool requiresMineralWalk);
 
     int             numZerglingsInOurBase() const;
     bool            buildingRush() const;
