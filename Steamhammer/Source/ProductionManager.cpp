@@ -662,6 +662,15 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 		//	InformationManager::Instance().maybeChooseNewMainBase();
 		//}
 
+        // If we have an active proxy, prefer building gateways there
+        if (StrategyManager::Instance().isProxying() &&
+            !CombatCommander::Instance().getAggression() &&
+            act.getUnitType() == BWAPI::UnitTypes::Protoss_Gateway &&
+            act.getMacroLocation() == MacroLocation::Anywhere)
+        {
+            act.setMacroLocation(MacroLocation::Proxy);
+        }
+
 		// By default, build in the main base.
 		// BuildingManager will override the location if it needs to.
 		// Otherwise it will find some spot near desiredLocation.

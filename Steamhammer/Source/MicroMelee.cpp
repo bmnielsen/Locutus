@@ -467,7 +467,7 @@ bool MicroMelee::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unit
     }
 
     // Don't retreat while rushing
-    if (StrategyManager::Instance().isRushing())
+    if (StrategyManager::Instance().isRushingOrProxyRushing())
     {
         return false;
     }

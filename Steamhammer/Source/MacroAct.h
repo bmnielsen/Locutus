@@ -92,6 +92,7 @@ public:
 	bool hasWallBuilding() const;
 	void setWallBuildingPosition(std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> & wallPositions) const;
 	void setReservedPosition(BWAPI::TilePosition tile) const { _reservedPosition = tile; }
+    void setMacroLocation(MacroLocation macroLocation) { _macroLocation = macroLocation; }
 
 	void getCandidateProducers(std::vector<BWAPI::Unit> & candidates) const;
 	bool hasPotentialProducer() const;

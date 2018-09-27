@@ -103,6 +103,17 @@ void StrategyManager::onUnitDestroy(BWAPI::Unit unit)
     }
 }
 
+bool StrategyManager::isRushingOrProxyRushing() const
+{
+    if (_rushing) return true;
+    if (!_proxying) return false;
+
+    // While proxying, we consider ourselves in "rush mode" while we're building up our forces and
+    // for a short time period after
+    return !CombatCommander::Instance().getAggression() || 
+        CombatCommander::Instance().getAggressionAt() > BWAPI::Broodwar->getFrameCount() - 1000;
+}
+
 const BuildOrder & StrategyManager::getOpeningBookBuildOrder() const
 {
     auto buildOrderIt = _strategies.find(Config::Strategy::StrategyName);
@@ -286,12 +297,6 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	double goonRatio = 0.0;
     double archonRatio = 0.0;
 
-    // Transition to dragoons when we have gone aggressive from a non-rush proxy
-    if (_proxying && !_rushing && CombatCommander::Instance().getAggression())
-    {
-        _openingGroup = "dragoons";
-    }
-
     // On Plasma, transition to carriers on two bases or if our proxy gateways die
     if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" && (!_proxying || numNexusAll >= 2))
         _openingGroup = "carriers";
@@ -301,7 +306,14 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	{
         zealotRatio = 1.0;
 
-        if (!isRushing() && BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+        // Against Terran and Protoss we switch to goon opening group after the rush is over
+        if (!isRushingOrProxyRushing() && BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
+        {
+            _openingGroup = "dragoons";
+        }
+
+        // Against Zerg we mix in goons and later archons
+        if (!isRushingOrProxyRushing() && BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
         {
             getZealotSpeed = true;
             getGoonRange = true;
@@ -1642,10 +1654,6 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Only expand if we aren't on the defensive
     bool safeToMacro = !CombatCommander::Instance().onTheDefensive();
 
-    // Flag whether we are in rush mode from a macro perspective
-    // This is either because rush is specifically flagged or if we are doing a proxy build-up
-    bool rushing = isRushing() || (isProxying() && !CombatCommander::Instance().getAggression());
-
     // If we currently want dragoons, only expand once we have some
     // This helps when transitioning out of a rush or when we might be in trouble
     if (_openingGroup == "dragoons" && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 1)
@@ -1682,7 +1690,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
         (mineralPatches < desiredMineralPatches || gasBlocked) &&
-        !rushing)
+        !isRushingOrProxyRushing())
     {
         // Double-check that there is actually a place to expand to
         if (MapTools::Instance().getNextExpansion(false, true, false) != BWAPI::TilePositions::None)
@@ -1703,7 +1711,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
         && probes < WorkerManager::Instance().getMaxWorkers()
         && WorkerManager::Instance().getNumIdleWorkers() < 5
         && (BWAPI::Broodwar->self()->supplyUsed() < 350 || BWAPI::Broodwar->self()->minerals() < 1500)
-        && (!rushing || probes < ((mineralPatches * 2) + 1)))
+        && (!isRushingOrProxyRushing() || probes < ((mineralPatches * 2) + 1)))
     {
         bool idleNexus = false;
         for (const auto unit : BWAPI::Broodwar->self()->getUnits())
@@ -1768,6 +1776,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // - we are close to maxed
     // - we have a large mineral bank
     if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
+        !isRushingOrProxyRushing() &&
         safeToMacro &&
         UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
         (BWAPI::Broodwar->self()->minerals() > 1500 ||

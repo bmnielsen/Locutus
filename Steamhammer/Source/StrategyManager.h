@@ -78,6 +78,7 @@ public:
             void                    setProxying() { _proxying = true; Log().Get() << "Enabled proxy mode"; };
             bool                    isRushing() const { return _rushing; };
             bool                    isProxying() const { return _proxying; };
+            bool                    isRushingOrProxyRushing() const;
 
 			void					handleUrgentProductionIssues(BuildOrderQueue & queue);
 			void					handleMacroProduction(BuildOrderQueue & queue);

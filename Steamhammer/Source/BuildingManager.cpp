@@ -783,21 +783,7 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 		// Else if it's a macro hatchery, treat it like any other building.
 	}
 	
-    BWAPI::TilePosition bwebPosition = BWAPI::TilePositions::Invalid;
-
-    // If we have an active proxy, prefer building gateways there
-    if (StrategyManager::Instance().isProxying() && 
-        !CombatCommander::Instance().getAggression() && 
-        b.type == BWAPI::UnitTypes::Protoss_Gateway &&
-        b.macroLocation == MacroLocation::Anywhere)
-    {
-        bwebPosition = BuildingPlacer::Instance().placeBuildingBWEB(
-            b.type,
-            BWAPI::TilePosition(BuildingPlacer::Instance().getProxyBlockLocation()),
-            MacroLocation::Proxy);
-    }
-    else
-        bwebPosition = BuildingPlacer::Instance().placeBuildingBWEB(b.type, b.desiredPosition, b.macroLocation);
+    BWAPI::TilePosition bwebPosition = BuildingPlacer::Instance().placeBuildingBWEB(b.type, b.desiredPosition, b.macroLocation);
 
 	if (bwebPosition != BWAPI::TilePositions::Invalid)
 		return bwebPosition;
