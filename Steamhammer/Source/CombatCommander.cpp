@@ -172,14 +172,26 @@ void CombatCommander::updateKamikazeSquad()
     if (groundSquad.isEmpty()) return;
 
     // We currently add zealots to the kamikaze squad in two situations:
-    // - Our squad cannot fight air and we are fighting a zerg opponent who has done a muta switch
+    // - Our squad cannot fight air effectively and we are fighting a zerg opponent who has done a muta switch
     // - We are transitioning out of a rush and want to do as much damage as possible with the remaining units
     // (the second case is handled in finishedRushing())
 
     if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
     {
-        if (!InformationManager::Instance().enemyHasAirCombatUnits() || groundSquad.canAttackAir())
+        if (!InformationManager::Instance().enemyHasAirCombatUnits())
             return;
+
+        // What percentage of our squad can attack air?
+        int totalUnits = 0;
+        int antiAirUnits = 0;
+        for (auto & unit : groundSquad.getUnits())
+        {
+            totalUnits++;
+            if (UnitUtil::CanAttackAir(unit)) antiAirUnits++;
+        }
+
+        // If more than half can attack air, don't switch to kamikaze
+        if ((double)antiAirUnits / (double)totalUnits > 0.5) return;
     }
     else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
     {
