@@ -1231,6 +1231,13 @@ void CombatCommander::updateScoutDefenseSquad()
         if (!ui.second.lastPosition.isValid()) continue;
         if (BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition)) != myRegion) continue;
 
+        // Overlords are not considered after the early game
+        if (ui.second.type == BWAPI::UnitTypes::Zerg_Overlord &&
+            BWAPI::Broodwar->getFrameCount() > 12000)
+        {
+            continue;
+        }
+
         // Is this a scout?
         // Workers are not considered scouts if one has attacked recently
         if (ui.second.type == BWAPI::UnitTypes::Zerg_Overlord ||
