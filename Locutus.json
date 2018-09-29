@@ -234,9 +234,9 @@
 			"Proxy9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
 				["go rush", "go proxy", "4 x probe", "pylon @ proxy then gateway @ proxy then gateway @ proxy then go scout location", "go block enemy scout", "4 x probe", "2 x zealot", "pylon" ]},
 			"ProxyHeavyZealotRush2p": { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
-				["go proxy", "go defensive", "go aggressive at 9000", "4 x probe", "pylon @ wall", "probe", "forge @ wall then pylon @ proxy then gateway @ proxy then gateway @ proxy", "8 x probe", "2 x zealot", "pylon", "2 x zealot", "2 x probe", "gateway @ wall" ]},
+				["go proxy", "go defensive", "go aggressive at 8000", "4 x probe", "pylon @ wall", "probe", "forge @ wall then pylon @ proxy then gateway @ proxy then gateway @ proxy", "8 x probe", "2 x zealot", "pylon", "2 x zealot", "2 x probe", "gateway @ wall" ]},
 			"ProxyHeavyZealotRush": { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
-				["go proxy", "go defensive", "go aggressive at 9000", "4 x probe", "pylon @ wall then go scout location", "probe", "forge @ wall", "go wait until enemy location known", "pylon @ proxy then gateway @ proxy then gateway @ proxy", "2 x probe", "2 x zealot", "gateway @ wall" ]},
+				["go proxy", "go defensive", "go aggressive at 8000", "4 x probe", "pylon @ wall then go scout location", "probe", "forge @ wall", "go wait until enemy location known", "pylon @ proxy then gateway @ proxy then gateway @ proxy", "gateway @ wall", "2 x probe" ]},
 			"Proxy4GateGoon2p": { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
                 ["go proxy", "go defensive", "go aggressive at 10000", "4 x probe", "pylon", "2 x probe", "gateway @ main", "probe", "pylon @ proxy", "2 x probe", "zealot", "probe", "assimilator", "probe", "cybernetics core", "probe", "zealot", "2 x probe", "pylon @ proxy", "probe", "dragoon", "probe", "singularity charge", "probe", "dragoon", "2 x probe", "gateway @ proxy then gateway @ proxy then gateway @ proxy", "probe", "dragoon", "pylon @ proxy", "4 x dragoon", "pylon", "3 x dragoon", "gateway @ proxy"]},
 			"Proxy4GateGoon": { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :

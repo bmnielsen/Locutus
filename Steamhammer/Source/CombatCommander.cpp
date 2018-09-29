@@ -164,12 +164,28 @@ void CombatCommander::updateKamikazeSquad()
     // We don't do kamikaze attacks when we're on the defensive
     if (!_goAggressive) return;
 
-    // We don't add units from the ground attack squad to the kamikaze squad while we have a proxy
-    // The proxy squad may add its units to the kamikaze squad
-    if (StrategyManager::Instance().isProxying()) return;
-
     Squad & groundSquad = _squadData.getSquad("Ground");
     if (groundSquad.isEmpty()) return;
+
+    // When doing a proxy, move any zealots from the ground squad that are close to a unit in the kamikaze squad
+    // Units produced at the proxy will go directly into the kamikaze squad
+    if (StrategyManager::Instance().isProxying())
+    {
+        std::vector<BWAPI::Unit> unitsToMove;
+        for (auto & unit : groundSquad.getUnits())
+            if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot && _squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+                for (auto & kamikazeUnit : kamikazeSquad.getUnits())
+                    if (unit->getDistance(kamikazeUnit) < 640)
+                    {
+                        unitsToMove.push_back(unit);
+                        break;
+                    }
+
+        for (auto & unit : unitsToMove)
+            _squadData.assignUnitToSquad(unit, kamikazeSquad);
+
+        return;
+    }
 
     // We currently add zealots to the kamikaze squad in two situations:
     // - Our squad cannot fight air effectively and we are fighting a zerg opponent who has done a muta switch
