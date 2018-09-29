@@ -171,6 +171,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 
 		Config::Strategy::ScoutHarassEnemy = GetBoolByRace("ScoutHarassEnemy", strategy);
 		Config::Strategy::AutoGasSteal = GetBoolByRace("AutoGasSteal", strategy);
+        if (!Config::Strategy::AutoGasSteal) OpponentModel::Instance().setRecommendGasSteal(false);
 		Config::Strategy::RandomGasStealRate = GetDoubleByRace("RandomGasStealRate", strategy);
 		Config::Strategy::UsePlanRecognizer = GetBoolByRace("UsePlanRecognizer", strategy);
 		Config::Strategy::SurrenderWhenHopeIsLost = GetBoolByRace("SurrenderWhenHopeIsLost", strategy);
