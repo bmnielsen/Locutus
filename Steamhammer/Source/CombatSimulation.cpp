@@ -28,6 +28,10 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
     enemyUnitsCentroid = BWAPI::Positions::Invalid;
     airBattle = false;
 
+    // We are pessimistic and assume for combat sim purposes that the enemy can see all of our
+    // cloaked units if they have any detectors in the sim
+    bool enemyHasDetection = false;
+
     std::vector<UnitInfo> enemyUnits;
 
     bool rushing = StrategyManager::Instance().isRushing();
@@ -120,6 +124,7 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 
             fap.addIfCombatUnitPlayer2(unit);
             enemyUnitsCentroid += unit.lastPosition;
+            if (unit.type.isDetector()) enemyHasDetection = true;
         }
 
         enemyUnitsCentroid /= enemyUnits.size();
@@ -155,8 +160,9 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 #ifdef COMBATSIM_DEBUG
             debug << "\n" << unit->getType() << " @ " << unit->getTilePosition();
 #endif
-
-            fap.addIfCombatUnitPlayer1(unit);
+            FastAPproximation::FAPUnit fapUnit(unit);
+            fapUnit.undetected = fapUnit.undetected && !enemyHasDetection;
+            fap.addIfCombatUnitPlayer1(fapUnit);
             myUnitsCentroid += unit->getPosition();
 
             if (unit->isFlying()) airBattle = true;

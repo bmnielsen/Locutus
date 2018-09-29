@@ -605,15 +605,34 @@ namespace UAlbertaBot {
         {
             groundDamage = InformationManager::Instance().getWeaponDamage(ui.player, BWAPI::WeaponTypes::Scarab);
         }
-        // Destroy score is not a good value measurement for static ground defense, so set them manually
-        else if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
-        {
+
+        // Override score for units where the destroy score is inappropriate
+        if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
             score = 750; // approximate at 1.5 dragoons
-        }
         else if (ui.type == BWAPI::UnitTypes::Zerg_Sunken_Colony)
-        {
             score = 1000; // approximate at 2 dragoons
-        }
+        else if (ui.type == BWAPI::UnitTypes::Zerg_Hydralisk)
+            score = 150; // slightly less than a zealot
+        else if (ui.type == BWAPI::UnitTypes::Terran_Vulture)
+            score = 250; // slightly more than a zealot
+        else if (ui.type == BWAPI::UnitTypes::Terran_Ghost)
+            score = 150; // slightly less than a zealot
+        else if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+            score = 900; // almost two dragoons
+        else if (ui.type == BWAPI::UnitTypes::Zerg_Mutalisk)
+            score = 400; // slightly less than a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Terran_Wraith)
+            score = 500; // equivalent a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Scout)
+            score = 700; // a bit more than a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar)
+            score = 500; // equivalent to a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Zerg_Ultralisk)
+            score = 1750; // 3-and-a-half goons
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Archon)
+            score = 1750; // 3-and-a-half goons
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Arbiter)
+            score = 1200; // don't really sim this correctly but 2050 is way too much
 
         if (ui.unit && ui.unit->isStimmed()) {
             groundCooldown /= 2;
