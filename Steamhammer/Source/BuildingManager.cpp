@@ -233,15 +233,40 @@ void BuildingManager::constructAssignedBuildings()
 				b.buildCommandGiven = b.builderUnit->build(b.type, b.finalPosition);
 				Log().Debug() << "Gave build command to " << b.builderUnit->getID() << " to build " << b.type << " @ " << b.finalPosition << "; result " << b.buildCommandGiven;
 
-                // If we can't currently build it, at least move to where we want to build it
-                // Helps when we try to build something in a mineral line
+                // The build command failed, let's try to figure out why
                 if (!b.buildCommandGiven)
+                {
+                    // Reset and pick another building location if another building overlaps the desired position
+                    for (int x = 0; x < b.type.tileWidth(); x++)
+                        for (int y = 0; y < b.type.tileHeight(); y++)
+                        {
+                            BWAPI::TilePosition here(b.finalPosition.x + x, b.finalPosition.y + y);
+                            if (!BWAPI::Broodwar->getUnitsOnTile(here, BWAPI::Filter::IsBuilding).empty())
+                            {
+                                releaseBuilderUnit(b);
+                                b.builderUnit = nullptr;
+
+                                b.buildCommandGiven = false;
+                                b.buildFrame = 0;
+                                b.status = BuildingStatus::Unassigned;
+
+                                goto nextBuilding;
+                            }
+                        }
+
+                    // TODO: Determine if the location is blocked by one or more of our own units and move them
+                    // Sometimes units guarding a wall block cannon build positions
+
+                    // Otherwise move towards where we want to build it
+                    // Helps when we try to build something in a mineral line
                     b.builderUnit->move(BWAPI::Position(b.finalPosition) + BWAPI::Position(32, 32));
+                }
 
                 // Record the first frame we attempted to build, we will use this to detect timeouts
                 if (b.buildFrame == 0) b.buildFrame = BWAPI::Broodwar->getFrameCount();
            }
         }
+    nextBuilding:;
     }
 }
 

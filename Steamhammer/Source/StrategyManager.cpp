@@ -1091,11 +1091,18 @@ void SetWallCannons(BuildOrderQueue & queue, int numCannons)
 {
     std::vector<BWAPI::TilePosition> cannonPlacements = BuildingPlacer::Instance().getWall().cannons;
 
-    // Count cannons we have already built and remove them from the vector
+    // Gather placements we have queued in the building manager
+    std::set<BWAPI::TilePosition> queuedCannonPlacements;
+    for (auto & b : BuildingManager::Instance().buildingsQueued())
+        if (b->type == BWAPI::UnitTypes::Protoss_Photon_Cannon && b->finalPosition.isValid())
+            queuedCannonPlacements.insert(b->finalPosition);
+
+    // Count cannons we have already built or queued and remove them from the vector
     int builtCannons = 0;
     for (auto it = cannonPlacements.begin(); it != cannonPlacements.end(); )
     {
-        if (bwebMap.usedTiles.find(*it) != bwebMap.usedTiles.end())
+        if (bwebMap.usedTiles.find(*it) != bwebMap.usedTiles.end() ||
+            queuedCannonPlacements.find(*it) != queuedCannonPlacements.end())
         {
             builtCannons++;
             it = cannonPlacements.erase(it);
