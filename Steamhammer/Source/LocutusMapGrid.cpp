@@ -5,9 +5,9 @@
 
 using namespace UAlbertaBot;
 
-// We add a small buffer on detection and threat ranges
-// This slightly reduces the accuracy but means we don't have to worry about edge-to-edge calculations when querying
-const int RANGE_BUFFER = 24;
+// We add a buffer on detection and threat ranges
+// Generally this is more useful as it forces our units to keep their distance
+const int RANGE_BUFFER = 48;
 
 LocutusMapGrid::LocutusMapGrid(BWAPI::Player player) : _player(player) 
 {

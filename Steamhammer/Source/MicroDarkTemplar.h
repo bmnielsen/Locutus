@@ -17,7 +17,7 @@ public:
     MicroDarkTemplar();
 
 	void            executeMicro(const BWAPI::Unitset & targets);
-    BWAPI::Unit     getTarget(BWAPI::Unit unit, const BWAPI::Unitset & targets, LocutusMapGrid & enemyUnitGrid);
+    BWAPI::Unit     getTarget(BWAPI::Unit unit, const BWAPI::Unitset & targets, LocutusMapGrid & enemyUnitGrid, bool squadRegrouping);
     int             getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit unit) const;
 };
 }

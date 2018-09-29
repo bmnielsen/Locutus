@@ -20,6 +20,7 @@ Squad::Squad()
 	, _hasGround(false)
 	, _canAttackAir(false)
 	, _canAttackGround(false)
+	, _currentlyRegrouping(false)
 	, _attackAtMax(false)
     , _lastRetreatSwitch(0)
     , _lastRetreatSwitchVal(false)
@@ -41,7 +42,8 @@ Squad::Squad(const std::string & name, SquadOrder order, size_t priority)
 	, _hasGround(false)
 	, _canAttackAir(false)
 	, _canAttackGround(false)
-	, _attackAtMax(false)
+    , _currentlyRegrouping(false)
+    , _attackAtMax(false)
 	, _lastRetreatSwitch(0)
     , _lastRetreatSwitchVal(false)
     , _priority(priority)
@@ -96,10 +98,13 @@ void Squad::update()
 		BWAPI::Broodwar->drawTextScreen(200, 350, "%c%s", white, _regroupStatus.c_str());
 	}
 
-	if (needToRegroup)
+    BWAPI::Position regroupPosition = BWAPI::Positions::Invalid;
+    if (needToRegroup)
+        regroupPosition = calcRegroupPosition();
+
+	if (needToRegroup && regroupPosition.isValid())
 	{
-		// Regroup, aka retreat. Only fighting units care about regrouping.
-		BWAPI::Position regroupPosition = calcRegroupPosition();
+        _currentlyRegrouping = true;
 
         if (Config::Debug::DrawCombatSimulationInfo)
         {
@@ -121,6 +126,8 @@ void Squad::update()
 	}
 	else
 	{
+        _currentlyRegrouping = false;
+
 		// No need to regroup. Execute micro.
 		_microAirToAir.execute();
 		_microMelee.execute();

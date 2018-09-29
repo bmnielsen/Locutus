@@ -1,6 +1,7 @@
 #include "MicroDarkTemplar.h"
 
 #include "InformationManager.h"
+#include "CombatCommander.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -54,6 +55,10 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 
     auto & enemyUnitGrid = InformationManager::Instance().getEnemyUnitGrid();
 
+    // If the squad is regrouping, we will attempt to flee from detection
+    // Otherwise we will attack along with the rest of the squad
+    bool squadRegrouping = CombatCommander::Instance().getSquadData().getSquad(this).isRegrouping();
+
     std::ostringstream debug;
     debug << "DT micro:";
 	for (const auto meleeUnit : meleeUnits)
@@ -67,7 +72,7 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
         }
 
         // If we are on the attack, are detected and can be attacked here, try to flee from detection
-        if (attackOrder() && isVulnerable(meleeUnit->getPosition(), enemyUnitGrid))
+        if (squadRegrouping && attackOrder() && isVulnerable(meleeUnit->getPosition(), enemyUnitGrid))
         {
             BWAPI::WalkPosition start = BWAPI::WalkPosition(meleeUnit->getPosition());
             BWAPI::WalkPosition fleeTo = BWAPI::WalkPositions::Invalid;
@@ -99,7 +104,7 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
             }
         }
 
-		BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets, enemyUnitGrid);
+		BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets, enemyUnitGrid, squadRegrouping);
         if (target)
         {
             debug << "attacking target " << target->getType() << " @ " << target->getTilePosition();
@@ -125,15 +130,15 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 }
 
 // Choose a target from the set, or null if we don't want to attack anything
-BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets, LocutusMapGrid & enemyUnitGrid)
+BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets, LocutusMapGrid & enemyUnitGrid, bool squadRegrouping)
 {
 	int bestScore = -999999;
 	BWAPI::Unit bestTarget = nullptr;
 
 	for (const auto target : targets)
 	{
-        // If we are on the attack, skip targets that are covered by detection
-        if (attackOrder() && isVulnerable(target->getPosition(), enemyUnitGrid)) continue;
+        // If the rest of the squad is regrouping, avoid attacking anything covered by detection
+        if (squadRegrouping && attackOrder() && isVulnerable(target->getPosition(), enemyUnitGrid)) continue;
 
 		const int priority = getAttackPriority(meleeUnit, target);		// 0..12
 		const int range = meleeUnit->getDistance(target);				// 0..map size in pixels
@@ -220,8 +225,8 @@ BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unit
 			bestTarget = target;
 		}
 	}
-
-    return bestTarget;
+    
+    return shouldIgnoreTarget(meleeUnit, bestTarget) ? nullptr : bestTarget;
 }
 
 // get the attack priority of a type
@@ -229,27 +234,67 @@ int MicroDarkTemplar::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target
 {
 	BWAPI::UnitType targetType = target->getType();
 
-    if (targetType == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
-        !target->isCompleted())
+    // Prioritize detection differently depending on the race
+
+    // Terran
+    // Incomplete comsats are highest priority
+    if (targetType == BWAPI::UnitTypes::Terran_Comsat_Station && !target->isCompleted())
+        return 12;
+
+    // SCVs that are building or repairing static detection are also highest priority
+    if (targetType == BWAPI::UnitTypes::Terran_SCV && 
+        (target->isConstructing() || target->isRepairing()) &&
+        target->getOrderTarget() &&
+        (target->getOrderTarget()->getType() == BWAPI::UnitTypes::Terran_Comsat_Station ||
+            target->getOrderTarget()->getType() == BWAPI::UnitTypes::Terran_Missile_Turret))
     {
         return 12;
     }
 
+    // Next are completed static detection
+    if (targetType == BWAPI::UnitTypes::Terran_Comsat_Station ||
+        targetType == BWAPI::UnitTypes::Terran_Missile_Turret)
+    {
+        return 10;
+    }
+
+    // Protoss
+    // Photon cannons are highest priority, especially incomplete ones
+    if (targetType == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+        return 12;
+
+    // Prerequisites for mobile detection are also high priority, especially if they are incomplete
     if (targetType == BWAPI::UnitTypes::Protoss_Observatory ||
         targetType == BWAPI::UnitTypes::Protoss_Robotics_Facility)
     {
-        if (target->isCompleted())
-        {
-            return 10;
-        }
-
+        if (target->isCompleted()) return 10;
         return 11;
     }
 
+    // Zerg
+    // Spores are highest priority
+    if (targetType == BWAPI::UnitTypes::Zerg_Spore_Colony)
+        return 12;
+
+    // Workers are next
 	if (targetType.isWorker())
 	{
 		return 9;
 	}
+
+    // Now other combat units
+    if (targetType == BWAPI::UnitTypes::Terran_Medic ||
+        targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
+        targetType == BWAPI::UnitTypes::Protoss_Reaver ||
+        targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+    {
+        return 6;
+    }
+    if (targetType.groundWeapon() != BWAPI::WeaponTypes::None && !targetType.isWorker())
+    {
+        return 4;
+    }
 	
+    // Everything else
 	return 1;
 }

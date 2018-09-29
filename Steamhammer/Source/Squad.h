@@ -35,6 +35,7 @@ class Squad
 	bool				_canAttackAir;
 	bool				_canAttackGround;
 	std::string         _regroupStatus;
+    bool                _currentlyRegrouping;
 	bool				_attackAtMax;       // turns true when we are at max supply
     int                 _lastRetreatSwitch;
     bool                _lastRetreatSwitchVal;
@@ -118,6 +119,7 @@ public:
 	const bool			hasDetector()		const { return !_microDetectors.getUnits().empty(); };
 	const bool			hasCombatUnits()	const;
 	const bool			isOverlordHunterSquad() const;
+    const bool          isRegrouping() const { return _currentlyRegrouping; };
 
     bool                hasMicroManager(const MicroManager* microManager) const;
 };
