@@ -1558,26 +1558,12 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
             default:
                 // We haven't scouted a dangerous plan directly
 
-                // Don't do anything if we already have the rough equivalent of a zealot and a dragoon near the wall
-                int wallUnits = 0;
-                for (auto unit : BWAPI::Broodwar->self()->getUnits())
-                {
-                    if (unit->getDistance(BuildingPlacer::Instance().getWall().gapCenter) > 640) continue;
-                    if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot)
-                        wallUnits++;
-                    else if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon)
-                        wallUnits += 2;
-                }
-                if (wallUnits >= 3) break;
-
                 // We don't have scouting info
                 if (!ScoutManager::Instance().eyesOnEnemyBase())
                 {
                     // Build two cannons immediately if a zerg opponent does fast rushes
-                    // Otherwise, scale cannons up gradually to protect against unscouted heavy pressure
-                    if (frame > 4500)
-                        cannons = 3;
-                    else if (frame > 4000 || (enemyMayBeZerg && OpponentModel::Instance().enemyCanFastRush()))
+                    // Otherwise, scale up to two cannons more gradually to protect against unscouted early pressure
+                    if (frame > 4000 || (enemyMayBeZerg && OpponentModel::Instance().enemyCanFastRush()))
                         cannons = 2;
                     else if (frame > 3000)
                         cannons = 1;
