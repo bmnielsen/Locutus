@@ -6,6 +6,9 @@
 
 using namespace UAlbertaBot;
 
+std::ofstream* normalLog = nullptr;
+std::ofstream* debugLog = nullptr;
+
 void Logger::LogAppendToFile(const std::string & logFile, const std::string & msg)
 {
     std::ofstream logStream;
@@ -95,12 +98,15 @@ std::ostringstream& Log::Debug()
 
 Log::~Log()
 {
-	os << std::endl;
-	if (debug)
-	{
-		if (Config::Debug::LogDebug)
-			Logger::LogAppendToFile("bwapi-data/write/Locutus_log_debug.txt", os.str());
-	}
-	else
-		Logger::LogAppendToFile("bwapi-data/write/Locutus_log.txt", os.str());
+	os << "\n";
+    std::ofstream*& stream = debug ? debugLog : normalLog;
+
+    if (!stream)
+    {
+        stream = new std::ofstream();
+        stream->open(debug ? "bwapi-data/write/Locutus_log_debug.txt" : "bwapi-data/write/Locutus_log.txt", std::ofstream::app);
+    }
+
+    (*stream) << os.str();
+    stream->flush();
 }
