@@ -192,6 +192,25 @@ void OpponentPlan::recognize()
         return;
     }
 
+    // Terran wall-in
+    if (frame < 6000 &&
+        BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran &&
+        InformationManager::Instance().enemyHasWall())
+    {
+        _openingPlan = OpeningPlan::WallIn;
+        _planIsFixed = true;
+        return;
+    }
+
+    // Protoss dark templar opening
+    if (frame < 10000 &&
+        snap.getCount(BWAPI::UnitTypes::Protoss_Dark_Templar) > 0)
+    {
+        _openingPlan = OpeningPlan::DarkTemplar;
+        _planIsFixed = true;
+        return;
+    }
+
     // Disabling the rest, as we do no specific counters or reactions to them
     // Better to leave it as NotFastRush so we don't confuse our opening selection
     return;

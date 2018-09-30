@@ -1405,14 +1405,17 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 		}
 
+        // This is the enemy plan that we have seen, or if none yet, the expected enemy plan.
+        // Some checks can use the expected plan, some are better with the observed plan.
+        OpeningPlan likelyEnemyPlan = OpponentModel::Instance().getBestGuessEnemyPlan();
+
 		// If they have cloaked combat units, get some detection.
         // The logic is:
         // - If we have seen a cloaked combat unit, we definitely need detection
-        // - If our opponent model tells us they might soon get cloaked combat units, get
-        //   them unless the opponent is terran or we are currently scouting the enemy base
-        //   and have seen no sign of cloak tech
+        // - If our opponent model tells us a protoss opponent is probably opening dark templar,
+        //   get them unless we are currently scouting the enemy base and have seen no sign of cloak tech
 		if (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
-            (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
+            (likelyEnemyPlan == OpeningPlan::DarkTemplar && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
                 !ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech())))
 		{
 			if (_selfRace == BWAPI::Races::Protoss &&
@@ -1495,10 +1498,6 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
             EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), desiredCannons, queue);
 		}
-
-		// This is the enemy plan that we have seen, or if none yet, the expected enemy plan.
-		// Some checks can use the expected plan, some are better with the observed plan.
-		OpeningPlan likelyEnemyPlan = OpponentModel::Instance().getBestGuessEnemyPlan();
 
         // Set wall cannon count depending on the enemy plan
         if (!CombatCommander::Instance().getAggression() &&

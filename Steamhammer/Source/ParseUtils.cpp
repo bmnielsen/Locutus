@@ -534,79 +534,85 @@ bool ParseUtils::_ParseStrategy(
 		{
 			const rapidjson::Value & mix = item[raceString.c_str()];
 
-			std::vector<int> weights;               // weight of strategy
-			int totalWeight = 0;                    // cumulative weight of all strategies
+            std::vector<std::string> strategies;    // strategy name
+            std::vector<int> weights;               // weight of strategy
+            int totalWeight = 0;                    // cumulative weight of all strategies
+            int maxWeight = 0;                      // max weight of any strategy
 
-			// 1. Collect the strategies with the highest weight
-            std::vector<std::string> strategies;
-            int highestWeight = 0;
-			for (size_t i(0); i < mix.Size(); ++i)
-			{
-				if (mix[i].IsObject() &&
-					mix[i].HasMember("Strategy") && mix[i]["Strategy"].IsString())
-				{
-					int weight;
-					if (mix[i].HasMember(mapWeightString.c_str()) && mix[i][mapWeightString.c_str()].IsInt())
-					{
-						weight = mix[i][mapWeightString.c_str()].GetInt();
-					}
-					else if (mix[i].HasMember("Weight") && mix[i]["Weight"].IsInt())
-					{
-						weight = mix[i]["Weight"].GetInt();
-					}
-					else
-					{
-						continue;
-					}
-
-                    // Weighted 0 (or less) in the config -> skip
-                    if (weight <= 0) continue;
+            // 1. Collect the weights and strategies.
+            for (size_t i(0); i < mix.Size(); ++i)
+            {
+                if (mix[i].IsObject() &&
+                    mix[i].HasMember("Strategy") && mix[i]["Strategy"].IsString())
+                {
+                    int weight;
+                    if (mix[i].HasMember(mapWeightString.c_str()) && mix[i][mapWeightString.c_str()].IsInt())
+                    {
+                        weight = mix[i][mapWeightString.c_str()].GetInt();
+                    }
+                    else if (mix[i].HasMember("Weight") && mix[i]["Weight"].IsInt())
+                    {
+                        weight = mix[i]["Weight"].GetInt();
+                    }
+                    else
+                    {
+                        continue;
+                    }
 
                     // If we've used this strategy before, adjust the weight based on the result
-					std::string strategy = mix[i]["Strategy"].GetString();
+                    std::string strategy = mix[i]["Strategy"].GetString();
                     if (strategyWeightFactors.find(strategy) != strategyWeightFactors.end())
-                        weight *= strategyWeightFactors[strategy];
+                        weight = (int)std::round(strategyWeightFactors[strategy] * (double)weight);
 
-                    // Strategies that have always won are given a * 100 boost (see OpponentModel)
-                    // Here, we give strategies that we have never played a * 50 boost, so we are sure
-                    // to try them once when other strategies start losing
-                    // (only enabled for tournaments, not ladders)
-                    /*
-                    else
-                        weight *= 50;
-                    */
+                    weight = std::max(1, weight);
 
-                    Log().Get() << "Considering " << strategy << " with weight " << weight;
+                    strategies.push_back(strategy);
+                    totalWeight += weight;
+                    weights.push_back(weight);
 
-                    // If we are in training mode, all strategies are equal
-                    if (Config::Strategy::TrainingMode)
-                        weight = 1;
+                    if (weight > maxWeight) maxWeight = weight;
+                }
+                else
+                {
+                    return false;
+                }
+            }
 
-                    // If this strategy has the same weight as the current highest, add it to the vector
-                    if (weight == highestWeight)
-                    {
-                        strategies.push_back(strategy);
-                    }
-                    else if (weight > highestWeight)
-                    {
-                        strategies.clear();
-                        strategies.push_back(strategy);
-                        highestWeight = weight;
-                    }
-				}
-				else
-				{
-					return false;
-				}
-			}
+            // 2. Remove strategies that are below 50% of the maximum weight
+            int cutoff = maxWeight / 2;
+            auto weightsIter = weights.begin();
+            auto stratsIter = strategies.begin();
+            while (weightsIter != weights.end())
+            {
+                if (*weightsIter < cutoff)
+                {
+                    totalWeight -= *weightsIter;
+                    weightsIter = weights.erase(weightsIter);
+                    stratsIter = strategies.erase(stratsIter);
+                }
+                else
+                {
+                    Log().Get() << "Considering " << *stratsIter << " with weight " << *weightsIter;
 
-            UAB_ASSERT(!strategies.empty(), "No best strategy found");
+                    weightsIter++;
+                    stratsIter++;
+                }
+            }
 
-            // 2. Choose one of them at random
-            int i = Random::Instance().index(strategies.size());
-            stratName = strategies[i];
-            return _LookUpStrategyCombo(item, stratName, mapWeightString, raceString, strategyCombos, strategyWeightFactors);
-		}
+            // 3. Choose a strategy at random by weight.
+            int accum = 0;
+            int w = Random::Instance().index(totalWeight);
+            for (size_t i = 0; i < weights.size(); ++i)
+            {
+                accum += weights[i];
+                if (w < accum)
+                {
+                    stratName = strategies[i];
+                    return _LookUpStrategyCombo(item, stratName, mapWeightString, raceString, strategyCombos, strategyWeightFactors);
+                }
+            }
+            UAB_ASSERT(false, "random strategy fell through");
+        }
 	}
 
 	return false;

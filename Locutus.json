@@ -153,6 +153,16 @@
 			"Counter Heavy rush vP" : { "Protoss" : [
 				{ "Weight" : 50, "Strategy" : "4GateGoon" },
 				{ "Weight" : 50, "Strategy" : "Turtle" }
+			]},			
+			"Counter Dark templar" : { "Protoss" : [
+				{ "Weight" : 50, "Strategy" : "4GateGoon" },
+				{ "Weight" : 50, "Strategy" : "2GateDTExpo" },
+				{ "Weight" : 50, "Strategy" : "Turtle" }
+			]},			
+			"Counter Wall-in" : { "Protoss" : [
+				{ "Weight" : 30, "Strategy" : "10-15GateGoon" },
+				{ "Weight" : 35, "Strategy" : "10Gate25NexusFE" },
+				{ "Weight" : 35, "Strategy" : "DTDrop" }
 			]}			
 		},
 

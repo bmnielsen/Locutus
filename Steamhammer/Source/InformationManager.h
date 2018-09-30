@@ -116,6 +116,7 @@ public:
 
     void                    getNearbyForce(std::vector<UnitInfo> & unitInfo,BWAPI::Position p,BWAPI::Player player,int radius);
 
+    bool                    enemyHasWall() const { return !enemyWalls.empty(); }
     bool                    isEnemyWallBuilding(BWAPI::Unit unit);
     bool                    isBehindEnemyWall(BWAPI::Unit attacker, BWAPI::Unit target);
     bool                    isBehindEnemyWall(BWAPI::TilePosition tile);

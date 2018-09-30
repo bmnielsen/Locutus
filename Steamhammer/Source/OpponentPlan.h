@@ -17,6 +17,8 @@ enum class OpeningPlan
 	, SafeExpand	// defended fast expansion, with bunker or cannons
 	, NakedExpand	// undefended fast expansion (usual for zerg, bold for others)
 	, Turtle		// cannons/bunker/sunkens thought to be on 1 base
+    , DarkTemplar   // dark templar opening
+    , WallIn        // terran wall-in
 	, Size
 	};
 
@@ -32,7 +34,9 @@ const std::vector< std::pair<OpeningPlan, std::string> > PlanNames =
 	std::pair<OpeningPlan, std::string>(OpeningPlan::Factory, "Factory"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::SafeExpand, "Safe expand"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::NakedExpand, "Naked expand"),
-	std::pair<OpeningPlan, std::string>(OpeningPlan::Turtle, "Turtle")
+	std::pair<OpeningPlan, std::string>(OpeningPlan::Turtle, "Turtle"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::DarkTemplar, "Dark templar"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::WallIn, "Wall-in")
 };
 
 // Turn an opening plan into a string.
