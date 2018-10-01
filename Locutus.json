@@ -200,7 +200,8 @@
         "EnemySpecificStrategy" :
         {
 			"locutus": "TestWall",
-			"locutusprevious": "4GateGoon"
+			"locutusprevious": "4GateGoon",
+			"tomasvajda": "12-17Nexus"
 		},
 		
 		"StrategyCombos" : {},
@@ -251,6 +252,10 @@
                 ["go proxy", "go defensive", "go aggressive at 10000", "4 x probe", "pylon", "2 x probe", "gateway @ main", "probe", "pylon @ proxy", "2 x probe", "zealot", "probe", "assimilator", "probe", "cybernetics core", "probe", "zealot", "2 x probe", "pylon @ proxy", "probe", "dragoon", "probe", "singularity charge", "probe", "dragoon", "2 x probe", "gateway @ proxy then gateway @ proxy then gateway @ proxy", "probe", "dragoon", "pylon @ proxy", "4 x dragoon", "pylon", "3 x dragoon", "gateway @ proxy"]},
 			"Proxy4GateGoon": { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
                 ["go proxy", "go defensive", "go aggressive at 10000", "4 x probe", "pylon then go scout location", "2 x probe", "gateway @ main", "2 x probe", "pylon", "probe", "zealot", "probe", "assimilator", "probe", "cybernetics core", "probe", "zealot", "2 x probe", "go wait until enemy location known", "pylon @ proxy", "probe", "dragoon", "probe", "singularity charge", "probe", "dragoon", "2 x probe", "gateway @ proxy then gateway @ proxy then gateway @ proxy"]},
+
+
+			"12-17Nexus"			: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go defensive", "4 x probe", "pylon", "4 x probe", "nexus @ natural", "3 x probe", "pylon", "2 x probe", "nexus @ min only", "2 x probe", "gateway", "2 x probe", "assimilator", "4 x probe", "cybernetics core", "2 x probe", "assimilator", "2 x probe", "gateway", "4 x probe", "gateway", "2 x probe", "pylon", "singularity charge then go aggressive", "go scout location", "2 x dragoon", "3 x probe", "pylon", "dragoon", "gateway", "3 x probe", "2 x dragoon", "pylon", "gateway", "3 x probe", "2 x dragoon", "pylon", "gateway", "3 x probe", "2 x dragoon", "pylon", "gateway", "3 x probe", "3 x dragoon", "pylon", "3 x probe", "2 x dragoon", "pylon", "4 x dragoon", "pylon", "4 x dragoon", "pylon", "4 x dragoon"]},
 				
 				
 			"9-9Gate"				: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
