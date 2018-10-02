@@ -138,8 +138,8 @@
 				{ "Weight" : 40, "Strategy" : "Turtle" }
 			]},
 			"Counter Fast rush vP" : { "Protoss" : [
-				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
-				{ "Weight" : 40, "Strategy" : "Turtle" }
+				{ "Weight" : 40, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 60, "Strategy" : "Turtle" }
 			]},
 			"Counter Fast rush vZ" : { "Protoss" : [
 				{ "Weight" : 60, "Strategy" : "ForgeExpandSpeedlots" },
