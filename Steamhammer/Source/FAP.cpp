@@ -168,6 +168,14 @@ namespace UAlbertaBot {
 
     void inline FastAPproximation::updatePosition(const FAPUnit &fu, int x, int y)
     {
+        // Respect bounds
+        // In practice, on most maps this means we allow units to move off the
+        // right and bottom, but it doesn't really matter, just want to avoid crashing!
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x > 8191) x = 8191;
+        if (y > 8191) y = 8191;
+        
         if (fu.flying || (fu.x / 16 == x / 16 && fu.y / 16 == y / 16)) {
             fu.x = x;
             fu.y = y;
