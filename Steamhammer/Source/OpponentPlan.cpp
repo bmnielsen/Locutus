@@ -284,8 +284,8 @@ void OpponentPlan::update()
 
 	int frame = BWAPI::Broodwar->getFrameCount();
 
-	if (frame > 100 && frame < 7200 &&       // only try to recognize openings
-		frame % 12 == 7)                     // update interval
+	if (frame > 100 && frame < 10000 &&       // only try to recognize openings
+		frame % 12 == 7)                      // update interval
 	{
 		recognize();
 	}
