@@ -881,6 +881,7 @@ void CombatCommander::updateAttackSquads()
 
         // Determine the position to defend
         BWAPI::Position defendPosition;
+        bool defendPositionIsNarrow = false;
 
         // If we have a wall at the natural, defend it
         LocutusWall& wall = BuildingPlacer::Instance().getWall();
@@ -888,6 +889,7 @@ void CombatCommander::updateAttackSquads()
         {
             defendPosition = wall.gapCenter;
             radius /= 4;
+            defendPositionIsNarrow = true;
         }
 
         // If we have taken the natural, defend it
@@ -900,6 +902,7 @@ void CombatCommander::updateAttackSquads()
             if (bwebMap.naturalChoke && groundSquad.runCombatSim(BWAPI::Position(bwebMap.naturalChoke->Center())) >= 0)
             {
                 defendPosition = BWAPI::Position(bwebMap.naturalChoke->Center()) + BWAPI::Position(4, 4);
+                defendPositionIsNarrow = true;
             }
         }
 
@@ -913,6 +916,24 @@ void CombatCommander::updateAttackSquads()
             if (bwebMap.mainChoke && groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) >= 0)
             {
                 defendPosition = BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(4, 4);
+                defendPositionIsNarrow = true;
+            }
+        }
+
+        // Check if defending a narrow position will currently prevent a friendly unit from getting through
+        if (defendPositionIsNarrow)
+        {
+            for (auto unit : BWAPI::Broodwar->self()->getUnits())
+            {
+                if (groundSquad.containsUnit(unit)) continue;
+                if (unit->isFlying()) continue;
+                if (unit->getDistance(defendPosition) < 128 &&
+                    unit->getOrder() == BWAPI::Orders::Move &&
+                    unit->getOrderTargetPosition().isValid() &&
+                    unit->getOrderTargetPosition().getApproxDistance(defendPosition) > 320)
+                {
+                    defendPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
+                }
             }
         }
 
