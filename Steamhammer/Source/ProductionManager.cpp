@@ -246,7 +246,7 @@ void ProductionManager::manageBuildOrderQueue()
             // Rules for gateways:
             // - Gateways we have must be in use
             // - Limit how many gateways we build in parallel depending on how many we have
-            // - Only build at most 3 per nexus
+            // - Only build at most 3 per nexus + 1, except in proxy situations
             // - On Plasma, only build at most one non-proxy gateway
             if (type == BWAPI::UnitTypes::Protoss_Gateway)
             {
@@ -255,7 +255,7 @@ void ProductionManager::manageBuildOrderQueue()
                 
                 skipThisItem = gateways > 0 && (
                     StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 ||
-                    gateways > nexuses * 3 ||
+                    gateways > nexuses * (StrategyManager::Instance().isProxying() ? 4 : 3) ||
                     gatewaysBuilding >= 4 ||
                     (gateways < 10 && gatewaysBuilding >= 3) ||
                     (gateways < 6 && gatewaysBuilding >= 2));
