@@ -1095,30 +1095,40 @@ void CombatCommander::updateBlockScoutingSquad()
 
     // Disband the squad when:
     // - we are taking our natural
-    // - we have a dragoon close by (it will kill any scout that comes into the base)
+    // - we have a dragoon close by and the enemy does not have a scout nearby
     // - we have gone aggressive and have at least one combat unit in our main that needs to get out
     // - the enemy has a combat unit close by
     // TODO: Support "opening" the choke for friendly units so it isn't all-or-nothing
     bool disband = InformationManager::Instance().haveWeTakenOurNatural();
+    bool haveNearbyDragoon = false;
+    bool enemyWorkerClose = false;
     if (!disband)
         for (auto unit : BWAPI::Broodwar->self()->getUnits())
-            if (unit->isCompleted() && (
-                (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
-                    unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320) ||
-                (_goAggressive && !unit->isFlying() && UnitUtil::IsCombatUnit(unit) &&
-                    bwemMap.GetArea(unit->getTilePosition()) == bwebMap.mainArea)))
+        {
+            if (unit->isCompleted() && unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon &&
+                unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320)
+            {
+                haveNearbyDragoon = true;
+            }
+
+            if (unit->isCompleted() && _goAggressive && !unit->isFlying() &&
+                UnitUtil::IsCombatUnit(unit) && bwemMap.GetArea(unit->getTilePosition()) == bwebMap.mainArea)
             {
                 disband = true;
                 break;
             }
+        }
     if (!disband)
         for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
             if (!unit->getType().isWorker() && UnitUtil::IsCombatUnit(unit) &&
                 unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320)
             {
                 disband = true;
+                break;
             }
-    if (disband)
+            else if (unit->getType().isWorker() && unit->getDistance(blockRampSquad.getSquadOrder().getPosition()) < 320)
+                enemyWorkerClose = true;
+    if (disband || (haveNearbyDragoon && !enemyWorkerClose))
     {
         blockRampSquad.clear();
         _squadData.removeSquad("Block scout");
