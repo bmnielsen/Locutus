@@ -327,22 +327,8 @@ void CombatCommander::updateProxySquad()
     // Defend the proxy
     else
     {
-        // We defend the first choke between the proxy and the enemy main if valid and close by
-        // Otherwise we defend the proxy itself
         BWAPI::Position defendPosition = proxyLocation;
-        auto enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
-        if (enemyBase)
-        {
-            auto path = PathFinding::GetChokePointPath(proxyLocation, enemyBase->getPosition(), BWAPI::UnitTypes::Protoss_Zealot, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-            if (!path.empty())
-            {
-                BWAPI::Position chokePosition = BWAPI::Position((*path.begin())->Center()) + BWAPI::Position(4, 4);
-                if (chokePosition.getApproxDistance(proxyLocation) < 640) 
-                    defendPosition = chokePosition;
-            }
-        }
-
-        SquadOrder mainDefendOrder(SquadOrderTypes::Hold, defendPosition, DefensivePositionRadius, "Defend the proxy");
+        SquadOrder mainDefendOrder(SquadOrderTypes::Hold, proxyLocation, DefensivePositionRadius, "Defend the proxy");
         proxySquad.setSquadOrder(mainDefendOrder);
     }
 }
