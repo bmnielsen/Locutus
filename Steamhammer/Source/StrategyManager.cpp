@@ -1648,7 +1648,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
     // If we currently want dragoons, only expand once we have some
     // This helps when transitioning out of a rush or when we might be in trouble
-    if (_openingGroup == "dragoons" && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 1)
+    if (_openingGroup == "dragoons" && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 6)
         safeToMacro = false;
 
     // Count how many active mineral patches we have
