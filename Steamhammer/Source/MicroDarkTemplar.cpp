@@ -259,17 +259,20 @@ int MicroDarkTemplar::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target
     }
 
     // Protoss
-    // Photon cannons are highest priority, especially incomplete ones
+    // Photon cannons are highest priority
     if (targetType == BWAPI::UnitTypes::Protoss_Photon_Cannon)
         return 12;
 
-    // Prerequisites for mobile detection are also high priority, especially if they are incomplete
-    if (targetType == BWAPI::UnitTypes::Protoss_Observatory ||
-        targetType == BWAPI::UnitTypes::Protoss_Robotics_Facility)
+    // Robo facility is high priority, especially if incomplete
+    if (targetType == BWAPI::UnitTypes::Protoss_Robotics_Facility)
     {
-        if (target->isCompleted()) return 10;
-        return 11;
+        if (target->isCompleted()) return 9;
+        return 12;
     }
+
+    // Observatory is high priority if it is imcomplete
+    if (targetType == BWAPI::UnitTypes::Protoss_Observatory && !target->isCompleted())
+        return 12;
 
     // Zerg
     // Spores are highest priority
