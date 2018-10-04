@@ -613,6 +613,11 @@ namespace UAlbertaBot {
         {
             groundDamage = InformationManager::Instance().getWeaponDamage(ui.player, BWAPI::WeaponTypes::Scarab);
         }
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Archon)
+        {
+            // Very roughly estimate splash damage by having archons do 2x actual damage
+            groundDamage *= 2;
+        }
 
         // Override score for units where the destroy score is inappropriate
         if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
