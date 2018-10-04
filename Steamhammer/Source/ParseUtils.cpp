@@ -566,6 +566,10 @@ bool ParseUtils::_ParseStrategy(
 
                     weight = std::max(1, weight);
 
+                    // If we are in training mode, all strategies are equal
+                    if (Config::Strategy::TrainingMode)
+                        weight = 1;
+
                     strategies.push_back(strategy);
                     totalWeight += weight;
                     weights.push_back(weight);
