@@ -94,10 +94,12 @@
 
 		"PvT" :
 			{ "Protoss" : [
-				{ "Weight" : 25, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight2" : 15, "Strategy" : "Proxy4GateGoon2p" },
+				{ "Weight" : 15, "Weight2": 0, "Strategy" : "Proxy4GateGoon" },
+				{ "Weight" : 20, "Strategy" : "Proxy9-9Gate" },
 				{ "Weight" : 30, "Strategy" : "10-15GateGoon" },
-				{ "Weight" : 35, "Strategy" : "10Gate25NexusFE" },
-				{ "Weight" : 35, "Strategy" : "DTDrop" }
+				{ "Weight" : 40, "Strategy" : "10Gate25NexusFE" },
+				{ "Weight" : 50, "Strategy" : "DTDrop" }
 			]},
 
 		"PvP" :
@@ -105,19 +107,19 @@
 				{ "Weight2" : 20, "Strategy" : "ProxyHeavyZealotRush2p" },
 				{ "Weight" : 20, "Weight2": 0, "Strategy" : "ProxyHeavyZealotRush" },
 				{ "Weight2" : 20, "Strategy" : "Proxy4GateGoon2p" },
-				{ "Weight" : 20, "Weight2": 0, "Strategy" : "Proxy4GateGoon" },
-				{ "Weight" : 20, "Weight2": 30, "Strategy" : "Proxy9-9Gate" },
+				{ "Weight" : 10, "Weight2": 0, "Strategy" : "Proxy4GateGoon" },
+				{ "Weight" : 15, "Weight2": 20, "Strategy" : "Proxy9-9Gate" },
 				{ "Weight" : 50, "Strategy" : "4GateGoon" },
-				{ "Weight" : 30, "Strategy" : "2GateDTExpo" },
+				{ "Weight" : 10, "Strategy" : "2GateDTExpo" },
 				{ "Weight" : 30, "Strategy" : "2GateDTRush" }
 			]},
 			
 		"PvZ" :
 			{ "Protoss" : [
-				{ "Weight2" : 20, "Strategy" : "ProxyHeavyZealotRush2p" },
-				{ "Weight" : 20, "Weight2": 0, "Strategy" : "ProxyHeavyZealotRush" },
-				{ "Weight" : 30, "Strategy" : "ForgeExpand4Gate2Archon" },
-				{ "Weight" : 50, "Strategy" : "ForgeExpandSpeedlots" },
+				{ "Weight2" : 15, "Strategy" : "ProxyHeavyZealotRush2p" },
+				{ "Weight" : 15, "Weight2": 0, "Strategy" : "ProxyHeavyZealotRush" },
+				{ "Weight" : 40, "Strategy" : "ForgeExpand4Gate2Archon" },
+				{ "Weight" : 40, "Strategy" : "ForgeExpandSpeedlots" },
 				{ "Weight" : 80, "Strategy" : "ForgeExpand5GateGoon" }
 			]},
 
@@ -134,12 +136,12 @@
 			"Counter Proxy" : "9-9GateDefensive",
 			"Counter Worker rush" : "9-9GateDefensive",
 			"Counter Fast rush vT" : { "Protoss" : [
-				{ "Weight" : 60, "Strategy" : "9-9GateDefensive" },
-				{ "Weight" : 40, "Strategy" : "Turtle" }
+				{ "Weight" : 35, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 70, "Strategy" : "Turtle" }
 			]},
 			"Counter Fast rush vP" : { "Protoss" : [
-				{ "Weight" : 40, "Strategy" : "9-9GateDefensive" },
-				{ "Weight" : 60, "Strategy" : "Turtle" }
+				{ "Weight" : 35, "Strategy" : "9-9GateDefensive" },
+				{ "Weight" : 70, "Strategy" : "Turtle" }
 			]},
 			"Counter Fast rush vZ" : { "Protoss" : [
 				{ "Weight" : 60, "Strategy" : "ForgeExpandSpeedlots" },
@@ -151,18 +153,18 @@
 				{ "Weight" : 40, "Strategy" : "Turtle" }
 			]},			
 			"Counter Heavy rush vP" : { "Protoss" : [
-				{ "Weight" : 50, "Strategy" : "4GateGoon" },
-				{ "Weight" : 50, "Strategy" : "Turtle" }
+				{ "Weight" : 60, "Strategy" : "4GateGoon" },
+				{ "Weight" : 40, "Strategy" : "Turtle" }
 			]},			
 			"Counter Dark templar" : { "Protoss" : [
 				{ "Weight" : 50, "Strategy" : "4GateGoon" },
-				{ "Weight" : 50, "Strategy" : "2GateDTExpo" },
+				{ "Weight" : 25, "Strategy" : "2GateDTExpo" },
 				{ "Weight" : 50, "Strategy" : "Turtle" }
 			]},			
 			"Counter Wall-in" : { "Protoss" : [
 				{ "Weight" : 30, "Strategy" : "10-15GateGoon" },
-				{ "Weight" : 35, "Strategy" : "10Gate25NexusFE" },
-				{ "Weight" : 35, "Strategy" : "DTDrop" }
+				{ "Weight" : 40, "Strategy" : "10Gate25NexusFE" },
+				{ "Weight" : 50, "Strategy" : "DTDrop" }
 			]}			
 		},
 
