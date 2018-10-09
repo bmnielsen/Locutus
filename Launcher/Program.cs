@@ -14,6 +14,10 @@
     public class Program
     {
         private const string BaseDir = "C:\\Users\\bmn\\AppData\\Roaming\\scbw";
+        //private const string BotName = "Locutus";
+        //private const string BotSource = "C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll";
+        private const string BotName = "Hugh";
+        private const string BotSource = "C:\\Dev\\BW\\Hugh\\Release\\ExampleAIModule.dll";
 
         private const int ShortTimeout = 60;
         private const int MediumTimeout = 300;
@@ -80,6 +84,15 @@
                                                             "aiide/(4)Python.scx"
                                                         };
 
+        private static readonly List<string> AittMaps = new List<string>
+                                                        {
+                                                            "aitt/(2)Crossing Field 1.34.scx",
+                                                            "aitt/(2)Polaris Rhapsody.scx",
+                                                            "aitt/(3)Longinus 2.scx",
+                                                            "aitt/(3)TauCross1.1.scx",
+                                                            "aitt/(4)Neo Jade.scx"
+                                                        };
+
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
 
         private static DockerClient dockerClient;
@@ -143,8 +156,8 @@
                 {
                     try
                     {
-                        File.Copy("C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.dll", true);
-                        File.Copy("C:\\Dev\\BW\\Locutus\\Locutus.json", $"{BaseDir}\\bots\\Locutus\\AI\\Locutus.json", true);
+                        File.Copy(BotSource, $"{BaseDir}\\bots\\{BotName}\\AI\\{BotName}.dll", true);
+                        File.Copy("C:\\Dev\\BW\\Locutus\\Locutus.json", $"{BaseDir}\\bots\\{BotName}\\AI\\Locutus.json", true);
                         break;
                     }
                     catch (Exception)
@@ -162,16 +175,17 @@
 
             if (args.Contains("clean"))
             {
-                ClearDirectory($"{BaseDir}\\bots\\Locutus\\read");
-                ClearDirectory($"{BaseDir}\\bots\\Locutus\\write");
+                ClearDirectory($"{BaseDir}\\bots\\{BotName}\\read");
+                ClearDirectory($"{BaseDir}\\bots\\{BotName}\\write");
                 ClearDirectory($"{BaseDir}\\bots\\{opponent}\\read");
                 ClearDirectory($"{BaseDir}\\bots\\{opponent}\\write");
             }
 
             var maps = args.Contains("cig") ? CigMaps : Maps;
             maps = args.Contains("aiide") ? AiideMaps : maps;
+            maps = args.Contains("aitt") ? AittMaps : maps;
 
-            foreach (var arg in args.Where(x => x != "ui" && x != "cig" && x != "aiide"))
+            foreach (var arg in args.Where(x => x != "ui" && x != "cig" && x != "aiide" && x != "aitt"))
             {
                 var map = maps.FirstOrDefault(
                     x => CultureInfo.InvariantCulture.CompareInfo.IndexOf(x, arg, CompareOptions.IgnoreCase) >= 0);
@@ -283,7 +297,7 @@
             var headless = isHeadless ? "--headless" : string.Empty;
             var timeoutParam = timeout > 0 ? "--timeout " + timeout : string.Empty;
             var overwriteParam = noOverwrite ? string.Empty : "--read_overwrite";
-            var args = $"--bots \"Locutus\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} {overwriteParam}";
+            var args = $"--bots \"{BotName}\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} {overwriteParam}";
 
             currentGame = new GameData();
 
@@ -314,8 +328,8 @@
                 }
 
                 // Output our log to console
-                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGame.Id}_0\\Locutus_ErrorLog.txt", "Err: ");
-                CheckLogFile($"{BaseDir}\\bots\\Locutus\\write\\GAME_{currentGame.Id}_0\\Locutus_log.txt", "Log: ");
+                CheckLogFile($"{BaseDir}\\bots\\{BotName}\\write\\GAME_{currentGame.Id}_0\\{BotName}_ErrorLog.txt", "Err: ");
+                CheckLogFile($"{BaseDir}\\bots\\{BotName}\\write\\GAME_{currentGame.Id}_0\\{BotName}_log.txt", "Log: ");
 
                 // Process output files
                 ProcessOutputFiles(opponent, map, showReplay);
@@ -487,7 +501,7 @@
         private static bool IsGameOver(string opponent)
         {
             // Check logs for repeated "waiting for players" messages
-            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_Locutus_game.log";
+            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{BotName}_game.log";
             var opponentLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{opponent.Replace(' ', '_')}_game.log";
             foreach (var line in GetNewLinesFromFile(myLogFilename).Concat(GetNewLinesFromFile(opponentLogFilename)))
             {
