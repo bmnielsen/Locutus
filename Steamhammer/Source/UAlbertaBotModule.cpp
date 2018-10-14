@@ -65,13 +65,13 @@ void UAlbertaBotModule::onStart()
         BWAPI::Broodwar->enableFlag(BWAPI::Flag::UserInput);
     }
 
-	Log().Get() << "I am Locutus of Borg, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName();
+	Log().Get() << "I am ISAMind, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName();
 
 	StrategyManager::Instance().setOpeningGroup();    // may depend on config and/or opponent model
 
     if (Config::BotInfo::PrintInfoOnStart)
     {
-        BWAPI::Broodwar->printf("%s by %s, based on UAlbertaBot via Steamhammer.", Config::BotInfo::BotName.c_str(), Config::BotInfo::Authors.c_str());
+        BWAPI::Broodwar->printf("%s by %s, based on Locutus.", Config::BotInfo::BotName.c_str(), Config::BotInfo::Authors.c_str());
 	}
 }
 

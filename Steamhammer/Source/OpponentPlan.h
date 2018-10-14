@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "OpponentPrediction.h"
 
 namespace UAlbertaBot
 {
@@ -69,6 +70,7 @@ private:
 
 	OpeningPlan _openingPlan;		// estimated enemy plan
 	bool _planIsFixed;				// estimate will no longer change
+    OpponentPredictionNN nn;
 
 	bool fastPlan(OpeningPlan plan);
 
@@ -76,6 +78,7 @@ private:
 	bool recognizeFactoryTech();
 
 	void recognize();
+    void recognize_nn();
 
 public:
 	OpponentPlan();
