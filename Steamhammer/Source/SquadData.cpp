@@ -1,5 +1,7 @@
 #include "SquadData.h"
 
+#include "WorkerManager.h"
+
 using namespace UAlbertaBot;
 
 SquadData::SquadData() 
@@ -64,9 +66,10 @@ bool SquadData::squadExists(const std::string & squadName)
     return _squads.find(squadName) != _squads.end();
 }
 
-void SquadData::addSquad(const Squad & squad)
+// Create a new squad. The squad must not already exist.
+void SquadData::createSquad(const std::string & name, const SquadOrder & order, size_t priority)
 {
-	_squads[squad.getName()] = squad;
+	_squads.emplace(name, Squad(name, order, priority));
 }
 
 void SquadData::updateAllSquads()
@@ -99,20 +102,20 @@ void SquadData::drawSquadInformation(int x, int y)
 		BWAPI::Broodwar->drawTextScreen(x + 10, y + (yspace * 10), "%c%s", white, squad.getName().c_str());
 		BWAPI::Broodwar->drawTextScreen(x + 80, y + (yspace * 10), "%c%d", yellow, units.size());
 		BWAPI::Broodwar->drawTextScreen(x + 105, y + (yspace * 10), "%c%d,%d", yellow, orderTile.x, orderTile.y);
-		if (units.size() > 0 && order.isRegroupableOrder())
-		{
-			BWAPI::Broodwar->drawTextScreen(x + 150, y + (yspace * 10), "%c%s", orange, squad.getRegroupStatus().c_str());
-		}
 		++yspace;
 
 		BWAPI::Broodwar->drawCircleMap(order.getPosition(), 10, BWAPI::Colors::Green, true);
         BWAPI::Broodwar->drawCircleMap(order.getPosition(), order.getRadius(), BWAPI::Colors::Red, false);
         BWAPI::Broodwar->drawTextMap(order.getPosition() + BWAPI::Position(0, 10), "%s", squad.getName().c_str());
+	}
+}
 
-        for (const BWAPI::Unit unit : units)
-        {
-            BWAPI::Broodwar->drawTextMap(unit->getPosition() + BWAPI::Position(0, 10), "%s", squad.getName().c_str());
-        }
+void SquadData::drawCombatSimInformation()
+{
+	for (const auto & kv : _squads)
+	{
+		const Squad & squad = kv.second;
+		squad.drawCombatSimInfo();
 	}
 }
 

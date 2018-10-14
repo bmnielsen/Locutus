@@ -9,16 +9,20 @@ TimerManager::TimerManager()
 	, _totalMilliseconds(0.0)
     , _barWidth(40)
 {
-	_timerNames.push_back("Total");     // the Total timer must be first! it is referred to by index
+	// The timers must be pushed back in the order they are declared in the enum.
+	_timerNames.push_back("Total");
+
+	_timerNames.push_back("UnitInfo");	// InformationManager
+	_timerNames.push_back("MapGrid");
+	_timerNames.push_back("Opponent");	// OpponentModel
+
+	_timerNames.push_back("Search");
 	_timerNames.push_back("Worker");
 	_timerNames.push_back("Production");
 	_timerNames.push_back("Building");
 	_timerNames.push_back("Combat");
+	_timerNames.push_back("Micro");
 	_timerNames.push_back("Scout");
-	_timerNames.push_back("UnitInfo");
-	_timerNames.push_back("MapGrid");
-	_timerNames.push_back("Search");
-	_timerNames.push_back("OpponentModel");
 }
 
 void TimerManager::startTimer(const TimerManager::Type t)
@@ -57,7 +61,7 @@ double TimerManager::getMeanMilliseconds()
 	return _totalMilliseconds / _count;
 }
 
-void TimerManager::displayTimers(int x, int y)
+void TimerManager::drawModuleTimers(int x, int y)
 {
     if (!Config::Debug::DrawModuleTimers)
     {

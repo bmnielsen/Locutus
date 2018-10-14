@@ -6,11 +6,15 @@
 
 namespace UAlbertaBot
 {
+class The;
+
 class BuildingManager
 {
     BuildingManager();
 
-    std::vector<Building> _buildings;
+	The & the;
+
+	std::vector<Building> _buildings;
 
     int             _reservedMinerals;				// minerals reserved for planned buildings
     int             _reservedGas;					// gas reserved for planned buildings

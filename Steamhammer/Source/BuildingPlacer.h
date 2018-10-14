@@ -4,12 +4,14 @@
 
 namespace UAlbertaBot
 {
+class The;
 
 class BuildingPlacer
 {
-    BuildingPlacer();
-
+	The & the;
     std::vector< std::vector<bool> > _reserveMap;
+
+	BuildingPlacer();
 
 	void				reserveSpaceNearResources();
 

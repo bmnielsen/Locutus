@@ -9,7 +9,7 @@ class MicroTanks : public MicroManager
 public:
 
 	MicroTanks();
-	void executeMicro(const BWAPI::Unitset & targets);
+	void executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster);
 
 	BWAPI::Unit chooseTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset & targets, std::map<BWAPI::Unit, int> & numTargeting);
 

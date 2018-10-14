@@ -1,6 +1,7 @@
-#include "BWTA.h"
-#include "Micro.h"
 #include "MicroTanks.h"
+
+#include "BWTA.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -9,7 +10,7 @@ MicroTanks::MicroTanks()
 { 
 }
 
-void MicroTanks::executeMicro(const BWAPI::Unitset & targets) 
+void MicroTanks::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 	const BWAPI::Unitset & tanks = getUnits();
 
@@ -90,11 +91,11 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets)
 				{
 					if (tank->isSieged())
 					{
-						Micro::AttackUnit(tank, target);
+						the.micro.AttackUnit(tank, target);
 					}
 					else
 					{
-						Micro::KiteTarget(tank, target);
+						the.micro.KiteTarget(tank, target);
 					}
 				}
  			}
@@ -111,7 +112,7 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets)
                     else
                     {
     					// move to it
-    					Micro::AttackMove(tank, order.getPosition());
+    					the.micro.AttackMove(tank, order.getPosition());
                     }
 				}
 			}
@@ -171,6 +172,14 @@ int MicroTanks::getAttackPriority(BWAPI::Unit tank, BWAPI::Unit target)
 		return 0;
 	}
 
+	// A ghost which is nuking is the highest priority by a mile.
+	if (targetType == BWAPI::UnitTypes::Terran_Ghost &&
+		target->getOrder() == BWAPI::Orders::NukePaint ||
+		target->getOrder() == BWAPI::Orders::NukeTrack)
+	{
+		return 15;
+	}
+
 	// if the target is building something near our base something is fishy
 	BWAPI::Position ourBasePosition = BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation());
 	if (target->getType().isWorker() && (target->isConstructing() || target->isRepairing()) && target->getDistance(ourBasePosition) < 1200)
@@ -194,7 +203,8 @@ int MicroTanks::getAttackPriority(BWAPI::Unit tank, BWAPI::Unit target)
 		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
 		targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
 		targetType == BWAPI::UnitTypes::Protoss_Reaver ||
-		targetType == BWAPI::UnitTypes::Zerg_Infested_Terran)
+		targetType == BWAPI::UnitTypes::Zerg_Infested_Terran ||
+		targetType == BWAPI::UnitTypes::Zerg_Defiler)
 	{
 		return 12;
 	}

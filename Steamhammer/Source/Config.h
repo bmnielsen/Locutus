@@ -76,6 +76,7 @@ namespace Config
 		extern bool DrawBaseInfo;
 		extern bool DrawStrategyBossInfo;
 		extern bool DrawSquadInfo;
+		extern bool DrawClusters;
 		extern bool DrawWorkerInfo;
 		extern bool DrawMouseCursorInfo;
         extern bool DrawBuildingInfo;
@@ -95,7 +96,6 @@ namespace Config
         extern int RetreatMeleeUnitShields;
         extern int RetreatMeleeUnitHP;
         extern int CombatSimRadius;         
-        extern int UnitNearEnemyRadius;         
 		extern int ScoutDefenseRadius;
 	}
     

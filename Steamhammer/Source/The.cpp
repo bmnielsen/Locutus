@@ -11,6 +11,8 @@ The::The()
 void The::initialize()
 {
 	partitions.initialize();
+
+	ops.initialize();
 }
 
 The & The::Root()

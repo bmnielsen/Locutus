@@ -36,7 +36,7 @@ void ProductionManager::update()
 {
 	// TODO move this to worker manager and make it more precise; it normally goes a little over
 	// If we have reached a target amount of gas, take workers off gas.
-	if (_targetGasAmount && BWAPI::Broodwar->self()->gatheredGas() >= _targetGasAmount)  // tends to go over
+	if (_targetGasAmount && BWAPI::Broodwar->self()->gatheredGas() >= _targetGasAmount)
 	{
 		WorkerManager::Instance().setCollectGas(false);
 		_targetGasAmount = 0;           // clear the target
@@ -47,7 +47,7 @@ void ProductionManager::update()
 	StrategyManager::Instance().handleUrgentProductionIssues(_queue);
 
 	// Drop any initial queue items which can't be produced next because they are missing
-	// prerequisites. This prevents some queue deadlocks.
+	// prerequisites. This prevents most queue deadlocks.
 	// Zerg does this separately (and more elaborately) in handleUrgentProductionIssues() above.
 	if (BWAPI::Broodwar->self()->getRace() != BWAPI::Races::Zerg)
 	{
@@ -233,10 +233,6 @@ void ProductionManager::manageBuildOrderQueue()
 
 		// check to see if we can make it right now
 		bool canMake = producer && canMakeNow(producer, currentItem.macroAct);
-
-		// TODO A bug in getProducer() and/or canMakeNow() can cause addons to fail to build
-		//      if ordered immediately after the building finishes, causing production to break.
-		//      Openings try to work around by delaying addons later than should be necessary.
 
 		// if the next item in the list is a building and we can't yet make it
         if (currentItem.macroAct.isBuilding() &&

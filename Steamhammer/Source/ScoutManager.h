@@ -1,14 +1,15 @@
 #pragma once
 
-#include "Common.h"
+#include <BWAPI.h>
 #include "MacroCommand.h"
-#include "MicroManager.h"
-#include "InformationManager.h"
 
 namespace UAlbertaBot
 {
+class The;
+
 class ScoutManager 
 {
+	The &							the;
 	BWAPI::Unit						_overlordScout;
 	BWAPI::Unit						_workerScout;
     std::string                     _scoutStatus;
@@ -39,8 +40,8 @@ class ScoutManager
 	BWAPI::Unit						getTheEnemyGeyser() const;
 	BWAPI::Unit						enemyWorkerToHarass() const;
     void                            followPerimeter();
-	void                            moveGroundScout(BWAPI::Unit scout);
-	void                            moveAirScout(BWAPI::Unit scout);
+	void                            moveGroundScout();
+	void                            moveAirScout();
 	void                            drawScoutInformation(int x, int y);
     void                            calculateEnemyRegionVertices();
 

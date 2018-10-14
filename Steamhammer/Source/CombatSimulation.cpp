@@ -8,9 +8,8 @@ CombatSimulation::CombatSimulation()
 {
 }
 
-// sets the starting states based on the combat units within a radius of a given position
-// this center will most likely be the position of the forwardmost combat unit we control
-void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius, bool visibleOnly)
+// Set up the combat sim state based on the given friendly units and the enemy units within a given circle.
+void CombatSimulation::setCombatUnits(const BWAPI::Unitset & myUnits, const BWAPI::Position & center, int radius, bool visibleOnly)
 {
 	fap.clearState();
 
@@ -46,15 +45,12 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 		}
 
 		// Also static defense that is out of sight.
+		// NOTE getNearbyForce() includes completed units and uncompleted buildings which are out of vision.
 		std::vector<UnitInfo> enemyStaticDefense;
 		InformationManager::Instance().getNearbyForce(enemyStaticDefense, center, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyStaticDefense)
 		{
-			// If it wasn't completed when we saw it, pessimistically assume that it is now.
-			if (ui.type.isBuilding() && 
-				ui.lastHealth > 0 &&
-				!ui.unit->isVisible() &&
-				UnitUtil::IsCombatSimUnit(ui.type))
+			if (ui.type.isBuilding() && !ui.unit->isVisible())
 			{
 				fap.addIfCombatUnitPlayer2(ui);
 				if (Config::Debug::DrawCombatSimulationInfo)
@@ -91,6 +87,28 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 	}
 
 	// Add our units.
+	// Add them from the input set. Other units have been given other instructions
+	// and may not cooperate in the fight, so skip them.
+	for (const auto unit : myUnits)
+	{
+		if (UnitUtil::IsCombatSimUnit(unit))
+		{
+			if (compensatoryMutalisks > 0 && unit->getType() == BWAPI::UnitTypes::Zerg_Mutalisk)
+			{
+				--compensatoryMutalisks;
+			}
+			else
+			{
+				fap.addIfCombatUnitPlayer1(unit);
+				if (Config::Debug::DrawCombatSimulationInfo)
+				{
+					BWAPI::Broodwar->drawCircleMap(unit->getPosition(), 3, BWAPI::Colors::Green, true);
+				}
+			}
+		}
+	}
+
+	/* Add our units by location.
 	BWAPI::Unitset ourCombatUnits;
 	MapGrid::Instance().getUnits(ourCombatUnits, center, radius, true, false);
 	for (const auto unit : ourCombatUnits)
@@ -109,21 +127,32 @@ void CombatSimulation::setCombatUnits(const BWAPI::Position & center, int radius
 			}
 		}
 	}
+	*/
 }
 
+// Simulate combat and return the result as a ratio my losses / your losses.
 double CombatSimulation::simulateCombat()
 {
+	std::pair<int, int> startScores = fap.playerScores();
 	fap.simulate();
-	std::pair<int, int> scores = fap.playerScores();
+	std::pair<int, int> endScores = fap.playerScores();
 
-	int score = scores.first - scores.second;
+	// TODO old style for debugging
+	return double(endScores.first - endScores.second);
+
+	int myLosses = startScores.first - endScores.first;
+	int yourLosses = startScores.second - endScores.second;
+
+	double score = yourLosses
+		? double(myLosses) / yourLosses
+		: (myLosses ? double(myLosses) : 1.0);
 
 	if (Config::Debug::DrawCombatSimulationInfo)
 	{
-		BWAPI::Broodwar->drawTextScreen(150, 200, "%cCombat sim: us %c%d %c- them %c%d %c= %c%d",
-			white, orange, scores.first, white, orange, scores.second, white,
-			score >= 0 ? green : red, score);
+		BWAPI::Broodwar->drawTextScreen(150, 200, "%cCombat sim: us %c%d %c/ them %c%d %c= %c%g",
+			white, orange, endScores.first, white, orange, endScores.second, white,
+			score <= 1.0 ? green : red, score);
 	}
 
-	return double(score);
+	return score;
 }

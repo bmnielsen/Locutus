@@ -1,15 +1,16 @@
 #pragma once
 
-#include <Common.h>
-#include "BuildingManager.h"
 #include "WorkerData.h"
 
 namespace UAlbertaBot
 {
 class Building;
+class The;
 
 class WorkerManager
 {
+	The &		the;
+
     WorkerData  workerData;
     BWAPI::Unit previousClosestWorker;
 	bool		_collectGas;
@@ -24,6 +25,7 @@ class WorkerManager
 	void		handleReturnCargoWorkers();
 	void        handleRepairWorkers();
     void        handleMoveWorkers();
+	void		handleMineralWorkers();
 
 	BWAPI::Unit findEnemyTargetForWorker(BWAPI::Unit worker) const;
 	BWAPI::Unit findEscapeMinerals(BWAPI::Unit worker) const;

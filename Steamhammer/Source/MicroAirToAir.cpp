@@ -1,6 +1,7 @@
 #include "MicroAirToAir.h"
 
-#include "Micro.h"
+#include "OpsBoss.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -11,15 +12,15 @@ MicroAirToAir::MicroAirToAir()
 { 
 }
 
-void MicroAirToAir::executeMicro(const BWAPI::Unitset & targets) 
+void MicroAirToAir::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
-	assignTargets(targets);
+	BWAPI::Unitset units = Intersection(getUnits(), cluster.units);
+
+	assignTargets(units, targets);
 }
 
-void MicroAirToAir::assignTargets(const BWAPI::Unitset & targets)
+void MicroAirToAir::assignTargets(const BWAPI::Unitset & airUnits, const BWAPI::Unitset & targets)
 {
-    const BWAPI::Unitset & airUnits = getUnits();
-
 	// The set of potential targets.
 	BWAPI::Unitset airTargets;
     std::copy_if(targets.begin(), targets.end(), std::inserter(airTargets, airTargets.end()),
@@ -38,11 +39,11 @@ void MicroAirToAir::assignTargets(const BWAPI::Unitset & targets)
 		{
 			if (airUnit->getDistance(order.getPosition()) < 300)
 			{
-				Micro::AttackMove(airUnit, order.getPosition());
+				the.micro.AttackMove(airUnit, order.getPosition());
 			}
 			else
 			{
-				Micro::Move(airUnit, order.getPosition());
+				the.micro.Move(airUnit, order.getPosition());
 			}
 			continue;
 		}
@@ -58,12 +59,12 @@ void MicroAirToAir::assignTargets(const BWAPI::Unitset & targets)
 					BWAPI::Broodwar->drawLineMap(airUnit->getPosition(), airUnit->getTargetPosition(), BWAPI::Colors::Purple);
 				}
 
-				Micro::CatchAndAttackUnit(airUnit, target);
+				the.micro.CatchAndAttackUnit(airUnit, target);
 			}
 			else
 			{
 				// No target found. Go to the attack position.
-				Micro::AttackMove(airUnit, order.getPosition());
+				the.micro.AttackMove(airUnit, order.getPosition());
 			}
 		}
 	}

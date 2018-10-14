@@ -156,6 +156,8 @@
     <ClCompile Include="..\Source\GridAttacks.cpp" />
     <ClCompile Include="..\Source\MicroOverlords.cpp" />
     <ClCompile Include="..\Source\MicroMutas.cpp" />
+    <ClCompile Include="..\Source\MicroDefilers.cpp" />
+    <ClCompile Include="..\Source\OpsBoss.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -280,5 +282,7 @@
     <ClInclude Include="..\Source\GridAttacks.h" />
     <ClInclude Include="..\Source\MicroOverlords.h" />
     <ClInclude Include="..\Source\MicroMutas.h" />
+    <ClInclude Include="..\Source\MicroDefilers.h" />
+    <ClInclude Include="..\Source\OpsBoss.h" />
   </ItemGroup>
 </Project>

@@ -94,47 +94,26 @@ void OpponentModel::considerSingleStrategy()
 	}
 }
 
+
 // If the opponent model has collected useful information,
 // set _recommendedOpening, the opening to play (or instructions for choosing it).
+// Leaving _recommendedOpening blank continues as if the opponent model were turned off.
+// Also fill in the opponent summary _summary, but unneeded fields are not set.
 // This runs once before play starts, when all we know is the opponent
 // and whatever the game records tell us about the opponent.
 void OpponentModel::considerOpenings()
 {
-	struct OpeningInfoType
-	{
-		int sameWins;		// on the same map as this game, or following the same plan as this game
-		int sameGames;
-		int otherWins;		// across all other maps/plans
-		int otherGames;
-		double weightedWins;
-		double weightedGames;
-
-		OpeningInfoType()
-			: sameWins(0)
-			, sameGames(0)
-			, otherWins(0)
-			, otherGames(0)
-			// The weighted values doesn't need to be initialized up front.
-		{
-		}
-	};
-
-	int totalWins = 0;
-	int totalGames = 0;
-	std::map<std::string, OpeningInfoType> openingInfo;		// opening name -> opening info
-	OpeningInfoType planInfo;								// summary of the recorded enemy plans
-
 	// Gather basic information from the game records.
 	for (const GameRecord * record : _pastGameRecords)
 	{
 		if (_gameRecord.sameMatchup(*record))
 		{
-			++totalGames;
+			++_summary.totalGames;
 			if (record->getWin())
 			{
-				++totalWins;
+				++_summary.totalWins;
 			}
-			OpeningInfoType & info = openingInfo[record->getOpeningName()];
+			OpeningInfoType & info = _summary.openingInfo[record->getOpeningName()];
 			if (record->getMapName() == BWAPI::Broodwar->mapFileName())
 			{
 				info.sameGames += 1;
@@ -154,56 +133,57 @@ void OpponentModel::considerOpenings()
 			if (record->getExpectedEnemyPlan() == record->getEnemyPlan())
 			{
 				// The plan was recorded as correctly predicted in that game.
-				planInfo.sameGames += 1;
+				_summary.planInfo.sameGames += 1;
 				if (record->getWin())
 				{
-					planInfo.sameWins += 1;
+					_summary.planInfo.sameWins += 1;
 				}
 			}
 			else
 			{
 				// The plan was not correctly predicted.
-				planInfo.otherGames += 1;
+				_summary.planInfo.otherGames += 1;
 				if (record->getWin())
 				{
-					planInfo.otherWins += 1;
+					_summary.planInfo.otherWins += 1;
 				}
 			}
 		}
 	}
 
-	UAB_ASSERT(totalWins == planInfo.sameWins + planInfo.otherWins, "bad total");
-	UAB_ASSERT(totalGames == planInfo.sameGames + planInfo.otherGames, "bad total");
-
-	OpeningPlan enemyPlan = _expectedEnemyPlan;
+	UAB_ASSERT(_summary.totalWins == _summary.planInfo.sameWins + _summary.planInfo.otherWins, "bad total");
+	UAB_ASSERT(_summary.totalGames == _summary.planInfo.sameGames + _summary.planInfo.otherGames, "bad total");
 
 	// For the first games, stick to the counter openings based on the predicted plan.
-	if (totalGames <= 5)
+	if (_summary.totalGames <= 5)
 	{
-		_recommendedOpening = getOpeningForEnemyPlan(enemyPlan);
+		// BWAPI::Broodwar->printf("initial exploration phase");
+		_recommendedOpening = getOpeningForEnemyPlan(_expectedEnemyPlan);
 		return;										// with or without expected play
 	}
 
-	UAB_ASSERT(totalGames > 0 && totalWins >= 0, "bad total");
-	UAB_ASSERT(openingInfo.size() > 0 && int(openingInfo.size()) <= totalGames, "bad total");
+	UAB_ASSERT(_summary.totalGames > 0 && _summary.totalWins >= 0, "bad total");
+	UAB_ASSERT(_summary.openingInfo.size() > 0 && int(_summary.openingInfo.size()) <= _summary.totalGames, "bad total");
 
 	// If we keep winning, stick to the winning track.
-	if (totalWins == totalGames ||
-		_singleStrategy && planInfo.sameWins > 0 && planInfo.sameWins == planInfo.sameGames)   // Unknown plan is OK
+	if (_summary.totalWins == _summary.totalGames ||
+		_singleStrategy && _summary.planInfo.sameWins > 0 &&
+		_summary.planInfo.sameWins == _summary.planInfo.sameGames)   // Unknown plan is OK
 	{
-		_recommendedOpening = getOpeningForEnemyPlan(enemyPlan);
+		// BWAPI::Broodwar->printf("winning track");
+		_recommendedOpening = getOpeningForEnemyPlan(_expectedEnemyPlan);
 		return;										// with or without expected play
 	}
-	
+
 	// Randomly choose any opening that always wins, or always wins on this map.
 	// This bypasses the map weighting below.
-	// The algorithm is reservoir sampling in the simplest case, with reservoir size = 1.
+	// The algorithm is reservoir sampling with reservoir size = 1.
 	// It gives equal probabilities without remembering all the elements.
 	std::string alwaysWins;
 	double nAlwaysWins = 0.0;
 	std::string alwaysWinsOnThisMap;
 	double nAlwaysWinsOnThisMap = 0.0;
-	for (auto item : openingInfo)
+	for (const auto & item : _summary.openingInfo)
 	{
 		const OpeningInfoType & info = item.second;
 		if (info.sameWins + info.otherWins > 0 && info.sameWins + info.otherWins == info.sameGames + info.otherGames)
@@ -225,50 +205,23 @@ void OpponentModel::considerOpenings()
 	}
 	if (!alwaysWins.empty())
 	{
+		// BWAPI::Broodwar->printf("always wins");
 		_recommendedOpening = alwaysWins;
 		return;
 	}
 	if (!alwaysWinsOnThisMap.empty())
 	{
+		// BWAPI::Broodwar->printf("always wins on this map");
 		_recommendedOpening = alwaysWinsOnThisMap;
 		return;
 	}
 
-	// Explore different actions this proportion of the time.
-	// The number varies depending on the overall win rate: Explore less if we're usually winning.
-	const double overallWinRate = double(totalWins) / totalGames;
-	UAB_ASSERT(overallWinRate >= 0.0 && overallWinRate <= 1.0, "bad total");
-	const double explorationRate = 0.05 + (1.0 - overallWinRate) * 0.10;
-
-	// Decide whether to explore, and choose which kind of exploration to do.
-	// The kind of exploration is affected by totalGames. Exploration choices are:
-	// The counter openings - "Counter ...".
-	// The matchup openings - "matchup".
-	// Any opening that this race can play - "random".
-	// The opening chooser in ParseUtils knows how to interpret the strings.
-	if (totalWins == 0 || Random::Instance().flag(explorationRate))
-	{
-		const double wrongPlanRate = double(planInfo.otherGames) / totalGames;
-		// Is the predicted enemy plan likely to be right?
-		if (totalGames > 30 && Random::Instance().flag(0.75))
-		{
-			_recommendedOpening = "random";
-		}
-		else if (Random::Instance().flag(0.8 * wrongPlanRate * double(std::min(totalGames, 20)) / 20.0))
-		{
-			_recommendedOpening = "matchup";
-		}
-		else
-		{
-			_recommendedOpening = getOpeningForEnemyPlan(enemyPlan);
-		}
-		return;
-	}
+	// If we haven't decided yet:
 
 	// Compute "weighted" win rates which combine map win rates and overall win rates, as an
 	// estimate of the true win rate on this map. The estimate is ad hoc, using an assumption
 	// that is sure to be wrong.
-	for (auto it = openingInfo.begin(); it != openingInfo.end(); ++it)
+	for (auto it = _summary.openingInfo.begin(); it != _summary.openingInfo.end(); ++it)
 	{
 		OpeningInfoType & info = it->second;
 
@@ -281,15 +234,47 @@ void OpponentModel::considerOpenings()
 		info.weightedGames = mapPower * info.sameGames + info.otherGames;
 	}
 
+	if (_singleStrategy)
+	{
+		singleStrategyEnemyOpenings();
+	}
+	else
+	{
+		multipleStrategyEnemyOpenings();
+	}
+}
+
+// The enemy always plays the same plan against us.
+// Seek the single opening that best counters it.
+void OpponentModel::singleStrategyEnemyOpenings()
+{
+	const OpponentSummary & summary = getSummary();
+
+	// Explore different actions this proportion of the time.
+	// The number varies depending on the overall win rate: Explore less if we're usually winning.
+	const double overallWinRate = double(summary.totalWins) / summary.totalGames;
+	UAB_ASSERT(overallWinRate >= 0.0 && overallWinRate <= 1.0, "bad total");
+	const double explorationRate = 0.05 + (1.0 - overallWinRate) * 0.30;
+
+	// Decide whether to explore.
+	if (summary.totalWins == 0 || Random::Instance().flag(explorationRate))
+	{
+		// BWAPI::Broodwar->printf("single strategy - explore");
+		_recommendedOpening = getExploreOpening(summary);
+		return;
+	}
+
+	// BWAPI::Broodwar->printf("single strategy - exploit");
+
 	// We're not exploring. Choose an opening with the best weighted win rate.
-	// This is a variation on the epsilon-greedy method.
+	// This is a variation on the epsilon-greedy method (where epsilon is not a constant).
 	double bestScore = -1.0;		// every opening will have a win rate >= 0
 	double nBest = 1.0;
-	for (auto it = openingInfo.begin(); it != openingInfo.end(); ++it)
+	for (auto it = summary.openingInfo.begin(); it != summary.openingInfo.end(); ++it)
 	{
 		const OpeningInfoType & info = it->second;
 
-		double score = info.weightedGames < 0.1 ? 0.0 : info.weightedWins / info.weightedGames;
+		double score = weightedWinRate(info.weightedWins, info.weightedGames);
 
 		if (score > bestScore)
 		{
@@ -297,7 +282,7 @@ void OpponentModel::considerOpenings()
 			bestScore = score;
 			nBest = 1.0;
 		}
-		else if (abs (score - bestScore) < 0.0001)
+		else if (bestScore - score < 0.001)	// we know score <= bestScore
 		{
 			// We choose randomly among openings with essentially equal score, using reservoir sampling.
 			nBest += 1.0;
@@ -307,6 +292,68 @@ void OpponentModel::considerOpenings()
 			}
 		}
 	}
+}
+
+// The enemy plays more than one plan against us.
+// Seek a mix of openings that will keep the enemy on its toes.
+void OpponentModel::multipleStrategyEnemyOpenings()
+{
+	const OpponentSummary & summary = getSummary();
+
+	std::vector< std::pair<std::string, double> > openings;
+
+	// The exploration option. Its win rate is the mean weighted win rate of all openings tried.
+	double totalWeightedWins = 0.0;
+	double totalWeightedGames = 0.0;
+	for (auto it = summary.openingInfo.begin(); it != summary.openingInfo.end(); ++it)
+	{
+		const OpeningInfoType & info = it->second;
+
+		totalWeightedWins += info.weightedWins;
+		totalWeightedGames += info.weightedGames;
+	}
+
+	double meanWeightedWinRate = weightedWinRate(totalWeightedWins, totalWeightedGames);
+	double nextTotal = std::max(0.1, meanWeightedWinRate * meanWeightedWinRate);
+	openings.push_back(std::pair<std::string, double>("explore", nextTotal));
+
+	// The specific openings already tried.
+	for (auto it = summary.openingInfo.begin(); it != summary.openingInfo.end(); ++it)
+	{
+		const OpeningInfoType & info = it->second;
+
+		if (info.weightedWins > 0.0)
+		{
+			double rate = weightedWinRate(info.weightedWins, info.weightedGames);
+			nextTotal += rate * rate;
+			openings.push_back(std::pair<std::string, double>(it->first, nextTotal));
+		}
+	}
+
+	// Choose randomly by weight.
+
+	double w = Random::Instance().range(nextTotal);
+	for (size_t i = 0; i < openings.size(); ++i)
+	{
+		if (w < openings[i].second)
+		{
+			_recommendedOpening = openings[i].first;
+			break;
+		}
+	}
+
+	// BWAPI::Broodwar->printf("multiple strategy choice %s", _recommendedOpening.c_str());
+
+	if (_recommendedOpening == "explore")
+	{
+		_recommendedOpening = getExploreOpening(summary);
+	}
+}
+
+// Return 0.0 if there are no games.
+double OpponentModel::weightedWinRate(double weightedWins, double weightedGames) const
+{
+	return weightedGames < 0.1 ? 0.0 : weightedWins / weightedGames;
 }
 
 // Possibly update the expected enemy plan.
@@ -426,6 +473,30 @@ void OpponentModel::setBestMatch()
 	}
 
 	_bestMatch = bestRecord;
+}
+
+// We have decided to explore openings. Return an appropriate opening name.
+// "random" means choose randomly among all openings.
+// "matchup" means choose among openings for this matchup.
+// getOpeningForEnemyPlan(_expectedEnemyPlan) means choose an opening to counter the predicted enemy plan.
+std::string OpponentModel::getExploreOpening(const OpponentSummary & opponentSummary)
+{
+	UAB_ASSERT(opponentSummary.totalGames > 0, "no records");
+
+	const double wrongPlanRate = double(opponentSummary.planInfo.otherGames) / opponentSummary.totalGames;
+	// Is the predicted enemy plan likely to be right?
+	if (opponentSummary.totalGames > 30 && Random::Instance().flag(0.75))
+	{
+		return "random";
+	}
+	else if (Random::Instance().flag(0.8 * wrongPlanRate * double(std::min(opponentSummary.totalGames, 20)) / 20.0))
+	{
+		return "matchup";
+	}
+	else
+	{
+		return getOpeningForEnemyPlan(_expectedEnemyPlan);
+	}
 }
 
 // We expect the enemy to follow the given opening plan.
@@ -614,6 +685,31 @@ OpeningPlan OpponentModel::getBestGuessEnemyPlan() const
 		return _planRecognizer.getPlan();
 	}
 	return _expectedEnemyPlan;
+}
+
+// One of:
+// 1 the recognized plan
+// 2 the expected plan if the enemy is single-strategy
+// 3 the expected plan if the enemy went random and we have learned their race
+OpeningPlan OpponentModel::getDarnLikelyEnemyPlan() const
+{
+	if (_planRecognizer.getPlan() != OpeningPlan::Unknown)
+	{
+		return _planRecognizer.getPlan();
+	}
+
+	if (_singleStrategy)
+	{
+		return _expectedEnemyPlan;
+	}
+
+	if (_gameRecord.getEnemyIsRandom() &&
+		BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Unknown)
+	{
+		return _expectedEnemyPlan;
+	}
+
+	return OpeningPlan::Unknown;
 }
 
 OpponentModel & OpponentModel::Instance()

@@ -27,6 +27,7 @@ class CombatCommander
 	void            updateOverlordSquad();
 	void            updateAttackSquads();
 	void			updateReconSquad();
+	void			updateWatchSquads();
 	void            updateBaseDefenseSquads();
 	void            updateScoutDefenseSquad();
 	void            updateDropSquads();
@@ -84,6 +85,7 @@ public:
 	void releaseWorkers();
 	
 	void drawSquadInformation(int x, int y);
+	void drawCombatSimInformation();
 
 	static CombatCommander & Instance();
 };

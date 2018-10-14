@@ -140,6 +140,7 @@
     <ClCompile Include="..\Source\MapPartitions.cpp" />
     <ClCompile Include="..\Source\MapTools.cpp" />
     <ClCompile Include="..\Source\MicroAirToAir.cpp" />
+    <ClCompile Include="..\Source\MicroDefilers.cpp" />
     <ClCompile Include="..\Source\MicroDetectors.cpp" />
     <ClCompile Include="..\Source\MicroHighTemplar.cpp" />
     <ClCompile Include="..\Source\MicroLurkers.cpp" />
@@ -155,6 +156,7 @@
     <ClCompile Include="..\Source\MicroTransports.cpp" />
     <ClCompile Include="..\Source\OpponentModel.cpp" />
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
+    <ClCompile Include="..\Source\OpsBoss.cpp" />
     <ClCompile Include="..\Source\ParseUtils.cpp" />
     <ClCompile Include="..\Source\PlayerSnapshot.cpp" />
     <ClCompile Include="..\Source\ProductionGoal.cpp" />
@@ -201,6 +203,7 @@
     <ClInclude Include="..\Source\MapPartitions.h" />
     <ClInclude Include="..\Source\MapTools.h" />
     <ClInclude Include="..\Source\MicroAirToAir.h" />
+    <ClInclude Include="..\Source\MicroDefilers.h" />
     <ClInclude Include="..\Source\MicroDetectors.h" />
     <ClInclude Include="..\Source\MicroHighTemplar.h" />
     <ClInclude Include="..\Source\MicroLurkers.h" />
@@ -216,6 +219,7 @@
     <ClInclude Include="..\Source\MicroTransports.h" />
     <ClInclude Include="..\Source\OpponentModel.h" />
     <ClInclude Include="..\Source\OpponentPlan.h" />
+    <ClInclude Include="..\Source\OpsBoss.h" />
     <ClInclude Include="..\Source\ParseUtils.h" />
     <ClInclude Include="..\Source\PlayerSnapshot.h" />
     <ClInclude Include="..\Source\ProductionGoal.h" />

@@ -13,7 +13,8 @@ MapGrid & MapGrid::Instance()
 
 MapGrid::MapGrid()
 	: the(The::Root())
-{}
+{
+}
 
 MapGrid::MapGrid(int mapWidth, int mapHeight, int cellSize) 
 	: the(The::Root())
@@ -200,6 +201,7 @@ void MapGrid::update()
 	}
 }
 
+// Return the set of units in the given circle.
 void MapGrid::getUnits(BWAPI::Unitset & units, BWAPI::Position center, int radius, bool ourUnits, bool oppUnits)
 {
 	const int x0(std::max( (center.x - radius) / cellSize, 0));
@@ -207,6 +209,7 @@ void MapGrid::getUnits(BWAPI::Unitset & units, BWAPI::Position center, int radiu
 	const int y0(std::max( (center.y - radius) / cellSize, 0));
 	const int y1(std::min( (center.y + radius) / cellSize, rows-1));
 	const int radiusSq(radius * radius);
+
 	for(int y(y0); y<=y1; ++y)
 	{
 		for(int x(x0); x<=x1; ++x)
@@ -231,7 +234,7 @@ void MapGrid::getUnits(BWAPI::Unitset & units, BWAPI::Position center, int radiu
 			}
 			if(oppUnits)
 			{
-				for (const auto unit : cell.oppUnits) if (unit->getType() != BWAPI::UnitTypes::Unknown && unit->isVisible())
+				for (const auto unit : cell.oppUnits) if (unit->getType() != BWAPI::UnitTypes::Unknown)
 				{
 					BWAPI::Position d(unit->getPosition() - center);
 					if(d.x * d.x + d.y * d.y <= radiusSq)
@@ -247,7 +250,7 @@ void MapGrid::getUnits(BWAPI::Unitset & units, BWAPI::Position center, int radiu
 	}
 }
 
-// The bot scanned the given position. Record it so we don't scan the same position
+// We scanned the given position. Record it so we don't scan the same position
 // again before it wears off.
 void MapGrid::scanAtPosition(const BWAPI::Position & pos)
 {

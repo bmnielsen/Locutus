@@ -1,6 +1,8 @@
-#include "InformationManager.h"
-#include "Micro.h"
+#include "MicroManager.h"
 #include "MicroMelee.h"
+
+#include "InformationManager.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -11,22 +13,14 @@ MicroMelee::MicroMelee()
 { 
 }
 
-void MicroMelee::executeMicro(const BWAPI::Unitset & targets) 
+void MicroMelee::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
-	if (order.getType() == SquadOrderTypes::DestroyNeutral)
-	{
-		destroyNeutralTargets(targets);
-	}
-	else
-	{
-		assignTargets(targets);
-	}
+	BWAPI::Unitset units = Intersection(getUnits(), cluster.units);
+	assignTargets(units, targets);
 }
 
-void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
+void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::Unitset & targets)
 {
-    const BWAPI::Unitset & meleeUnits = getUnits();
-
 	BWAPI::Unitset meleeUnitTargets;
 	for (const auto target : targets) 
 	{
@@ -64,11 +58,6 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 		
 		if (order.isCombatOrder())
         {
-			if (unstickStuckUnit(meleeUnit))
-			{
-				continue;
-			}
-
 			// run away if we meet the retreat criterion
             if (meleeUnitShouldRetreat(meleeUnit, targets))
             {
@@ -82,7 +71,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 				else
 				{
 					BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
-					Micro::Move(meleeUnit, fleeTo);
+					the.micro.Move(meleeUnit, fleeTo);
 				}
             }
 			else
@@ -90,12 +79,21 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 				BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets);
 				if (target)
 				{
-					Micro::CatchAndAttackUnit(meleeUnit, target);
+					// CatchAndAttackUnit() does not work well in big melee battles.
+					// We still use it for worker targets, to catch the enemy scout.
+					if (target->getType().isWorker())
+					{
+						the.micro.CatchAndAttackUnit(meleeUnit, target);
+					}
+					else
+					{
+						the.micro.AttackUnit(meleeUnit, target);
+					}
 				}
 				else if (meleeUnit->getDistance(order.getPosition()) > 96)
 				{
 					// There are no targets. Move to the order position if not already close.
-					Micro::Move(meleeUnit, order.getPosition());
+					the.micro.Move(meleeUnit, order.getPosition());
 				}
 			}
 		}
@@ -127,6 +125,12 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 			continue;
 		}
 
+		// Don't chase targets that we can't catch.
+		if (!CanCatchUnit(meleeUnit, target))
+		{
+			continue;
+		}
+
 		// Let's say that 1 priority step is worth 64 pixels (2 tiles).
 		// We care about unit-target range and target-order position distance.
 		int score = 2 * 32 * priority - range;
@@ -143,6 +147,11 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 				continue;
 			}
 			score += 4 * 32;
+		}
+
+		if (target->isUnderStorm())
+		{
+			score -= 6 * 32;
 		}
 
 		// A bonus for attacking enemies that are "in front".
@@ -186,11 +195,6 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 			score -= 2 * 32;
 		}
 
-		if (target->isUnderStorm())
-		{
-			score -= 4 * 32;
-		}
-
 		// Prefer targets that are already hurt.
 		if (target->getType().getRace() == BWAPI::Races::Protoss && target->getShields() == 0)
 		{
@@ -215,6 +219,14 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) const
 {
 	BWAPI::UnitType targetType = target->getType();
+
+	// A ghost which is nuking is the highest priority by a mile.
+	if (targetType == BWAPI::UnitTypes::Terran_Ghost &&
+		target->getOrder() == BWAPI::Orders::NukePaint ||
+		target->getOrder() == BWAPI::Orders::NukeTrack)
+	{
+		return 15;
+	}
 
 	// Exceptions for dark templar.
 	if (attacker->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
@@ -254,11 +266,8 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 	// Medics and ordinary combat units. Include workers that are doing stuff.
 	if (targetType == BWAPI::UnitTypes::Terran_Medic ||
 		targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
-		targetType == BWAPI::UnitTypes::Protoss_Reaver)
-	{
-		return 12;
-	}
-	if (targetType.groundWeapon() != BWAPI::WeaponTypes::None && !targetType.isWorker())
+		targetType == BWAPI::UnitTypes::Zerg_Defiler ||
+		UnitUtil::CanAttackGround(target) && !targetType.isWorker())  // includes cannons and sunkens
 	{
 		return 12;
 	}
@@ -277,16 +286,20 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 	{
 		return 10;
 	}
-	if (targetType == BWAPI::UnitTypes::Zerg_Spire)
+	if (targetType == BWAPI::UnitTypes::Zerg_Spire ||
+		targetType == BWAPI::UnitTypes::Zerg_Greater_Spire)
 	{
 		return 6;
 	}
-	if (targetType == BWAPI::UnitTypes::Zerg_Spawning_Pool ||
-		targetType.isResourceDepot() ||
-		targetType == BWAPI::UnitTypes::Protoss_Templar_Archives ||
+	if (targetType == BWAPI::UnitTypes::Protoss_Templar_Archives ||
 		targetType.isSpellcaster())
 	{
 		return 5;
+	}
+	if (targetType == BWAPI::UnitTypes::Protoss_Pylon ||
+		targetType == BWAPI::UnitTypes::Zerg_Spawning_Pool)
+	{
+		return 4;
 	}
 	// Short circuit: Addons other than a completed comsat are worth almost nothing.
 	// TODO should also check that it is attached

@@ -12,7 +12,7 @@ namespace UAlbertaBot
 
 		MicroLurkers();
 
-		void executeMicro(const BWAPI::Unitset & targets);
+		void executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster);
 		BWAPI::Unit getTarget(BWAPI::Unit lurker, const BWAPI::Unitset & targets);
 		int getAttackPriority(BWAPI::Unit target) const;
 	};

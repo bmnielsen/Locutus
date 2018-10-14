@@ -12,7 +12,14 @@ Random::Random()
 	_rng = std::minstd_rand(seed());
 }
 
-// Random number in the range [0,n-1], such as an array index.
+// Random floating point number in the range [0, r).
+double Random::range(double r)
+{
+	std::uniform_real_distribution<double> uniform_dist(0.0, r);
+	return uniform_dist(_rng);
+}
+
+// Random integer in the range [0,n-1], such as an array index.
 int Random::index(int n)
 {
 	std::uniform_int_distribution<int> uniform_dist(0, n-1);
@@ -26,6 +33,8 @@ bool Random::flag(double probability)
 	std::uniform_real_distribution<double> uniform_dist(0.0, 1.0);
 	return uniform_dist(_rng) < probability;
 }
+
+
 
 Random & Random::Instance()
 {

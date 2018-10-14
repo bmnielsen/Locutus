@@ -23,8 +23,9 @@ namespace UAlbertaBot {
 			mutable int maxShields = 0;
 
 			mutable double speed = 0;
-			mutable bool flying = 0;
+			mutable bool flying = false;
 			mutable int elevation = -1;
+			mutable bool underSwarm = false;
 
 			mutable BWAPI::UnitSizeType unitSize;
 

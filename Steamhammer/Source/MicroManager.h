@@ -4,25 +4,27 @@
 
 namespace UAlbertaBot
 {
+class The;
+class UnitCluster;
+
 class MicroManager
 {
 	BWAPI::Unitset		_units;
 
 protected:
 	
+	The &				the;
+
 	SquadOrder			order;
 
-	virtual void        executeMicro(const BWAPI::Unitset & targets) = 0;
+	virtual void        executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster) = 0;
 	void				destroyNeutralTargets(const BWAPI::Unitset & targets);
-	bool				buildScarabOrInterceptor(BWAPI::Unit u) const;
 	bool                checkPositionWalkable(BWAPI::Position pos);
 	bool                unitNearEnemy(BWAPI::Unit unit);
 	bool                unitNearChokepoint(BWAPI::Unit unit) const;
 
-	bool				mobilizeUnit(BWAPI::Unit unit) const;      // unsiege or unburrow
-	bool				immobilizeUnit(BWAPI::Unit unit) const;    // siege or burrow
-	bool				unstickStuckUnit(BWAPI::Unit unit);
-
+	bool				dodgeMine(BWAPI::Unit u) const;
+	bool				buildScarabOrInterceptor(BWAPI::Unit u) const;
 	void				useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery);
 
 	void                drawOrderText();
@@ -36,8 +38,8 @@ public:
 
 	void				setUnits(const BWAPI::Unitset & u);
 	void				setOrder(const SquadOrder & inputOrder);
-	void				execute();
-	void				regroup(const BWAPI::Position & regroupPosition) const;
+	void				execute(const UnitCluster & cluster);
+	void				regroup(const BWAPI::Position & regroupPosition, const UnitCluster & cluster) const;
 
 };
 }

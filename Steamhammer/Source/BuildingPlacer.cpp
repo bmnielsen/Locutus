@@ -4,10 +4,12 @@
 #include "Common.h"
 #include "InformationManager.h"
 #include "MapTools.h"
+#include "The.h"
 
 using namespace UAlbertaBot;
 
 BuildingPlacer::BuildingPlacer()
+	: the(The::Root())
 {
     _reserveMap = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(),std::vector<bool>(BWAPI::Broodwar->mapHeight(),false));
 
@@ -82,6 +84,13 @@ bool BuildingPlacer::canBuildHere(BWAPI::TilePosition position, const Building &
     {
         return false;
     }
+
+	// Check whether a worker can reach the place.
+	// NOTE This simplified check disallows building on islands!
+	if (!Bases::Instance().connectedToStart(position))
+	{
+		return false;
+	}
 
     // check the reserve map
     for (int x = position.x; x < position.x + b.type.tileWidth(); x++)

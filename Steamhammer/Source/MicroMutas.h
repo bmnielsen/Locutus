@@ -1,9 +1,9 @@
 #pragma once;
 
-#include "MicroManager.h"
-
 namespace UAlbertaBot
 {
+class MicroManager;
+
 // Associate a unit with an integer score.
 typedef std::pair<BWAPI::Unit, int> unitScoreT;;
 
@@ -32,6 +32,6 @@ private:
 public:
 	MicroMutas();
 
-	void executeMicro(const BWAPI::Unitset & targets);
+	void executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster);
 };
 }

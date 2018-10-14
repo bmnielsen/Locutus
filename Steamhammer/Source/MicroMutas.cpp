@@ -1,7 +1,8 @@
+#include "MicroManager.h"
 #include "MicroMutas.h"
 
 #include "InformationManager.h"
-#include "Micro.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -102,7 +103,7 @@ void MicroMutas::reinforce(const BWAPI::Unitset & stragglers, const BWAPI::Posit
 {
 	for (BWAPI::Unit muta : stragglers)
 	{
-		Micro::Move(muta, center);
+		the.micro.Move(muta, center);
 		BWAPI::Broodwar->drawCircleMap(muta->getPosition(), 4, BWAPI::Colors::Red);
 		BWAPI::Broodwar->drawCircleMap(muta->getPosition(), 6, BWAPI::Colors::Red);
 	}
@@ -360,6 +361,14 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 		}
 	}
 
+	// A ghost which is nuking is the highest priority by a mile.
+	if (targetType == BWAPI::UnitTypes::Terran_Ghost &&
+		target->getOrder() == BWAPI::Orders::NukePaint ||
+		target->getOrder() == BWAPI::Orders::NukeTrack)
+	{
+		return 15;
+	}
+
 	// An addon other than a completed comsat is boring.
 	// TODO should also check that it is attached
 	if (targetType.isAddon() && !(targetType == BWAPI::UnitTypes::Terran_Comsat_Station && target->isCompleted()))
@@ -400,7 +409,8 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 		return 10;
 	}
 
-	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar)
+	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
+		targetType == BWAPI::UnitTypes::Zerg_Defiler)
 	{
 		return 12;
 	}
@@ -528,11 +538,11 @@ void MicroMutas::attackAssignedTargets(const BWAPI::Position & center)
 		{
 			if (muta->getDistance(order.getPosition()) > 3 * 32)
 			{
-				Micro::Move(muta, order.getPosition());
+				the.micro.Move(muta, order.getPosition());
 			}
 			else
 			{
-				Micro::Move(muta, center);
+				the.micro.Move(muta, center);
 			}
 		}
 	}
@@ -552,11 +562,11 @@ void MicroMutas::attackAssignedTargets(const BWAPI::Position & center)
 			BWAPI::Broodwar->drawTextMap(target->getPosition() + BWAPI::Position(-6, 6), "%c%d", white, hitsToKill(target));
 			if (targetsHaveAntiAir)
 			{
-				Micro::MutaDanceTarget(muta, target);
+				the.micro.MutaDanceTarget(muta, target);
 			}
 			else
 			{
-				Micro::CatchAndAttackUnit(muta, target);
+				the.micro.CatchAndAttackUnit(muta, target);
 			}
 		}
 	}
@@ -571,7 +581,7 @@ MicroMutas::MicroMutas()
 
 // Send the stragglers to join up.
 // Choose targets for the ready units.
-void MicroMutas::executeMicro(const BWAPI::Unitset & targets)
+void MicroMutas::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 	if (getUnits().empty())
 	{
@@ -589,11 +599,11 @@ void MicroMutas::executeMicro(const BWAPI::Unitset & targets)
 		{
 			if (muta->getDistance(center) <= irradiateRange)
 			{
-				Micro::Move(muta, getFleePosition(muta, center, targets));
+				the.micro.Move(muta, getFleePosition(muta, center, targets));
 			}
 			else
 			{
-				Micro::AttackMove(muta, getFleePosition(muta, center, targets));
+				the.micro.AttackMove(muta, getFleePosition(muta, center, targets));
 			}
 		}
         else if (muta->getDistance(center) <= groupingRange)

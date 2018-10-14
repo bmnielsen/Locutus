@@ -7,7 +7,8 @@
 using namespace UAlbertaBot;
 
 GameCommander::GameCommander() 
-	: _combatCommander(CombatCommander::Instance())
+	: the(The::Root())
+	, _combatCommander(CombatCommander::Instance())
 	, _initialScoutTime(0)
 	, _surrenderTime(0)
 {
@@ -35,7 +36,8 @@ void GameCommander::update()
 		return;
 	}
 
-	// utility managers
+	// -- Managers that gather inforation. --
+
 	_timerManager.startTimer(TimerManager::InformationManager);
 	InformationManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::InformationManager);
@@ -43,6 +45,12 @@ void GameCommander::update()
 	_timerManager.startTimer(TimerManager::MapGrid);
 	MapGrid::Instance().update();
 	_timerManager.stopTimer(TimerManager::MapGrid);
+
+	_timerManager.startTimer(TimerManager::OpponentModel);
+	OpponentModel::Instance().update();
+	_timerManager.stopTimer(TimerManager::OpponentModel);
+
+	// -- Managers that act on information. --
 
 	_timerManager.startTimer(TimerManager::Search);
 	BOSSManager::Instance().update(35 - _timerManager.getMilliseconds());
@@ -68,9 +76,10 @@ void GameCommander::update()
     ScoutManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::Scout);
 
-	_timerManager.startTimer(TimerManager::OpponentModel);
-	OpponentModel::Instance().update();
-	_timerManager.stopTimer(TimerManager::OpponentModel);
+	// Execute micro commands gathered above. Do this at the end of the frame.
+	_timerManager.startTimer(TimerManager::Micro);
+	the.micro.update();
+	_timerManager.stopTimer(TimerManager::Micro);
 
 	_timerManager.stopTimer(TimerManager::Total);
 
@@ -91,7 +100,8 @@ void GameCommander::drawDebugInterface()
 	MapTools::Instance().drawHomeDistances();
     
 	_combatCommander.drawSquadInformation(200, 70);
-    _timerManager.displayTimers(490, 225);
+	_combatCommander.drawCombatSimInformation();
+	_timerManager.drawModuleTimers(490, 215);
     drawGameInformation(4, 1);
 
 	drawUnitOrders();
@@ -112,17 +122,17 @@ void GameCommander::drawGameInformation(int x, int y)
 		return;
 	}
 
-	BWAPI::Broodwar->drawTextScreen(x, y, "\x04Players:");
-	BWAPI::Broodwar->drawTextScreen(x+50, y, "%c%s %cv %c%s",
+	const OpponentModel::OpponentSummary & summary = OpponentModel::Instance().getSummary();
+	BWAPI::Broodwar->drawTextScreen(x, y, "%c%s %cv %c%s %c%d-%d",
 		BWAPI::Broodwar->self()->getTextColor(), BWAPI::Broodwar->self()->getName().c_str(),
 		white,
-        BWAPI::Broodwar->enemy()->getTextColor(), BWAPI::Broodwar->enemy()->getName().c_str());
+        BWAPI::Broodwar->enemy()->getTextColor(), BWAPI::Broodwar->enemy()->getName().c_str(),
+		white, summary.totalWins, summary.totalGames - summary.totalWins);
 	y += 12;
 	
 	const std::string & openingGroup = StrategyManager::Instance().getOpeningGroup();
 	bool gasSteal = OpponentModel::Instance().getRecommendGasSteal() || ScoutManager::Instance().wantGasSteal();
-    BWAPI::Broodwar->drawTextScreen(x, y, "\x04Strategy:");
-	BWAPI::Broodwar->drawTextScreen(x + 50, y, "\x03%s%s%s%s",
+	BWAPI::Broodwar->drawTextScreen(x, y, "\x03%s%s%s%s",
 		Config::Strategy::StrategyName.c_str(),
 		openingGroup != "" ? (" (" + openingGroup + ")").c_str() : "",
 		gasSteal ? " + steal gas" : "",
@@ -149,8 +159,7 @@ void GameCommander::drawGameInformation(int x, int y)
 	{
 		enemyPlanString = OpponentModel::Instance().getEnemyPlanString();
 	}
-	BWAPI::Broodwar->drawTextScreen(x, y, "\x04Opp Plan:");
-	BWAPI::Broodwar->drawTextScreen(x + 50, y, "%c%s%c%s", orange, expect.c_str(), yellow, enemyPlanString.c_str());
+	BWAPI::Broodwar->drawTextScreen(x, y, "%cOpp Plan %c%s%c%s", white, orange, expect.c_str(), yellow, enemyPlanString.c_str());
 	y += 12;
 
 	std::string island = "";
@@ -158,19 +167,25 @@ void GameCommander::drawGameInformation(int x, int y)
 	{
 		island = " (island)";
 	}
-	BWAPI::Broodwar->drawTextScreen(x, y, "\x04Map:");
-	BWAPI::Broodwar->drawTextScreen(x+50, y, "%c%s%c%s", yellow, BWAPI::Broodwar->mapFileName().c_str(), orange, island.c_str());
+	BWAPI::Broodwar->drawTextScreen(x, y, "%c%s%c%s", yellow, BWAPI::Broodwar->mapFileName().c_str(), orange, island.c_str());
 	BWAPI::Broodwar->setTextSize();
 	y += 12;
 
 	int frame = BWAPI::Broodwar->getFrameCount();
-	BWAPI::Broodwar->drawTextScreen(x, y, "\x04Time:");
-	BWAPI::Broodwar->drawTextScreen(x + 50, y, "\x04%d %2u:%02u mean %.1fms max %.1fms",
+	BWAPI::Broodwar->drawTextScreen(x, y, "\x04%d %2u:%02u mean %.1fms max %.1fms",
 		frame,
 		int(frame / (23.8 * 60)),
 		int(frame / 23.8) % 60,
 		_timerManager.getMeanMilliseconds(),
 		_timerManager.getMaxMilliseconds());
+
+	/*
+	// latency display
+	y += 12;
+	BWAPI::Broodwar->drawTextScreen(x + 50, y, "\x04%d max %d",
+		BWAPI::Broodwar->getRemainingLatencyFrames(),
+		BWAPI::Broodwar->getLatencyFrames());
+	*/
 }
 
 void GameCommander::drawUnitOrders()
@@ -218,7 +233,10 @@ void GameCommander::drawUnitOrders()
 		{
 			BWAPI::Broodwar->drawTextMap(x, y, "%c%s", yellow, extra.c_str());
 		}
-		BWAPI::Broodwar->drawTextMap(x, y + 10, "%c%s", cyan, unit->getOrder().getName().c_str());
+		if (unit->getOrder() != BWAPI::Orders::Nothing)
+		{
+			BWAPI::Broodwar->drawTextMap(x, y + 10, "%c%d %c%s", white, unit->getID(), cyan, unit->getOrder().getName().c_str());
+		}
 	}
 }
 
@@ -259,7 +277,6 @@ void GameCommander::setScoutUnits()
 	// If we're zerg, assign the first overlord to scout.
 	if (BWAPI::Broodwar->getFrameCount() == 0 &&
 		BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg)
-		// (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran || Bases::Instance().isIslandStart()))
 	{
 		for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		{

@@ -545,9 +545,26 @@ int Bases::baseCount(BWAPI::Player player) const
 {
 	int count = 0;
 
-	for (Base * base : bases)
+	for (const Base * base : bases)
 	{
 		if (base->getOwner() == player)
+		{
+			++count;
+		}
+	}
+
+	return count;
+}
+
+// The number of completed bases believed owned by the given player,
+// self, enemy, or neutral.
+int Bases::completedBaseCount(BWAPI::Player player) const
+{
+	int count = 0;
+
+	for (const Base * base : bases)
+	{
+		if (base->getOwner() == player && UnitUtil::IsCompletedResourceDepot(base->getDepot()))
 		{
 			++count;
 		}

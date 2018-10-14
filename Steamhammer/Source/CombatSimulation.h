@@ -10,10 +10,9 @@ namespace UAlbertaBot
 class CombatSimulation
 {
 public:
-
 	CombatSimulation();
 
-	void setCombatUnits(const BWAPI::Position & center, const int radius, bool visibleOnly);
+	void setCombatUnits(const BWAPI::Unitset & myUnits, const BWAPI::Position & center, int radius, bool visibleOnly);
 
 	double simulateCombat();
 };

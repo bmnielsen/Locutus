@@ -1,7 +1,7 @@
-#include "Micro.h"
 #include "MicroManager.h"
 #include "MicroLurkers.h"
-#include "MapTools.h"
+
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -10,9 +10,9 @@ MicroLurkers::MicroLurkers()
 {
 }
 
-void MicroLurkers::executeMicro(const BWAPI::Unitset & targets)
+void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
-	const BWAPI::Unitset & lurkers = getUnits();
+	const BWAPI::Unitset & lurkers = Intersection (getUnits(), cluster.units);
 
 	// Potential targets.
 	BWAPI::Unitset LurkerTargets;
@@ -67,7 +67,7 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets)
 				{
 					if (dist <= lurkerRange)
 					{
-						Micro::AttackUnit(lurker, target);
+						the.micro.AttackUnit(lurker, target);
 					}
 				}
 			}
@@ -87,12 +87,12 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets)
 				{
 					if (dist <= lurkerRange)
 					{
-						Micro::AttackUnit(lurker, target);
+						the.micro.AttackUnit(lurker, target);
 					}
 				}
 				else
 				{
-					Micro::Move(lurker, target->getPosition());
+					the.micro.Move(lurker, target->getPosition());
 				}
 			}
 			else
@@ -103,12 +103,12 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets)
 				{
 					if (dist <= lurkerRange)
 					{
-						Micro::AttackUnit(lurker, target);
+						the.micro.AttackUnit(lurker, target);
 					}
 				}
 				else
 				{
-					Micro::Move(lurker, target->getPosition());
+					the.micro.Move(lurker, target->getPosition());
 				}
 			}
 		}
@@ -134,7 +134,7 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets)
 				}
 				else
 				{
-					Micro::Move(lurker, order.getPosition());
+					the.micro.Move(lurker, order.getPosition());
 				}
 			}
 		}
@@ -191,13 +191,22 @@ int MicroLurkers::getAttackPriority(BWAPI::Unit target) const
 {
 	BWAPI::UnitType targetType = target->getType();
 
+	// A ghost which is nuking is the highest priority by a mile.
+	if (targetType == BWAPI::UnitTypes::Terran_Ghost &&
+		target->getOrder() == BWAPI::Orders::NukePaint ||
+		target->getOrder() == BWAPI::Orders::NukeTrack)
+	{
+		return 15;
+	}
+
 	// A spider mine on the attack is a time-critical target.
 	if (targetType == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine && !target->isBurrowed())
 	{
 		return 10;
 	}
 	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
-		targetType == BWAPI::UnitTypes::Protoss_Reaver)
+		targetType == BWAPI::UnitTypes::Protoss_Reaver ||
+		targetType == BWAPI::UnitTypes::Zerg_Defiler)
 	{
 		return 10;
 	}

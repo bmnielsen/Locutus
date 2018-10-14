@@ -15,6 +15,7 @@
 
 namespace UAlbertaBot
 {
+class The;
 
 class UnitToAssign
 {
@@ -32,6 +33,7 @@ public:
 
 class GameCommander 
 {
+	The &					the;
 	CombatCommander &		_combatCommander;
 	TimerManager		    _timerManager;
 

@@ -1,19 +1,101 @@
 #include "Micro.h"
+
+#include "InformationManager.h"
 #include "MapGrid.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
 size_t TotalCommands = 0;
 
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+MicroInfo::MicroInfo()
+	: unit(nullptr)
+	, order(BWAPI::Orders::None)
+	, orderFrame(-1)
+	, targetUnit(nullptr)
+	, targetPosition(BWAPI::Positions::None)
+{
+}
+
+void MicroInfo::setOrder(BWAPI::Unit u, BWAPI::Order o)
+{
+	unit = u;
+	order = o;
+	orderFrame = BWAPI::Broodwar->getFrameCount();
+	targetUnit = nullptr;
+	targetPosition = BWAPI::Positions::None;
+}
+
+void MicroInfo::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Unit t)
+{
+	unit = u;
+	order = o;
+	orderFrame = BWAPI::Broodwar->getFrameCount();
+	targetUnit = u;
+	targetPosition = BWAPI::Positions::None;
+}
+
+void MicroInfo::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Position p)
+{
+	unit = u;
+	order = o;
+	orderFrame = BWAPI::Broodwar->getFrameCount();
+	targetUnit = nullptr;
+	targetPosition = p;
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+// For drawing debug info on the screen.
 const int dotRadius = 2;
 
-bool Micro::AlwaysKite(BWAPI::UnitType type)
+// Execute any micro commands stored up this frame, and generally try to make sure
+// that units do what they have been ordered to.
+void Micro::update()
+{
+	for (auto it = orders.begin(); it != orders.end(); )
+	{
+		BWAPI::Unit u = (*it).first;
+
+		if (u->exists())
+		{
+			// TODO the work is not implemented.
+
+			++it;
+		}
+		else
+		{
+			// Delete records for units which are gone.
+			it = orders.erase(it);
+		}
+	}
+}
+
+bool Micro::AlwaysKite(BWAPI::UnitType type) const
 {
 	return
 		type == BWAPI::UnitTypes::Zerg_Mutalisk ||
 		type == BWAPI::UnitTypes::Terran_Vulture ||
 		type == BWAPI::UnitTypes::Terran_Wraith;
+}
+
+BWAPI::Position Micro::GetKiteVector(BWAPI::Unit unit, BWAPI::Unit target) const
+{
+	BWAPI::Position fleeVec(target->getPosition() - unit->getPosition());
+	double fleeAngle = atan2(fleeVec.y, fleeVec.x);
+	fleeVec = BWAPI::Position(static_cast<int>(64 * cos(fleeAngle)), static_cast<int>(64 * sin(fleeAngle)));
+	ClipToMap(fleeVec);
+	return fleeVec;
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+Micro::Micro()
+	: the(The::Root())
+{
 }
 
 void Micro::Stop(BWAPI::Unit unit)
@@ -37,6 +119,8 @@ void Micro::Stop(BWAPI::Unit unit)
 		return;
 	}
 
+	orders[unit].setOrder(unit, BWAPI::Orders::Stop);
+
 	unit->stop();
 	TotalCommands++;
 }
@@ -59,9 +143,22 @@ void Micro::CatchAndAttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
 	}
 	else
 	{
-		BWAPI::Position destination(PredictMovement(target, 8));	// the number is how many frames to look ahead
-		//BWAPI::Broodwar->drawLineMap(attacker->getPosition(), destination, BWAPI::Colors::Blue);
-		Move(attacker, destination);
+		if (attacker->getDistance(target) > 196)
+		{
+			// The target is far away, so a short-term prediction is not useful. Go straight for it.
+			// BWAPI::Broodwar->drawLineMap(attacker->getPosition(), target->getPosition(), BWAPI::Colors::Red);
+			Move(attacker, target->getPosition());
+		}
+		else
+		{
+			// The target is moving away. Aim for its predicted position.
+			// NOTE The caller should have already decided that we can catch the target.
+			int frames = UnitUtil::FramesToReachAttackRange(attacker, target);
+			BWAPI::Position destination = PredictMovement(target, std::min(frames, 12));
+			//BWAPI::Broodwar->drawLineMap(target->getPosition(), destination, BWAPI::Colors::Blue);
+			//BWAPI::Broodwar->drawLineMap(attacker->getPosition(), destination, BWAPI::Colors::Yellow);
+			Move(attacker, destination);
+		}
 	}
 }
 
@@ -82,7 +179,7 @@ void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
     {
 		return;
     }
-
+	
     // get the unit's current command
     BWAPI::UnitCommand currentCommand(attacker->getLastCommand());
 
@@ -92,7 +189,9 @@ void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
 		return;
     }
 	
-    // if nothing prevents it, attack the target
+	orders[attacker].setOrder(attacker, BWAPI::Orders::AttackUnit, target);
+
+	// if nothing prevents it, attack the target
     attacker->attack(target);
     TotalCommands++;
 
@@ -126,6 +225,8 @@ void Micro::AttackMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosit
 	{
 		return;
 	}
+
+	orders[attacker].setOrder(attacker, BWAPI::Orders::AttackMove, targetPosition);
 
 	// if nothing prevents it, attack the target
 	attacker->attack(targetPosition);
@@ -169,7 +270,8 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 	}
 
     // if we have issued a command to this unit already this frame, ignore this one
-    if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() || attacker->isAttackFrame())
+    if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() ||
+		(attacker->isAttackFrame() && attacker->getType() != BWAPI::UnitTypes::Zerg_Mutalisk))
     {
         return;
     }
@@ -182,7 +284,9 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
         return;
     }
 
-    // if nothing prevents it, move the target position
+	orders[attacker].setOrder(attacker, BWAPI::Orders::Move, targetPosition);
+
+	// if nothing prevents it, move the target position
 	attacker->move(targetPosition);
     TotalCommands++;
 
@@ -218,6 +322,18 @@ void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
         return;
     }
 
+	// NOTE This treats a right-click on one of our own units as an order to attack it.
+	BWAPI::Order order = BWAPI::Orders::AttackUnit;
+	if (target->getType() == BWAPI::UnitTypes::Resource_Mineral_Field)
+	{
+		order = BWAPI::Orders::MoveToMinerals;
+	}
+	else if (target->getType().isRefinery())
+	{
+		order = BWAPI::Orders::MoveToGas;
+	}
+	orders[unit].setOrder(unit, order, target);
+
     // if nothing prevents it, attack the target
     unit->rightClick(target);
     TotalCommands++;
@@ -228,6 +344,34 @@ void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
         BWAPI::Broodwar->drawCircleMap(target->getPosition(), dotRadius, BWAPI::Colors::Cyan, true);
         BWAPI::Broodwar->drawLineMap(unit->getPosition(), target->getPosition(), BWAPI::Colors::Cyan);
     }
+}
+
+// This is part of the support for mineral locking. It works for gathering resources.
+// To mine out blocking minerals with zero resources, or to mineral walk, use RightClick() instead.
+void Micro::MineMinerals(BWAPI::Unit unit, BWAPI::Unit mineralPatch)
+{
+	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self() ||
+		!mineralPatch || !mineralPatch->exists() || !mineralPatch->getType().isMineralField())
+	{
+		UAB_ASSERT(false, "bad arg");
+		return;
+	}
+
+	// if we have issued a command to this unit already this frame, ignore this one
+	if (unit->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() || unit->isAttackFrame())
+	{
+		return;
+	}
+
+	orders[unit].setOrder(unit, BWAPI::Orders::MoveToMinerals, mineralPatch);
+
+	unit->rightClick(mineralPatch);
+	TotalCommands++;
+
+	if (Config::Debug::DrawUnitTargetInfo)
+	{
+		BWAPI::Broodwar->drawLineMap(unit->getPosition(), mineralPatch->getPosition(), BWAPI::Colors::Cyan);
+	}
 }
 
 void Micro::LaySpiderMine(BWAPI::Unit unit, BWAPI::Position pos)
@@ -250,6 +394,8 @@ void Micro::LaySpiderMine(BWAPI::Unit unit, BWAPI::Position pos)
     {
         return;
     }
+
+	orders[unit].setOrder(unit, BWAPI::Orders::PlaceMine, pos);
 
     unit->canUseTechPosition(BWAPI::TechTypes::Spider_Mines, pos);
 }
@@ -278,7 +424,9 @@ void Micro::Repair(BWAPI::Unit unit, BWAPI::Unit target)
         return;
     }
 
-    // Nothing prevents it, so attack the target.
+	orders[unit].setOrder(unit, BWAPI::Orders::Repair, target);
+
+	// Nothing prevents it, so attack the target.
     unit->repair(target);
     TotalCommands++;
 
@@ -293,6 +441,7 @@ void Micro::Repair(BWAPI::Unit unit, BWAPI::Unit target)
 // Perform a comsat scan at the given position if possible and necessary.
 // If it's not possible, or we already scanned there, do nothing.
 // Return whether the scan occurred.
+// NOTE Comsat scan does not use the orders[] mechanism.
 bool Micro::Scan(const BWAPI::Position & targetPosition)
 {
 	UAB_ASSERT(targetPosition.isValid(), "bad position");
@@ -329,6 +478,7 @@ bool Micro::Scan(const BWAPI::Position & targetPosition)
 
 // Stim the given marine or firebat, if possible; otherwise, do nothing.
 // Return whether the stim occurred.
+// NOTE Stim does not use the orders[] mechanism. Apparently no order corresponds to stim.
 bool Micro::Stim(BWAPI::Unit unit)
 {
 	if (!unit ||
@@ -384,6 +534,8 @@ bool Micro::MergeArchon(BWAPI::Unit templar1, BWAPI::Unit templar2)
 		return false;
 	}
 
+	orders[templar1].setOrder(templar1, BWAPI::Orders::ArchonWarp, templar2);
+
 	// useTech() checks any other conditions.
 	return templar1->useTech(BWAPI::TechTypes::Archon_Warp, templar2);
 }
@@ -416,6 +568,8 @@ void Micro::ReturnCargo(BWAPI::Unit worker)
 		return;
 	}
 
+	orders[worker].setOrder(worker, worker->isCarryingMinerals() ? BWAPI::Orders::ReturnMinerals : BWAPI::Orders::ReturnGas);
+
 	// Nothing prevents it, so return cargo.
 	worker->returnCargo();
 	TotalCommands++;
@@ -423,7 +577,7 @@ void Micro::ReturnCargo(BWAPI::Unit worker)
 
 void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 {
-	// The always-kite units are have their own micro.
+	// The always-kite units have their own micro.
 	if (AlwaysKite(rangedUnit->getType()))
 	{
 		Micro::MutaDanceTarget(rangedUnit, target);
@@ -437,17 +591,24 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return;
 	}
 
-	double range = rangedUnit->getPlayer()->weaponMaxRange(UnitUtil::GetWeapon(rangedUnit, target));
+	BWAPI::WeaponType weapon = UnitUtil::GetWeapon(rangedUnit, target);
+	double range = rangedUnit->getPlayer()->weaponMaxRange(weapon);
 
-	bool kite(true);
+	bool kite = true;
 
-	// Don't kite if the enemy's range is at least as long as ours.
-	// Also, if the target can't attack back, then don't kite.
-	if (!UnitUtil::CanAttack(target, rangedUnit) ||
-		range <= target->getPlayer()->weaponMaxRange(UnitUtil::GetWeapon(target, rangedUnit)))
+	// Only kite if somebody wants to shoot us.
+	if (InformationManager::Instance().getEnemyFireteam(rangedUnit).empty())
 	{
 		kite = false;
 	}
+
+	// If the target can't attack back, then don't kite.
+	// Don't kite if the enemy's range is at least as long as ours.
+	//if (!UnitUtil::CanAttack(target, rangedUnit) ||
+	//	range <= target->getPlayer()->weaponMaxRange(UnitUtil::GetWeapon(target, rangedUnit)))
+	//{
+	//	kite = false;
+	//}
 
 	// Kite if we're not ready yet: Wait for the weapon.
 	double dist(rangedUnit->getDistance(target));
@@ -457,7 +618,7 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	{
 		timeToEnter = std::max(0.0, dist - range) / speed;
 	}
-	if (timeToEnter >= rangedUnit->getGroundWeaponCooldown() ||
+	if (timeToEnter >= weapon.damageCooldown() + BWAPI::Broodwar->getRemainingLatencyFrames() ||
 		target->getType().isBuilding())
 	{
 		kite = false;
@@ -490,39 +651,43 @@ void Micro::MutaDanceTarget(BWAPI::Unit muta, BWAPI::Unit target)
 		return;
 	}
 
-    const int cooldown                  = muta->getType().groundWeapon().damageCooldown(); // no upgrade possible
-    const int latency                   = BWAPI::Broodwar->getLatency();
-	const double speed					= muta->getPlayer()->topSpeed(muta->getType());   // known to be non-zero :-)
-	const double range					= muta->getPlayer()->weaponMaxRange(UnitUtil::GetWeapon(muta, target));
-    const double distanceToTarget       = muta->getDistance(target);
-	const double distanceToFiringRange  = std::max(distanceToTarget - range,0.0);
-	const double timeToEnterFiringRange = distanceToFiringRange / speed;
-	const int framesToAttack            = static_cast<int>(timeToEnterFiringRange) + 2*latency;
+	const int latency					= BWAPI::Broodwar->getRemainingLatencyFrames();
 
-	// How many frames are left before we can attack?
-	const int currentCooldown = muta->isStartingAttack() ? cooldown : muta->getGroundWeaponCooldown();
+	const int framesToEnterFiringRange	= UnitUtil::FramesToReachAttackRange(muta, target);
+	BWAPI::Position destination			= PredictMovement(target, std::min(framesToEnterFiringRange, 12));
+	const int framesToAttack			= framesToEnterFiringRange + 2 * latency;
 
-	// If we can attack by the time we reach our firing range
-	if(currentCooldown <= framesToAttack)
+	// How many frames are left before we should order the attack?
+	const int cooldownNow =
+		muta->isFlying() ? muta->getAirWeaponCooldown() : muta->getGroundWeaponCooldown();
+	const int staticCooldown =
+		muta->isFlying() ? muta->getType().airWeapon().damageCooldown() : muta->getType().groundWeapon().damageCooldown();
+	const int cooldown =
+		muta->isStartingAttack() ? staticCooldown : cooldownNow;
+
+	if (cooldown <= framesToAttack)
 	{
-		// Move towards and attack the target
-		muta->attack(target);
-	}
-	else // Otherwise we cannot attack and should temporarily back off
-	{
-		BWAPI::Position fleeVector = GetKiteVector(target, muta);
-		BWAPI::Position moveToPosition(muta->getPosition() + fleeVector);
-		if (moveToPosition.isValid())
+		// Attack.
+		// This is functionally equivalent to Micro::CatchAndAttackUnit(muta, target) .
+
+		if (!target->isMoving() || !muta->canMove() || muta->isInWeaponRange(target))
 		{
-			muta->rightClick(moveToPosition);
+			//BWAPI::Broodwar->drawLineMap(muta->getPosition(), target->getPosition(), BWAPI::Colors::Orange);
+			AttackUnit(muta, target);
+		}
+		else
+		{
+			//BWAPI::Broodwar->drawLineMap(target->getPosition(), destination, BWAPI::Colors::Blue);
+			//BWAPI::Broodwar->drawLineMap(muta->getPosition(), destination, BWAPI::Colors::Blue);
+			Move(muta, destination);
 		}
 	}
-}
-
-BWAPI::Position Micro::GetKiteVector(BWAPI::Unit unit, BWAPI::Unit target)
-{
-    BWAPI::Position fleeVec(target->getPosition() - unit->getPosition());
-    double fleeAngle = atan2(fleeVec.y, fleeVec.x);
-    fleeVec = BWAPI::Position(static_cast<int>(64 * cos(fleeAngle)), static_cast<int>(64 * sin(fleeAngle)));
-    return fleeVec;
+	else
+	{
+		// Kite backward.
+		BWAPI::Position fleeVector = GetKiteVector(target, muta);
+		BWAPI::Position moveToPosition(muta->getPosition() + fleeVector);
+		//BWAPI::Broodwar->drawLineMap(muta->getPosition(), moveToPosition, BWAPI::Colors::Purple);
+		Micro::Move(muta, moveToPosition);
+	}
 }

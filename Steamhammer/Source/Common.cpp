@@ -16,6 +16,23 @@ double UCB1_bound(double tries, double total)
 	return sqrt(2.0 * log(total) / tries);
 }
 
+// Return the intersetion of two sets of units.
+// It will run faster if a is the smaller set.
+BWAPI::Unitset Intersection(const BWAPI::Unitset & a, const BWAPI::Unitset & b)
+{
+	BWAPI::Unitset result;
+
+	for (BWAPI::Unit u : a)
+	{
+		if (b.contains(u))
+		{
+			result.insert(u);
+		}
+	}
+
+	return result;
+}
+
 int GetIntFromString(const std::string & s)
 {
 	std::stringstream ss(s);
@@ -81,6 +98,7 @@ std::string UnitTypeName(BWAPI::UnitType type)
 }
 
 // Clip (x,y) to the bounds of the map.
+// The resulting position isValid().
 void ClipToMap(BWAPI::Position & pos)
 {
 	if (pos.x < 0)
@@ -100,6 +118,31 @@ void ClipToMap(BWAPI::Position & pos)
 	{
 		pos.y = 32 * BWAPI::Broodwar->mapHeight() - 1;
 	}
+}
+
+// Point b specifies a direction from point a.
+// Return a position at the given distance and direction from a.
+// The distance can be negative.
+BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance)
+{
+	double offset = a.getDistance(b);
+	BWAPI::Position direction = (b - a) / offset;
+	BWAPI::Position destination = direction * distance;
+	ClipToMap(destination);
+	return destination;
+}
+
+// Return the speed (pixels per frame) at which unit u is approaching the position.
+// It may be positive or negative.
+// This is approach speed only, ignoring transverse speed. For example, if the
+// unit is moving transversely, the speed may be zero.
+double ApproachSpeed(const BWAPI::Position & pos, BWAPI::Unit u)
+{
+	UAB_ASSERT(u && u->exists() && u->getPosition().isValid(), "bad unit");
+
+	v2 direction = v2(BWAPI::Position(u->getPosition() - pos)).normalize();
+	v2 velocity = v2(u->getVelocityX(), u->getVelocityY());
+	return velocity.dot(direction);
 }
 
 // Find the geometric center of a set of visible units.
@@ -136,4 +179,21 @@ BWAPI::Position PredictMovement(BWAPI::Unit unit, int frames)
 	);
 	ClipToMap(pos);
 	return pos;
+}
+
+// Estimate whether the chaser can catch the runaway.
+// It's not an exact calculation. We suppose that it can get away if its top speed is at
+// least as great as ours and it is currently moving nearly directly away from us.
+bool CanCatchUnit(BWAPI::Unit chaser, BWAPI::Unit runaway)
+{
+	if (runaway->getPlayer()->topSpeed(runaway->getType()) < chaser->getPlayer()->topSpeed(chaser->getType()))
+	{
+		return true;
+	}
+
+	BWAPI::PositionOrUnit predict(PredictMovement(runaway, 8));
+	int ab = chaser->getDistance(runaway);
+	int ac = chaser->getDistance(predict);
+	int bc = runaway->getDistance(predict);
+	return double(ab + bc) / ac > 0.9;
 }

@@ -55,13 +55,15 @@ struct UnitInfo
 
     const bool operator == (const UnitInfo & rhs) const
     {
-        return (unitID == rhs.unitID);
+        return unitID == rhs.unitID;
     }
 
     const bool operator < (const UnitInfo & rhs) const
     {
-        return (unitID < rhs.unitID);
+        return unitID < rhs.unitID;
     }
+
+	int estimateHealth() const;
 };
 
 typedef std::vector<UnitInfo> UnitInfoVector;
@@ -71,13 +73,13 @@ class UnitData
 {
     UIMap unitMap;
 
-    const bool badUnitInfo(const UnitInfo & ui) const;
+    const bool			badUnitInfo(const UnitInfo & ui) const;
 
-    std::vector<int>						numUnits;       // how many now
-	std::vector<int>						numDeadUnits;   // how many lost
+    std::vector<int>	numUnits;       // how many now
+	std::vector<int>	numDeadUnits;   // how many lost
 
-    int										mineralsLost;
-    int										gasLost;
+    int					mineralsLost;
+    int					gasLost;
 
 public:
 

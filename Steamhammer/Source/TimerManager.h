@@ -20,7 +20,7 @@ class TimerManager
 
 public:
 
-	enum Type { Total, Worker, Production, Building, Combat, Scout, InformationManager, MapGrid, Search, OpponentModel, NumTypes };
+	enum Type { Total, InformationManager, MapGrid, OpponentModel, Search, Worker, Production, Building, Combat, Micro, Scout, NumTypes };
 
 	TimerManager();
 
@@ -32,7 +32,7 @@ public:
 	double getMaxMilliseconds();   // over all frames
 	double getMeanMilliseconds();  // over all frames
 
-	void displayTimers(int x, int y);
+	void drawModuleTimers(int x, int y);
 };
 
 }

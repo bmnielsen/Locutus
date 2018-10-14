@@ -1,6 +1,7 @@
-#include "Micro.h"
+#include "MicroManager.h"
 #include "MicroMedics.h"
-#include "UnitUtil.h"
+
+#include "The.h"
 
 using namespace UAlbertaBot;
 
@@ -9,7 +10,7 @@ MicroMedics::MicroMedics()
 }
 
 // Unused but required.
-void MicroMedics::executeMicro(const BWAPI::Unitset & targets)
+void MicroMedics::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 }
 
@@ -69,7 +70,7 @@ void MicroMedics::update(const BWAPI::Position & center)
     // the remaining medics should head toward the middle of the squad
     for (const auto medic : availableMedics)
     {
-        Micro::AttackMove(medic, center);
+        the.micro.AttackMove(medic, center);
     }
 }
 

@@ -13,6 +13,7 @@ private:
 public:
 	Random();
 
+	double range(double r);
 	int index(int n);
 	bool flag(double probability);
 

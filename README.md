@@ -1,6 +1,1 @@
-# Locutus
-AI for StarCraft: Brood War
-
-## Steamhammer branch
-
-This branch contains the current Steamhammer version that Locutus is based on.
+This branch contains the version history of Steamhammer, on which Locutus is based, starting with the version from which Locutus was initially forked.

@@ -1,6 +1,7 @@
-#include "Micro.h"
 #include "MicroManager.h"
 #include "MicroDetectors.h"
+
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -11,7 +12,11 @@ MicroDetectors::MicroDetectors()
 {
 }
 
-void MicroDetectors::executeMicro(const BWAPI::Unitset & targets) 
+void MicroDetectors::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
+{
+}
+
+void MicroDetectors::go()
 {
 	const BWAPI::Unitset & detectorUnits = getUnits();
 
@@ -20,12 +25,13 @@ void MicroDetectors::executeMicro(const BWAPI::Unitset & targets)
 		return;
 	}
 
+	/* currently unused
 	// Look through the targets to find those which we want to seek or to avoid.
 	BWAPI::Unitset cloakedTargets;
 	BWAPI::Unitset enemies;
 	int nAirThreats = 0;
 
-	for (const BWAPI::Unit target : targets)
+	for (const BWAPI::Unit target : BWAPI::Broodwar->enemy()->getUnits())
 	{
 		// 1. Find cloaked units. Keep them in detection range.
 		if (target->getType().hasPermanentCloak() ||     // dark templar, observer
@@ -49,6 +55,7 @@ void MicroDetectors::executeMicro(const BWAPI::Unitset & targets)
 			}
 		}
 	}
+	*/
 
 	// Anti-air units that can fire on air attackers, including static defense.
 	// TODO not yet implemented
@@ -62,7 +69,7 @@ void MicroDetectors::executeMicro(const BWAPI::Unitset & targets)
 		{
 			// The detector is alone in the squad. Move to the order position.
 			// This allows the Recon squad to scout with a detector on island maps.
-			Micro::Move(detectorUnit, order.getPosition());
+			the.micro.Move(detectorUnit, order.getPosition());
 			return;
 		}
 
@@ -71,7 +78,7 @@ void MicroDetectors::executeMicro(const BWAPI::Unitset & targets)
 		{
 			destination = unitClosestToEnemy->getPosition();
 			// ClipToMap(destination);
-			Micro::Move(detectorUnit, destination);
+			the.micro.Move(detectorUnit, destination);
 		}
 	}
 }

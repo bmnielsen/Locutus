@@ -82,7 +82,6 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		Config::Micro::RetreatMeleeUnitShields = GetIntByRace("RetreatMeleeUnitShields", micro);
 		Config::Micro::RetreatMeleeUnitHP = GetIntByRace("RetreatMeleeUnitHP", micro);
 		Config::Micro::CombatSimRadius = GetIntByRace("CombatSimRadius", micro);
-		Config::Micro::UnitNearEnemyRadius = GetIntByRace("UnitNearEnemyRadius", micro);
 		Config::Micro::ScoutDefenseRadius = GetIntByRace("ScoutDefenseRadius", micro);
     }
 
@@ -113,7 +112,8 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
         JSONTools::ReadBool("DrawProductionInfo", debug, Config::Debug::DrawProductionInfo);
         JSONTools::ReadBool("DrawScoutInfo", debug, Config::Debug::DrawScoutInfo);
         JSONTools::ReadBool("DrawSquadInfo", debug, Config::Debug::DrawSquadInfo);
-        JSONTools::ReadBool("DrawCombatSimInfo", debug, Config::Debug::DrawCombatSimulationInfo);
+		JSONTools::ReadBool("DrawClusters", debug, Config::Debug::DrawClusters);
+		JSONTools::ReadBool("DrawCombatSimInfo", debug, Config::Debug::DrawCombatSimulationInfo);
         JSONTools::ReadBool("DrawBuildingInfo", debug, Config::Debug::DrawBuildingInfo);
         JSONTools::ReadBool("DrawModuleTimers", debug, Config::Debug::DrawModuleTimers);
         JSONTools::ReadBool("DrawMouseCursorInfo", debug, Config::Debug::DrawMouseCursorInfo);
@@ -411,7 +411,6 @@ void ParseUtils::ParseTextCommand(const std::string & commandString)
         // Micro Options
         else if (variableName == "workersdefendrush") { Config::Micro::WorkersDefendRush = GetBoolFromString(val); }
 		else if (variableName == "combatsimradius") { Config::Micro::CombatSimRadius = GetIntFromString(val); }
-        else if (variableName == "unitnearenemyradius") { Config::Micro::UnitNearEnemyRadius = GetIntFromString(val); }
 
         // Macro Options
 		else if (variableName == "absolutemaxworkers") { Config::Macro::AbsoluteMaxWorkers = GetIntFromString(val); }
@@ -438,7 +437,8 @@ void ParseUtils::ParseTextCommand(const std::string & commandString)
 		else if (variableName == "drawbaseinfo") { Config::Debug::DrawBaseInfo = GetBoolFromString(val); }
 		else if (variableName == "drawstrategybossinfo") { Config::Debug::DrawStrategyBossInfo = GetBoolFromString(val); }
 		else if (variableName == "drawsquadinfo") { Config::Debug::DrawSquadInfo = GetBoolFromString(val); }
-        else if (variableName == "drawworkerinfo") { Config::Debug::DrawWorkerInfo = GetBoolFromString(val); }
+		else if (variableName == "drawclusters") { Config::Debug::DrawClusters = GetBoolFromString(val); }
+		else if (variableName == "drawworkerinfo") { Config::Debug::DrawWorkerInfo = GetBoolFromString(val); }
         else if (variableName == "drawmousecursorinfo") { Config::Debug::DrawMouseCursorInfo = GetBoolFromString(val); }
         else if (variableName == "drawbuildinginfo") { Config::Debug::DrawBuildingInfo = GetBoolFromString(val); }
         else if (variableName == "drawreservedbuildingtiles") { Config::Debug::DrawReservedBuildingTiles = GetBoolFromString(val); }

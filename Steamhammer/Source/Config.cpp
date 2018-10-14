@@ -12,7 +12,7 @@ namespace Config
     {
         bool ConfigFileFound                = false;
         bool ConfigFileParsed               = false;
-        std::string ConfigFileLocation      = "bwapi-data/AI/Steamhammer_1.4.6.json";
+        std::string ConfigFileLocation      = "bwapi-data/AI/Steamhammer_2.0.json";
     }
 
 	namespace IO
@@ -86,6 +86,7 @@ namespace Config
 		bool DrawUnitTargetInfo				= false;
 		bool DrawUnitOrders					= false;
         bool DrawSquadInfo                  = false;
+		bool DrawClusters					= false;
         bool DrawBOSSStateInfo              = false;
 
         BWAPI::Color ColorLineTarget        = BWAPI::Colors::White;
@@ -101,7 +102,6 @@ namespace Config
 		int RetreatMeleeUnitShields         = 0;
         int RetreatMeleeUnitHP              = 0;
 		int CombatSimRadius					= 300;      // radius of units around frontmost unit for combat sim
-        int UnitNearEnemyRadius             = 600;      // radius to consider a unit 'near' to an enemy unit
 		int ScoutDefenseRadius				= 600;		// radius to chase enemy scout worker
     }
 

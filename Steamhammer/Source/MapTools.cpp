@@ -326,20 +326,20 @@ Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 		// resolution. When a map has narrow chokes, two connected points may appear unconnected
 		// by ground, meaning their distance is returned as -1. Map partitions are computed at walk
 		// resolution, and we use those to decide whether a base is reachable. That can also be wrong
-		// if the widest path between the points is too narrow for a worker. But it works for all
-		// maps I have tried.
+		// if the widest path between the points is too narrow for a worker. But it works for most
+		// maps.
 		// Anyway, if we get ground distance -1, we check connectivity and switch to air distance
 		// as a backup.
 
 		// Want to be close to our own base (unless this is to be a hidden base).
-		double distanceFromUs = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), myBasePosition);
+		int distanceFromUs = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), myBasePosition);
 
         // If it is not connected by ground, skip this potential base.
 		if (distanceFromUs < 0)
         {
 			if (the.partitions.id(tile) == the.partitions.id(myBasePosition))
 			{
-				distanceFromUs = myBasePosition.getDistance(BWAPI::Position(tile));
+				distanceFromUs = myBasePosition.getApproxDistance(BWAPI::Position(tile));
 			}
 			else
 			{
@@ -351,7 +351,7 @@ Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 		double distanceFromEnemy = 0.0;
 		if (enemyBase) {
 			BWAPI::TilePosition enemyTile = enemyBase->getTilePosition();
-			distanceFromEnemy = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), BWAPI::Position(enemyTile));
+			distanceFromEnemy = MapTools::Instance().getGroundTileDistance(tile, enemyTile);
 			if (distanceFromEnemy < 0)
 			{
 				// No ground distance found, so again substitute air distance.
@@ -368,6 +368,14 @@ Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 
 		// Add up the score.
 		score = hidden ? (distanceFromEnemy + distanceFromUs / 2.0) : (distanceFromEnemy / 2.0 - distanceFromUs);
+
+		// Far from the edge of the map -> worse.
+		// It's a proxy for "how wide open is this base?" Usually a base on the edge is
+		// relatively sheltered and a base in the middle is more open (though not always).
+		int edgeXdist = std::min(tile.x, BWAPI::Broodwar->mapWidth() - tile.x);
+		int edgeYdist = std::min(tile.y, BWAPI::Broodwar->mapHeight() - tile.y);
+		int edgeDistance = std::min(edgeXdist, edgeYdist);
+		score += -1.0 * edgeDistance;
 
 		// More resources -> better.
 		if (wantMinerals)
@@ -388,6 +396,7 @@ Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 		*/
 
 		// BWAPI::Broodwar->printf("base score %d, %d -> %f",  tile.x, tile.y, score);
+
 		if (score > bestScore)
         {
             bestBase = base;

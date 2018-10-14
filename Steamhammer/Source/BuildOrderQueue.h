@@ -11,6 +11,12 @@ struct BuildOrderItem
     MacroAct macroAct;	   // the thing we want to produce
     bool     isGasSteal;
 
+	BuildOrderItem()
+		: macroAct(BWAPI::UnitTypes::None)
+		, isGasSteal(false)
+	{
+	}
+
     BuildOrderItem(MacroAct m, bool gasSteal = false)
         : macroAct(m)
         , isGasSteal(gasSteal) 

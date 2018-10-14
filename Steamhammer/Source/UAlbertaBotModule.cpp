@@ -63,6 +63,9 @@ void UAlbertaBotModule::onStart()
     {
         BWAPI::Broodwar->printf("%s by %s, based on UAlbertaBot.", Config::BotInfo::BotName.c_str(), Config::BotInfo::Authors.c_str());
 	}
+
+	// Turn off latency compensation, which is on by default.
+	// BWAPI::Broodwar->setLatCom(false);
 }
 
 void UAlbertaBotModule::onEnd(bool isWinner)

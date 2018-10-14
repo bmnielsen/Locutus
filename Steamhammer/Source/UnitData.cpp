@@ -3,6 +3,29 @@
 
 using namespace UAlbertaBot;
 
+// Estimate the HP + shields of this unit, which may not have been seen for some time.
+// Account for shield regeneration and zerg regeneration, but not terran healing or repair or burning.
+// Regeneration rates are calculated from info at http://www.starcraftai.com/wiki/Regeneration
+int UnitInfo::estimateHealth() const
+{
+	const int interval = BWAPI::Broodwar->getFrameCount() - updateFrame;
+
+	if (type.getRace() == BWAPI::Races::Protoss)
+	{
+		return lastHealth + std::min(type.maxShields(), int(lastShields + 0.0273 * interval));
+	}
+
+	if (type.getRace() == BWAPI::Races::Zerg)
+	{
+		return std::min(type.maxHitPoints(), lastHealth + int(0.0156 * interval));
+	}
+
+	// Terran or something neutral.
+	return lastHealth;
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
 UnitData::UnitData() 
 	: mineralsLost(0)
 	, gasLost(0)

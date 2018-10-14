@@ -1,6 +1,6 @@
-#include "Micro.h"
 #include "MicroTransports.h"
-#include "MapTools.h"
+
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -19,7 +19,7 @@ MicroTransports::MicroTransports()
 }
 
 // No micro to execute here. Does nothing, never called.
-void MicroTransports::executeMicro(const BWAPI::Unitset & targets) 
+void MicroTransports::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 }
 
@@ -237,7 +237,7 @@ void MicroTransports::followPerimeter()
 	{
 		// The target might be far from the edge of the map, although
 		// our path around the edge of the map makes sense only if it is close.
-		Micro::Move(_transportShip, _target);
+		the.micro.Move(_transportShip, _target);
 	}
 	else
 	{
@@ -255,7 +255,7 @@ void MicroTransports::followPerimeter()
 			BWAPI::Broodwar->drawCircleMap(destination, 5, BWAPI::Colors::Yellow, true);
 		}
 
-		Micro::Move(_transportShip, destination);
+		the.micro.Move(_transportShip, destination);
 	}
 }
 

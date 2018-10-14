@@ -26,6 +26,7 @@ class InformationManager
 	bool			_enemyHasOverlordHunters;
 	bool			_enemyHasStaticDetection;
 	bool			_enemyHasMobileDetection;
+	bool			_enemyHasSiegeMode;
 
 	std::map<BWAPI::Player, UnitData>                   _unitData;
 	std::map<BWAPI::Player, BWTA::BaseLocation *>       _mainBaseLocations;
@@ -33,6 +34,7 @@ class InformationManager
 	std::map<BWTA::BaseLocation *, Base *>				_theBases;
 	BWAPI::Unitset										_staticDefense;
 	BWAPI::Unitset										_ourPylons;
+	std::map<BWAPI::Unit, BWAPI::Unitset>				_theirTargets;		// our unit -> [enemy units targeting it]
 
 	InformationManager();
 
@@ -59,6 +61,7 @@ class InformationManager
 	void					updateTheBases();
 	void                    updateOccupiedRegions(BWTA::Region * region, BWAPI::Player player);
 	void					updateGoneFromLastPosition();
+	void					updateTheirTargets();
 
 public:
 
@@ -109,14 +112,15 @@ public:
 	bool					enemyHasOverlordHunters();
 	bool					enemyHasStaticDetection();
 	bool					enemyHasMobileDetection();
+	bool					enemyHasSiegeMode();
 
 	void					enemySeenBurrowing();
 
-	// BWAPI::Unit				nearestGroundStaticDefense(BWAPI::Position pos) const;
-	// BWAPI::Unit				nearestAirStaticDefense(BWAPI::Position pos) const;
-	BWAPI::Unit				nearestShieldBattery(BWAPI::Position pos) const;
-
 	const BWAPI::Unitset &  getStaticDefense() const { return _staticDefense; };
+
+	BWAPI::Unit				nearestGroundStaticDefense(BWAPI::Position pos) const;
+	BWAPI::Unit				nearestAirStaticDefense(BWAPI::Position pos) const;
+	BWAPI::Unit				nearestShieldBattery(BWAPI::Position pos) const;
 
 	int						nScourgeNeeded();           // zerg specific
 
@@ -124,6 +128,7 @@ public:
     void                    drawUnitInformation(int x,int y);
 
     const UnitData &        getUnitData(BWAPI::Player player) const;
+	const BWAPI::Unitset &	getEnemyFireteam(BWAPI::Unit ourUnit) const;
 
 	// yay for singletons!
 	static InformationManager & Instance();

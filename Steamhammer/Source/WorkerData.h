@@ -4,6 +4,8 @@
 
 namespace UAlbertaBot
 {
+class The;
+
 class WorkerMoveData
 {
 public:
@@ -24,6 +26,7 @@ public:
 
 class WorkerData 
 {
+	The & the;
 
 public:
 

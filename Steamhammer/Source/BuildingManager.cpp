@@ -5,12 +5,14 @@
 #include "Micro.h"
 #include "ProductionManager.h"
 #include "ScoutManager.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
 BuildingManager::BuildingManager()
-    : _reservedMinerals(0)
+	: the(The::Root())
+	, _reservedMinerals(0)
     , _reservedGas(0)
 	, _stalledForLackOfSpace(false)
 {
@@ -88,7 +90,10 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 
 		// BWAPI::Broodwar->printf("Assigning Worker To: %s", b.type.getName().c_str());
 
-		if (b.buildersSent > 0 && b.type == BWAPI::UnitTypes::Zerg_Hatchery && b.macroLocation != MacroLocation::Macro)
+		if (b.buildersSent > 0 &&
+			b.type == BWAPI::UnitTypes::Zerg_Hatchery &&
+			b.macroLocation != MacroLocation::Macro &&
+			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Larva) == 0)	// yes, we may need more production
 		{
 			// This is a zerg expansion which failed--we sent a builder and it never built.
 			// The builder was most likely killed along the way.
@@ -158,7 +163,7 @@ void BuildingManager::constructAssignedBuildings()
 			if (!isBuildingPositionExplored(b))
             {
 				// We haven't explored the build position. Go there.
-				Micro::Move(b.builderUnit, BWAPI::Position(b.finalPosition));
+				the.micro.Move(b.builderUnit, BWAPI::Position(b.finalPosition));
             }
             // if this is not the first time we've sent this guy to build this
             // it must be the case that something was in the way
@@ -346,7 +351,7 @@ void BuildingManager::checkReservedResources()
 	if (minerals != _reservedMinerals || gas != _reservedGas)
 	{
 		// This message should ideally never happen. If it does, we correct the error and carry on.
-		BWAPI::Broodwar->printf("reserves wrong: %d %d should be %d %d", _reservedMinerals, _reservedGas, minerals, gas);
+		// BWAPI::Broodwar->printf("reserves wrong: %d %d should be %d %d", _reservedMinerals, _reservedGas, minerals, gas);
 		_reservedMinerals = minerals;
 		_reservedGas = gas;
 	}
@@ -773,7 +778,7 @@ void BuildingManager::removeBuildings(const std::vector< std::reference_wrapper<
 {
     for (Building & b : toRemove)
     {
-		auto & it = std::find(_buildings.begin(), _buildings.end(), b);
+		auto it = std::find(_buildings.begin(), _buildings.end(), b);
 
 		if (it != _buildings.end())
 		{

@@ -1,13 +1,15 @@
 #include "MicroManager.h"
 
-#include "Micro.h"
+#include "InformationManager.h"
 #include "MapGrid.h"
 #include "MapTools.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
 MicroManager::MicroManager() 
+	: the(The::Root())
 {
 }
 
@@ -21,7 +23,7 @@ void MicroManager::setOrder(const SquadOrder & inputOrder)
 	order = inputOrder;
 }
 
-void MicroManager::execute()
+void MicroManager::execute(const UnitCluster & cluster)
 {
 	// Nothing to do if we have no units.
 	if (_units.empty())
@@ -42,7 +44,7 @@ void MicroManager::execute()
 
 	if (order.getType() == SquadOrderTypes::DestroyNeutral)
 	{
-		// An order to destroy neutral units at a given location.
+		// An order to destroy neutral ground units at a given location.
 		for (BWAPI::Unit unit : BWAPI::Broodwar->getStaticNeutralUnits())
 		{
 			if (!unit->getType().canMove() &&
@@ -58,19 +60,27 @@ void MicroManager::execute()
 	else
 	{
 		// An order to fight enemies.
-		// Always include enemies in the radius of the order.
-		MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
+		// Units ordered to Hold a position care about enemies near the position.
+		// Units ordereed to Attack care about enemies which are in sight (the goal may be distant).
+		// Units ordered to Defend care about both.
 
-		// For some orders, add enemies which are near our units.
+		if (order.getType() == SquadOrderTypes::Hold || order.getType() == SquadOrderTypes::Defend)
+		{
+			// Units near the order position.
+			MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
+		}
+
 		if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
 		{
-			for (const auto unit : _units)
+			// Units in sight of our cluster.
+			for (const auto unit : cluster.units)
 			{
 				// NOTE Ignores possible sight range upgrades. It's fine.
 				MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
 			}
 		}
-		executeMicro(targets);
+
+		executeMicro(targets, cluster);
 	}
 }
 
@@ -97,11 +107,11 @@ void MicroManager::destroyNeutralTargets(const BWAPI::Unitset & targets)
 			// We see a target, so we can issue attack orders to units that can attack.
 			if (UnitUtil::CanAttackGround(unit) && unit->canAttack())
 			{
-				Micro::CatchAndAttackUnit(unit, visibleTarget);
+				the.micro.CatchAndAttackUnit(unit, visibleTarget);
 			}
 			else if (unit->canMove())
 			{
-				Micro::Move(unit, order.getPosition());
+				the.micro.Move(unit, order.getPosition());
 			}
 		}
 		else
@@ -109,7 +119,7 @@ void MicroManager::destroyNeutralTargets(const BWAPI::Unitset & targets)
 			// No visible targets. Move units toward the order position.
 			if (unit->canMove())
 			{
-				Micro::Move(unit, order.getPosition());
+				the.micro.Move(unit, order.getPosition());
 			}
 		}
 	}
@@ -133,18 +143,19 @@ bool MicroManager::containsType(BWAPI::UnitType type) const
 	return false;
 }
 
-void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
+void MicroManager::regroup(const BWAPI::Position & regroupPosition, const UnitCluster & cluster) const
 {
 	const int groundRegroupRadius = 96;
 	const int airRegroupRadius = 8;			// air units stack and can be kept close together
 
-	for (const auto unit : _units)
+	BWAPI::Unitset units = Intersection(getUnits(), cluster.units);
+
+	for (const auto unit : units)
 	{
 		// 1. A broodling should never retreat, but attack as long as it lives.
 		// 2. If none of its kind has died yet, a dark templar or lurker should not retreat.
 		// 3. A ground unit next to an enemy sieged tank should not move away.
 		// TODO 4. A unit in stay-home mode should stay home, not "regroup" away from home.
-		// TODO 5. A unit whose retreat path is blocked by enemies should do something else, at least attack-move.
 		if (buildScarabOrInterceptor(unit))
 		{
 			// We're done for this frame.
@@ -158,7 +169,7 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 				BWAPI::Filter::IsEnemy && BWAPI::Filter::GetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode,
 				64)))
 		{
-			Micro::AttackMove(unit, unit->getPosition());
+			the.micro.AttackMove(unit, unit->getPosition());
 		}
 		else if (!unit->isFlying() && unit->getDistance(regroupPosition) > groundRegroupRadius)   // air distance; can hurt
 		{
@@ -168,6 +179,7 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 				48,			// very short distance
 				BWAPI::Filter::IsEnemy && !BWAPI::Filter::IsFlying && BWAPI::Filter::CanAttack);
 			bool mustFight = false;
+			/* this seems to cause more trouble than it solves
 			const int retreatDistance = unit->getDistance(regroupPosition);
 			for (BWAPI::Unit enemy : nearbyEnemies)
 			{
@@ -179,49 +191,28 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition) const
 					break;
 				}
 			}
-
+			*/
 			if (mustFight)
 			{
 				// NOTE Does not affect lurkers, because lurkers do not regroup.
-				Micro::AttackMove(unit, regroupPosition);
+				the.micro.AttackMove(unit, regroupPosition);
 			}
-			else if (!mobilizeUnit(unit))
+			else if (!UnitUtil::MobilizeUnit(unit))
 			{
-				Micro::Move(unit, regroupPosition);
+				the.micro.Move(unit, regroupPosition);
 			}
 		}
 		else if (unit->isFlying() && unit->getDistance(regroupPosition) > airRegroupRadius)
 		{
 			// 1. Flyers stack, so keep close. 2. Flyers are always mobile, no need to mobilize.
-			Micro::Move(unit, regroupPosition);
+			the.micro.Move(unit, regroupPosition);
 		}
 		else
 		{
 			// We have retreated to a good position.
-			Micro::AttackMove(unit, unit->getPosition());
+			the.micro.AttackMove(unit, unit->getPosition());
 		}
 	}
-}
-
-// Return true if we started to build a new scarab or interceptor.
-bool MicroManager::buildScarabOrInterceptor(BWAPI::Unit u) const
-{
-	if (u->getType() == BWAPI::UnitTypes::Protoss_Reaver)
-	{
-		if (!u->isTraining() && u->canTrain(BWAPI::UnitTypes::Protoss_Scarab))
-		{
-			return u->train(BWAPI::UnitTypes::Protoss_Scarab);
-		}
-	}
-	else if (u->getType() == BWAPI::UnitTypes::Protoss_Carrier)
-	{
-		if (!u->isTraining() && u->canTrain(BWAPI::UnitTypes::Protoss_Interceptor))
-		{
-			return u->train(BWAPI::UnitTypes::Protoss_Interceptor);
-		}
-	}
-
-	return false;
 }
 
 bool MicroManager::unitNearEnemy(BWAPI::Unit unit)
@@ -279,52 +270,97 @@ bool MicroManager::unitNearChokepoint(BWAPI::Unit unit) const
 	return false;
 }
 
-// Mobilize the unit if it is immobile: A sieged tank or a burrowed zerg unit.
-// Return whether any action was taken.
-bool MicroManager::mobilizeUnit(BWAPI::Unit unit) const
+// Dodge any incoming spider mine.
+// Return true if we took action.
+bool MicroManager::dodgeMine(BWAPI::Unit u) const
 {
-	if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode && unit->canUnsiege())
-	{
-		return unit->unsiege();
-	}
-	if (unit->isBurrowed() && unit->canUnburrow() &&
-		!unit->isIrradiated() &&
-		(double(unit->getHitPoints()) / double(unit->getType().maxHitPoints()) > 0.25))  // very weak units stay burrowed
-	{
-		return unit->unburrow();
-	}
+	// TODO DISABLED - not good enough
 	return false;
-}
 
-// Immobilixe the unit: Siege a tank, burrow a lurker. Otherwise do nothing.
-// Return whether any action was taken.
-// NOTE This used to be used, but turned out to be a bad idea in that use.
-bool MicroManager::immobilizeUnit(BWAPI::Unit unit) const
-{
-	if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode && unit->canSiege())
-	{
-		return unit->siege();
-	}
-	if (unit->canBurrow() &&
-		(unit->getType() == BWAPI::UnitTypes::Zerg_Lurker || unit->isIrradiated()))
-	{
-		return unit->burrow();
-	}
-	return false;
-}
+	const BWAPI::Unitset & attackers = InformationManager::Instance().getEnemyFireteam(u);
 
-// Sometimes a unit on ground attack-move freezes in place.
-// Luckily it's easy to recognize, though units may be on PlayerGuard for other reasons.
-// Return whether any action was taken.
-// This solves stuck zerglings, but doesn't always prevent other units from getting stuck.
-bool MicroManager::unstickStuckUnit(BWAPI::Unit unit)
-{
-	if (!unit->isMoving() && !unit->getType().isFlyer() && !unit->isBurrowed() &&
-		unit->getOrder() == BWAPI::Orders::PlayerGuard &&
-		BWAPI::Broodwar->getFrameCount() % 4 == 0)
+	// Find the closest kaboom. We react to that one and ignore any others.
+	BWAPI::Unit closestMine = nullptr;
+	int closestDist = 99999;
+	for (BWAPI::Unit attacker: attackers)
 	{
-		Micro::Stop(unit);
+		if (attacker->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
+		{
+			int dist = u->getDistance(attacker);
+			if (dist < closestDist)
+			{
+				closestMine = attacker;
+				closestDist = dist;
+			}
+		}
+	}
+
+	if (closestMine)
+	{
+		// First, try to drag the mine into an enemy.
+		BWAPI::Unitset enemies = u->getUnitsInRadius(5 * 32, BWAPI::Filter::IsEnemy);
+		BWAPI::Unit bestEnemy = nullptr;
+		int bestEnemyScore = -999999;
+		for (BWAPI::Unit enemy : enemies)
+		{
+			int score = -u->getDistance(enemy);
+			if (enemy->getType().isBuilding())
+			{
+				score -= 32;
+			}
+			if (enemy->getType() != BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+			{
+				score -= 5;
+			}
+			if (score > bestEnemyScore)
+			{
+				bestEnemy = enemy;
+				bestEnemyScore = score;
+			}
+		}
+		if (bestEnemy)
+		{
+			BWAPI::Broodwar->printf("drag mine to enemy @ %d,%d", bestEnemy->getPosition().x, bestEnemy->getPosition().y);
+			the.micro.Move(u, bestEnemy->getPosition());
+			return true;
+		}
+
+		// Second, try to move away from our own units.
+		BWAPI::Unit nearestFriend = u->getClosestUnit(BWAPI::Filter::IsOwned && !BWAPI::Filter::IsBuilding, 4 * 32);
+		if (nearestFriend)
+		{
+			BWAPI::Position destination = DistanceAndDirection(u->getPosition(), nearestFriend->getPosition(), -4 * 32);
+			BWAPI::Broodwar->printf("drag mine to %d,%d away from friends", destination.x, destination.y);
+			the.micro.Move(u, destination);
+			return true;
+		}
+
+		// Third, move directly away from the mine.
+		BWAPI::Position destination = DistanceAndDirection(u->getPosition(), closestMine->getPosition(), -8 * 32);
+		BWAPI::Broodwar->printf("move to %d,%d away from mine", destination.x, destination.y);
+		the.micro.Move(u, destination);
 		return true;
+	}
+
+	return false;
+}
+
+// Return true if we started to build a new scarab or interceptor.
+bool MicroManager::buildScarabOrInterceptor(BWAPI::Unit u) const
+{
+	if (u->getType() == BWAPI::UnitTypes::Protoss_Reaver)
+	{
+		if (u->canTrain(BWAPI::UnitTypes::Protoss_Scarab))
+		{
+			return u->train(BWAPI::UnitTypes::Protoss_Scarab);
+		}
+	}
+	else if (u->getType() == BWAPI::UnitTypes::Protoss_Carrier)
+	{
+		if (u->canTrain(BWAPI::UnitTypes::Protoss_Interceptor))
+		{
+			return u->train(BWAPI::UnitTypes::Protoss_Interceptor);
+		}
 	}
 
 	return false;
@@ -332,17 +368,18 @@ bool MicroManager::unstickStuckUnit(BWAPI::Unit unit)
 
 // Send the protoss unit to the shield battery and recharge its shields.
 // The caller should have already checked all conditions.
+// TODO shielf batteries are not quite working
 void MicroManager::useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery)
 {
 	if (unit->getDistance(shieldBattery) >= 32)
 	{
 		// BWAPI::Broodwar->printf("move to battery %d at %d", unit->getID(), shieldBattery->getID());
-		Micro::Move(unit, shieldBattery->getPosition());
+		the.micro.Move(unit, shieldBattery->getPosition());
 	}
 	else
 	{
 		// BWAPI::Broodwar->printf("recharge shields %d at %d", unit->getID(), shieldBattery->getID());
-		Micro::RightClick(unit, shieldBattery);
+		the.micro.RightClick(unit, shieldBattery);
 	}
 }
 

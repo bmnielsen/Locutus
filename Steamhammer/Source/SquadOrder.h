@@ -9,6 +9,7 @@ namespace SquadOrderTypes
     enum {
 		None,
 		Idle,			// workers, overlords with no other job
+		Watch,			// stand watch over a location
 		Attack,			// go attack
 		Defend,			// defend a base (automatically disbanded when enemy is gone)
 		Hold,			// hold ground, stand ready to defend until needed
@@ -67,6 +68,7 @@ public:
 		{
 			case SquadOrderTypes::None:				return '-';
 			case SquadOrderTypes::Idle:				return 'I';
+			case SquadOrderTypes::Watch:			return 'W';
 			case SquadOrderTypes::Attack:			return 'a';
 			case SquadOrderTypes::Defend:			return 'd';
 			case SquadOrderTypes::Hold:				return 'H';
@@ -81,6 +83,7 @@ public:
 	bool isCombatOrder() const
 	{
 		return
+			_type == SquadOrderTypes::Watch ||
 			_type == SquadOrderTypes::Attack ||
 			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::Hold ||
@@ -93,6 +96,7 @@ public:
 	bool isRegroupableOrder() const
 	{
 		return
+			_type == SquadOrderTypes::Watch ||
 			_type == SquadOrderTypes::Attack ||
 			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::DestroyNeutral;

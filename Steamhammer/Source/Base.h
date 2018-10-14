@@ -21,6 +21,7 @@ private:
 	GridDistances		distances;			// ground distances from tilePosition
 
 	bool				reserved;			// if this is a planned expansion
+	bool				workerDanger;		// for our own bases only; false for others
 
 public:
 
@@ -41,8 +42,10 @@ public:
 	const BWAPI::TilePosition & getTilePosition() const { return tilePosition; };
 	const BWAPI::Position getPosition() const { return BWAPI::Position(tilePosition); };
 
+	// Ground distances.
 	int getTileDistance(const BWAPI::Position & pos) const { return distances.at(pos); };
 	int getTileDistance(const BWAPI::TilePosition & pos) const { return distances.at(pos); };
+	int getDistance(const BWAPI::Position & pos) const { return 32 * getTileDistance(pos); };
 
 	void setOwner(BWAPI::Unit depot, BWAPI::Player player);
 
@@ -55,9 +58,13 @@ public:
 	int getInitialMinerals() const;
 	int getInitialGas() const;
 
-	bool isReserved() const { return reserved; };
 	void reserve() { reserved = true; };
 	void unreserve() { reserved = false; };
+	bool isReserved() const { return reserved; };
+
+	// Whether our workers at a base are in danger is decided by outside tactical analysis.
+	void setWorkerDanger(bool attack) { workerDanger = attack; };
+	bool inWorkerDanger() const { return workerDanger; };
 
 	void clearBlocker(BWAPI::Unit blocker);
 

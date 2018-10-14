@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "BOSSManager.h"
+#include "BuildingManager.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;

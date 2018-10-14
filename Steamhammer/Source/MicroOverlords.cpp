@@ -2,7 +2,7 @@
 
 #include "Bases.h"
 #include "InformationManager.h"
-#include "Micro.h"
+#include "The.h"
 
 using namespace UAlbertaBot;
 
@@ -102,9 +102,9 @@ void MicroOverlords::update()
 	}
 
     // NOTE Could also use the opponent model to predict these values.
-	bool overlordHunters = InformationManager::Instance().enemyHasOverlordHunters();
-	bool cloakedEnemies = InformationManager::Instance().enemyHasMobileCloakTech();
-	bool weHaveSpores = nearestSpore(*getUnits().begin()) != nullptr;
+	const bool overlordHunters = InformationManager::Instance().enemyHasOverlordHunters();
+	const bool cloakedEnemies = InformationManager::Instance().enemyHasMobileCloakTech();
+	const bool weHaveSpores = nearestSpore(*getUnits().begin()) != nullptr;
 
 	if (overlordHunters && !cloakedEnemies && weHaveSpores)
 	{
@@ -114,7 +114,7 @@ void MicroOverlords::update()
 		{
 			BWAPI::Unit spore = nearestSpore(overlord);
 			UAB_ASSERT(spore, "no spore after all");
-			Micro::Move(overlord, spore->getPosition());
+			the.micro.Move(overlord, spore->getPosition());
 		}
 		//BWAPI::Broodwar->printf("run to spores");
 	}
@@ -125,7 +125,7 @@ void MicroOverlords::update()
 		// Move assigned overlords to their assigned bases.
 		for (std::pair<Base *, BWAPI::Unit> assignment : baseAssignments)
 		{
-			Micro::Move(assignment.second, assignment.first->getPosition());
+			the.micro.Move(assignment.second, assignment.first->getPosition());
 		}
 
 		if (overlordHunters && weHaveSpores)
@@ -135,7 +135,7 @@ void MicroOverlords::update()
 			{
 				BWAPI::Unit spore = nearestSpore(overlord);
 				UAB_ASSERT(spore, "no spore after all");
-				Micro::Move(overlord, spore->getPosition());
+				the.micro.Move(overlord, spore->getPosition());
 			}
 			//BWAPI::Broodwar->printf("run spares to spores");
 		}

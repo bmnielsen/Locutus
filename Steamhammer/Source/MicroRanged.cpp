@@ -1,6 +1,7 @@
-#include "InformationManager.h"
-#include "Micro.h"
 #include "MicroRanged.h"
+
+#include "InformationManager.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
@@ -21,15 +22,14 @@ MicroRanged::MicroRanged()
 { 
 }
 
-void MicroRanged::executeMicro(const BWAPI::Unitset & targets)
+void MicroRanged::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
-	assignTargets(targets);
+	BWAPI::Unitset units = Intersection(getUnits(), cluster.units);
+	assignTargets(units, targets);
 }
 
-void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
+void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI::Unitset & targets)
 {
-    const BWAPI::Unitset & rangedUnits = getUnits();
-
 	// The set of potential targets.
 	BWAPI::Unitset rangedUnitTargets;
     std::copy_if(targets.begin(), targets.end(), std::inserter(rangedUnitTargets, rangedUnitTargets.end()),
@@ -42,6 +42,25 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 			!u->isStasised();
 	});
 
+	// Figure out if the enemy is ready to attack ground or air.
+	bool enemyHasAntiGround = false;
+	bool enemyHasAntiAir = false;
+	for (BWAPI::Unit target : rangedUnitTargets)
+	{
+		if (UnitUtil::AttackOrder(target))
+		{
+			// If the enemy unit is retreating or whatever, it won't attack.
+			if (UnitUtil::CanAttackGround(target))
+			{
+				enemyHasAntiGround = true;
+			}
+			if (UnitUtil::CanAttackAir(target))
+			{
+				enemyHasAntiAir = true;
+			}
+		}
+	}
+	
 	for (const auto rangedUnit : rangedUnits)
 	{
 		if (buildScarabOrInterceptor(rangedUnit))
@@ -64,11 +83,11 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 			{
 				if (rangedUnit->getDistance(order.getPosition()) < 300)
 				{
-					Micro::AttackMove(rangedUnit, order.getPosition());
+					the.micro.AttackMove(rangedUnit, order.getPosition());
 				}
 				else
 				{
-					Micro::Move(rangedUnit, order.getPosition());
+					the.micro.Move(rangedUnit, order.getPosition());
 				}
 				continue;
 			}
@@ -87,17 +106,12 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 		if (stayHomeUntilReady(rangedUnit))
 		{
 			BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
-			Micro::AttackMove(rangedUnit, fleeTo);
+			the.micro.AttackMove(rangedUnit, fleeTo);
 			continue;
 		}
 
 		if (order.isCombatOrder())
         {
-			if (unstickStuckUnit(rangedUnit))
-			{
-				continue;
-			}
-
 			// If a target is found,
 			BWAPI::Unit target = getTarget(rangedUnit, rangedUnitTargets);
 			if (target)
@@ -107,14 +121,14 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 					BWAPI::Broodwar->drawLineMap(rangedUnit->getPosition(), rangedUnit->getTargetPosition(), BWAPI::Colors::Purple);
 				}
 
-				// attack it.
-				if (Config::Micro::KiteWithRangedUnits)
+				bool kite = rangedUnit->isFlying() ? enemyHasAntiAir : enemyHasAntiGround;
+				if (Config::Micro::KiteWithRangedUnits && kite)
 				{
-					Micro::KiteTarget(rangedUnit, target);
+					the.micro.KiteTarget(rangedUnit, target);
 				}
 				else
 				{
-					Micro::CatchAndAttackUnit(rangedUnit, target);
+					the.micro.CatchAndAttackUnit(rangedUnit, target);
 				}
 			}
 			else
@@ -122,7 +136,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				// No target found. If we're not near the order position, go there.
 				if (rangedUnit->getDistance(order.getPosition()) > 100)
 				{
-					Micro::AttackMove(rangedUnit, order.getPosition());
+					the.micro.AttackMove(rangedUnit, order.getPosition());
 				}
 			}
 		}
@@ -155,6 +169,12 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 			continue;
 		}
 
+		// Don't chase targets that we can't catch.
+		if (!CanCatchUnit(rangedUnit, target))
+		{
+			continue;
+		}
+
 		// Let's say that 1 priority step is worth 160 pixels (5 tiles).
 		// We care about unit-target range and target-order position distance.
 		int score = 5 * 32 * priority - range;
@@ -168,29 +188,29 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		}
 
 		const bool isThreat = UnitUtil::CanAttack(target, rangedUnit);   // may include workers as threats
-		const bool canShootBack = isThreat && target->isInWeaponRange(rangedUnit);
+		const bool canShootBack = isThreat && range <= 32 + UnitUtil::GetAttackRange(target, rangedUnit);
 
 		if (isThreat)
 		{
 			if (canShootBack)
 			{
-				score += 6 * 32;
+				score += 7 * 32;
 			}
 			else if (rangedUnit->isInWeaponRange(target))
 			{
-				score += 4 * 32;
+				score += 5 * 32;
 			}
 			else
 			{
-				score += 3 * 32;
+				score += 5 * 32;
 			}
 		}
-		// This could adjust for relative speed and direction, so that we don't chase what we can't catch.
 		else if (!target->isMoving())
 		{
 			if (target->isSieged() ||
 				target->getOrder() == BWAPI::Orders::Sieging ||
-				target->getOrder() == BWAPI::Orders::Unsieging)
+				target->getOrder() == BWAPI::Orders::Unsieging ||
+				target->isBurrowed())
 			{
 				score += 48;
 			}
@@ -321,7 +341,15 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 1;
 	}
 
-    // if the target is building something near our base something is fishy
+	// A ghost which is nuking is the highest priority by a mile.
+	if (targetType == BWAPI::UnitTypes::Terran_Ghost &&
+		target->getOrder() == BWAPI::Orders::NukePaint ||
+		target->getOrder() == BWAPI::Orders::NukeTrack)
+	{
+		return 15;
+	}
+
+	// if the target is building something near our base something is fishy
     BWAPI::Position ourBasePosition = BWAPI::Position(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
 	if (target->getDistance(ourBasePosition) < 1000) {
 		if (target->getType().isWorker() && (target->isConstructing() || target->isRepairing()))
@@ -384,7 +412,8 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 10;
 	}
 
-	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar)
+	if (targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
+		targetType == BWAPI::UnitTypes::Zerg_Defiler)
 	{
 		return 12;
 	}
@@ -401,7 +430,7 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 9;
 	}
 
-	// Threats can attack us. Exceptions: Workers are not threats.
+	// Threats can attack us. Exception: Workers are not threats.
 	if (UnitUtil::CanAttack(targetType, rangedType) && !targetType.isWorker())
 	{
 		// Enemy unit which is far enough outside its range is lower priority than a worker.

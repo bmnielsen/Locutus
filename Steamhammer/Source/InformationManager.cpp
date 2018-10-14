@@ -24,6 +24,7 @@ InformationManager::InformationManager()
 	, _enemyHasOverlordHunters(false)
 	, _enemyHasStaticDetection(false)
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
+	, _enemyHasSiegeMode(false)
 {
 	initializeTheBases();
 	initializeRegionInformation();
@@ -206,6 +207,7 @@ void InformationManager::update()
 	updateBaseLocationInfo();
 	updateTheBases();
 	updateGoneFromLastPosition();
+	updateTheirTargets();
 }
 
 void InformationManager::updateUnitInfo() 
@@ -478,6 +480,24 @@ void InformationManager::updateGoneFromLastPosition()
 	}
 }
 
+// For each of our units, keep track of which enemies are targeting it.
+// It changes frequently, so this is updated every frame.
+void InformationManager::updateTheirTargets()
+{
+	_theirTargets.clear();
+
+	// We only know the targets for visible enemy units.
+	for (BWAPI::Unit enemy : _enemy->getUnits())
+	{
+		BWAPI::Unit target = enemy->getOrderTarget();
+		if (target && target->getPlayer() == _self && (target->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine || UnitUtil::AttackOrder(enemy)))
+		{
+			_theirTargets[target].insert(enemy);
+			//BWAPI::Broodwar->drawLineMap(enemy->getPosition(), target->getPosition(), BWAPI::Colors::Yellow);
+		}
+	}
+}
+
 bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region) 
 {
 	// invalid regions aren't considered the same, but they will both be null
@@ -622,7 +642,6 @@ void InformationManager::drawExtendedInterface()
                 BWAPI::Broodwar->drawLineMap(BWAPI::Position(i, hpTop), BWAPI::Position(i, hpBottom), BWAPI::Colors::Black);
             }
         }
-
     }
 
     // draw neutral units and our units
@@ -796,7 +815,9 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
 	}
 }
 
-// Only returns units believed to be completed.
+// Only returns units expected to be completed.
+// A building is considered completed if it was last seen uncompleted and is now out of sight.
+// NOTE It could be more accurate if ui.comleted were ui.completionTime or something similar.
 void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI::Position p, BWAPI::Player player, int radius) 
 {
 	// for each unit we know about for that player
@@ -806,7 +827,8 @@ void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI:
 
 		// if it's a combat unit we care about
 		// and it's finished! 
-		if (UnitUtil::IsCombatSimUnit(ui.type) && ui.completed && !ui.goneFromLastPosition)
+		if (UnitUtil::IsCombatSimUnit(ui.type) && !ui.goneFromLastPosition &&
+			(ui.completed || ui.type.isBuilding() && !ui.unit->isVisible()))
 		{
 			if (ui.type == BWAPI::UnitTypes::Terran_Medic)
 			{
@@ -841,11 +863,6 @@ void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI:
 int InformationManager::getNumUnits(BWAPI::UnitType t, BWAPI::Player player) const
 {
 	return getUnitData(player).getNumUnits(t);
-}
-
-const UnitData & InformationManager::getUnitData(BWAPI::Player player) const
-{
-    return _unitData.find(player)->second;
 }
 
 bool InformationManager::isBaseReserved(Base * base)
@@ -1053,18 +1070,6 @@ bool InformationManager::enemyHasCloakTech()
 		return true;
 	}
 
-	for (BWAPI::Unit unit : BWAPI::Broodwar->enemy()->getUnits())
-	{
-		if (unit->isVisible() && !unit->isDetected())
-		{
-			// NOTE Cloaked units were actually spotted. Set all the flags.
-			_enemyHasCloakTech = true;
-			_enemyCloakedUnitsSeen = true;
-			_enemyHasMobileCloakTech = true;
-			return true;
-		}
-	}
-
 	for (const auto & kv : getUnitData(_enemy).getUnits())
 	{
 		const UnitInfo & ui(kv.second);
@@ -1090,7 +1095,8 @@ bool InformationManager::enemyHasCloakTech()
 }
 
 // This test means more "can I be SURE that I will benefit from detection?"
-// It only counts actual cloaked units, not merely the tech for them.
+// It only counts actual cloaked units, not merely the tech for them,
+// and does not worry about observers.
 // NOTE The enemySeenBurrowing() call also sets _enemyCloakedUnitsSeen.
 // NOTE If they have cloaked units, they have cloak tech. Set all appropriate flags.
 bool InformationManager::enemyCloakedUnitsSeen()
@@ -1101,25 +1107,13 @@ bool InformationManager::enemyCloakedUnitsSeen()
 		return true;
 	}
 
-	// NOTE This notices observers, which we might not want to notice here.
-	for (BWAPI::Unit unit : BWAPI::Broodwar->enemy()->getUnits())
-	{
-		if (unit->isVisible() && !unit->isDetected())
-		{
-			// NOTE Cloaked units were actually spotted. Set all the flags.
-			_enemyHasCloakTech = true;
-			_enemyCloakedUnitsSeen = true;
-			_enemyHasMobileCloakTech = true;
-			return true;
-		}
-	}
-
 	for (const auto & kv : getUnitData(_enemy).getUnits())
 	{
 		const UnitInfo & ui(kv.second);
 
 		if (ui.type.isCloakable() ||                                    // wraith, ghost
 			ui.type == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
+			ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar ||
 			ui.type == BWAPI::UnitTypes::Protoss_Arbiter ||
 			ui.type == BWAPI::UnitTypes::Zerg_Lurker ||
 			ui.type == BWAPI::UnitTypes::Zerg_Lurker_Egg ||
@@ -1144,18 +1138,6 @@ bool InformationManager::enemyHasMobileCloakTech()
 	if (_enemyHasMobileCloakTech)
 	{
 		return true;
-	}
-
-	for (BWAPI::Unit unit : BWAPI::Broodwar->enemy()->getUnits())
-	{
-		if (unit->isVisible() && !unit->isDetected())
-		{
-			// NOTE Cloaked units were actually spotted. Set all the flags.
-			_enemyHasCloakTech = true;
-			_enemyCloakedUnitsSeen = true;
-			_enemyHasMobileCloakTech = true;
-			return true;
-		}
 	}
 
 	for (const auto & kv : getUnitData(_enemy).getUnits())
@@ -1288,6 +1270,87 @@ bool InformationManager::enemyHasMobileDetection()
 	return false;
 }
 
+bool InformationManager::enemyHasSiegeMode()
+{
+	// Only terran can get siege mode. Ignore the possibility of protoss mind control.
+	if (_enemy->getRace() != BWAPI::Races::Terran)
+	{
+		return false;
+	}
+
+	// Latch: Once they're known to have the tech, they always have it.
+	if (_enemyHasSiegeMode)
+	{
+		return true;
+	}
+
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		// If the tank is in the process of sieging, it is still in tank mode.
+		// If it is unsieging, it is still in siege mode.
+		if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
+			ui.unit->isVisible() && ui.unit->getOrder() == BWAPI::Orders::Sieging)
+		{
+			_enemyHasStaticAntiAir = true;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Our nearest static defense building that can hit ground, by air distance.
+// Null if none.
+// NOTE This assumes that we never put medics or SCVs into a bunker.
+BWAPI::Unit InformationManager::nearestGroundStaticDefense(BWAPI::Position pos) const
+{
+	int closestDist = 999999;
+	BWAPI::Unit closest = nullptr;
+	for (BWAPI::Unit building : _staticDefense)
+	{
+		if (building->getType() == BWAPI::UnitTypes::Terran_Bunker && !building->getLoadedUnits().empty() ||
+			building->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
+			building->getType() == BWAPI::UnitTypes::Zerg_Sunken_Colony)
+		{
+			int dist = building->getDistance(pos);
+			if (dist < closestDist)
+			{
+				closestDist = dist;
+				closest = building;
+			}
+		}
+	}
+	return closest;
+}
+
+// Our nearest static defense building that can hit air, by air distance.
+// Null if none.
+// NOTE This assumes that we only put marines into a bunker: If it is loaded, it can shoot air.
+// If we ever put firebats or SCVs or medics into a bunker, we'll have to do a fancier check.
+BWAPI::Unit InformationManager::nearestAirStaticDefense(BWAPI::Position pos) const
+{
+	int closestDist = 999999;
+	BWAPI::Unit closest = nullptr;
+	for (BWAPI::Unit building : _staticDefense)
+	{
+		if (building->getType() == BWAPI::UnitTypes::Terran_Missile_Turret ||
+			building->getType() == BWAPI::UnitTypes::Terran_Bunker && !building->getLoadedUnits().empty() ||
+			building->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon || 
+			building->getType() == BWAPI::UnitTypes::Zerg_Spore_Colony)
+		{
+			int dist = building->getDistance(pos);
+			if (dist < closestDist)
+			{
+				closestDist = dist;
+				closest = building;
+			}
+		}
+	}
+	return closest;
+}
+
 // Our nearest shield battery, by air distance.
 // Null if none.
 BWAPI::Unit InformationManager::nearestShieldBattery(BWAPI::Position pos) const
@@ -1338,6 +1401,22 @@ int InformationManager::nScourgeNeeded()
 	}
 
 	return count;
+}
+
+const UnitData & InformationManager::getUnitData(BWAPI::Player player) const
+{
+	return _unitData.find(player)->second;
+}
+
+// Return the set of enemy units targeting a given one of our units.
+const BWAPI::Unitset &	InformationManager::getEnemyFireteam(BWAPI::Unit ourUnit) const
+{
+	auto it = _theirTargets.find(ourUnit);
+	if (it != _theirTargets.end())
+	{
+		return (*it).second;
+	}
+	return EmptyUnitSet;
 }
 
 InformationManager & InformationManager::Instance()

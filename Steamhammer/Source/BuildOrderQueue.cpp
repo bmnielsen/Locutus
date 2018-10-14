@@ -44,10 +44,15 @@ void BuildOrderQueue::queueAsLowestPriority(MacroAct m)
 	modified = true;
 }
 
+// Does nothing if the queue is empty.
+// It's still a questionable idea to call it when the queue might be empty.
 void BuildOrderQueue::removeHighestPriorityItem() 
 {
-	queue.pop_back();
-	modified = true;
+	if (!queue.empty())
+	{
+		queue.pop_back();
+		modified = true;
+	}
 }
 
 void BuildOrderQueue::doneWithHighestPriorityItem()
@@ -76,11 +81,12 @@ bool BuildOrderQueue::isEmpty() const
 	return queue.empty();
 }
 
+// Don't call this when the queue is empty!
 const BuildOrderItem & BuildOrderQueue::getHighestPriorityItem() const
 {
 	UAB_ASSERT(!queue.empty(), "taking from empty queue");
 
-	// the queue will be sorted with the highest priority at the back
+	// The highest priority item is at the end.
 	return queue.back();
 }
 

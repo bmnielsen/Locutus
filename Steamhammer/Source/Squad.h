@@ -1,14 +1,14 @@
 #pragma once
 
 #include "Common.h"
-#include "StrategyManager.h"
-#include "CombatSimulation.h"
+#include "OpsBoss.h"
 #include "SquadOrder.h"
 
 #include "MicroAirToAir.h"
 #include "MicroMelee.h"
 #include "MicroRanged.h"
 
+#include "MicroDefilers.h"
 #include "MicroDetectors.h"
 #include "MicroHighTemplar.h"
 #include "MicroLurkers.h"
@@ -24,6 +24,7 @@ class The;
 
 class Squad
 {
+	The &				the;
     std::string         _name;
 	BWAPI::Unitset      _units;
 	bool				_combatSquad;
@@ -39,10 +40,13 @@ class Squad
     bool                _lastRetreatSwitchVal;
     size_t              _priority;
 	
+	double				_lastScore;			// combat simulation result
+
 	SquadOrder          _order;
 	MicroAirToAir		_microAirToAir;
 	MicroMelee			_microMelee;
 	MicroRanged			_microRanged;
+	MicroDefilers		_microDefilers;
 	MicroDetectors		_microDetectors;
 	MicroHighTemplar	_microHighTemplar;
 	MicroLurkers		_microLurkers;
@@ -52,22 +56,34 @@ class Squad
 	MicroTanks			_microTanks;
 	MicroTransports		_microTransports;
 
-	std::map<BWAPI::Unit, bool>	_nearEnemy;
+	std::map<BWAPI::Unit, bool> _nearEnemy;
+
+	std::vector<UnitCluster> _clusters;
 
 	BWAPI::Unit		getRegroupUnit();
-	BWAPI::Unit		unitClosestToEnemy();
+	BWAPI::Unit		unitClosestToEnemy(const BWAPI::Unitset units) const;
     
 	void			updateUnits();
 	void			addUnitsToMicroManagers();
 	void			setNearEnemyUnits();
 	void			setAllUnits();
 	
+	void			setClusterStatus(UnitCluster & cluster);
+	void			clusterCombat(const UnitCluster & cluster);
+	bool			noFight(const UnitCluster & cluster);
+	bool			joinUp(const UnitCluster & cluster);
+	void			moveCluster(const UnitCluster & cluster, const BWAPI::Position & destination);
+
 	bool			unitNearEnemy(BWAPI::Unit unit);
-	bool			needsToRegroup();
-	BWAPI::Position calcRegroupPosition();
+	bool			needsToRegroup(const UnitCluster & cluster);
+	BWAPI::Position calcRegroupPosition(const UnitCluster & cluster) const;
+	BWAPI::Position finalRegroupPosition() const;
+	BWAPI::Unit		nearbyStaticDefense(const BWAPI::Position & pos) const;
 
 	void			loadTransport();
 	void			stimIfNeeded();
+
+	void			drawCluster(const UnitCluster & cluster) const;
 
 public:
 
@@ -108,6 +124,8 @@ public:
 	const bool			hasDetector()		const { return !_microDetectors.getUnits().empty(); };
 	const bool			hasCombatUnits()	const;
 	const bool			isOverlordHunterSquad() const;
+
+	void				drawCombatSimInfo() const;
 
 };
 }

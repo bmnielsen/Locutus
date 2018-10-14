@@ -5,6 +5,7 @@
 #include "Micro.h"
 #include "OpponentModel.h"
 #include "ProductionManager.h"
+#include "The.h"
 
 // This class is responsible for early game scouting.
 // It controls any scouting worker and scouting overlord that it is given.
@@ -12,7 +13,8 @@
 using namespace UAlbertaBot;
 
 ScoutManager::ScoutManager() 
-	: _overlordScout(nullptr)
+	: the(The::Root())
+	, _overlordScout(nullptr)
     , _workerScout(nullptr)
 	, _scoutStatus("None")
 	, _gasStealStatus("None")
@@ -215,7 +217,7 @@ void ScoutManager::update()
 		}
 		if (moveScout)
 		{
-			moveGroundScout(_workerScout);
+			moveGroundScout();
 		}
 	}
 	else if (_gasStealOver)
@@ -226,7 +228,7 @@ void ScoutManager::update()
 
 	if (_overlordScout)
 	{
-		moveAirScout(_overlordScout);
+		moveAirScout();
 	}
 
     drawScoutInformation(200, 320);
@@ -322,7 +324,7 @@ void ScoutManager::drawScoutInformation(int x, int y)
 }
 
 // Move the worker scout.
-void ScoutManager::moveGroundScout(BWAPI::Unit scout)
+void ScoutManager::moveGroundScout()
 {
 	const int scoutDistanceThreshold = 30;    // in tiles
 
@@ -330,7 +332,7 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 	{
 		// The target is valid exactly when we are still looking for the enemy base.
 		_scoutStatus = "Seeking enemy base";
-		Micro::Move(_workerScout, BWAPI::Position(_workerScoutTarget));
+		the.micro.Move(_workerScout, BWAPI::Position(_workerScoutTarget));
 	}
 	else
 	{
@@ -338,19 +340,19 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 
 		UAB_ASSERT(enemyBaseLocation, "no enemy base");
 
-		int scoutDistanceToEnemy = MapTools::Instance().getGroundTileDistance(scout->getPosition(), enemyBaseLocation->getPosition());
+		int scoutDistanceToEnemy = MapTools::Instance().getGroundTileDistance(_workerScout->getPosition(), enemyBaseLocation->getPosition());
 		bool scoutInRangeOfenemy = scoutDistanceToEnemy <= scoutDistanceThreshold;
 
 		// we only care if the scout is under attack within the enemy region
 		// this ignores if their scout worker attacks it on the way to their base
-		int scoutHP = scout->getHitPoints() + scout->getShields();
+		int scoutHP = _workerScout->getHitPoints() + _workerScout->getShields();
 		if (scoutHP < _previousScoutHP)
 		{
 			_scoutUnderAttack = true;
 		}
 		_previousScoutHP = scoutHP;
 
-		if (!scout->isUnderAttack() && !enemyWorkerInRadius())
+		if (!_workerScout->isUnderAttack() && !enemyWorkerInRadius())
 		{
 			_scoutUnderAttack = false;
 		}
@@ -371,7 +373,7 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 				{
 					_scoutStatus = "Harass enemy worker";
 					_currentRegionVertexIndex = -1;
-					Micro::CatchAndAttackUnit(scout, closestWorker);
+					the.micro.CatchAndAttackUnit(_workerScout, closestWorker);
 				}
 				// otherwise keep circling the enemy region
 				else
@@ -396,7 +398,7 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 }
 
 // Move the overlord scout.
-void ScoutManager::moveAirScout(BWAPI::Unit scout)
+void ScoutManager::moveAirScout()
 {
 	// get the enemy base location, if we have one
 	// Note: In case of an enemy proxy or weird map, this might be our own base. Roll with it.
@@ -412,7 +414,7 @@ void ScoutManager::moveAirScout(BWAPI::Unit scout)
 			{
 				_scoutStatus = "Overlord to enemy base";
 			}
-			Micro::Move(_overlordScout, enemyBaseLocation->getPosition());
+			the.micro.Move(_overlordScout, enemyBaseLocation->getPosition());
 			if (_overlordScout->getDistance(enemyBaseLocation->getPosition()) < 8)
 			{
 				_overlordAtEnemyBase = true;
@@ -437,7 +439,7 @@ void ScoutManager::moveAirScout(BWAPI::Unit scout)
 
 		if (_overlordScoutTarget.isValid())
 		{
-			Micro::Move(_overlordScout, BWAPI::Position(_overlordScoutTarget));
+			the.micro.Move(_overlordScout, BWAPI::Position(_overlordScoutTarget));
 		}
 	}
 }
@@ -464,7 +466,7 @@ void ScoutManager::followPerimeter()
 		}
 	}
 
-	Micro::Move(_workerScout, fleeTo);
+	the.micro.Move(_workerScout, fleeTo);
 }
 
 // Called only when a gas steal is requested.
@@ -514,14 +516,14 @@ bool ScoutManager::gasSteal()
 			_queuedGasSteal = true;
 			// Regardless, make sure we are moving toward the geyser.
 			// It makes life easier on the building manager.
-			Micro::Move(_workerScout, _enemyGeyser->getInitialPosition());
+			the.micro.Move(_workerScout, _enemyGeyser->getInitialPosition());
 		}
 		_gasStealStatus = "Stealing gas";
 	}
 	else
 	{
 		// We don't see the geyser yet. Move toward it.
-		Micro::Move(_workerScout, _enemyGeyser->getInitialPosition());
+		the.micro.Move(_workerScout, _enemyGeyser->getInitialPosition());
 		_gasStealStatus = "Moving to steal gas";
 	}
 	return true;
@@ -804,7 +806,7 @@ void ScoutManager::calculateEnemyRegionVertices()
 
         std::vector<BWAPI::Position> temp;
 
-        for (size_t s(maxFarthestEnd); s != maxFarthestStart; s = (s+1) % sortedVertices.size())
+        for (int s(maxFarthestEnd); s != maxFarthestStart; s = (s+1) % sortedVertices.size())
         {
             temp.push_back(sortedVertices[s]);
         }

@@ -11,10 +11,8 @@
 #include <algorithm>
 #include <vector>
 #include <deque>
-#include <list>
 #include <set>
 #include <map>
-#include <array>
 
 #include <BWAPI.h>
 
@@ -65,6 +63,12 @@ struct Rect
 double UCB1_bound(int tries, int total);
 double UCB1_bound(double tries, double total);
 
+// Used to return a reference to an empty set of units when a data structure
+// doesn't have an entry giving another set.
+const static BWAPI::Unitset EmptyUnitSet;
+
+BWAPI::Unitset Intersection(const BWAPI::Unitset & a, const BWAPI::Unitset & b);
+
 int GetIntFromString(const std::string & s);
 std::string TrimRaceName(const std::string & s);
 char RaceChar(BWAPI::Race race);
@@ -84,5 +88,8 @@ const char gray    = '\x1E';   // dim
 const char cyan    = '\x1F';
 
 void ClipToMap(BWAPI::Position & pos);
+BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance);
+double ApproachSpeed(const BWAPI::Position & pos, BWAPI::Unit u);
 BWAPI::Position CenterOfUnitset(const BWAPI::Unitset units);
 BWAPI::Position PredictMovement(BWAPI::Unit unit, int frames);
+bool CanCatchUnit(BWAPI::Unit chaser, BWAPI::Unit runaway);

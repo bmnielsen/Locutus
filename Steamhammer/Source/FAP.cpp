@@ -3,6 +3,12 @@
 
 UAlbertaBot::FastAPproximation fap;
 
+// This is N00byEdge's original version of FAP, slightly adjusted to fit into its new environment.
+// Newer versions exist.
+// https://github.com/N00byEdge/Neohuman/blob/master/FAP.cpp
+
+// This version is also updated to understand dark swarm, in an approximate way. 
+
 // NOTE FAP does not use UnitInfo.goneFromLastPosition. The flag is always set false
 // on a UnitInfo value which is passed in (CombatSimulation makes sure of it).
 
@@ -104,7 +110,6 @@ namespace UAlbertaBot {
 			fu.shields = 0;
 		}
 
-
 		if (!damage)
 			return;
 
@@ -145,6 +150,15 @@ namespace UAlbertaBot {
 		auto closestEnemy = enemyUnits.end();
 		int closestDist = 99999;
 
+		// NOTE This skips siege tanks, which do splash damage under swarm.
+		const bool hitUnderSwarm =
+			fu.groundDamage &&
+			(	fu.groundMaxRange <= 32 ||
+				isSuicideUnit(fu.unitType) ||
+				fu.unitType == BWAPI::UnitTypes::Protoss_Archon ||
+				fu.unitType == BWAPI::UnitTypes::Zerg_Lurker
+			);
+
 		for (auto enemyIt = enemyUnits.begin(); enemyIt != enemyUnits.end(); ++ enemyIt) {
 			if (enemyIt->flying) {
 				if (fu.airDamage) {
@@ -156,7 +170,7 @@ namespace UAlbertaBot {
 				}
 			}
 			else {
-				if (fu.groundDamage) {
+				if (fu.groundDamage && (!enemyIt->underSwarm || hitUnderSwarm)) {
 					int d = distButNotReally(fu, *enemyIt);
 					if ((closestEnemy == enemyUnits.end() || d < closestDist) && d >= fu.groundMinRange) {
 						closestDist = d;
@@ -380,6 +394,7 @@ namespace UAlbertaBot {
 		maxShields(ui.type.maxShields()),
 		armor(ui.player->armor(ui.type)),
 		flying(ui.type.isFlyer()),
+		underSwarm(ui.unit && ui.unit->isVisible() && ui.unit->isUnderDarkSwarm()),  // not too accurate
 
 		groundDamage(ui.player->damage(ui.type.groundWeapon())),
 		groundCooldown(ui.type.groundWeapon().damageFactor() && ui.type.maxGroundHits() ? ui.player->weaponDamageCooldown(ui.type) / (ui.type.groundWeapon().damageFactor() * ui.type.maxGroundHits()) : 0),
@@ -455,7 +470,7 @@ namespace UAlbertaBot {
 		x = other.x, y = other.y;
 		health = other.health, maxHealth = other.maxHealth;
 		shields = other.shields, maxShields = other.maxShields;
-		speed = other.speed, armor = other.armor, flying = other.flying, unitSize = other.unitSize;
+		speed = other.speed, armor = other.armor, flying = other.flying, underSwarm = other.underSwarm, unitSize = other.unitSize;
 		groundDamage = other.groundDamage, groundCooldown = other.groundCooldown, groundMaxRange = other.groundMaxRange, groundMinRange = other.groundMinRange, groundDamageType = other.groundDamageType;
 		airDamage = other.airDamage, airCooldown = other.airCooldown, airMaxRange = other.airMaxRange, airMinRange = other.airMinRange, airDamageType = other.airDamageType;
 		score = other.score;

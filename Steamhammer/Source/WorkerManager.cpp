@@ -3,12 +3,14 @@
 #include "Bases.h"
 #include "Micro.h"
 #include "ProductionManager.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
 WorkerManager::WorkerManager() 
-	: previousClosestWorker(nullptr)
+	: the(The::Root())
+	, previousClosestWorker(nullptr)
 	, _collectGas(true)
 {
 }
@@ -29,6 +31,7 @@ void WorkerManager::update()
 	handleReturnCargoWorkers();
 	handleMoveWorkers();
 	handleRepairWorkers();
+	handleMineralWorkers();
 
 	drawResourceDebugInfo();
 	drawWorkerInformation(450,20);
@@ -53,7 +56,7 @@ void WorkerManager::updateWorkerStatus()
 			continue;     // the worker list includes drones in the egg
 		}
 
-		// TODO temporary debugging - see Micro::Move
+		// TODO temporary debugging - see the.micro.Move
 		// UAB_ASSERT(UnitUtil::IsValidUnit(worker), "bad worker");
 
 		// If it's supposed to be on minerals but is actually collecting gas, fix it.
@@ -76,7 +79,7 @@ void WorkerManager::updateWorkerStatus()
 		}
 
 		// The worker's original job. It may change as we go!
-		auto job = workerData.getWorkerJob(worker);
+		WorkerData::WorkerJob job = workerData.getWorkerJob(worker);
 
 		// Idleness.
 		// Order can be PlayerGuard for a drone that tries to build and fails.
@@ -125,12 +128,23 @@ void WorkerManager::updateWorkerStatus()
 			{
 				// defendSelf() does the work.
 			}
+			else if (worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
+				worker->getOrder() == BWAPI::Orders::WaitForMinerals)
+			{
+				// If the mineral patch is mined out, release the worker from its job.
+				BWAPI::Unit patch = workerData.getWorkerResource(worker);
+				if (!patch || !patch->exists())
+				{
+					workerData.setWorkerJob(worker, WorkerData::Idle, nullptr);
+				}
+			}
 			else if (worker->getOrder() != BWAPI::Orders::MoveToMinerals &&
 				worker->getOrder() != BWAPI::Orders::WaitForMinerals &&
 				worker->getOrder() != BWAPI::Orders::MiningMinerals &&
 				worker->getOrder() != BWAPI::Orders::ReturnMinerals &&
 				worker->getOrder() != BWAPI::Orders::ResetCollision)
 			{
+				// The worker is not actually mining. Release it.
 				workerData.setWorkerJob(worker, WorkerData::Idle, nullptr);
 			}
 		}
@@ -153,22 +167,32 @@ void WorkerManager::handleGasWorkers()
 {
 	if (_collectGas)
 	{
-		// Gather gas where possible. Check each refinery.
-		for (const auto refinery : BWAPI::Broodwar->self()->getUnits())
+		int nBases = Bases::Instance().completedBaseCount(BWAPI::Broodwar->self());
+
+		for (const Base * base : Bases::Instance().getBases())
 		{
-			if (refinery->getType().isRefinery() && refinery->isCompleted())
+			BWAPI::Unit depot = base->getDepot();
+
+			for (BWAPI::Unit geyser : base->getGeysers())
 			{
-				if (refineryHasDepot(refinery))
+				// Don't add more workers to a refinery at a base under attack (unless it is
+				// the only base). Limit losses to the workers that are already there.
+				if (base->getOwner() == BWAPI::Broodwar->self() &&
+					geyser->getType().isRefinery() &&
+					geyser->isCompleted() &&
+					geyser->getPlayer() == BWAPI::Broodwar->self() &&
+					UnitUtil::IsCompletedResourceDepot(depot) &&
+					(!base->inWorkerDanger() || nBases == 1))
 				{
 					// This is a good refinery. Gather from it.
 					// If too few workers are assigned, add more.
-					int numAssigned = workerData.getNumAssignedWorkers(refinery);
+					int numAssigned = workerData.getNumAssignedWorkers(geyser);
 					for (int i = 0; i < (Config::Macro::WorkersPerRefinery - numAssigned); ++i)
 					{
-						BWAPI::Unit gasWorker = getGasWorker(refinery);
+						BWAPI::Unit gasWorker = getGasWorker(geyser);
 						if (gasWorker)
 						{
-							workerData.setWorkerJob(gasWorker, WorkerData::Gas, refinery);
+							workerData.setWorkerJob(gasWorker, WorkerData::Gas, geyser);
 						}
 						else
 						{
@@ -178,12 +202,12 @@ void WorkerManager::handleGasWorkers()
 				}
 				else
 				{
-					// The refinery has no depot to return gas to. Remove any gas workers.
+					// The refinery is gone or otherwise no good. Remove any gas workers.
 					std::set<BWAPI::Unit> gasWorkers;
 					workerData.getGasWorkers(gasWorkers);
 					for (const auto gasWorker : gasWorkers)
 					{
-						if (refinery == workerData.getWorkerResource(gasWorker) &&
+						if (geyser == workerData.getWorkerResource(gasWorker) &&
 							gasWorker->getOrder() != BWAPI::Orders::HarvestGas)  // not inside the refinery
 						{
 							workerData.setWorkerJob(gasWorker, WorkerData::Idle, nullptr);
@@ -215,11 +239,10 @@ bool WorkerManager::refineryHasDepot(BWAPI::Unit refinery)
 {
 	// Iterate through units, not bases, because even if the main hatchery is destroyed
 	// (so the base is considered gone), a macro hatchery may be close enough.
-	// TODO could iterate through bases (from InfoMan) instead of units
+	// TODO could iterate through bases instead of units
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
-		if (unit->getType().isResourceDepot() &&
-			(unit->isCompleted() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive) &&
+		if (UnitUtil::IsCompletedResourceDepot(unit) &&
 			unit->getDistance(refinery) < 400)
 		{
 			return true;
@@ -266,7 +289,7 @@ void WorkerManager::handleReturnCargoWorkers()
 				(depot = getAnyClosestDepot(worker)) &&
 				worker->getDistance(depot) < 600)
 			{
-				Micro::ReturnCargo(worker);
+				the.micro.ReturnCargo(worker);
 			}
 			else
 			{
@@ -294,6 +317,27 @@ void WorkerManager::handleRepairWorkers()
 			break;
         }
     }
+}
+
+// Steamhammer's mineral locking is modeled after Locutus (but different in detail).
+// This implements the "wait for the last worker to be done" part of mineral locking.
+void WorkerManager::handleMineralWorkers()
+{
+	for (const BWAPI::Unit worker : workerData.getWorkers())
+	{
+		if (workerData.getWorkerJob(worker) == WorkerData::Minerals)
+		{
+			if (worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
+				worker->getOrder() == BWAPI::Orders::WaitForMinerals)
+			{
+				BWAPI::Unit patch = workerData.getWorkerResource(worker);
+				if (patch && patch->exists() && worker->getOrderTarget() != patch)
+				{
+					the.micro.MineMinerals(worker, patch);
+				}
+			}
+		}
+	}
 }
 
 // Used for worker self-defense.
@@ -387,7 +431,7 @@ bool WorkerManager::defendSelf(BWAPI::Unit worker, BWAPI::Unit resource)
 		}
 
 		// 2. We do not want to or are not able to run away. Fight.
-		Micro::CatchAndAttackUnit(worker, target);
+		the.micro.CatchAndAttackUnit(worker, target);
 		return true;
 	}
 
@@ -462,13 +506,13 @@ void WorkerManager::handleMoveWorkers()
 			{
 				// A move worker is being sent to build or something.
 				// Don't let it carry minerals or gas around wastefully.
-				Micro::ReturnCargo(worker);
+				the.micro.ReturnCargo(worker);
 			}
 			else
 			{
-				// UAB_ASSERT(worker->exists(), "bad worker");  // TODO temporary debugging - see Micro::Move
+				// UAB_ASSERT(worker->exists(), "bad worker");  // TODO temporary debugging - see the.micro.Move
 				WorkerMoveData data = workerData.getWorkerMoveData(worker);
-				Micro::Move(worker, data.position);
+				the.micro.Move(worker, data.position);
 			}
 		}
 	}
@@ -509,6 +553,7 @@ void WorkerManager::setReturnCargoWorker(BWAPI::Unit unit)
 }
 
 // Get the closest resource depot with no other consideration.
+// TODO iterate through bases, not units
 BWAPI::Unit WorkerManager::getAnyClosestDepot(BWAPI::Unit worker)
 {
 	UAB_ASSERT(worker, "Worker was null");
@@ -520,8 +565,7 @@ BWAPI::Unit WorkerManager::getAnyClosestDepot(BWAPI::Unit worker)
 	{
 		UAB_ASSERT(unit, "Unit was null");
 
-		if (unit->getType().isResourceDepot() &&
-			(unit->isCompleted() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive))
+		if (UnitUtil::IsCompletedResourceDepot(unit))
 		{
 			int distance = unit->getDistance(worker);
 			if (!closestDepot || distance < closestDistance)
@@ -536,25 +580,29 @@ BWAPI::Unit WorkerManager::getAnyClosestDepot(BWAPI::Unit worker)
 }
 
 // Get the closest resource depot that can accept another mineral worker.
+// The depot at a base under attack is treated as unavailable, unless it is the only base to mine at.
 BWAPI::Unit WorkerManager::getClosestNonFullDepot(BWAPI::Unit worker)
 {
 	UAB_ASSERT(worker, "Worker was null");
 
 	BWAPI::Unit closestDepot = nullptr;
-	int closestDistance = 0;
+	int closestDistance = 99999;
 
-	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+	int nBases = Bases::Instance().completedBaseCount(BWAPI::Broodwar->self());
+
+	for (const Base * base : Bases::Instance().getBases())
 	{
-        UAB_ASSERT(unit, "Unit was null");
+		BWAPI::Unit depot = base->getDepot();
 
-		if (unit->getType().isResourceDepot() &&
-			(unit->isCompleted() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive) &&
-			!workerData.depotIsFull(unit))
+		if (base->getOwner() == BWAPI::Broodwar->self() &&
+			UnitUtil::IsCompletedResourceDepot(depot) &&
+			(!base->inWorkerDanger() || nBases == 1) &&
+			!workerData.depotIsFull(depot))
 		{
-			int distance = unit->getDistance(worker);
-			if (!closestDepot || distance < closestDistance)
+			int distance = depot->getDistance(worker);
+			if (distance < closestDistance)
 			{
-				closestDepot = unit;
+				closestDepot = depot;
 				closestDistance = distance;
 			}
 		}
@@ -802,6 +850,7 @@ void WorkerManager::onUnitShow(BWAPI::Unit unit)
 }
 
 // Possibly transfer workers to other bases.
+// Well, mark them idle. Idle workers will be put to work if there is a place for them.
 void WorkerManager::rebalanceWorkers()
 {
 	for (const auto worker : workerData.getWorkers())

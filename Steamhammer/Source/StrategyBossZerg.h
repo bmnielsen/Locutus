@@ -1,12 +1,12 @@
 #pragma once
 
+#include <array>
 #include "BuildOrder.h"
 #include "BuildOrderQueue.h"
 #include "GameRecord.h"
 
 namespace UAlbertaBot
 {
-
 // Unit choices for main unit mix and tech target.
 // This deliberately omits support units like queens and defilers.
 enum class TechUnit : int
@@ -58,6 +58,7 @@ class StrategyBossZerg
 	// Recognize problems.
 	bool _emergencyGroundDefense;
 	int _emergencyStartFrame;
+	bool _wantAirArmor;		// to keep overlords alive vs. corsairs, valkyries
 
 	int _existingSupply;
 	int _pendingSupply;
@@ -88,6 +89,7 @@ class StrategyBossZerg
 	int nMutas;
 	int nGuardians;
 	int nDevourers;
+	int nDefilers;
 
 	// Tech stuff. It has to be completed for the tech to be available.
 	int nEvo;
@@ -99,6 +101,7 @@ class StrategyBossZerg
 	bool hasQueensNest;
 	bool hasUltra;
 	bool hasUltraUps;
+	bool hasDefilerUps;
 	bool hasNydus;		// at least one nydus canal, not necessarily completed
 
 	// hasLairTech means "can research stuff in the lair" (not "can research stuff that needs lair").
@@ -117,6 +120,7 @@ class StrategyBossZerg
 
 	int myArmySize;
 	int enemyAntigroundArmySize;
+	int defilerScore;
 
 	// For choosing the tech target and the unit mix.
 	std::array<int, int(TechUnit::Size)> techScores;
@@ -158,6 +162,7 @@ class StrategyBossZerg
 	int techTier(TechUnit techUnit) const;
 
 	int findRemainingBuildTime(BWAPI::UnitType type) const;
+	int lairUpgradeTime() const;
 	bool lurkerDenTiming() const;
 	
 	void resetTechScores();

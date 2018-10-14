@@ -83,6 +83,7 @@ namespace UAlbertaBot
 		const std::vector<BWAPI::Unit> & getSmallMinerals() { return smallMinerals; };
 
 		int baseCount(BWAPI::Player player) const;
+		int completedBaseCount(BWAPI::Player player) const;
 		int freeLandBaseCount() const;
 		int mineralPatchCount() const;
 		int geyserCount() const;

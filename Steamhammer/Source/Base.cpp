@@ -14,6 +14,7 @@ Base::Base(BWAPI::TilePosition pos)
 	, tilePosition(pos)
 	, distances(pos)
 	, reserved(false)
+	, workerDanger(false)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
 {
@@ -26,9 +27,10 @@ Base::Base(BWAPI::TilePosition pos, const BWAPI::Unitset availableResources)
 	: id(BaseID)
 	, tilePosition(pos)
 	, distances(pos)
+	, reserved(false)
+	, workerDanger(false)
 	, resourceDepot(nullptr)
 	, owner(BWAPI::Broodwar->neutral())
-	, reserved(false)
 {
 	++BaseID;
 

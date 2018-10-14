@@ -1,9 +1,11 @@
 #include "WorkerData.h"
 #include "Micro.h"
+#include "The.h"
 
 using namespace UAlbertaBot;
 
-WorkerData::WorkerData() 
+WorkerData::WorkerData()
+	: the(The::Root())
 {
     for (const auto unit : BWAPI::Broodwar->getAllUnits())
 	{
@@ -108,7 +110,7 @@ void WorkerData::setWorkerJob(BWAPI::Unit unit, WorkerJob job, BWAPI::Unit jobUn
         addToMineralPatch(mineralToMine, 1);
 
 		// right click the mineral to start mining
-		Micro::RightClick(unit, mineralToMine);
+		the.micro.RightClick(unit, mineralToMine);
 	}
 	else if (job == Gas)
 	{
@@ -119,7 +121,7 @@ void WorkerData::setWorkerJob(BWAPI::Unit unit, WorkerJob job, BWAPI::Unit jobUn
 		workerRefineryMap[unit] = jobUnit;
 
 		// right click the refinery to start harvesting
-		Micro::RightClick(unit, jobUnit);
+		the.micro.RightClick(unit, jobUnit);
 	}
     else if (job == Repair)
     {
@@ -132,7 +134,7 @@ void WorkerData::setWorkerJob(BWAPI::Unit unit, WorkerJob job, BWAPI::Unit jobUn
         // start repairing 
         if (!unit->isRepairing())
         {
-            Micro::Repair(unit, jobUnit);
+            the.micro.Repair(unit, jobUnit);
         }
     }
 //	else if (job == Scout)
