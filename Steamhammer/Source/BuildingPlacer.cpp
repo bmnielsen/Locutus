@@ -779,6 +779,16 @@ BWAPI::TilePosition buildLocationInBlock(BWAPI::UnitType type, const BWEB::Block
             }
         }
 
+        for (auto pylon : BuildingManager::Instance().buildingsQueued())
+        {
+            if (pylon->type != BWAPI::UnitTypes::Protoss_Pylon) continue;
+            if (positions.find(pylon->finalPosition) != positions.end())
+            {
+                hasPylon = true;
+                break;
+            }
+        }
+
         if (!hasPylon)
         {
             Log().Get() << "No power in block " << block.Location() << "; falling through";
