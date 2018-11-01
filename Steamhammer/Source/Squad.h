@@ -95,7 +95,7 @@ public:
 	BWAPI::Position     calcCenter() const;
 	BWAPI::Position     calcRegroupPosition();
     BWAPI::Unit		    unitClosestToOrderPosition() const;
-    BWAPI::Unit		    unitClosestTo(BWAPI::Position position, bool debug = false) const;
+    BWAPI::Unit		    unitClosestTo(BWAPI::Position position) const;
 
 	const BWAPI::Unitset &  getUnits() const;
 	void                setSquadOrder(const SquadOrder & so);

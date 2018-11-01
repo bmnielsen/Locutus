@@ -398,6 +398,11 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 	{
 		return 8;
 	}
+    
+    // Constructing a bunker makes a worker critical
+    if (targetType.isWorker() && target->isConstructing() && target->getOrderTarget() && target->getOrderTarget()->getType() == BWAPI::UnitTypes::Terran_Bunker)
+        return 12;
+
 	// Short circuit: Units before bunkers!
 	if (targetType == BWAPI::UnitTypes::Terran_Bunker)
 	{

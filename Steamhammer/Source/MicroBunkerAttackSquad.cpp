@@ -324,6 +324,10 @@ BWAPI::Position computeRunByPosition(BWAPI::Position unitPosition, BWAPI::Positi
 
 void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, bool squadIsRegrouping)
 {
+    // The run-by decision making is not good after very early in the game, so let's disable it for now
+    if (!StrategyManager::Instance().isRushing() && BWAPI::Broodwar->getFrameCount() > 6000)
+        return;
+
     // Can't run-by with no units
     if (_units.empty()) return;
 

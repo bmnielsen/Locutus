@@ -34,7 +34,7 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 
     std::vector<UnitInfo> enemyUnits;
 
-    bool rushing = StrategyManager::Instance().isRushing();
+    bool rushing = StrategyManager::Instance().isRushingOrProxyRushing();
 
 	// Add enemy units.
 	if (visibleOnly)
@@ -213,7 +213,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     debug << "combat sim" << (currentlyRetreating ? " (retreating)" : " (attacking)");
 #endif
 
-    bool rushing = StrategyManager::Instance().isRushing();
+    bool rushing = StrategyManager::Instance().isRushingOrProxyRushing();
 
     // Analyze the ground geography if we know where the armies are located
     // Doesn't apply to rushes: zealots don't have as many problems with chokes, and FAP will simulate elevation

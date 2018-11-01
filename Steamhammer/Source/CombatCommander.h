@@ -98,6 +98,8 @@ public:
             _goAggressiveAt = BWAPI::Broodwar->getFrameCount();
 		}
 
+        if (!aggressive) _goAggressiveAt = -1;
+
 		_goAggressive = aggressive;  
 	}
 	bool getAggression() const;

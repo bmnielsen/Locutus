@@ -167,9 +167,10 @@ void CombatCommander::updateKamikazeSquad()
     Squad & groundSquad = _squadData.getSquad("Ground");
     if (groundSquad.isEmpty()) return;
 
-    // When doing a proxy, move any zealots from the ground squad that are close to a unit in the kamikaze squad
+    // When doing a proxy with a delayed push, move any zealots from the ground squad that are close to a unit in the kamikaze squad
     // Units produced at the proxy will go directly into the kamikaze squad
-    if (StrategyManager::Instance().isProxying())
+    if (StrategyManager::Instance().isProxying() &&
+        _goAggressiveAt > 0)
     {
         std::vector<BWAPI::Unit> unitsToMove;
         for (auto & unit : groundSquad.getUnits())

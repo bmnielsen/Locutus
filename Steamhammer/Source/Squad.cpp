@@ -580,7 +580,7 @@ BWAPI::Unit Squad::unitClosestToOrderPosition() const
 }
 
 // Return the unit closest to the order position
-BWAPI::Unit Squad::unitClosestTo(BWAPI::Position position, bool debug) const
+BWAPI::Unit Squad::unitClosestTo(BWAPI::Position position) const
 {
 	BWAPI::Unit closest = nullptr;
 	int closestDist = INT_MAX;
@@ -842,7 +842,7 @@ MicroBunkerAttackSquad * Squad::getBunkerRunBySquad(BWAPI::Unit unit)
 int Squad::runCombatSim(BWAPI::Position targetPosition)
 {
     // Get our "vanguard unit"
-    BWAPI::Unit ourVanguard = unitClosestTo(targetPosition, true);
+    BWAPI::Unit ourVanguard = unitClosestTo(targetPosition);
     if (!ourVanguard) return 1; // We have no units
 
     // Get the enemy "vanguard unit"
@@ -853,9 +853,8 @@ int Squad::runCombatSim(BWAPI::Position targetPosition)
         if (_fightVisibleOnly && (!ui.first || !ui.first->exists() || !ui.first->isVisible())) continue;
 
         if (ui.second.goneFromLastPosition) continue;
-        int dist = ui.second.isFlying || ourVanguard->isFlying()
-            ? ui.second.lastPosition.getApproxDistance(ourVanguard->getPosition())
-            : PathFinding::GetGroundDistance(ui.second.lastPosition, ourVanguard->getPosition());
+
+        int dist = MathUtil::EdgeToEdgeDistance(ourVanguard->getType(), ourVanguard->getPosition(), ui.second.type, ui.second.lastPosition);
 
         int range = UnitUtil::GetAttackRangeAssumingUpgrades(ui.second.type, ourVanguard->getType());
         if (dist < (range + 64) && dist < closestDist && dist != -1)

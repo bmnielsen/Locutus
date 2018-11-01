@@ -110,7 +110,7 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
 
     // In some cases we want to ignore solitary bunkers and units covered by them
     // This may be because we have done a run-by or are waiting to do one
-    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran)
+    if ((StrategyManager::Instance().isRushing() || BWAPI::Broodwar->getFrameCount() <= 6000) && BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran)
     {
         // First try to find a solitary bunker
         BWAPI::Unit solitaryBunker = nullptr;
@@ -162,12 +162,15 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
             !target->isConstructing()) return true;
     }
 
+    // Dark templar don't ignore detectors
+    if (combatUnit->isCloaked() && target->getType().isDetector()) return false;
+
     // Consider outlying buildings
     // Static defenses are handled separately so we can consider run-bys as a squad
     if (target->getType().isBuilding())
     {
         // Never ignore static defenses
-        if (target->isCompleted() && UnitUtil::CanAttackGround(target)) return false;
+        if (UnitUtil::CanAttackGround(target)) return false;
 
         // Never ignore buildings that are part of walls
         if (InformationManager::Instance().isEnemyWallBuilding(target)) return false;
