@@ -99,6 +99,7 @@
 				{ "Weight" : 20, "Strategy" : "Proxy9-9Gate" },
 				{ "Weight" : 30, "Strategy" : "10-15GateGoon" },
 				{ "Weight" : 40, "Strategy" : "10Gate25NexusFE" },
+				{ "Weight" : 20, "Strategy" : "13Nexus" },
 				{ "Weight" : 50, "Strategy" : "DTDrop" }
 			]},
 
@@ -162,6 +163,7 @@
 				{ "Weight" : 50, "Strategy" : "Turtle" }
 			]},			
 			"Counter Wall-in" : { "Protoss" : [
+				{ "Weight" : 40, "Strategy" : "13Nexus" },
 				{ "Weight" : 30, "Strategy" : "10-15GateGoon" },
 				{ "Weight" : 40, "Strategy" : "10Gate25NexusFE" },
 				{ "Weight" : 50, "Strategy" : "DTDrop" }
@@ -203,7 +205,8 @@
         {
 			"locutus": "TestWall",
 			"locutusprevious": "4GateGoon",
-			"tomasvajda": "12-17Nexus"
+			"tomasvajda": "12-17Nexus",
+			"saida": "Proxy2ZealotsIntoGoons"
 		},
 		
 		"StrategyCombos" : {},
@@ -228,7 +231,7 @@
 			"2GateDTExpo": { "Race" : "Protoss", "OpeningGroup" : "dark templar", "OpeningBuildOrder" :
 				["go defensive", "go block enemy scout", "4 x probe", "pylon then go scout while safe", "2 x probe", "gateway", "3 x probe", "zealot", "assimilator", "pylon @ wall", "2 x probe", "cybernetics core", "probe", "zealot", "probe", "pylon", "probe", "dragoon", "probe", "citadel of adun", "probe", "dragoon", "probe", "gateway @ wall", "probe", "templar archives", "pylon", "probe", "dragoon", "probe", "pylon", "probe", "2 x dark templar", "probe", "go aggressive", "nexus @ natural", "probe", "forge @ wall", "probe", "2 x dark templar", "probe", "photon cannon @ wall", "probe", "photon cannon @ wall", "probe", "2 x dragoon"]},
 			"2GateDTRush": { "Race" : "Protoss", "OpeningGroup" : "dark templar", "OpeningBuildOrder" :
-				["go defensive", "go block enemy scout", "4 x probe", "pylon then go scout while safe", "2 x probe", "gateway", "2 x probe", "assimilator", "probe", "cybernetics core", "probe", "pylon", "2 x probe", "citadel of adun", "probe", "dragoon", "probe", "gateway", "probe", "templar archives", "2 x probe", "pylon", "probe", "2 x dark templar", "probe", "nexus @ natural", "pylon", "2 x dark templar", "probe", "go aggressive", "gateway", "assimilator"]},
+				["go defensive", "go block enemy scout", "4 x probe", "pylon then go scout while safe", "2 x probe", "gateway", "2 x probe", "assimilator", "probe", "cybernetics core", "probe", "pylon", "2 x probe", "citadel of adun", "probe", "dragoon", "probe", "gateway", "probe", "templar archives", "2 x probe", "pylon", "probe", "2 x dark templar", "probe", "nexus @ natural", "pylon", "2 x dark templar", "go aggressive", "probe", "gateway", "assimilator"]},
 
             "10Gate25NexusFE"		: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
                 ["4 x probe", "pylon then go scout while safe", "2 x probe", "gateway", "2 x probe", "assimilator", "2 x probe", "cybernetics core", "probe", "pylon", "2 x probe", "dragoon", "probe", "singularity charge", "2 x probe", "dragoon", "probe", "pylon", "nexus @ natural", "probe", "dragoon", "probe", "gateway"]},
@@ -255,6 +258,15 @@
 			"Proxy4GateGoon": { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
                 ["go proxy", "go defensive", "go aggressive at 10000", "4 x probe", "pylon then go scout location", "2 x probe", "gateway @ main", "2 x probe", "pylon", "probe", "zealot", "probe", "assimilator", "probe", "cybernetics core", "probe", "zealot", "2 x probe", "go wait until enemy location known", "pylon @ proxy", "probe", "dragoon", "pylon", "probe", "singularity charge", "probe", "dragoon", "2 x probe", "gateway @ proxy then gateway @ proxy then gateway @ proxy"]},
 
+			"Proxy4ZealotsIntoGoons": { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go proxy", "4 x probe", "pylon @ proxy", "probe", "gateway @ proxy", "gateway @ proxy then go scout location", "go queue barrier", "3 x probe", "pylon", "2 x zealot", "2 x probe", "2 x zealot", "go queue barrier", "assimilator", "cybernetics core", "probe", "pylon", "3 x probe", "2 x dragoon", "pylon @ proxy", "2 x probe", "2 x dragoon", "probe", "gateway @ proxy", "pylon @ proxy", "2 x dragoon", "probe", "singularity charge", "3 x dragoon", "gateway @ proxy" ]},
+
+			"Proxy2ZealotsIntoGoons": { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["go proxy", "4 x probe", "pylon @ proxy", "probe", "gateway @ proxy", "gateway @ proxy then go scout location", "go queue barrier", "3 x probe", "pylon", "2 x zealot", "2 x probe", "go queue barrier", "assimilator", "cybernetics core", "probe", "pylon", "3 x probe", "2 x dragoon", "pylon @ proxy", "2 x probe", "2 x dragoon", "probe", "gateway @ proxy", "pylon @ proxy", "2 x dragoon", "probe", "singularity charge", "3 x dragoon", "gateway @ proxy" ]},
+				
+			"13Nexus"				: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
+				["4 x probe", "pylon", "5 x probe", "nexus then go scout while safe", "probe", "gateway", "probe", "pylon", "2 x probe", "assimilator", "cybernetics core", "2 x probe", "gateway", "4 x probe", "2 x dragoon", "2 x probe", "singularity charge"]},
+				
 
 			"12-17Nexus"			: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
 				["go defensive", "4 x probe", "pylon", "4 x probe", "nexus @ natural", "3 x probe", "pylon", "2 x probe", "nexus @ min only", "2 x probe", "gateway", "2 x probe", "assimilator", "4 x probe", "cybernetics core", "2 x probe", "assimilator", "2 x probe", "gateway", "4 x probe", "gateway", "2 x probe", "pylon", "singularity charge then go aggressive", "go scout location", "2 x dragoon", "3 x probe", "pylon", "dragoon", "gateway", "3 x probe", "2 x dragoon", "pylon", "gateway", "3 x probe", "2 x dragoon", "pylon", "gateway", "3 x probe", "2 x dragoon", "pylon", "gateway", "3 x probe", "3 x dragoon", "pylon", "3 x probe", "2 x dragoon", "pylon", "4 x dragoon", "pylon", "4 x dragoon", "pylon", "4 x dragoon"]},
@@ -280,12 +292,8 @@
 
 			"CorsairDT"				: { "Race" : "Protoss", "OpeningGroup" : "dark templar", "OpeningBuildOrder" :
 				["go defensive", "4 x probe", "pylon", "probe", "go scout once around", "probe", "gateway", "2 x probe", "assimilator", "probe", "zealot", "cybernetics core", "probe", "pylon", "zealot", "probe", "stargate", "probe", "citadel of adun", "probe", "zealot", "corsair", "2 x probe", "templar archives", "gateway"]},
-			"12Nexus"				: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
-				["4 x probe", "pylon", "4 x probe", "nexus", "go scout", "2 x probe", "gateway", "probe", "assimilator", "zealot", "cybernetics core", "gateway"]},
 			"12NexusZealots"		: { "Race" : "Protoss", "OpeningGroup" : "zealots", "OpeningBuildOrder" :
                 ["4 x probe", "pylon", "4 x probe", "nexus", "gateway", "go scout once around", "2 x probe", "gateway", "probe", "pylon @ natural", "zealot"]},    
-			"13Nexus"				: { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
-				["4 x probe", "pylon", "5 x probe", "nexus", "go scout", "probe", "gateway", "probe", "assimilator", "2 x probe", "cybernetics core", "gateway", "2 x probe", "2 x dragoon", "singularity charge"]},
 			"ForgeExpand"	        : { "Race" : "Protoss", "OpeningGroup" : "dragoons", "OpeningBuildOrder" :
 				["go defensive", "4 x probe", "pylon @ wall then go scout once around", "probe", "forge @ wall", "probe", "photon cannon @ wall then photon cannon @ wall", "nexus", "2 x probe", "gateway @ wall", "probe", "pylon", "probe", "gateway", "photon cannon @ wall"]},
 				
