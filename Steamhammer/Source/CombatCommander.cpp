@@ -2076,6 +2076,44 @@ bool CombatCommander::onTheDefensive()
     return false;
 }
 
+// We consider the enemy to be contained if:
+// - We have a combat unit close to the enemy main or natural
+// - The enemy has no combat units away from its main or natural
+bool CombatCommander::isEnemyContained()
+{
+    auto enemyMain = InformationManager::Instance().getEnemyMainBaseLocation();
+    auto enemyNatural = InformationManager::Instance().getEnemyNaturalLocation();
+    if (!enemyMain) return false;
+
+    bool haveUnitContaining;
+    for (auto & unit : BWAPI::Broodwar->self()->getUnits())
+    {
+        if (!UnitUtil::IsCombatUnit(unit)) continue;
+        if (PathFinding::GetGroundDistance(unit->getPosition(), enemyMain->getPosition(), unit->getType()) < 2000 ||
+            (enemyNatural && PathFinding::GetGroundDistance(unit->getPosition(), enemyNatural->getPosition(), unit->getType()) < 2000))
+        {
+            haveUnitContaining = true;
+            break;
+        }
+    }
+    if (!haveUnitContaining) return false;
+
+    bool enemyUnitNotContained = false;
+    for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+    {
+        if (ui.second.goneFromLastPosition) continue;
+        if (!UnitUtil::IsCombatUnit(ui.second.type)) continue;
+        if (PathFinding::GetGroundDistance(ui.second.lastPosition, enemyMain->getPosition(), ui.second.type) > 2000 &&
+            (!enemyNatural || PathFinding::GetGroundDistance(ui.second.lastPosition, enemyNatural->getPosition(), ui.second.type) > 2000))
+        {
+            enemyUnitNotContained = true;
+            break;
+        }
+    }
+
+    return !enemyUnitNotContained;
+}
+
 void CombatCommander::drawSquadInformation(int x, int y)
 {
 	_squadData.drawSquadInformation(x, y);

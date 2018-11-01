@@ -112,6 +112,7 @@ public:
     void finishedRushing();
 
     bool onTheDefensive();
+    bool isEnemyContained();
 	
 	void drawSquadInformation(int x, int y);
 

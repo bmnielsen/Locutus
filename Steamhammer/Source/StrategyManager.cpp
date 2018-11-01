@@ -1196,9 +1196,9 @@ bool IsInBuildingOrProductionQueue(BWAPI::TilePosition tile, BuildOrderQueue & q
     return false;
 }
 
-int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue, bool queueOneAtATime = false)
+int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue, bool queueOneAtATime = false, bool forcePylon = false)
 {
-    if (cannons <= 0 || !base) return 0;
+    if ((cannons <= 0 && !forcePylon) || !base) return 0;
 
     // Get the BWEB Station for the base
     const BWEB::Station* station = bwebMap.getClosestStation(base->getTilePosition());
@@ -1219,11 +1219,12 @@ int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue 
         {
             desiredCannons--;
         }
-    if (desiredCannons <= 0) return 0;
 
-    // Ensure we have a forge
-    QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
-    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return 0;
+    // If we want to build a cannon, ensure we have a forge
+    if (desiredCannons > 0) QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
+    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) desiredCannons = 0;
+
+    if (desiredCannons <= 0 && !forcePylon) return 0;
 
     // Collect the available defensive locations
     std::set<BWAPI::TilePosition> poweredAvailableLocations;
@@ -1243,7 +1244,7 @@ int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue 
 
     // If there are not enough powered locations, build a pylon at the corner position
     bool queuedPylon = false;
-    if (poweredAvailableLocations.size() < desiredCannons)
+    if (poweredAvailableLocations.empty() || poweredAvailableLocations.size() < desiredCannons)
     {
         // The corner position is the one that matches every position on either X or Y coordinate
         BWAPI::TilePosition cornerTile = BWAPI::TilePositions::Invalid;
@@ -1285,6 +1286,8 @@ int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue 
     int count = 0;
     for (auto tile : poweredAvailableLocations)
     {
+        if (count >= desiredCannons) break;
+
         MacroAct cannon(BWAPI::UnitTypes::Protoss_Photon_Cannon);
         cannon.setReservedPosition(tile);
         if (count == 0)
@@ -1294,7 +1297,7 @@ int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue 
 
         // Break when we have enough
         count++;
-        if (count >= desiredCannons || queueOneAtATime) break;
+        if (queueOneAtATime) break;
     }
 
     if (count > 0)
@@ -1645,6 +1648,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
     // Only expand if we aren't on the defensive
     bool safeToMacro = !CombatCommander::Instance().onTheDefensive();
+    bool enemyContained = CombatCommander::Instance().isEnemyContained();
 
     // If we currently want dragoons, only expand once we have some
     // This helps when transitioning out of a rush or when we might be in trouble
@@ -1673,15 +1677,18 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     bool gasBlocked = WorkerManager::Instance().isCollectingGas() &&
         BWAPI::Broodwar->self()->gas() < 50 && BWAPI::Broodwar->self()->minerals() > 700;
 
+    // Is the enemy contained and we want to macro hard?
+    bool macroHard = enemyContained && predictedProbes < 60 && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) < 4;
+
     // Queue an expansion if:
     // - it is safe to do so
     // - we don't already have one queued
-    // - we want more active mineral patches than we currently have OR we are gas blocked
+    // - we want more active mineral patches than we currently have OR we are gas blocked OR we have the enemy contained and want to macro hard
     // - we aren't currently in the middle of a rush
     if (safeToMacro &&
         !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
         BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
-        (mineralPatches < desiredMineralPatches || gasBlocked) &&
+        (mineralPatches < desiredMineralPatches || gasBlocked || macroHard) &&
         !isRushingOrProxyRushing())
     {
         // Double-check that there is actually a place to expand to
@@ -1795,7 +1802,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
                 continue;
             }
 
-            totalQueued += EnsureCannonsAtBase(base, 2, queue, true);
+            totalQueued += EnsureCannonsAtBase(base, enemyContained ? 0 : 2, queue, true, true);
             if (totalQueued > 2) break;
         }
     }
