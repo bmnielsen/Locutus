@@ -111,7 +111,7 @@ bool StrategyManager::isRushingOrProxyRushing() const
     // While proxying, we consider ourselves in "rush mode" while we're building up our forces and
     // for a short time period after
     return !CombatCommander::Instance().getAggression() || 
-        CombatCommander::Instance().getAggressionAt() > BWAPI::Broodwar->getFrameCount() - 1000;
+        BWAPI::Broodwar->getFrameCount() > std::min(CombatCommander::Instance().getAggressionAt() + 2000, 10000);
 }
 
 const BuildOrder & StrategyManager::getOpeningBookBuildOrder() const
