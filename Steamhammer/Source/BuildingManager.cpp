@@ -134,6 +134,7 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 		setBuilderUnit(b);       // tries to set b.builderUnit
 		if (!b.builderUnit || !b.builderUnit->exists())
 		{
+            b.finalPosition = BWAPI::TilePositions::Invalid;
 			continue;
 		}
 

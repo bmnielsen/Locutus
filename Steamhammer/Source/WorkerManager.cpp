@@ -260,7 +260,6 @@ void WorkerManager::handleIdleWorkers()
             {
                 BWAPI::Position proxyLocation = BuildingPlacer::Instance().getProxyBlockLocation();
                 if (StrategyManager::Instance().isProxying() &&
-                    !CombatCommander::Instance().getAggression() &&
                     proxyLocation.isValid())
                 {
                     Micro::Move(worker, proxyLocation);
@@ -620,8 +619,7 @@ void WorkerManager::finishedWithWorker(BWAPI::Unit unit)
 
     // If the worker was building a proxy building, make sure it is marked as the proxy builder
     if (!proxyBuilder && workerData.getWorkerJob(unit) == WorkerData::Build &&
-        StrategyManager::Instance().isProxying() &&
-        !CombatCommander::Instance().getAggression())
+        StrategyManager::Instance().isProxying())
     {
         BWAPI::Position proxyLocation = BuildingPlacer::Instance().getProxyBlockLocation();
         if (proxyLocation.isValid() && unit->getDistance(proxyLocation) < 320)

@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "BuildingPlacer.h"
 #include "ProductionManager.h"
+#include "CombatCommander.h"
 #include "MapGrid.h"
 #include "MapTools.h"
 #include "PathFinding.h"
@@ -802,7 +803,8 @@ BWAPI::TilePosition buildLocationInBlock(BWAPI::UnitType type, const BWEB::Block
     else if (type.tileWidth() == 3) placements = block.MediumTiles();
     else placements = block.SmallTiles();
     for (auto& tile : placements)
-        if (bwebMap.isPlaceable(type, tile))
+        if (bwebMap.isPlaceable(type, tile) &&
+            bwebMap.getUsedTiles().find(tile) == bwebMap.getUsedTiles().end())
             return tile;
 
     return BWAPI::TilePositions::Invalid;
@@ -834,10 +836,14 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
         // Set the proxy block if it is not already
         if (_proxyBlock == -1)
         {
-            // If we know the enemy start location, attempt to use it
-            auto enemyMain = InformationManager::Instance().getEnemyMainBaseLocation();
-            if (enemyMain)
-                _proxyBlock = _baseProxyBlocks[enemyMain];
+            // If we know the enemy main and are doing a delayed push,
+            // use the hidden proxy closest to the enemy main
+            if (!CombatCommander::Instance().getAggression())
+            {
+                auto enemyMain = InformationManager::Instance().getEnemyMainBaseLocation();
+                if (enemyMain)
+                    _proxyBlock = _baseProxyBlocks[enemyMain];
+            }
 
             // Otherwise use the center proxy block
             if (_proxyBlock == -1) _proxyBlock = _centerProxyBlock;

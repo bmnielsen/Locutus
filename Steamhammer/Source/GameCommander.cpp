@@ -461,6 +461,11 @@ void GameCommander::onUnitMorph(BWAPI::Unit unit)
 
 BWAPI::Unit GameCommander::getScoutWorker()
 {
+    // If there is a proxy builder, use it
+    // We set up the build timings such that it will have time to scout before being required for more proxy buildings
+    if (WorkerManager::Instance().getProxyBuilder())
+        return WorkerManager::Instance().getProxyBuilder();
+
 	// We get the free worker closest to the center of the map by ground
     BWAPI::Position mapCenter(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2));
 	BWAPI::Unit bestUnit = nullptr;
