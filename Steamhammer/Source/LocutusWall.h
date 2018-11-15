@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 	// Struct used when generating and scoring all of the forge + gateway options
 	struct ForgeGatewayWallOption

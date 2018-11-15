@@ -3,7 +3,7 @@
 #include <Common.h>
 #include "MicroManager.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 class MicroDarkTemplar : public MicroManager
 {

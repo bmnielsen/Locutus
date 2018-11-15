@@ -6,7 +6,7 @@
 #include "BuildOrder.h"
 #include "BuildOrderQueue.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 typedef std::pair<MacroAct, size_t> MetaPair;
 typedef std::vector<MetaPair> MetaPairVector;
@@ -51,8 +51,6 @@ class StrategyManager
 
 	const	bool				    shouldExpandNow() const;
     const	MetaPairVector		    getProtossBuildOrderGoal();
-	const	MetaPairVector		    getTerranBuildOrderGoal();
-	const	MetaPairVector		    getZergBuildOrderGoal() const;
 
 	bool							detectSupplyBlock(BuildOrderQueue & queue) const;
 	bool							handleExtremeEmergency(BuildOrderQueue & queue);

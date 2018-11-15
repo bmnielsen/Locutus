@@ -11,11 +11,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>Locutus</ProjectName>
+    <ProjectName>BlueBlueSky</ProjectName>
     <ProjectGuid>{2E63AE74-758A-4607-9DE4-D28E814A6E13}</ProjectGuid>
     <RootNamespace>ExampleAIModule</RootNamespace>
     <Keyword>Win32Proj</Keyword>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -168,14 +168,11 @@
     <ClCompile Include="..\Source\MicroDarkTemplar.cpp" />
     <ClCompile Include="..\Source\MicroDetectors.cpp" />
     <ClCompile Include="..\Source\MicroHighTemplar.cpp" />
-    <ClCompile Include="..\Source\MicroLurkers.cpp" />
     <ClCompile Include="..\source\MicroManager.cpp" />
     <ClCompile Include="..\Source\Config.cpp" />
     <ClCompile Include="..\Source\Micro.cpp" />
-    <ClCompile Include="..\Source\MicroMedics.cpp" />
     <ClCompile Include="..\Source\MicroMelee.cpp" />
     <ClCompile Include="..\Source\MicroRanged.cpp" />
-    <ClCompile Include="..\Source\MicroTanks.cpp" />
     <ClCompile Include="..\Source\MicroTransports.cpp" />
     <ClCompile Include="..\Source\OpponentModel.cpp" />
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
@@ -188,11 +185,10 @@
     <ClCompile Include="..\source\ScoutManager.cpp" />
     <ClCompile Include="..\Source\Squad.cpp" />
     <ClCompile Include="..\Source\SquadData.cpp" />
-    <ClCompile Include="..\Source\StrategyBossZerg.cpp" />
     <ClCompile Include="..\Source\StrategyManager.cpp" />
     <ClCompile Include="..\source\TimerManager.cpp" />
-    <ClCompile Include="..\Source\UABAssert.cpp" />
-    <ClCompile Include="..\Source\UAlbertaBotModule.cpp" />
+    <ClCompile Include="..\Source\BBSAssert.cpp" />
+    <ClCompile Include="..\Source\BlueBlueSkyModule.cpp" />
     <ClCompile Include="..\Source\UnitData.cpp" />
     <ClCompile Include="..\Source\UnitUtil.cpp" />
     <ClCompile Include="..\Source\UpgradeCompleteProductionGoal.cpp" />
@@ -251,14 +247,11 @@
     <ClInclude Include="..\Source\MicroDarkTemplar.h" />
     <ClInclude Include="..\Source\MicroDetectors.h" />
     <ClInclude Include="..\Source\MicroHighTemplar.h" />
-    <ClInclude Include="..\Source\MicroLurkers.h" />
     <ClInclude Include="..\source\MicroManager.h" />
     <ClInclude Include="..\Source\Config.h" />
     <ClInclude Include="..\Source\Micro.h" />
-    <ClInclude Include="..\Source\MicroMedics.h" />
     <ClInclude Include="..\Source\MicroMelee.h" />
     <ClInclude Include="..\Source\MicroRanged.h" />
-    <ClInclude Include="..\Source\MicroTanks.h" />
     <ClInclude Include="..\Source\MicroTransports.h" />
     <ClInclude Include="..\Source\OpponentModel.h" />
     <ClInclude Include="..\Source\OpponentPlan.h" />
@@ -272,12 +265,11 @@
     <ClInclude Include="..\Source\Squad.h" />
     <ClInclude Include="..\Source\SquadData.h" />
     <ClInclude Include="..\Source\SquadOrder.h" />
-    <ClInclude Include="..\Source\StrategyBossZerg.h" />
     <ClInclude Include="..\Source\StrategyManager.h" />
     <ClInclude Include="..\Source\TechCompleteProductionGoal.h" />
     <ClInclude Include="..\source\TimerManager.h" />
-    <ClInclude Include="..\Source\UABAssert.h" />
-    <ClInclude Include="..\Source\UAlbertaBotModule.h" />
+    <ClInclude Include="..\Source\BBSAssert.h" />
+    <ClInclude Include="..\Source\BlueBlueSkyModule.h" />
     <ClInclude Include="..\Source\UnitData.h" />
     <ClInclude Include="..\Source\UnitUtil.h" />
     <ClInclude Include="..\Source\UpgradeCompleteProductionGoal.h" />

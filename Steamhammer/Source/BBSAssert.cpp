@@ -1,9 +1,9 @@
-#include "UABAssert.h"
+#include "BBSAssert.h"
 #include "Config.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 namespace Assert
 {

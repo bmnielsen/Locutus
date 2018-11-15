@@ -1,7 +1,7 @@
 #include "UpgradeCompleteProductionGoal.h"
 #include "ProductionManager.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 // Meant to be called once per frame to try to carry out the goal.
 void UpgradeCompleteProductionGoal::update()

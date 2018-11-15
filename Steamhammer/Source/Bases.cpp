@@ -2,7 +2,7 @@
 
 #include "MapTools.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 // Empty constructor. Initialization happens in initialize() below.
 Bases::Bases()
@@ -40,7 +40,7 @@ void Bases::countResources(BWAPI::Unit resource, int & minerals, int & gas) cons
 // Return BWAPI::TilePositions::Invalid if no acceptable place is found.
 BWAPI::TilePosition Bases::findBasePosition(BWAPI::Unitset resources)
 {
-	UAB_ASSERT(resources.size() > 0, "no resources");
+	BBS_ASSERT(resources.size() > 0, "no resources");
 
 	int left = 256 * 32 + 1;
 	int right = 0;
@@ -129,7 +129,7 @@ int Bases::tilesBetweenBoxes
 		rightDist = topLeftB.y - bottomRightA.y;
 	}
 
-	UAB_ASSERT(leftDist >= 0 && rightDist >= 0, "bad tile distance");
+	BBS_ASSERT(leftDist >= 0 && rightDist >= 0, "bad tile distance");
 	return std::max(leftDist, rightDist);
 }
 
@@ -201,7 +201,7 @@ void Bases::initialize()
 			}
 		}
 
-		UAB_ASSERT(resourceGroup.size() > 0, "no resources in group");
+		BBS_ASSERT(resourceGroup.size() > 0, "no resources in group");
 
 		// 3. If the base is worth making and can be made, make it.
 		//    If not, remove all the resources: They are all useless.
@@ -234,7 +234,7 @@ void Bases::initialize()
 				// No good. Drop the base after all.
 				// This should not happen in practice, so complain.
 				delete base;
-				UAB_ASSERT(false, "inadequate base");
+				BBS_ASSERT(false, "inadequate base");
 			}
 
 			// In either case, the resources of the base are no longer available for other bases.

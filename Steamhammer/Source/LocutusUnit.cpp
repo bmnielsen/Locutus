@@ -12,7 +12,7 @@ const int DRAGOON_ATTACK_FRAMES = 6;
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 void LocutusUnit::update()
 {
@@ -100,8 +100,21 @@ bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
         //if (avoidNarrowChokes && ((ChokeData*)chokepoint->Ext())->width < 96)
         //    bwemPathNarrow = true;
 
+		// If too close to choke, skip this one
+		bool closeToChoke = false;
+		for (const auto & pos : chokepoint->Geometry())
+		{
+			if (unit->getDistance((BWAPI::Position)pos) < 64)
+			{
+				closeToChoke = true;
+				break;
+			}
+		}
         // Push the waypoints on this pass on the assumption that we can use them
-        waypoints.push_back(chokepoint);
+		if (!closeToChoke)
+		{
+			waypoints.push_back(chokepoint);
+		}
     }
 
     // Attempt to generate an alternate path if possible
@@ -240,13 +253,18 @@ void LocutusUnit::moveToNextWaypoint()
         for (auto walkPosition : nextWaypoint->Geometry())
         {
             BWAPI::Position pos(walkPosition);
-            int dist = pos.getApproxDistance(next);
+			int dist = pos.getApproxDistance(next);
+			// if block, give some penalize
+			if (InformationManager::Instance().getMyUnitGrid().get(walkPosition) > 0)
+				dist += unit->getType().groundWeapon().maxRange() + 32;
             if (dist < bestDist)
             {
                 bestDist = dist;
                 currentlyMovingTowards = pos;
             }
         }
+		// don't move too far away from center
+		currentlyMovingTowards = (currentlyMovingTowards + (BWAPI::Position)nextWaypoint->Center()) / 2;
     }
 
     Micro::Move(unit, currentlyMovingTowards);

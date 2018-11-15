@@ -13,14 +13,11 @@
 #include "MicroDetectors.h"
 #include "MicroDarkTemplar.h"
 #include "MicroHighTemplar.h"
-#include "MicroLurkers.h"
-#include "MicroMedics.h"
-#include "MicroTanks.h"
 #include "MicroTransports.h"
 
 #include "MicroBunkerAttackSquad.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 class Squad
@@ -48,9 +45,6 @@ class Squad
 	MicroDetectors		_microDetectors;
 	MicroDarkTemplar	_microDarkTemplar;
 	MicroHighTemplar	_microHighTemplar;
-	MicroLurkers		_microLurkers;
-	MicroMedics			_microMedics;
-	MicroTanks			_microTanks;
 	MicroTransports		_microTransports;
 
     CombatSimulation    sim;

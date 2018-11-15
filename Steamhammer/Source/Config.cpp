@@ -1,5 +1,5 @@
 #include "Config.h"
-#include "UABAssert.h"
+#include "BBSAssert.h"
 
 // Most values here are default values that apply if the configuration entry
 // is missing from the config file, or is invalid. 
@@ -12,7 +12,7 @@ namespace Config
     {
         bool ConfigFileFound                = false;
         bool ConfigFileParsed               = false;
-        std::string ConfigFileLocation      = "bwapi-data/AI/Locutus.json";
+        std::string ConfigFileLocation      = "bwapi-data/AI/BlueBlueSky.json";
     }
 
 	namespace IO
@@ -28,9 +28,7 @@ namespace Config
 	namespace Strategy
     {
         std::string ProtossStrategyName     = "1ZealotCore";			// default
-        std::string TerranStrategyName      = "11Rax";					// default
-        std::string ZergStrategyName        = "9PoolSpeed";				// default
-        std::string StrategyName            = "9PoolSpeed";
+        std::string StrategyName            = "1ZealotCore";
         bool ScoutHarassEnemy               = true;
 		bool AutoGasSteal                   = true;
 		double RandomGasStealRate           = 0.0;
@@ -40,12 +38,14 @@ namespace Config
         bool FoundEnemySpecificStrategy     = false;
         bool FoundMapSpecificStrategy       = false;
         bool TrainingMode                   = false;
+		bool EnemyScoutNotRush				= false;
+		bool EnemyStealGas					= false;
     }
 
     namespace BotInfo
     {
-        std::string BotName                 = "Locutus";
-        std::string Authors                 = "Bruce Nielsen";
+        std::string BotName                 = "BlueBlueSky";
+        std::string Authors                 = "Pengfei Hou";
         bool PrintInfoOnStart               = false;
     }
 
@@ -88,7 +88,7 @@ namespace Config
         bool DrawSquadInfo                  = false;
         bool DrawBOSSStateInfo              = false;
 
-        std::string ErrorLogFilename        = "Locutus_ErrorLog.txt";
+        std::string ErrorLogFilename        = "BlueBlueSky_ErrorLog.txt";
         bool LogAssertToErrorFile           = false;
 
         bool LogDebug			            = false;
@@ -119,6 +119,7 @@ namespace Config
         int BuildingSpacing                 = 1;
         int PylonSpacing                    = 3;
 		int ProductionJamFrameLimit			= 360;
+		int BorderSpacing					= 3;
 		bool ExpandToIslands				= false;
     }
 

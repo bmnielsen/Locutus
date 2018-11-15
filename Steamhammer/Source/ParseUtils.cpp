@@ -12,7 +12,7 @@
 // Parse manual commands.
 // Provide a few simple parsing routines for wider use.
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 // Parse the JSON configuration file into Config:: variables.
 void ParseUtils::ParseConfigFile(const std::string & filename)
@@ -33,7 +33,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 
 	// Number of starting locations on the map.
 	const int mapSize = BWAPI::Broodwar->getStartLocations().size();
-	UAB_ASSERT(mapSize >= 2 && mapSize <= 8, "bad map size");
+	BBS_ASSERT(mapSize >= 2 && mapSize <= 8, "bad map size");
 	const std::string mapWeightString = std::string("Weight") + std::string("012345678").at(mapSize);
 
     std::string config = FileUtils::ReadFile(filename);
@@ -91,6 +91,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
         const rapidjson::Value & macro = doc["Macro"];
         JSONTools::ReadInt("BOSSFrameLimit", macro, Config::Macro::BOSSFrameLimit);
         JSONTools::ReadInt("PylonSpacing", macro, Config::Macro::PylonSpacing);
+		JSONTools::ReadInt("BorderSpacing", macro, Config::Macro::BorderSpacing);
 
 		Config::Macro::ProductionJamFrameLimit = GetIntByRace("ProductionJamFrameLimit", macro);
 		Config::Macro::BuildingSpacing = GetIntByRace("BuildingSpacing", macro);
@@ -175,6 +176,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		Config::Strategy::UsePlanRecognizer = GetBoolByRace("UsePlanRecognizer", strategy);
 		Config::Strategy::SurrenderWhenHopeIsLost = GetBoolByRace("SurrenderWhenHopeIsLost", strategy);
 		Config::Strategy::TrainingMode = GetBoolByRace("TrainingMode", strategy);
+		Config::Strategy::EnemyScoutNotRush = GetBoolByRace("EnemyScoutNotRush", strategy);
 
 		bool openingStrategyDecided = false;
 
@@ -196,7 +198,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 				}
 				else
 				{
-					UAB_ASSERT_WARNING(false, "Strategy must have a Race string. Skipping %s", name.c_str());
+					BBS_ASSERT_WARNING(false, "Strategy must have a Race string. Skipping %s", name.c_str());
 					continue;
 				}
 
@@ -240,7 +242,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 						}
 						else
 						{
-							UAB_ASSERT_WARNING(false, "Build order item must be a string %s", name.c_str());
+							BBS_ASSERT_WARNING(false, "Build order item must be a string %s", name.c_str());
 							continue;
 						}
 					}
@@ -463,11 +465,11 @@ void ParseUtils::ParseTextCommand(const std::string & commandString)
         else if (variableName == "drawreservedbuildingtiles") { Config::Debug::DrawReservedBuildingTiles = GetBoolFromString(val); }
 		else if (variableName == "drawbossstateinfo") { Config::Debug::DrawBOSSStateInfo = GetBoolFromString(val); }
 
-        else { UAB_ASSERT_WARNING(false, "Unknown variable name for /set: %s", variableName.c_str()); }
+        else { BBS_ASSERT_WARNING(false, "Unknown variable name for /set: %s", variableName.c_str()); }
     }
     else
     {
-        UAB_ASSERT_WARNING(false, "Unknown command: %s", command.c_str());
+        BBS_ASSERT_WARNING(false, "Unknown command: %s", command.c_str());
     }
 }
 
@@ -493,7 +495,7 @@ BWAPI::Race ParseUtils::GetRace(const std::string & raceName)
         return BWAPI::Races::Random;
     }
 
-    UAB_ASSERT_WARNING(false, "Race not found: %s", raceName.c_str());
+    BBS_ASSERT_WARNING(false, "Race not found: %s", raceName.c_str());
     return BWAPI::Races::None;
 }
 
@@ -596,7 +598,7 @@ bool ParseUtils::_ParseStrategy(
 				}
 			}
 
-            UAB_ASSERT(!strategies.empty(), "No best strategy found");
+            BBS_ASSERT(!strategies.empty(), "No best strategy found");
 
             // 2. Choose one of them at random
             int i = Random::Instance().index(strategies.size());
@@ -652,7 +654,7 @@ bool ParseUtils::GetBoolFromString(const std::string & str)
 		return false;
 	}
 
-	UAB_ASSERT_WARNING(false, "Unknown bool from string: %s", str.c_str());
+	BBS_ASSERT_WARNING(false, "Unknown bool from string: %s", str.c_str());
 	return false;
 }
 
@@ -687,7 +689,7 @@ int ParseUtils::GetIntByRace(const char * name, const rapidjson::Value & item)
 	}
 	else
 	{
-		UAB_ASSERT_WARNING(false, "Wrong/missing config entry '%s'", name);
+		BBS_ASSERT_WARNING(false, "Wrong/missing config entry '%s'", name);
 	}
 
 	return 0;
@@ -716,7 +718,7 @@ double ParseUtils::GetDoubleByRace(const char * name, const rapidjson::Value & i
 	}
 	else
 	{
-		UAB_ASSERT_WARNING(false, "Wrong/missing config entry '%s'", name);
+		BBS_ASSERT_WARNING(false, "Wrong/missing config entry '%s'", name);
 	}
 
 	return 0.0;
@@ -745,7 +747,7 @@ bool ParseUtils::GetBoolByRace(const char * name, const rapidjson::Value & item)
 	}
 	else
 	{
-		UAB_ASSERT_WARNING(false, "Wrong/missing config entry '%s'", name);
+		BBS_ASSERT_WARNING(false, "Wrong/missing config entry '%s'", name);
 	}
 
 	return false;

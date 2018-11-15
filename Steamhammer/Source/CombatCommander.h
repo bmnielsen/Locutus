@@ -7,7 +7,7 @@
 #include "StrategyManager.h"
 #include "UnitUtil.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 class CombatCommander
 {

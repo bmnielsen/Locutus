@@ -3,12 +3,17 @@
 #include "Micro.h"
 #include "ProductionManager.h"
 #include "UnitUtil.h"
+#include "OpponentModel.h"
+#include "PathFinding.h"
+#include "MapTools.h"
+#include "ScoutManager.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 WorkerManager::WorkerManager() 
 	: previousClosestWorker(nullptr)
 	, _collectGas(true)
+	, proxyWorker(nullptr)
 {
 }
 
@@ -29,11 +34,14 @@ void WorkerManager::update()
 	handleMoveWorkers();
 	handleRepairWorkers();
 	handleMineralLocking(); // Do this last since the workers might get reassigned elsewhere first
-
+	handleProxyWorker();
 	drawResourceDebugInfo();
 	drawWorkerInformation(450,20);
-
 	workerData.drawDepotDebugInfo();
+	if (WorkerManager::Instance().getProxyWorker())
+	{
+		BWAPI::Broodwar->drawCircleMap(WorkerManager::Instance().getProxyWorker()->getPosition(), 16, BWAPI::Colors::Purple, true);
+	}
 }
 
 // Adjust worker jobs. This is done first, before handling each job.
@@ -52,9 +60,29 @@ void WorkerManager::updateWorkerStatus()
 		{
 			continue;     // the worker list includes drones in the egg
 		}
+		/*
+		int closetCannon = 99999;
+		for (auto & cannon : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (cannon->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+			{
+				if (worker->getDistance(cannon) < closetCannon)
+				{
+					closetCannon = worker->getDistance(cannon);
+					BWAPI::Broodwar->printf("%d", closetCannon);
+				}
+			}
+		}
+		if (closetCannon != 99999 && closetCannon > 7 * 32 && OpponentModel::Instance().getEnemyPlan() == OpeningPlan::ProxyGateway && findEnemyTargetForWorker(worker))
+		{
+
+			BWAPI::Broodwar->printf("2222223232323");
+			workerData.setWorkerJob(worker, WorkerData::Minerals, getClosestNonFullDepot(worker));
+			return;
+		}*/
 
 		// TODO temporary debugging - see Micro::Move
-		// UAB_ASSERT(UnitUtil::IsValidUnit(worker), "bad worker");
+		// BBS_ASSERT(UnitUtil::IsValidUnit(worker), "bad worker");
 
 		// If it's supposed to be on minerals but is actually collecting gas, fix it.
 		// This can happen when we stop collecting gas; the worker can be mis-assigned.
@@ -241,8 +269,8 @@ void WorkerManager::handleIdleWorkers()
 {
 	for (const auto worker : workerData.getWorkers())
 	{
-        UAB_ASSERT(worker, "Worker was null");
-
+        BBS_ASSERT(worker, "Worker was null");
+		if (worker == proxyWorker) continue;
 		if (workerData.getWorkerJob(worker) == WorkerData::Idle) 
 		{
 			if (worker->isCarryingMinerals() || worker->isCarryingGas())
@@ -263,7 +291,7 @@ void WorkerManager::handleReturnCargoWorkers()
 {
 	for (const auto worker : workerData.getWorkers())
 	{
-		UAB_ASSERT(worker, "Worker was null");
+		BBS_ASSERT(worker, "Worker was null");
 
 		if (workerData.getWorkerJob(worker) == WorkerData::ReturnCargo)
 		{
@@ -327,10 +355,10 @@ void WorkerManager::handleMineralLocking()
 // and are not moving or are stuck and moving randomly to dislodge themselves.
 BWAPI::Unit WorkerManager::findEnemyTargetForWorker(BWAPI::Unit worker) const
 {
-    UAB_ASSERT(worker, "Worker was null");
+    BBS_ASSERT(worker, "Worker was null");
 
 	BWAPI::Unit closestUnit = nullptr;
-	int closestDist = 65;         // ignore anything farther away
+	int closestDist = 50;         // ignore anything farther away
 
 	for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
 	{
@@ -395,7 +423,7 @@ bool WorkerManager::defendSelf(BWAPI::Unit worker, BWAPI::Unit resource)
 
 		// TODO It's not helping. Reaction time is too slow.
 		flee = false;
-
+		
 		if (flee)
 		{
 			// 1. We're in danger of dying. Flee by mineral walk.
@@ -413,7 +441,8 @@ bool WorkerManager::defendSelf(BWAPI::Unit worker, BWAPI::Unit resource)
 		}
 
 		// 2. We do not want to or are not able to run away. Fight.
-		Micro::AttackUnit(worker, target);
+		//if(BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon) < 1)
+			Micro::AttackUnit(worker, target);
 		return true;
 	}
 
@@ -422,7 +451,7 @@ bool WorkerManager::defendSelf(BWAPI::Unit worker, BWAPI::Unit resource)
 
 BWAPI::Unit WorkerManager::getClosestMineralWorkerTo(BWAPI::Unit enemyUnit)
 {
-    UAB_ASSERT(enemyUnit, "Unit was null");
+    BBS_ASSERT(enemyUnit, "Unit was null");
 
     BWAPI::Unit closestMineralWorker = nullptr;
     int closestDist = 100000;
@@ -435,7 +464,7 @@ BWAPI::Unit WorkerManager::getClosestMineralWorkerTo(BWAPI::Unit enemyUnit)
 
 	for (const auto worker : workerData.getWorkers())
 	{
-        UAB_ASSERT(worker, "Worker was null");
+        BBS_ASSERT(worker, "Worker was null");
 
         if (isFree(worker)) 
 		{
@@ -463,7 +492,7 @@ BWAPI::Unit WorkerManager::getWorkerScout()
 {
 	for (const auto worker : workerData.getWorkers())
 	{
-        UAB_ASSERT(worker, "Worker was null");
+        BBS_ASSERT(worker, "Worker was null");
         if (workerData.getWorkerJob(worker) == WorkerData::Scout) 
 		{
 			return worker;
@@ -477,7 +506,7 @@ void WorkerManager::handleMoveWorkers()
 {
 	for (const auto worker : workerData.getWorkers())
 	{
-        UAB_ASSERT(worker, "Worker was null");
+        BBS_ASSERT(worker, "Worker was null");
 
 		if (workerData.getWorkerJob(worker) == WorkerData::Move) 
 		{
@@ -492,7 +521,7 @@ void WorkerManager::handleMoveWorkers()
 			}
 			else
 			{
-				// UAB_ASSERT(worker->exists(), "bad worker");  // TODO temporary debugging - see Micro::Move
+				// BBS_ASSERT(worker->exists(), "bad worker");  // TODO temporary debugging - see Micro::Move
 				WorkerMoveData data = workerData.getWorkerMoveData(worker);
                 InformationManager::Instance().getLocutusUnit(worker).moveTo(data.position);
                 //Micro::Move(worker, data.position);
@@ -504,7 +533,7 @@ void WorkerManager::handleMoveWorkers()
 // Send the worker to mine minerals at the closest resource depot, if any.
 void WorkerManager::setMineralWorker(BWAPI::Unit unit)
 {
-    UAB_ASSERT(unit, "Unit was null");
+    BBS_ASSERT(unit, "Unit was null");
 
 	BWAPI::Unit depot = getClosestNonFullDepot(unit);
 
@@ -521,7 +550,7 @@ void WorkerManager::setMineralWorker(BWAPI::Unit unit)
 // Worker is carrying minerals or gas. Tell it to hand them in.
 void WorkerManager::setReturnCargoWorker(BWAPI::Unit unit)
 {
-	UAB_ASSERT(unit, "Unit was null");
+	BBS_ASSERT(unit, "Unit was null");
 
 	BWAPI::Unit depot = getAnyClosestDepot(unit);
 
@@ -538,14 +567,14 @@ void WorkerManager::setReturnCargoWorker(BWAPI::Unit unit)
 // Get the closest resource depot with no other consideration.
 BWAPI::Unit WorkerManager::getAnyClosestDepot(BWAPI::Unit worker)
 {
-	UAB_ASSERT(worker, "Worker was null");
+	BBS_ASSERT(worker, "Worker was null");
 
 	BWAPI::Unit closestDepot = nullptr;
 	int closestDistance = 0;
 
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
-		UAB_ASSERT(unit, "Unit was null");
+		BBS_ASSERT(unit, "Unit was null");
 
 		if (unit->getType().isResourceDepot() &&
 			(unit->isCompleted() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive))
@@ -565,14 +594,14 @@ BWAPI::Unit WorkerManager::getAnyClosestDepot(BWAPI::Unit worker)
 // Get the closest resource depot that can accept another mineral worker.
 BWAPI::Unit WorkerManager::getClosestNonFullDepot(BWAPI::Unit worker)
 {
-	UAB_ASSERT(worker, "Worker was null");
+	BBS_ASSERT(worker, "Worker was null");
 
 	BWAPI::Unit closestDepot = nullptr;
 	int closestDistance = 0;
 
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
-        UAB_ASSERT(unit, "Unit was null");
+        BBS_ASSERT(unit, "Unit was null");
 
 		if (unit->getType().isResourceDepot() &&
 			(unit->isCompleted() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive) &&
@@ -593,7 +622,7 @@ BWAPI::Unit WorkerManager::getClosestNonFullDepot(BWAPI::Unit worker)
 // other managers that need workers call this when they're done with a unit
 void WorkerManager::finishedWithWorker(BWAPI::Unit unit) 
 {
-	UAB_ASSERT(unit, "Unit was null");
+	BBS_ASSERT(unit, "Unit was null");
 
 	workerData.setWorkerJob(unit, WorkerData::Idle, nullptr);
 }
@@ -601,14 +630,14 @@ void WorkerManager::finishedWithWorker(BWAPI::Unit unit)
 // Find a worker to be reassigned to gas duty.
 BWAPI::Unit WorkerManager::getGasWorker(BWAPI::Unit refinery)
 {
-	UAB_ASSERT(refinery, "Refinery was null");
+	BBS_ASSERT(refinery, "Refinery was null");
 
 	BWAPI::Unit closestWorker = nullptr;
 	int closestDistance = 0;
 
 	for (const auto unit : workerData.getWorkers())
 	{
-		UAB_ASSERT(unit, "Unit was null");
+		BBS_ASSERT(unit, "Unit was null");
 
 		if (isFree(unit))
 		{
@@ -633,7 +662,7 @@ BWAPI::Unit WorkerManager::getGasWorker(BWAPI::Unit refinery)
 
 void WorkerManager::setBuildingWorker(BWAPI::Unit worker, Building & b)
 {
-     UAB_ASSERT(worker, "Worker was null");
+     BBS_ASSERT(worker, "Worker was null");
 
 	 workerData.setWorkerJob(worker, WorkerData::Build, b.type);
 }
@@ -648,12 +677,19 @@ BWAPI::Unit WorkerManager::getBuilder(const Building & b, bool setJobAsBuilder)
 	BWAPI::Unit closestMiningWorker = nullptr;
 	int closestMovingWorkerDistance = 0;
 	int closestMiningWorkerDistance = 0;
-
+	if (WorkerManager::Instance().getProxyWorker() && b.macroLocation == MacroLocation::Proxy)
+	{
+		workerData.setWorkerJob(WorkerManager::Instance().getProxyWorker(), WorkerData::Build, b.type);
+		return WorkerManager::Instance().getProxyWorker();
+	}
 	// look through each worker that had moved there first
 	for (const auto unit : workerData.getWorkers())
 	{
-        UAB_ASSERT(unit, "Unit was null");
+        BBS_ASSERT(unit, "Unit was null");
 
+		// skip proxy worker
+		if (unit == WorkerManager::Instance().getProxyWorker()) continue;
+		
         // gas steal building uses scout worker
         if (b.isWorkerScoutBuilding && (workerData.getWorkerJob(unit) == WorkerData::Scout))
         {
@@ -717,7 +753,7 @@ BWAPI::Unit WorkerManager::getBuilder(const Building & b, bool setJobAsBuilder)
 // sets a worker as a scout
 void WorkerManager::setScoutWorker(BWAPI::Unit worker)
 {
-	UAB_ASSERT(worker, "Worker was null");
+	BBS_ASSERT(worker, "Worker was null");
 
 	workerData.setWorkerJob(worker, WorkerData::Scout, nullptr);
 }
@@ -731,7 +767,7 @@ BWAPI::Unit WorkerManager::getMoveWorker(BWAPI::Position p)
 
 	for (const auto unit : workerData.getWorkers())
 	{
-        UAB_ASSERT(unit, "Unit was null");
+        BBS_ASSERT(unit, "Unit was null");
 
 		// only consider it if it's a mineral worker or idle
 		if (isFree(unit))
@@ -758,7 +794,7 @@ BWAPI::Unit WorkerManager::getMoveWorker(BWAPI::Position p)
 // Sets a worker to move to a given location. Use getMoveWorker() to choose the worker.
 void WorkerManager::setMoveWorker(BWAPI::Unit worker, int mineralsNeeded, int gasNeeded, BWAPI::Position & p)
 {
-	UAB_ASSERT(worker && p.isValid(), "bad call");
+	BBS_ASSERT(worker && p.isValid(), "bad call");
 	workerData.setWorkerJob(worker, WorkerData::Move, WorkerMoveData(mineralsNeeded, gasNeeded, p));
 }
 
@@ -783,14 +819,14 @@ bool WorkerManager::willHaveResources(int mineralsRequired, int gasRequired, dou
 
 void WorkerManager::setCombatWorker(BWAPI::Unit worker)
 {
-	UAB_ASSERT(worker, "Worker was null");
+	BBS_ASSERT(worker, "Worker was null");
 
 	workerData.setWorkerJob(worker, WorkerData::Combat, nullptr);
 }
 
 void WorkerManager::onUnitMorph(BWAPI::Unit unit)
 {
-	UAB_ASSERT(unit, "Unit was null");
+	BBS_ASSERT(unit, "Unit was null");
 
 	// if something morphs into a worker, add it
 	if (unit->getType().isWorker() && unit->getPlayer() == BWAPI::Broodwar->self() && unit->getHitPoints() > 0)
@@ -807,7 +843,7 @@ void WorkerManager::onUnitMorph(BWAPI::Unit unit)
 
 void WorkerManager::onUnitShow(BWAPI::Unit unit)
 {
-	UAB_ASSERT(unit && unit->exists(), "bad unit");
+	BBS_ASSERT(unit && unit->exists(), "bad unit");
 
 	// add the depot if it exists
 	if (unit->getType().isResourceDepot() && unit->getPlayer() == BWAPI::Broodwar->self())
@@ -827,7 +863,7 @@ void WorkerManager::rebalanceWorkers()
 {
 	for (const auto worker : workerData.getWorkers())
 	{
-        UAB_ASSERT(worker, "Worker was null");
+        BBS_ASSERT(worker, "Worker was null");
 
 		if (!workerData.getWorkerJob(worker) == WorkerData::Minerals)
 		{
@@ -849,7 +885,7 @@ void WorkerManager::rebalanceWorkers()
 
 void WorkerManager::onUnitDestroy(BWAPI::Unit unit) 
 {
-	UAB_ASSERT(unit, "Unit was null");
+	BBS_ASSERT(unit, "Unit was null");
 
 	if (unit->getType().isResourceDepot() && unit->getPlayer() == BWAPI::Broodwar->self())
 	{
@@ -876,7 +912,7 @@ void WorkerManager::drawResourceDebugInfo()
 
 	for (const auto worker : workerData.getWorkers()) 
     {
-        UAB_ASSERT(worker, "Worker was null");
+        BBS_ASSERT(worker, "Worker was null");
 
 		char job = workerData.getJobCode(worker);
 
@@ -910,7 +946,7 @@ void WorkerManager::drawWorkerInformation(int x, int y)
 
 	for (const auto unit : workerData.getWorkers())
 	{
-        UAB_ASSERT(unit, "Worker was null");
+        BBS_ASSERT(unit, "Worker was null");
 
 		BWAPI::Broodwar->drawTextScreen(x, y+40+((yspace)*10), "\x03 %d", unit->getID());
 		BWAPI::Broodwar->drawTextScreen(x+50, y+40+((yspace++)*10), "\x03 %c", workerData.getJobCode(unit));
@@ -919,7 +955,7 @@ void WorkerManager::drawWorkerInformation(int x, int y)
 
 bool WorkerManager::isFree(BWAPI::Unit worker)
 {
-    UAB_ASSERT(worker, "Worker was null");
+    BBS_ASSERT(worker, "Worker was null");
 
 	WorkerData::WorkerJob job = workerData.getWorkerJob(worker);
 	return (job == WorkerData::Minerals || job == WorkerData::Idle) && worker->isCompleted();
@@ -927,21 +963,21 @@ bool WorkerManager::isFree(BWAPI::Unit worker)
 
 bool WorkerManager::isWorkerScout(BWAPI::Unit worker)
 {
-	UAB_ASSERT(worker, "Worker was null");
+	BBS_ASSERT(worker, "Worker was null");
 
 	return workerData.getWorkerJob(worker) == WorkerData::Scout;
 }
 
 bool WorkerManager::isCombatWorker(BWAPI::Unit worker)
 {
-    UAB_ASSERT(worker, "Worker was null");
+    BBS_ASSERT(worker, "Worker was null");
 
 	return workerData.getWorkerJob(worker) == WorkerData::Combat;
 }
 
 bool WorkerManager::isBuilder(BWAPI::Unit worker)
 {
-    UAB_ASSERT(worker, "Worker was null");
+    BBS_ASSERT(worker, "Worker was null");
 
 	return workerData.getWorkerJob(worker) == WorkerData::Build;
 }
@@ -996,7 +1032,7 @@ int WorkerManager::getMaxWorkers() const
 // Mine out any blocking minerals that the worker runs headlong into.
 bool WorkerManager::maybeMineMineralBlocks(BWAPI::Unit worker)
 {
-	UAB_ASSERT(worker, "Worker was null");
+	BBS_ASSERT(worker, "Worker was null");
 
 	if (worker->isGatheringMinerals() &&
 		worker->getTarget() &&
@@ -1017,4 +1053,25 @@ bool WorkerManager::maybeMineMineralBlocks(BWAPI::Unit worker)
 	}
 
 	return false;
+}
+
+void WorkerManager::handleProxyWorker()
+{
+	if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Protoss_Gateway) > 2)
+	{
+		proxyWorker = nullptr;
+	}
+	auto & bwebMap = BWEB::Map::Instance();
+	
+	if (Config::Strategy::StrategyName != "Proxy9-9Gate") return;
+	if (BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Protoss_Probe) == 5 && getProxyWorker() == nullptr && BWAPI::Broodwar->getFrameCount() < 500)
+	{
+		// Gather the possible enemy start locations
+		for (const auto worker : workerData.getWorkers())
+		{
+			setMoveWorker(worker, 0, 0, BWAPI::Position(bwebMap.mapBWEM.Center().x, bwebMap.mapBWEM.Center().y));
+			proxyWorker = worker;
+			break;
+		}
+	}
 }

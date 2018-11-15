@@ -12,7 +12,7 @@ double UCB1_bound(int tries, int total)
 
 double UCB1_bound(double tries, double total)
 {
-	UAB_ASSERT(tries > 0 && total >= tries, "bad args");
+	BBS_ASSERT(tries > 0 && total >= tries, "bad args");
 	return sqrt(2.0 * log(total) / tries);
 }
 

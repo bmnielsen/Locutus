@@ -3,7 +3,7 @@
 
 #include <regex>
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 {
@@ -47,8 +47,12 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 	{
 		return MacroLocation::HiddenTech;
 	}
+	if (s == "choke guard")
+	{
+		return MacroLocation::ChokeGuard;
+	}
 
-	UAB_ASSERT(false, "config file - bad location '@ %s'", s.c_str());
+	BBS_ASSERT(false, "config file - bad location '@ %s'", s.c_str());
 
 	return MacroLocation::Anywhere;
 }
@@ -184,7 +188,7 @@ MacroAct::MacroAct(const std::string & name)
 
 	if (!determineType(inputName))
 	{
-		UAB_ASSERT_WARNING(false, "Could not find MacroAct with name: %s", name.c_str());
+		BBS_ASSERT_WARNING(false, "Could not find MacroAct with name: %s", name.c_str());
 		return;
 	}
 
@@ -318,25 +322,25 @@ bool MacroAct::hasThen() const
 
 const BWAPI::UnitType & MacroAct::getUnitType() const
 {
-	UAB_ASSERT(_type == MacroActs::Unit, "getUnitType of non-unit");
+	BBS_ASSERT(_type == MacroActs::Unit, "getUnitType of non-unit");
     return _unitType;
 }
 
 const BWAPI::TechType & MacroAct::getTechType() const
 {
-	UAB_ASSERT(_type == MacroActs::Tech, "getTechType of non-tech");
+	BBS_ASSERT(_type == MacroActs::Tech, "getTechType of non-tech");
 	return _techType;
 }
 
 const BWAPI::UpgradeType & MacroAct::getUpgradeType() const
 {
-	UAB_ASSERT(_type == MacroActs::Upgrade, "getUpgradeType of non-upgrade");
+	BBS_ASSERT(_type == MacroActs::Upgrade, "getUpgradeType of non-upgrade");
 	return _upgradeType;
 }
 
 const MacroCommand MacroAct::getCommandType() const
 {
-	UAB_ASSERT(_type == MacroActs::Command, "getCommandType of non-command");
+	BBS_ASSERT(_type == MacroActs::Command, "getCommandType of non-command");
 	return _macroCommandType;
 }
 
@@ -347,13 +351,13 @@ const MacroLocation MacroAct::getMacroLocation() const
 
 const BWAPI::TilePosition MacroAct::getReservedPosition() const
 {
-	UAB_ASSERT(_reservedPosition != BWAPI::TilePositions::None, "no reserved position");
+	BBS_ASSERT(_reservedPosition != BWAPI::TilePositions::None, "no reserved position");
 	return _reservedPosition;
 }
 
 const MacroAct & MacroAct::getThen() const
 {
-	UAB_ASSERT(!!_then, "getThen without then");
+	BBS_ASSERT(!!_then, "getThen without then");
 	return *_then;
 }
 
@@ -415,7 +419,7 @@ int MacroAct::mineralPrice(bool includeThen) const
 	}
 	else
 	{
-		UAB_ASSERT(false, "bad MacroAct");
+		BBS_ASSERT(false, "bad MacroAct");
 	}
 
 	return price;
@@ -444,7 +448,7 @@ int MacroAct::gasPrice(bool includeThen) const
 	}
 	else if (!isCommand())
 	{
-		UAB_ASSERT(false, "bad MacroAct");
+		BBS_ASSERT(false, "bad MacroAct");
 	}
 
 	return price;
@@ -477,7 +481,7 @@ std::string MacroAct::getName() const
 		return _macroCommandType.getName();
 	}
 
-	UAB_ASSERT(false, "bad MacroAct");
+	BBS_ASSERT(false, "bad MacroAct");
 	return "error";
 }
 
@@ -533,7 +537,7 @@ void MacroAct::getCandidateProducers(std::vector<BWAPI::Unit> & candidates) cons
 {
 	if (isCommand())
 	{
-		UAB_ASSERT(false, "no producer of a command");
+		BBS_ASSERT(false, "no producer of a command");
 		return;
 	}
 

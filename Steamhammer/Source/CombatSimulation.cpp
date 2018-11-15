@@ -6,7 +6,7 @@
 
 //#define COMBATSIM_DEBUG 1
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 CombatSimulation::CombatSimulation()
     : myVanguard(BWAPI::Positions::Invalid)

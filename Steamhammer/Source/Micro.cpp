@@ -1,12 +1,13 @@
 #include "Micro.h"
 #include "MapGrid.h"
 #include "UnitUtil.h"
+#include "MapTools.h"
 
 const double pi = 3.14159265358979323846;
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 size_t TotalCommands = 0;
 
@@ -24,7 +25,7 @@ void Micro::Stop(BWAPI::Unit unit)
 {
 	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self())
 	{
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
 	}
 
@@ -50,7 +51,7 @@ void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
 	if (!attacker || !attacker->exists() || attacker->getPlayer() != BWAPI::Broodwar->self() ||
 		!target || !target->exists())
     {
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
         return;
     }
 
@@ -85,7 +86,7 @@ void Micro::AttackMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosit
 {
 	if (!attacker || !attacker->exists() || attacker->getPlayer() != BWAPI::Broodwar->self() || !targetPosition.isValid())
     {
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
     }
 
@@ -122,18 +123,18 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 	/*
 	if (!attacker->exists())
 	{
-		UAB_ASSERT(false, "SmartMove: nonexistent");
+		BBS_ASSERT(false, "SmartMove: nonexistent");
 		BWAPI::Broodwar->printf("SM: non-exist %s @ %d, %d", attacker->getType().getName().c_str(), targetPosition.x, targetPosition.y);
 		return;
 	}
 	if (attacker->getPlayer() != BWAPI::Broodwar->self())
 	{
-		UAB_ASSERT(false, "SmartMove: not my unit");
+		BBS_ASSERT(false, "SmartMove: not my unit");
 		return;
 	}
 	if (!targetPosition.isValid())
 	{
-		UAB_ASSERT(false, "SmartMove: bad position");
+		BBS_ASSERT(false, "SmartMove: bad position");
 		return;
 	}
 	// -- -- TODO end
@@ -141,7 +142,7 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 
 	if (!attacker || !attacker->exists() || attacker->getPlayer() != BWAPI::Broodwar->self() || !targetPosition.isValid())
 	{
-		// UAB_ASSERT(false, "bad arg");  // TODO restore this after the bugs are solved; can make too many beeps
+		// BBS_ASSERT(false, "bad arg");  // TODO restore this after the bugs are solved; can make too many beeps
 		return;
 	}
 
@@ -174,12 +175,103 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
     }
 }
 
+void Micro::SmartMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
+{
+	if (!attacker || !attacker->exists() || attacker->getPlayer() != BWAPI::Broodwar->self() || !targetPosition.isValid())
+	{
+		// BBS_ASSERT(false, "bad arg");  // TODO restore this after the bugs are solved; can make too many beeps
+		return;
+	}
+
+	// if we have issued a command to this unit already this frame, ignore this one
+	if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount())
+	{
+		return;
+	}
+
+	BWAPI::UnitCommand currentCommand(attacker->getLastCommand());
+
+	// if we've already told this unit to move to this position, ignore this command
+	if (!attacker->isStuck() &&
+		(currentCommand.getType() == BWAPI::UnitCommandTypes::Move) &&
+		(currentCommand.getTargetPosition() == targetPosition) &&
+		attacker->isMoving())
+	{
+		return;
+	}
+
+	// if nothing prevents it, move the target position
+	// move according to chokes
+	int len = -1;
+	const auto & path = BWEM::Map::Instance().GetPath(attacker->getPosition(), targetPosition, &len);
+	if (!attacker->isFlying() && len > 0 && path.size() > 0)
+	{
+		bool inChoke = false;
+		int nearestValidChoke = 0;
+		while (nearestValidChoke < path.size())
+		{
+			const auto & choke = path[nearestValidChoke];
+			BWAPI::Position end1 = (BWAPI::Position)choke->Pos(choke->end1) + BWAPI::Position(4, 4);
+			BWAPI::Position end2 = (BWAPI::Position)choke->Pos(choke->end2) + BWAPI::Position(4, 4);
+			BWAPI::Position middle = (BWAPI::Position)choke->Pos(choke->middle) + BWAPI::Position(4, 4);
+			BWAPI::Position pos = attacker->getPosition();
+			if (pos.getDistance(end1) <= 48 || pos.getDistance(end2) <= 48 || pos.getDistance(middle) <= 48)
+			{
+				++nearestValidChoke;
+			}
+			else break;
+		}
+		if (nearestValidChoke == path.size())
+		{
+			Move(attacker, targetPosition);
+			//attacker->move(targetPosition);
+		}
+		else
+		{
+			int bestDist = INT_MAX;
+			const auto & choke = path[nearestValidChoke];
+			BWAPI::Position currentlyMovingTowards = (BWAPI::Position)choke->Pos(choke->middle);
+			for (auto walkPosition : choke->Geometry())
+			{
+				BWAPI::Position pos = (BWAPI::Position)walkPosition + BWAPI::Position(4, 4);
+				int dist = pos.getApproxDistance(attacker->getPosition());
+				// if block, give some penalize
+				if (InformationManager::Instance().getMyUnitGrid().get(walkPosition) > 0)
+					dist += attacker->getType().groundWeapon().maxRange() + 32;
+				if (dist < bestDist)
+				{
+					bestDist = dist;
+					currentlyMovingTowards = pos;
+				}
+			}
+			// don't move too far away from center
+			currentlyMovingTowards = (currentlyMovingTowards + (BWAPI::Position)choke->Center()) / 2;
+			Move(attacker, currentlyMovingTowards);
+			//attacker->move(currentlyMovingTowards);
+			BWAPI::Broodwar->drawLineMap(attacker->getPosition(), currentlyMovingTowards, BWAPI::Colors::White);
+		}
+	}
+	else
+	{
+		Move(attacker, targetPosition);
+		//attacker->move(targetPosition);
+	}
+	TotalCommands++;
+
+	if (Config::Debug::DrawUnitTargetInfo)
+	{
+		BWAPI::Broodwar->drawCircleMap(attacker->getPosition(), dotRadius, BWAPI::Colors::White, true);
+		BWAPI::Broodwar->drawCircleMap(targetPosition, dotRadius, BWAPI::Colors::White, true);
+		BWAPI::Broodwar->drawLineMap(attacker->getPosition(), targetPosition, BWAPI::Colors::White);
+	}
+}
+
 void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
 {
 	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self() ||
 		!target || !target->exists())
 	{
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
 	}
 
@@ -218,7 +310,7 @@ void Micro::LaySpiderMine(BWAPI::Unit unit, BWAPI::Position pos)
 {
 	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self() || !pos.isValid())
 	{
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
 	}
 
@@ -243,7 +335,7 @@ void Micro::Repair(BWAPI::Unit unit, BWAPI::Unit target)
 	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self() ||
 		!target || !target->exists())
 	{
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
 	}
 
@@ -279,7 +371,7 @@ void Micro::Repair(BWAPI::Unit unit, BWAPI::Unit target)
 // Return whether the scan occurred.
 bool Micro::Scan(const BWAPI::Position & targetPosition)
 {
-	UAB_ASSERT(targetPosition.isValid(), "bad position");
+	BBS_ASSERT(targetPosition.isValid(), "bad position");
 
 	// If a scan of this position is still active, don't scan it again.
 	if (MapGrid::Instance().scanIsActiveAt(targetPosition))
@@ -319,7 +411,7 @@ bool Micro::Stim(BWAPI::Unit unit)
 		unit->getType() != BWAPI::UnitTypes::Terran_Marine && unit->getType() != BWAPI::UnitTypes::Terran_Firebat ||
 		unit->getPlayer() != BWAPI::Broodwar->self())
 	{
-		UAB_ASSERT(false, "bad unit");
+		BBS_ASSERT(false, "bad unit");
 		return false;
 	}
 
@@ -357,7 +449,7 @@ bool Micro::MergeArchon(BWAPI::Unit templar1, BWAPI::Unit templar2)
 		templar2->getType() != BWAPI::UnitTypes::Protoss_High_Templar ||
 		templar1 == templar2)
 	{
-		UAB_ASSERT(false, "bad unit");
+		BBS_ASSERT(false, "bad unit");
 		return false;
 	}
 
@@ -377,7 +469,7 @@ void Micro::ReturnCargo(BWAPI::Unit worker)
 	if (!worker || !worker->exists() || worker->getPlayer() != BWAPI::Broodwar->self() ||
 		!worker->getType().isWorker())
 	{
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
 	}
 
@@ -417,7 +509,7 @@ void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	if (!rangedUnit || !rangedUnit->exists() || rangedUnit->getPlayer() != BWAPI::Broodwar->self() ||
 		!target || !target->exists())
 	{
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
 	}
 
@@ -497,7 +589,7 @@ void Micro::MutaDanceTarget(BWAPI::Unit muta, BWAPI::Unit target)
 	if (!muta || !muta->exists() || muta->getPlayer() != BWAPI::Broodwar->self() ||
 		!target || !target->exists())
 	{
-		UAB_ASSERT(false, "bad arg");
+		BBS_ASSERT(false, "bad arg");
 		return;
 	}
 

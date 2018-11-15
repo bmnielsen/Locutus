@@ -3,7 +3,7 @@
 #include "InformationManager.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 MicroDarkTemplar::MicroDarkTemplar()
 { 
@@ -39,9 +39,20 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
     for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
         if (!unit->getType().isBuilding() && unit->getType().isDetector())
             enemyDetectors.push_back(std::make_pair(unit->getPosition(), unit->getType()));
+
+	std::set<BWAPI::Unit> targetsInDetection;
     for (auto const & ui : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
-        if (ui.second.type.isBuilding() && ui.second.type.isDetector() && !ui.second.goneFromLastPosition && ui.second.completed)
-            enemyDetectors.push_back(std::make_pair(ui.second.lastPosition, ui.second.type));
+		if (ui.second.type.isBuilding() && ui.second.type.isDetector() && !ui.second.goneFromLastPosition && ui.second.completed)
+		{
+			enemyDetectors.push_back(std::make_pair(ui.second.lastPosition, ui.second.type));
+			for (const auto target : meleeUnitTargets)
+				if (target->getPosition().getApproxDistance(ui.second.lastPosition) <= 368)
+					targetsInDetection.insert(target);
+		}
+	for (const auto target : targetsInDetection)
+		meleeUnitTargets.erase(target);
+	for (const auto & target : meleeUnitTargets)
+		BWAPI::Broodwar->drawCircleMap(target->getPosition(), 16, BWAPI::Colors::Red, false);
 
 	for (const auto meleeUnit : meleeUnits)
 	{
@@ -50,9 +61,11 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
             continue;
         }
 
+		BWAPI::Broodwar->drawTextMap(meleeUnit->getPosition(), "Harass");
+
         // If in range of a detector, consider fleeing from it
         for (auto const & detector : enemyDetectors)
-            if (meleeUnit->getDistance(detector.first) <= (detector.second.isBuilding() ? 9 * 32 : 12 * 32))
+            if (meleeUnit->getDistance(detector.first) <= 368)
             {
                 if (!meleeUnit->isUnderAttack() && !UnitUtil::TypeCanAttackGround(detector.second)) continue;
 

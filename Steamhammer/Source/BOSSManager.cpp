@@ -2,7 +2,7 @@
 #include "BOSSManager.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 BOSSManager & BOSSManager::Instance() 
 {
@@ -224,7 +224,7 @@ void BOSSManager::update(double timeLimit)
                     _previousStatus += "\x08Naive Exception";
                     if (Config::Debug::DrawBuildOrderSearchInfo)
                     {
-						UAB_ASSERT_WARNING(false, "BOSS Timeout Naive Search Exception: %s", exception.what());
+						BBS_ASSERT_WARNING(false, "BOSS Timeout Naive Search Exception: %s", exception.what());
 						BWAPI::Broodwar->drawTextScreen(0, 20, "No BuildOrder found, returning empty BuildOrder");
                     }
 					_previousBuildOrder = BOSS::BuildOrder();
@@ -326,7 +326,7 @@ BOSS::ActionType BOSSManager::GetActionType(const MacroAct & t)
 	}
 	else
 	{
-		UAB_ASSERT(false, "Should have found a valid type here");
+		BBS_ASSERT(false, "Should have found a valid type here");
 	}
 	
 	return BOSS::ActionType();
@@ -349,7 +349,7 @@ MacroAct BOSSManager::GetMacroAct(const BOSS::ActionType & a)
 	}
 	else
 	{
-		UAB_ASSERT(false, "Should have found a valid type here");
+		BBS_ASSERT(false, "Should have found a valid type here");
 	}
 	
 	return MacroAct();

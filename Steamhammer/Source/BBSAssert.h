@@ -10,34 +10,34 @@
 #include <ctime>
 #include <iomanip>
 
-#define UAB_BREAK
+#define BBS_BREAK
 
-#define UAB_ASSERT_ALL
+#define BBS_ASSERT_ALL
 
-#ifdef UAB_ASSERT_ALL
-    #define UAB_ASSERT(cond, msg, ...) \
+#ifdef BBS_ASSERT_ALL
+    #define BBS_ASSERT(cond, msg, ...) \
         do \
         { \
             if (!(cond)) \
             { \
-                UAlbertaBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
-                UAB_BREAK \
+                BlueBlueSky::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
+                BBS_BREAK \
             } \
         } while(0)
 
-    #define UAB_ASSERT_WARNING(cond, msg, ...) \
+    #define BBS_ASSERT_WARNING(cond, msg, ...) \
         do \
         { \
             if (!(cond)) \
             { \
-                UAlbertaBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
+                BlueBlueSky::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
             } \
         } while(0)
 #else
-    #define UAB_ASSERT(cond, msg, ...) 
+    #define BBS_ASSERT(cond, msg, ...) 
 #endif
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
     namespace Assert
     {

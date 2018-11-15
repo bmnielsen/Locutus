@@ -8,7 +8,7 @@
 
 // Keep track of map information, like what tiles are walkable or buildable.
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 struct ChokeData
@@ -32,6 +32,9 @@ struct ChokeData
     {};
 };
 
+typedef std::pair<BWAPI::WalkPosition, BWAPI::WalkPosition> ChokePair;
+typedef std::vector<BWAPI::TilePosition> ChokePath;
+
 class MapTools
 {
 	const size_t allMapsSize = 40;			// store this many distance maps in _allMaps
@@ -46,7 +49,12 @@ class MapTools
 						_buildable;
 	std::vector< std::vector<bool> >
 						_depotBuildable;
+	std::map<const BWEM::Area *, std::map<BWAPI::TilePosition, int>>
+						_tileWithDistToBorder;
+	std::map<const BWEM::Area *, std::map<const BWEM::ChokePoint *, std::map<BWAPI::TilePosition, BWAPI::TilePosition>>>
+						_minPath;
 	bool				_hasIslandBases;
+	ChokePath			_chokePath;
 
     MapTools();
 
@@ -75,11 +83,20 @@ public:
 	const std::vector<BWAPI::TilePosition> & getClosestTilesTo(BWAPI::TilePosition pos);
 	const std::vector<BWAPI::TilePosition> & getClosestTilesTo(BWAPI::Position pos);
 
+	bool calcPath(const BWEM::Area * area, const BWEM::ChokePoint * cp);
+	bool calcBorder(const BWEM::Area & area);
+
 	void	drawHomeDistanceMap();
+	void	drawChokePath();
 
 	BWAPI::TilePosition	getNextExpansion(bool hidden, bool wantMinerals, bool wantGas);
 
 	bool	hasIslandBases() const { return _hasIslandBases; };
+
+	void	update();
+
+	const ChokePath & getChokePath(const BWAPI::TilePosition & unit, const BWAPI::WalkPosition & choke);
+	int borderDist(const BWAPI::TilePosition & t);
 };
 
 }

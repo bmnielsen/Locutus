@@ -4,7 +4,7 @@
 #include "Common.h"
 #include "../../BOSS/source/Timer.hpp"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 class TimerManager
@@ -20,7 +20,7 @@ class TimerManager
 
 public:
 
-	enum Type { Total, Worker, Strategy, Production, Building, Combat, Scout, InformationManager, MapGrid, Search, OpponentModel, NumTypes };
+	enum Type { Total, Worker, Strategy, Production, Building, Combat, Scout, InformationManager, MapGrid, Search, OpponentModel, MapTools, NumTypes };
 
 	TimerManager();
 

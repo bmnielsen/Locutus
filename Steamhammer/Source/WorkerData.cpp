@@ -2,7 +2,7 @@
 #include "Micro.h"
 #include "InformationManager.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 WorkerData::WorkerData() 
 {

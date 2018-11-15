@@ -9,7 +9,7 @@ const double pi = 3.14159265358979323846;
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 	void swap(BWAPI::TilePosition& first, BWAPI::TilePosition& second)
 	{

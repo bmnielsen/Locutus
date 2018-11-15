@@ -3,7 +3,7 @@
 #include "Common.h"
 #include "DistanceMap.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 class Base

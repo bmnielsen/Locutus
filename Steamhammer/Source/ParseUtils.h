@@ -3,7 +3,7 @@
 #include "Common.h"
 #include "rapidjson\document.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 namespace ParseUtils
 {

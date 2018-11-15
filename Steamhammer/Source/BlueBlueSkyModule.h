@@ -10,10 +10,10 @@
 
 #include "rapidjson\document.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
-class UAlbertaBotModule : public BWAPI::AIModule
+class BlueBlueSkyModule : public BWAPI::AIModule
 {
 private:
     bool    gameEnded;

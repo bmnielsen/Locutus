@@ -1,6 +1,6 @@
 #include "SquadData.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 SquadData::SquadData() 
 {
@@ -37,7 +37,7 @@ void SquadData::removeSquad(const std::string & squadName)
 {
     auto & squadPtr = _squads.find(squadName);
 
-    UAB_ASSERT_WARNING(squadPtr != _squads.end(), "Trying to clear a squad that didn't exist: %s", squadName.c_str());
+    BBS_ASSERT_WARNING(squadPtr != _squads.end(), "Trying to clear a squad that didn't exist: %s", squadName.c_str());
     if (squadPtr == _squads.end())
     {
         return;
@@ -165,9 +165,21 @@ Squad * SquadData::getUnitSquad(BWAPI::Unit unit)
 
 void SquadData::assignUnitToSquad(BWAPI::Unit unit, Squad & squad)
 {
-    UAB_ASSERT_WARNING(canAssignUnitToSquad(unit, squad), "We shouldn't be re-assigning this unit!");
+    BBS_ASSERT_WARNING(canAssignUnitToSquad(unit, squad), "We shouldn't be re-assigning this unit!");
 
     Squad * previousSquad = getUnitSquad(unit);
+
+	// Harass Dark Templar in enemy base don't change squad
+	if (unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
+	{
+		if (previousSquad && previousSquad->getName().find("Harass") == 0)
+		{
+			auto enemyMain = InformationManager::Instance().getEnemyMainBaseLocation();
+			if (enemyMain && unit->getDistance(enemyMain->getPosition()) < 400) return;
+			auto enemyNatural = InformationManager::Instance().getEnemyNaturalBaseLocation();
+			if (enemyNatural && unit->getDistance(enemyNatural->getPosition()) < 400) return;
+		}
+	}
 
     if (previousSquad)
     {
@@ -187,7 +199,7 @@ bool SquadData::canAssignUnitToSquad(BWAPI::Unit unit, const Squad & squad) cons
 
 Squad & SquadData::getSquad(const std::string & squadName)
 {
-    UAB_ASSERT_WARNING(squadExists(squadName), "Trying to access squad that doesn't exist: %s", squadName);
+    BBS_ASSERT_WARNING(squadExists(squadName), "Trying to access squad that doesn't exist: %s", squadName);
     if (!squadExists(squadName))
     {
         int a = 10;
@@ -198,7 +210,7 @@ Squad & SquadData::getSquad(const std::string & squadName)
 
 const Squad & SquadData::getSquad(const std::string & squadName) const
 {
-    UAB_ASSERT_WARNING(squadExists(squadName), "Trying to access squad that doesn't exist: %s", squadName);
+    BBS_ASSERT_WARNING(squadExists(squadName), "Trying to access squad that doesn't exist: %s", squadName);
     if (!squadExists(squadName))
     {
         int a = 10;
@@ -213,6 +225,6 @@ Squad & SquadData::getSquad(const MicroManager * microManager)
         if (squad.second.hasMicroManager(microManager))
             return squad.second;
 
-    UAB_ASSERT(false, "Getting squad for unowned MicroManager");
+    BBS_ASSERT(false, "Getting squad for unowned MicroManager");
     return Squad();
 }

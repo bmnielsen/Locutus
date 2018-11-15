@@ -7,7 +7,7 @@
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 // Note: Melee units are ground units only. Scourge is a "ranged" unit.
 
@@ -164,19 +164,24 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 	for (const auto target : targets)
 	{
 		const int priority = getAttackPriority(meleeUnit, target);		// 0..12
+		double ratio = (double)(target->getHitPoints() + target->getShields()) / (double)(target->getType().maxHitPoints() + target->getType().maxShields());
+		ratio = std::pow(ratio, 1.0 / 3.0);
+		if (ratio < 0.1) ratio = 0.1;
 		const int range = meleeUnit->getDistance(target);				// 0..map size in pixels
+		// ratio only used on near enemy
+		if (range > 32) ratio = 1.0;
 		const int closerToGoal =										// positive if target is closer than us to the goal
 			meleeUnit->getDistance(order.getPosition()) - target->getDistance(order.getPosition());
 
 		// Skip targets that are too far away to worry about.
-		if (range >= 13 * 32)
+		if (range >= 13 * 32 && meleeUnit->getType() != BWAPI::UnitTypes::Protoss_Dark_Templar)
 		{
 			continue;
 		}
 
 		// Let's say that 1 priority step is worth 64 pixels (2 tiles).
 		// We care about unit-target range and target-order position distance.
-		int score = 2 * 32 * priority - range;
+		int score = 2 * 32 * priority / ratio - range;
 
         // Kamikaze and rush attacks ignore all tier 2+ combat units
         if ((StrategyManager::Instance().isRushing() || order.getType() == SquadOrderTypes::KamikazeAttack) &&

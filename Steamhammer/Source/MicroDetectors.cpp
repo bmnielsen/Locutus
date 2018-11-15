@@ -1,6 +1,6 @@
 #include "MicroDetectors.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 MicroDetectors::MicroDetectors()
 	: unitClosestToEnemy(nullptr)

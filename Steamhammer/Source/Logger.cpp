@@ -1,10 +1,10 @@
 #include "Logger.h"
-#include "UABAssert.h"
+#include "BBSAssert.h"
 #include <stdarg.h>
 #include <cstdio>
 #include <sstream>
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 void Logger::LogAppendToFile(const std::string & logFile, const std::string & msg)
 {

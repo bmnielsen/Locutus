@@ -3,7 +3,7 @@
 #include <Common.h>
 #include <BWAPI.h>
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 namespace Micro
 {
@@ -12,7 +12,8 @@ namespace Micro
 	void Stop(BWAPI::Unit unit);
 	void AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target);
     void AttackMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosition);
-    void Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition);
+	void Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition);
+    void SmartMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosition);
 	void RightClick(BWAPI::Unit unit, BWAPI::Unit target);
     void LaySpiderMine(BWAPI::Unit unit, BWAPI::Position pos);
     void Repair(BWAPI::Unit unit, BWAPI::Unit target);

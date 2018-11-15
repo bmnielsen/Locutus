@@ -6,7 +6,7 @@
 #include "OpponentModel.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 const std::vector<std::string> GameRecord::SupportedFileFormatVersions = { "1.4", "2018-07-02" };
 
@@ -579,7 +579,7 @@ bool GameRecord::findClosestSnapshot(int t, PlayerSnapshot & snap) const
 			return true;
 		}
 	}
-	UAB_ASSERT(false, "opponent model - no snapshot @ t");
+	BBS_ASSERT(false, "opponent model - no snapshot @ t");
 	return false;
 }
 

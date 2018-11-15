@@ -4,7 +4,7 @@
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/document.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 namespace JSONTools
 {
@@ -13,7 +13,7 @@ namespace JSONTools
     {
         if (value.HasMember(key))
         {
-            UAB_ASSERT(value[key].IsInt(), "%s should be an int", key);
+            BBS_ASSERT(value[key].IsInt(), "%s should be an int", key);
             dest = (T)value[key].GetInt();
         }
     }

@@ -5,7 +5,7 @@
 #include "MapTools.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
@@ -704,6 +704,18 @@ BWAPI::TilePosition buildLocationInBlock(BWAPI::UnitType type, const BWEB::Block
     for (auto& tile : placements)
         if (bwebMap.isPlaceable(type, tile))
             return tile;
+	if (Config::Strategy::StrategyName == "Proxy9-9Gate")
+	{
+		Building b;
+		b.type = type;
+		b.builderUnit = WorkerManager::Instance().getProxyWorker();
+		int xx = block.Location().x, yy = block.Location().y;
+		if (b.builderUnit)
+			for (int x = xx - 8; x <= xx + 8; ++x)
+				for (int y = yy - 8; y <= yy + 8; ++y)
+					if (bwebMap.isPlaceable(type, BWAPI::TilePosition(x, y)) && BuildingPlacer::Instance().canBuildHere(BWAPI::TilePosition(x, y), b))
+						return BWAPI::TilePosition(x, y);
+	}
 
     Log().Get() << "ERROR: No position for " << type << " available in block " << block.Location();
 
@@ -721,6 +733,50 @@ struct BlockData
 
 BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation)
 {
+	if (macroLocation == MacroLocation::ChokeGuard)
+	{
+		auto myMain = InformationManager::Instance().getMyMainBaseLocation();
+		auto myNatural = InformationManager::Instance().getMyNaturalLocation();
+		std::vector<BWAPI::Position> cannonCenters;
+		for (const auto & unit : BWAPI::Broodwar->self()->getUnits())
+			if (unit && unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+				cannonCenters.push_back(BWAPI::Position(unit->getTilePosition().x * 32 + 16, unit->getTilePosition().y * 32 + 16));
+		if (myMain && myNatural && !cannonCenters.empty())
+		{
+			// virtual building
+			Building b;
+			b.type = type;
+			b.finalPosition = myMain->getTilePosition();
+			b.builderUnit = WorkerManager::Instance().getBuilder(b, false);
+
+			// in area, find position closest to choke
+			BWAPI::TilePosition bestTile = BWAPI::TilePositions::None;
+			auto myArea = BWEM::Map::Instance().GetArea(myMain->getTilePosition());
+			auto pChoke = myArea->ChokePointsByArea().find(BWEM::Map::Instance().GetArea(myNatural->getTilePosition()));
+			if (pChoke != myArea->ChokePointsByArea().end() && !pChoke->second->empty())
+				for (int xx = myArea->TopLeft().x; xx <= myArea->BottomRight().x; ++xx)
+					for (int yy = myArea->TopLeft().y; yy <= myArea->BottomRight().y; ++yy)
+					{
+						// must in any cannon
+						bool inAnyCannon = false;
+						for (const auto & center : cannonCenters)
+						{
+							BWAPI::Position pos(xx * 32 + 16, yy * 32 + 16);
+							if (pos.getApproxDistance(center) < 32 * 6) inAnyCannon = true;
+						}
+						if (!inAnyCannon) continue;
+						BWAPI::TilePosition tile(xx, yy);
+						BWAPI::TilePosition chokeTile = BWAPI::TilePosition(pChoke->second->front().Center());
+						if (myArea == BWEM::Map::Instance().GetArea(tile))
+							if (bwebMap.isPlaceable(type, tile) && BuildingPlacer::Instance().canBuildHere(tile, b))
+								if (bestTile == BWAPI::TilePositions::None ||
+									bestTile.getApproxDistance(chokeTile) > tile.getApproxDistance(chokeTile))
+									bestTile = tile;
+					}
+			if (bestTile != BWAPI::TilePositions::None) return bestTile;
+		}
+	}
+
 	if (type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
 	{
 		const BWEB::Station* station = bwebMap.getClosestStation(closeTo);
@@ -747,7 +803,7 @@ BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAP
 
         if (_proxyBlock != -1)
         {
-            auto location = buildLocationInBlock(type, bwebMap.Blocks()[_proxyBlock]);
+			auto location = buildLocationInBlock(type, bwebMap.Blocks()[_proxyBlock]);
             if (location.isValid()) return location;
         }
     }

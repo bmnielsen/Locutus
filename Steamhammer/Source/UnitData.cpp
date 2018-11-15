@@ -5,7 +5,7 @@
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 UnitData::UnitData() 
 	: mineralsLost(0)
@@ -130,7 +130,7 @@ void UnitData::removeUnit(BWAPI::Unit unit)
 	unitMap.erase(unit);
 
 	// NOTE This assert fails, so the unit counts cannot be trusted. :-(
-	// UAB_ASSERT(numUnits[unit->getType().getID()] >= 0, "negative units");
+	// BBS_ASSERT(numUnits[unit->getType().getID()] >= 0, "negative units");
 }
 
 void UnitData::removeBadUnits()

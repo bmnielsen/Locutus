@@ -4,7 +4,7 @@
 #include "UnitUtil.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 //#define CRASH_DEBUG 1
 
@@ -128,6 +128,16 @@ void GameCommander::update()
 	_timerManager.stopTimer(TimerManager::OpponentModel);
 
 #ifdef CRASH_DEBUG
+	Log().Debug() << "MapTools";
+#endif
+
+	_timerManager.startTimer(TimerManager::MapTools);
+	MapTools::Instance().update();
+	_timerManager.stopTimer(TimerManager::MapTools);
+
+	//MapTools::Instance().drawChokePath();
+
+#ifdef CRASH_DEBUG
 	Log().Debug() << "(done frame)";
 #endif
 
@@ -169,7 +179,7 @@ void GameCommander::drawDebugInterface()
 	MapTools::Instance().drawHomeDistanceMap();
     
 	_combatCommander.drawSquadInformation(200, 30);
-    _timerManager.displayTimers(490, 225);
+    _timerManager.displayTimers(490, 210);
     drawGameInformation(4, 1);
 
 	drawUnitOrders();
@@ -363,6 +373,7 @@ void GameCommander::setScoutUnits()
 {
 	// If we're zerg, assign the first overlord to scout.
 	// But not if the enemy is terran: We have no evasion skills, we'll lose the overlord.
+	
 	if (BWAPI::Broodwar->getFrameCount() == 0 &&
 		BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg &&
 		BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran)
@@ -472,7 +483,8 @@ BWAPI::Unit GameCommander::getScoutWorker()
 			WorkerManager::Instance().isFree(unit) &&
 			!unit->isCarryingMinerals() &&
 			!unit->isCarryingGas() &&
-			unit->getOrder() != BWAPI::Orders::MiningMinerals)
+			unit->getOrder() != BWAPI::Orders::MiningMinerals &&
+			unit != WorkerManager::Instance().getProxyWorker())
 		{
             int dist = PathFinding::GetGroundDistance(unit->getPosition(), mapCenter);
 			if (dist < bestDist)

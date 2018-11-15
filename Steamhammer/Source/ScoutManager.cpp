@@ -3,15 +3,16 @@
 #include "OpponentModel.h"
 #include "ProductionManager.h"
 #include "UnitUtil.h"
+#include "neutral.h"
 
 // This class is responsible for early game scouting.
 // It controls any scouting worker and scouting overlord that it is given.
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
-ScoutManager::ScoutManager() 
+ScoutManager::ScoutManager()
 	: _overlordScout(nullptr)
-    , _workerScout(nullptr)
+	, _workerScout(nullptr)
 	, _scoutStatus("None")
 	, _gasStealStatus("None")
 	, _scoutCommand(MacroCommandType::None)
@@ -19,15 +20,21 @@ ScoutManager::ScoutManager()
 	, _scoutUnderAttack(false)
 	, _tryGasSteal(false)
 	, _enemyGeyser(nullptr)
-    , _startedGasSteal(false)
+	, _startedGasSteal(false)
 	, _queuedGasSteal(false)
 	, _gasStealOver(false)
-    , _currentRegionVertexIndex(-1)
-    , _previousScoutHP(0)
+	, _currentRegionVertexIndex(-1)
+	, _previousScoutHP(0)
 	, _enemyBaseLastSeen(0)
 	, _pylonHarassState(PylonHarassStates::Initial)
+	, _enemyMainFirstSeen(0)
+	, _needScoutNatural(false)
+	, _needScoutHidden(false)
 {
 	setScoutTargets();
+	_firstScoutPoint.push_back(std::make_pair(BWAPI::Positions::None, false));
+	_firstScoutPoint.push_back(std::make_pair(BWAPI::Positions::None, false));
+	_firstScoutPoint.push_back(std::make_pair(BWAPI::Positions::None, false));
 }
 
 ScoutManager & ScoutManager::Instance() 
@@ -122,6 +129,39 @@ bool ScoutManager::shouldScout()
 
 void ScoutManager::update()
 {
+	if (_workerScout && _enemyMainFirstSeen == 0 && InformationManager::Instance().getEnemyMainBaseLocation())
+	{
+		PlayerSnapshot snap;
+		snap.takeEnemy();
+		if (snap.getCount(BWAPI::UnitTypes::Protoss_Nexus) + snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) + snap.getCount(BWAPI::UnitTypes::Terran_Command_Center) > 0)
+		{
+			const auto & enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
+			const auto & enemyArea = BWEM::Map::Instance().GetArea(enemyBase->getTilePosition());
+			const auto & distToEnemyBase = _workerScout->getTilePosition().getApproxDistance(enemyBase->getTilePosition());
+			
+			// must in same area
+			if (distToEnemyBase <= 10)
+			{
+				_enemyMainFirstSeen = BWAPI::Broodwar->getFrameCount();
+				if (!enemyArea->Bases().empty() && !enemyArea->Bases()[0].Geysers().empty())
+				{
+					const auto & geyserPos = (BWAPI::Position)enemyArea->Bases()[0].Geysers()[0]->TopLeft() + BWAPI::Position(32, 32);
+					const auto & basePos = enemyArea->Bases()[0].Center();
+					int xx = 0, yy = 0, cc = 0;
+					for (const auto & mineral : enemyArea->Bases()[0].Minerals())
+					{
+						xx += mineral->Pos().x;
+						yy += mineral->Pos().y;
+						cc += 1;
+					}
+					const auto & mineralPos = BWAPI::Position(xx / cc, yy / cc);
+					_firstScoutPoint[2].first = basePos * 2 - geyserPos;
+					_firstScoutPoint[1].first = basePos * 2 - mineralPos;
+					_firstScoutPoint[0].first = geyserPos;
+				}
+			}
+		}
+	}
     // We may have active harass pylons after the scout is dead, so always update them
     updatePylonHarassState();
 
@@ -160,6 +200,10 @@ void ScoutManager::update()
         OpponentModel::Instance().getRecommendGasSteal() &&
         BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
         Config::Strategy::StrategyName != "PlasmaProxy2Gate")
+	{
+		_tryGasSteal = true;
+	}
+	if (Config::Strategy::EnemyStealGas)
 	{
 		_tryGasSteal = true;
 	}
@@ -223,6 +267,17 @@ void ScoutManager::update()
 		releaseWorkerScout();
 	}
 
+	// If use a proxy-gate opening, don't scout too long
+	if (Config::Strategy::StrategyName == "Proxy9-9Gate")
+	{
+		PlayerSnapshot snap;
+		snap.takeEnemy();
+		if (snap.getFrame(BWAPI::UnitTypes::Protoss_Nexus) < 10000 && BWAPI::Broodwar->getFrameCount() - snap.getFrame(BWAPI::UnitTypes::Protoss_Nexus) > 300)
+		{
+			releaseWorkerScout();
+		}
+	}
+
     // Calculate waypoints around the enemy base if we expect to need them.
 	// We use these to go directly to the enemy base if its location is known,
 	// as well as to run circuits around it.
@@ -275,7 +330,64 @@ void ScoutManager::update()
 
 		if (moveScout)
 		{
-			moveGroundScout(_workerScout);
+			if (!_firstScoutPoint.rbegin()->second && _firstScoutPoint[0].first != BWAPI::Positions::None)
+			{
+				for (auto & point : _firstScoutPoint)
+				{
+					if (!point.second)
+					{
+						InformationManager::Instance().getLocutusUnit(_workerScout).moveTo(point.first);
+						if (_workerScout->getPosition().getApproxDistance(point.first) < 64 ||
+							BWAPI::Broodwar->getFrameCount() - _enemyMainFirstSeen > 160)
+						{
+							point.second = true;
+							_enemyMainFirstSeen = BWAPI::Broodwar->getFrameCount();
+						}
+						break;
+					}
+				}
+				// if found last point
+				if (_firstScoutPoint.rbegin()->second)
+				{
+					int numNexus = InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Nexus, BWAPI::Broodwar->enemy());
+					int numPylon = InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Pylon, BWAPI::Broodwar->enemy());
+					if (numNexus == 1 && numPylon <= 2 && numPylon > 0)
+					{
+						_needScoutNatural = true;
+					}
+				}
+			}
+			else if (_needScoutNatural
+				&& BWAPI::Broodwar->self()->gatheredMinerals() < 1200
+				&& InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Forge, BWAPI::Broodwar->enemy()) == 0
+				&& InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Nexus, BWAPI::Broodwar->enemy()) < 2)
+			{
+				auto enemyNatural = InformationManager::Instance().getEnemyNaturalBaseLocation();
+				if (enemyNatural)
+				{
+					const auto & enemyNaturalArea = BWEM::Map::Instance().GetArea(enemyNatural->getTilePosition());
+					if (!enemyNaturalArea->Bases().empty())
+					{
+						const auto & basePos = enemyNaturalArea->Bases()[0].Center();
+						int xx = 0, yy = 0, cc = 0;
+						for (const auto & mineral : enemyNaturalArea->Bases()[0].Minerals())
+						{
+							xx += mineral->Pos().x;
+							yy += mineral->Pos().y;
+							cc += 1;
+						}
+						auto mineralPos = enemyNaturalArea->Bases()[0].Center() * 2 - BWAPI::Position(xx / cc, yy / cc);
+
+						// if no gateway, don't update main base time
+						_enemyMainFirstSeen = BWAPI::Broodwar->getFrameCount();
+						InformationManager::Instance().getLocutusUnit(_workerScout).moveTo(mineralPos);
+					}
+				}
+			}
+			else
+			{
+				moveGroundScout(_workerScout);
+			}
 		}
 	}
 	else if (_gasStealOver)
@@ -321,7 +433,7 @@ void ScoutManager::releaseWorkerScout()
 
 void ScoutManager::setScoutCommand(MacroCommandType cmd)
 {
-	UAB_ASSERT(
+	BBS_ASSERT(
 		cmd == MacroCommandType::Scout ||
 		cmd == MacroCommandType::ScoutIfNeeded ||
 		cmd == MacroCommandType::ScoutLocation ||
@@ -388,7 +500,7 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 	{
 		const BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
 
-		UAB_ASSERT(enemyBaseLocation, "no enemy base");
+		BBS_ASSERT(enemyBaseLocation, "no enemy base");
 
 		int scoutDistanceToEnemy = MapTools::Instance().getGroundTileDistance(scout->getPosition(), enemyBaseLocation->getPosition());
 		bool scoutInRangeOfenemy = scoutDistanceToEnemy <= scoutDistanceThreshold;
@@ -695,7 +807,7 @@ int ScoutManager::getClosestVertexIndex(BWAPI::Unit unit)
 
 BWAPI::Position ScoutManager::getFleePosition()
 {
-    UAB_ASSERT_WARNING(!_enemyRegionVertices.empty(), "should have enemy region vertices");
+    BBS_ASSERT_WARNING(!_enemyRegionVertices.empty(), "should have enemy region vertices");
     
     BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
 
@@ -705,7 +817,7 @@ BWAPI::Position ScoutManager::getFleePosition()
         // so return the closest position in the polygon
         int closestPolygonIndex = getClosestVertexIndex(_workerScout);
 
-        UAB_ASSERT_WARNING(closestPolygonIndex != -1, "Couldn't find a closest vertex");
+        BBS_ASSERT_WARNING(closestPolygonIndex != -1, "Couldn't find a closest vertex");
 
         if (closestPolygonIndex == -1)
         {
@@ -1013,11 +1125,28 @@ void ScoutManager::updatePylonHarassState()
 
 bool ScoutManager::pylonHarass()
 {
+	// if just arrive enemy base, must go around
+	if (_enemyMainFirstSeen > 0 && BWAPI::Broodwar->getFrameCount() - _enemyMainFirstSeen < 300)
+	{
+		return false;
+	}
+	// if not visit pre-pos, must go to
+	if (!_firstScoutPoint.rbegin()->second)
+	{
+		return false;
+	}
+
     if (_pylonHarassState == PylonHarassStates::Finished)
     {
         BuildingManager::Instance().reserveMineralsForWorkerScout(0);
         return false;
     }
+
+	// if we use a proxy-gate opening, never pylon harass
+	if (Config::Strategy::StrategyName == "Proxy9-9Gate")
+	{
+		return false;
+	}
 
 	// If we haven't found the enemy base yet, we can't do any pylon harass
     BWTA::BaseLocation* enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();

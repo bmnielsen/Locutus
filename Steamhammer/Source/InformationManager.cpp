@@ -11,12 +11,14 @@
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 InformationManager::InformationManager()
     : _self(BWAPI::Broodwar->self())
     , _enemy(BWAPI::Broodwar->enemy())
 	, _enemyProxy(false)
+
+	, _enemyNaturalBaseLocation(nullptr)
 
 	, bulletsSeenAtExtendedMarineRange(0)
 	
@@ -139,7 +141,7 @@ void InformationManager::baseInferred(BWTA::BaseLocation * base)
 // This accounts for the theoretical case that it might be neutral.
 void InformationManager::baseFound(BWAPI::Unit depot)
 {
-	UAB_ASSERT(depot && depot->getType().isResourceDepot(), "bad args");
+	BBS_ASSERT(depot && depot->getType().isResourceDepot(), "bad args");
 
 	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 	{
@@ -155,7 +157,7 @@ void InformationManager::baseFound(BWAPI::Unit depot)
 // The depot must be at or near the base location; this is not checked.
 void InformationManager::baseFound(BWTA::BaseLocation * base, BWAPI::Unit depot)
 {
-	UAB_ASSERT(base && depot && depot->getType().isResourceDepot(), "bad args");
+	BBS_ASSERT(base && depot && depot->getType().isResourceDepot(), "bad args");
 
 	_theBases[base]->setOwner(depot, depot->getPlayer());
 }
@@ -179,7 +181,7 @@ void InformationManager::baseLost(BWAPI::TilePosition basePosition)
 // If the lost base was our main, choose a new one if possible.
 void InformationManager::baseLost(BWTA::BaseLocation * base)
 {
-	UAB_ASSERT(base, "bad args");
+	BBS_ASSERT(base, "bad args");
 
 	_theBases[base]->setOwner(nullptr, BWAPI::Broodwar->neutral());
 	if (base == getMyMainBaseLocation())
@@ -274,6 +276,8 @@ void InformationManager::update()
 	updateTheBases();
 	updateGoneFromLastPosition();
     updateBullets();
+	updateEnemyStatInfo();
+	updateEnemyBaseStatic();
 
     // Output unit info for debugging micro
     return;
@@ -477,6 +481,52 @@ void InformationManager::updateBaseLocationInfo()
 	else 
 	{
 		updateOccupiedRegions(BWTA::getRegion(_mainBaseLocations[_enemy]->getTilePosition()), _enemy);
+	}
+	if (_mainBaseLocations[_enemy])
+	{
+		// We'll go through the bases and pick the best one as the natural.
+		BWTA::BaseLocation * bestBase = nullptr;
+		double bestScore = 0.0;
+
+		BWAPI::TilePosition homeTile = _mainBaseLocations[_enemy]->getTilePosition();
+		BWAPI::Position enemyBasePosition(homeTile);
+
+		for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+		{
+			double score = 0.0;
+
+			BWAPI::TilePosition tile = base->getTilePosition();
+
+			// The main is not the natural.
+			if (tile == homeTile)
+			{
+				continue;
+			}
+
+			// Ww want to be close to our own base.
+			double distanceFromUs = MapTools::Instance().getGroundTileDistance(BWAPI::Position(tile), enemyBasePosition);
+
+			// If it is not connected, skip it. Islands do this.
+			if (!BWTA::isConnected(homeTile, tile) || distanceFromUs < 0)
+			{
+				continue;
+			}
+
+			// Add up the score.
+			score = -distanceFromUs;
+
+			// More resources -> better.
+			score += 0.01 * base->minerals() + 0.02 * base->gas();
+
+			if (!bestBase || score > bestScore)
+			{
+				bestBase = base;
+				bestScore = score;
+			}
+		}
+
+		// bestBase may be null on unusual maps.
+		_enemyNaturalBaseLocation = bestBase;
 	}
 
 	// The enemy occupies a region if it has a building there.
@@ -730,6 +780,42 @@ void InformationManager::updateBullets()
             }
         }
     }
+}
+
+void InformationManager::updateEnemyStatInfo()
+{
+	if (BWAPI::Broodwar->getFrameCount() < 16 * 8 * 60)
+	{
+		Config::Strategy::EnemyStealGas = false;
+		int enemyInOurMain1 = 0, enemyInOurMain2 = 0, gasInOurMain = 0;
+		auto mainArea = BWEM::Map::Instance().GetArea(BWAPI::Broodwar->self()->getStartLocation());
+
+		for (auto const & ui : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+			if (ui.second.type.isBuilding() && !ui.second.goneFromLastPosition)
+				if (BWEM::Map::Instance().GetArea((BWAPI::TilePosition)ui.second.lastPosition) == mainArea)
+					if (ui.second.type == BWAPI::UnitTypes::Terran_Bunker || ui.second.type == BWAPI::UnitTypes::Protoss_Photon_Cannon || ui.second.type == BWAPI::UnitTypes::Zerg_Sunken_Colony)
+						enemyInOurMain1++;
+					else if (ui.second.type.isRefinery())
+						gasInOurMain++;
+
+		int workerInOurMain = 0;
+		for (auto & unit : BWAPI::Broodwar->enemy()->getUnits())
+			if (unit && unit->getType() != BWAPI::UnitTypes::Unknown && unit->isVisible() && BWEM::Map::Instance().GetArea(unit->getTilePosition()) == mainArea)
+			{
+				if (unit->getType().isWorker()) workerInOurMain++;
+				else if (unit->canAttack()) enemyInOurMain2++;
+			}
+
+		// less worker, no staitc, must be lure
+		if (workerInOurMain <= 2 && enemyInOurMain1 + enemyInOurMain2 == 0)
+			Config::Strategy::EnemyScoutNotRush = true;
+		if (gasInOurMain > 0)
+			Config::Strategy::EnemyStealGas = true;
+	}
+	if (BWAPI::Broodwar->getFrameCount() > 16 * 8 * 60)
+	{
+		Config::Strategy::EnemyScoutNotRush = false;
+	}
 }
 
 bool trace(BWAPI::TilePosition tile, BWAPI::TilePosition wallTile, int direction, std::set<BWAPI::TilePosition> & wallTiles)
@@ -1028,7 +1114,7 @@ BWTA::BaseLocation * InformationManager::getMainBaseLocation(BWAPI::Player playe
 // Guaranteed non-null. If we have no bases left, it is our start location.
 BWTA::BaseLocation * InformationManager::getMyMainBaseLocation()
 {
-	UAB_ASSERT(_mainBaseLocations[_self], "no base location");
+	BBS_ASSERT(_mainBaseLocations[_self], "no base location");
 	return _mainBaseLocations[_self];
 }
 
@@ -1036,6 +1122,11 @@ BWTA::BaseLocation * InformationManager::getMyMainBaseLocation()
 BWTA::BaseLocation * InformationManager::getEnemyMainBaseLocation()
 {
 	return _mainBaseLocations[_enemy];
+}
+
+BWTA::BaseLocation * InformationManager::getEnemyNaturalBaseLocation()
+{
+	return _enemyNaturalBaseLocation;
 }
 
 // Null until the enemy base is located.
@@ -1220,6 +1311,26 @@ void InformationManager::getMyGasCounts(int & nRefineries, int & nFreeGeysers)
 
 	nRefineries = refineries;
 	nFreeGeysers = geysers;
+}
+
+bool InformationManager::isEnemyBaseHasStatic(BWTA::BaseLocation* base)
+{
+	if (enemyBaseStaticNum.find(base) == enemyBaseStaticNum.end()) return false;
+	return enemyBaseStaticNum[base] > 0;
+}
+
+bool InformationManager::isInAnyDetector(BWAPI::Position pos)
+{
+	if (!pos.isValid()) return false;
+	for (const auto & enemy : enemyStatics)
+		if (enemy.getApproxDistance(pos) < 11 * 32 + 8) return true;
+	return false;
+}
+
+int InformationManager::getNumEnemyBaseStatic(BWTA::BaseLocation* base)
+{
+	if (enemyBaseStaticNum.find(base) == enemyBaseStaticNum.end()) return 0;
+	return enemyBaseStaticNum[base];
 }
 
 int InformationManager::getAir2GroundSupply(BWAPI::Player player) const
@@ -2122,6 +2233,28 @@ bool InformationManager::enemyHasInfantryRangeUpgrade()
     }
 
 	return false;
+}
+
+void InformationManager::updateEnemyBaseStatic()
+{
+	enemyStatics.clear();
+	enemyBaseStaticNum.clear();
+	for (auto enemyBase : BWTA::getBaseLocations())
+		enemyBaseStaticNum[enemyBase] = 0;
+
+	for (auto const & ui : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+		if (ui.second.type.isBuilding() && ui.second.type.isDetector() && !ui.second.goneFromLastPosition && ui.second.completed)
+			for (auto enemyBase : BWTA::getBaseLocations())
+				if (BWEM::Map::Instance().GetArea((BWAPI::TilePosition)ui.second.lastPosition)
+					== BWEM::Map::Instance().GetArea(enemyBase->getTilePosition()))
+					enemyBaseStaticNum[enemyBase] += 1;
+				else for (const auto & choke : BWEM::Map::Instance().GetArea(enemyBase->getTilePosition())->ChokePoints())
+					if (ui.second.lastPosition.getApproxDistance((BWAPI::Position)choke->Center()) < 2 * 32)
+						enemyBaseStaticNum[enemyBase] += 1;
+
+	for (auto const & ui : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+		if (ui.second.type.isDetector() && ui.second.completed)
+			enemyStatics.insert(ui.second.lastPosition + BWAPI::Position(ui.second.type.tileSize().x * 16, ui.second.type.tileSize().y * 16));
 }
 
 int InformationManager::getWeaponDamage(BWAPI::Player player, BWAPI::WeaponType wpn)

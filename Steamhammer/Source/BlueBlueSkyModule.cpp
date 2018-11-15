@@ -1,12 +1,12 @@
 /* 
  *----------------------------------------------------------------------
- * Locutus entry point.
+ * BlueBlueSky entry point.
  *----------------------------------------------------------------------
  */
 
 #include "JSONTools.h"
 
-#include "UAlbertaBotModule.h"
+#include "BlueBlueSkyModule.h"
 
 #include "Bases.h"
 #include "Common.h"
@@ -14,13 +14,13 @@
 #include "ParseUtils.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
 // This gets called when the bot starts.
-void UAlbertaBotModule::onStart()
+void BlueBlueSkyModule::onStart()
 {
     gameEnded = false;
 
@@ -39,7 +39,7 @@ void UAlbertaBotModule::onStart()
 	bwemMap.Initialize(BWAPI::BroodwarPtr);
 	bwemMap.EnableAutomaticPathAnalysis();
 	bool startingLocationsOK = bwemMap.FindBasesForStartingLocations();
-	UAB_ASSERT(startingLocationsOK, "BWEM map analysis failed");
+	BBS_ASSERT(startingLocationsOK, "BWEM map analysis failed");
 
     // BWEB map init
     BuildingPlacer::Instance().initializeBWEB();
@@ -67,7 +67,7 @@ void UAlbertaBotModule::onStart()
         BWAPI::Broodwar->enableFlag(BWAPI::Flag::UserInput);
     }
 
-	Log().Get() << "I am Locutus of Borg, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName();
+	Log().Get() << "I am BlueBlueSky of Borg, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName();
 
 	StrategyManager::Instance().initializeOpening();    // may depend on config and/or opponent model
 
@@ -77,7 +77,7 @@ void UAlbertaBotModule::onStart()
 	}
 }
 
-void UAlbertaBotModule::onEnd(bool isWinner)
+void BlueBlueSkyModule::onEnd(bool isWinner)
 {
     if (gameEnded) return;
 
@@ -86,7 +86,7 @@ void UAlbertaBotModule::onEnd(bool isWinner)
     gameEnded = true;
 }
 
-void UAlbertaBotModule::onFrame()
+void BlueBlueSkyModule::onFrame()
 {
     if (gameEnded) return;
 
@@ -117,7 +117,7 @@ void UAlbertaBotModule::onFrame()
 	GameCommander::Instance().update();
 }
 
-void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitDestroy(BWAPI::Unit unit)
 {
     if (gameEnded) return;
 
@@ -131,7 +131,7 @@ void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 	GameCommander::Instance().onUnitDestroy(unit);
 }
 
-void UAlbertaBotModule::onUnitMorph(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitMorph(BWAPI::Unit unit)
 {
     if (gameEnded) return;
 
@@ -140,14 +140,14 @@ void UAlbertaBotModule::onUnitMorph(BWAPI::Unit unit)
 	GameCommander::Instance().onUnitMorph(unit);
 }
 
-void UAlbertaBotModule::onSendText(std::string text) 
+void BlueBlueSkyModule::onSendText(std::string text) 
 { 
     if (gameEnded) return;
 
 	ParseUtils::ParseTextCommand(text);
 }
 
-void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitCreate(BWAPI::Unit unit)
 { 
     if (gameEnded) return;
 
@@ -156,35 +156,35 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 	GameCommander::Instance().onUnitCreate(unit);
 }
 
-void UAlbertaBotModule::onUnitDiscover(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitDiscover(BWAPI::Unit unit)
 { 
     if (gameEnded) return;
 
     bwebMap.onUnitDiscover(unit);
 }
 
-void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitComplete(BWAPI::Unit unit)
 {
     if (gameEnded) return;
 
     GameCommander::Instance().onUnitComplete(unit);
 }
 
-void UAlbertaBotModule::onUnitShow(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitShow(BWAPI::Unit unit)
 { 
     if (gameEnded) return;
 
     GameCommander::Instance().onUnitShow(unit);
 }
 
-void UAlbertaBotModule::onUnitHide(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitHide(BWAPI::Unit unit)
 { 
     if (gameEnded) return;
 
     GameCommander::Instance().onUnitHide(unit);
 }
 
-void UAlbertaBotModule::onUnitRenegade(BWAPI::Unit unit)
+void BlueBlueSkyModule::onUnitRenegade(BWAPI::Unit unit)
 { 
     if (gameEnded) return;
 

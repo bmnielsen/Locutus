@@ -18,7 +18,7 @@ namespace BWEB
 	class Station;
 	class Map
 	{
-		// Start Locutus extensions
+		// Start BlueBlueSky extensions
 
 		// We want to use some of the internals, so to avoid making it impossible to merge future updates, just make everything public
 		//private:
@@ -27,7 +27,7 @@ namespace BWEB
 		// Keeps track of the pylon the powers the start block
 		TilePosition startBlockPylon = BWAPI::TilePositions::Invalid;
 
-		// End Locutus extensions
+		// End BlueBlueSky extensions
 
 		vector<Station> stations;
 		vector<Wall> walls;

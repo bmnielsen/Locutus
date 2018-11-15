@@ -1,12 +1,11 @@
 #include "ProductionManager.h"
 #include "GameCommander.h"
-#include "StrategyBossZerg.h"
 #include "UnitUtil.h"
 #include "TechCompleteProductionGoal.h"
 #include "UpgradeCompleteProductionGoal.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 ProductionManager::ProductionManager()
 	: _lastProductionFrame				 (0)
@@ -362,7 +361,8 @@ void ProductionManager::manageBuildOrderQueue()
 			// predict the worker movement to that building location
 			// NOTE If the worker is set moving, this sets flag _movingToThisBuildingLocation = true
 			//      so that we don't 
-			predictWorkerMovement(b);
+			if(!WorkerManager::Instance().getProxyWorker())
+				predictWorkerMovement(b);
 			break;
 		}
 
@@ -575,7 +575,7 @@ BWAPI::Unit ProductionManager::getClosestUnitToPosition(const std::vector<BWAPI:
 
 	for (const auto unit : units) 
     {
-        UAB_ASSERT(unit != nullptr, "Unit was null");
+        BBS_ASSERT(unit != nullptr, "Unit was null");
 
 		int distance = unit->getDistance(closestTo);
 		if (distance < minDist) 
@@ -606,7 +606,7 @@ BWAPI::Unit ProductionManager::getFarthestUnitFromPosition(const std::vector<BWA
 
 	for (const auto unit : units)
 	{
-		UAB_ASSERT(unit != nullptr, "Unit was null");
+		BBS_ASSERT(unit != nullptr, "Unit was null");
 
 		int distance = unit->getDistance(farthest);
 		if (distance > maxDist)
@@ -678,6 +678,10 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
             // NOTE: This bugs out pylons if the center isn't reachable, e.g. neo moon glaive
 			desiredLocation = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth()/2, BWAPI::Broodwar->mapHeight()/2);
 		}
+		else if (act.getMacroLocation() == MacroLocation::Proxy)
+		{
+			desiredLocation = BuildingPlacer::Instance().placeBuildingBWEB(act.getUnitType(), InformationManager::Instance().getMainBaseLocation(BWAPI::Broodwar->self())->getTilePosition(), act.getMacroLocation());
+		}
 		
 		BuildingManager::Instance().addBuildingTask(act, desiredLocation, item.isWorkerScoutBuilding);
 	}
@@ -718,13 +722,13 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 	}
 	else
 	{
-		UAB_ASSERT(false, "Unknown type");
+		BBS_ASSERT(false, "Unknown type");
 	}
 }
 
 bool ProductionManager::canMakeNow(BWAPI::Unit producer, MacroAct t)
 {
-	UAB_ASSERT(producer != nullptr, "producer was null");
+	BBS_ASSERT(producer != nullptr, "producer was null");
 
 	bool canMake = false;
 	if (t.isUnit())
@@ -745,7 +749,7 @@ bool ProductionManager::canMakeNow(BWAPI::Unit producer, MacroAct t)
 	}
 	else
 	{
-		UAB_ASSERT(false, "Unknown type");
+		BBS_ASSERT(false, "Unknown type");
 	}
 
 	return canMake;
@@ -933,10 +937,6 @@ void ProductionManager::executeCommand(MacroCommand command)
 	{
 		CombatCommander::Instance().releaseWorkers();
 	}
-	else if (cmd == MacroCommandType::Nonadaptive)
-	{
-		StrategyBossZerg::Instance().setNonadaptive(true);
-	}
 	else if (cmd == MacroCommandType::GiveUp)
 	{
 		Log().Get() << "Giving up";
@@ -948,7 +948,7 @@ void ProductionManager::executeCommand(MacroCommand command)
 	}
 	else
 	{
-		UAB_ASSERT(false, "unknown MacroCommand");
+		BBS_ASSERT(false, "unknown MacroCommand");
 	}
 }
 
@@ -1014,7 +1014,7 @@ void ProductionManager::drawProductionInformation(int x, int y)
 	std::vector<BWAPI::Unit> prod;
 	for (const auto & unit : BWAPI::Broodwar->self()->getUnits())
 	{
-        UAB_ASSERT(unit != nullptr, "Unit was null");
+        BBS_ASSERT(unit != nullptr, "Unit was null");
 
 		if (unit->isBeingConstructed())
 		{
@@ -1103,7 +1103,7 @@ void ProductionManager::doExtractorTrick()
 {
 	if (_extractorTrickState == ExtractorTrick::Start)
 	{
-		UAB_ASSERT(!_extractorTrickBuilding, "already have an extractor trick building");
+		BBS_ASSERT(!_extractorTrickBuilding, "already have an extractor trick building");
 		int nDrones = WorkerManager::Instance().getNumMineralWorkers();
 		if (nDrones <= 0)
 		{
@@ -1170,7 +1170,7 @@ void ProductionManager::doExtractorTrick()
 	}
 	else if (_extractorTrickState == ExtractorTrick::UnitOrdered)
 	{
-		UAB_ASSERT(_extractorTrickBuilding, "no extractor to cancel");
+		BBS_ASSERT(_extractorTrickBuilding, "no extractor to cancel");
 		BuildingManager::Instance().cancelBuilding(*_extractorTrickBuilding);
 		_extractorTrickState = ExtractorTrick::None;
 		_extractorTrickUnitType = BWAPI::UnitTypes::None;
@@ -1192,7 +1192,7 @@ void ProductionManager::doExtractorTrick()
 	}
 	else
 	{
-		UAB_ASSERT(false, "unexpected extractor trick state (possibly None)");
+		BBS_ASSERT(false, "unexpected extractor trick state (possibly None)");
 	}
 }
 
@@ -1229,7 +1229,8 @@ void ProductionManager::goOutOfBookAndClearQueue()
 {
 	_queue.clearAll();
 	_outOfBook = true;
-	CombatCommander::Instance().setAggression(true);
+	if (!InformationManager::Instance().enemyHasCloakedCombatUnits() || BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Protoss_Observer) >= 1)
+		CombatCommander::Instance().setAggression(true);
 	_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
 }
 

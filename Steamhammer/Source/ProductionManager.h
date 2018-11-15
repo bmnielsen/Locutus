@@ -11,7 +11,7 @@
 #include "ProductionGoal.h"
 #include "StrategyManager.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 enum class ExtractorTrick { None, Start, ExtractorOrdered, UnitOrdered, MakeUnitBypass };
 

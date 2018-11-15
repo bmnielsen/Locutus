@@ -7,7 +7,7 @@
 #include "BuildOrder.h"
 #include "LocutusWall.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 class BuildingPlacer

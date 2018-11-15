@@ -8,7 +8,7 @@
 #include "LocutusUnit.h"
 #include "LocutusMapGrid.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 class InformationManager 
 {
@@ -38,6 +38,7 @@ class InformationManager
 	std::map<BWAPI::Player, UnitData>                   _unitData;
 	std::map<BWAPI::Player, BWTA::BaseLocation *>       _mainBaseLocations;
 	BWTA::BaseLocation *								_myNaturalBaseLocation;  // whether taken yet or not; may be null
+	BWTA::BaseLocation *								_enemyNaturalBaseLocation;
 	std::map<BWAPI::Player, std::set<BWTA::Region *> >  _occupiedRegions;        // contains any building
 	std::map<BWTA::BaseLocation *, Base *>				_theBases;
 	BWAPI::Unitset										_staticDefense;
@@ -61,6 +62,8 @@ class InformationManager
     std::map<BWAPI::UnitType, int> enemyUnitCooldown;
     std::map<BWAPI::UnitType, double> enemyUnitTopSpeed;
     std::map<BWAPI::UnitType, int> enemyUnitArmor;
+	std::map<BWTA::BaseLocation*, int> enemyBaseStaticNum;
+	std::set<BWAPI::Position> enemyStatics;
 
 	InformationManager();
 
@@ -89,6 +92,8 @@ class InformationManager
 	void                    updateOccupiedRegions(BWTA::Region * region, BWAPI::Player player);
 	void					updateGoneFromLastPosition();
     void                    updateBullets();
+	void					updateEnemyStatInfo();
+	void					updateEnemyBaseStatic();
 
     void                    detectEnemyWall(BWAPI::Unit unit);
     void                    detectBrokenEnemyWall(BWAPI::UnitType type, BWAPI::TilePosition tile);
@@ -119,6 +124,8 @@ public:
     bool                    isEnemyWallBuilding(BWAPI::Unit unit);
     bool                    isBehindEnemyWall(BWAPI::Unit attacker, BWAPI::Unit target);
     bool                    isBehindEnemyWall(BWAPI::TilePosition tile);
+	bool					isEnemyBaseHasStatic(BWTA::BaseLocation* base);
+	bool					isInAnyDetector(BWAPI::Position pos);
 
     const UIMap &           getUnitInfo(BWAPI::Player player) const;
 
@@ -127,6 +134,7 @@ public:
     BWTA::BaseLocation *    getMainBaseLocation(BWAPI::Player player);
 	BWTA::BaseLocation *	getMyMainBaseLocation();
 	BWTA::BaseLocation *	getEnemyMainBaseLocation();
+	BWTA::BaseLocation *	getEnemyNaturalBaseLocation();
 	const BWEB::Station *	getEnemyMainBaseStation();
 	BWAPI::Player			getBaseOwner(BWTA::BaseLocation * base);
 	int         			getBaseOwnedSince(BWTA::BaseLocation * base);
@@ -143,6 +151,7 @@ public:
 	int						getNumFreeLandBases();
 	int						getMyNumMineralPatches();
 	int						getMyNumGeysers();
+	int						getNumEnemyBaseStatic(BWTA::BaseLocation* base);
 	void					getMyGasCounts(int & nRefineries, int & nFreeGeysers);
 
 	bool					getEnemyProxy() { return _enemyProxy; };

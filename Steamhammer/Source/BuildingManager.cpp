@@ -8,7 +8,7 @@
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 BuildingManager::BuildingManager()
     : _reservedMinerals(0)
@@ -323,7 +323,7 @@ void BuildingManager::checkForDeadTerranBuilders()
 			continue;
 		}
 
-		UAB_ASSERT(b.buildingUnit, "null buildingUnit");
+		BBS_ASSERT(b.buildingUnit, "null buildingUnit");
 
 		if (!UnitUtil::IsValidUnit(b.builderUnit))
 		{
@@ -353,7 +353,7 @@ void BuildingManager::checkForCompletedBuildings()
             continue;       
         }
 
-		UAB_ASSERT(b.buildingUnit, "null buildingUnit");
+		BBS_ASSERT(b.buildingUnit, "null buildingUnit");
 
         if (b.buildingUnit->isCompleted())
         {
@@ -422,7 +422,7 @@ void BuildingManager::checkReservedResources()
 // Add a new building to be constructed and return it.
 Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isWorkerScoutBuilding)
 {
-	UAB_ASSERT(act.isBuilding(), "trying to build a non-building");
+	BBS_ASSERT(act.isBuilding(), "trying to build a non-building");
 
 	// TODO debugging
 	if (isWorkerScoutBuilding)
@@ -753,8 +753,8 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	if (b.isWorkerScoutBuilding && b.type == BWAPI::UnitTypes::Protoss_Assimilator)
     {
         BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
-        UAB_ASSERT(enemyBaseLocation,"Should find enemy base before gas steal");
-        UAB_ASSERT(enemyBaseLocation->getGeysers().size() > 0,"Should have spotted an enemy geyser");
+        BBS_ASSERT(enemyBaseLocation,"Should find enemy base before gas steal");
+        BBS_ASSERT(enemyBaseLocation->getGeysers().size() > 0,"Should have spotted an enemy geyser");
 
         for (const auto geyser : enemyBaseLocation->getGeysers())
         {
@@ -776,7 +776,8 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 		}
 		if (b.macroLocation != MacroLocation::Macro)
 		{
-			return MapTools::Instance().getNextExpansion(b.macroLocation == MacroLocation::Hidden, true, b.macroLocation != MacroLocation::MinOnly);
+			//return MapTools::Instance().getNextExpansion(b.macroLocation == MacroLocation::Hidden, true, b.macroLocation != MacroLocation::MinOnly);
+			return MapTools::Instance().getNextExpansion(false, true, false);
 		}
 		// Else if it's a macro hatchery, treat it like any other building.
 	}

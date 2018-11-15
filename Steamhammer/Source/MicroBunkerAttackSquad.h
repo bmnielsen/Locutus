@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 class MicroBunkerAttackSquad

@@ -4,7 +4,7 @@
 
 #include "Base.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 	class PotentialBase

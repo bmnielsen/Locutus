@@ -4,7 +4,7 @@
 
 //#define FAP_DEBUG 1
 
-namespace UAlbertaBot {
+namespace BlueBlueSky {
 
     struct FastAPproximation {
         struct FAPUnit {
@@ -49,6 +49,7 @@ namespace UAlbertaBot {
             mutable int score = 0;
 
             mutable int attackCooldownRemaining = 0;
+			mutable int isCloaked = 0;
 
             bool operator<(const FAPUnit &other) const;
         };
@@ -92,4 +93,4 @@ namespace UAlbertaBot {
 
 }
 
-extern UAlbertaBot::FastAPproximation fap;
+extern BlueBlueSky::FastAPproximation fap;

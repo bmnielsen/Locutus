@@ -1,6 +1,6 @@
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 // Building morphed from another, not constructed.
 bool UnitUtil::IsMorphedBuildingType(BWAPI::UnitType type)
@@ -122,7 +122,7 @@ bool UnitUtil::IsCombatUnit(BWAPI::UnitType type)
 
 bool UnitUtil::IsCombatUnit(BWAPI::Unit unit)
 {
-	UAB_ASSERT(unit != nullptr, "Unit was null");
+	BBS_ASSERT(unit != nullptr, "Unit was null");
 
 	return unit && IsCombatUnit(unit->getType());
 }

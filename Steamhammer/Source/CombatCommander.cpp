@@ -5,8 +5,9 @@
 #include "Random.h"
 #include "UnitUtil.h"
 #include "PathFinding.h"
+#include "OpponentPlan.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
@@ -277,6 +278,7 @@ void CombatCommander::updateHarassSquads()
     // Collect active squads with the base they are harassing
     auto enemyBases = InformationManager::Instance().getEnemyBases();
     std::vector<std::pair<Squad*, BWTA::BaseLocation*>> activeSquads;
+
     for (BWTA::Region * region : BWTA::getRegions())
     {
         BWAPI::Position regionCenter = region->getCenter();
@@ -289,10 +291,15 @@ void CombatCommander::updateHarassSquads()
         BWTA::BaseLocation* base = nullptr;
         for (auto & potentialBase : InformationManager::Instance().getEnemyBases())
             if (potentialBase->getRegion() == region)
-            {
-                base = potentialBase;
-                break;
-            }
+				// no detection in base
+				if (!InformationManager::Instance().isEnemyBaseHasStatic(potentialBase))
+				{
+					// if enemy main base safe, make sure natural is safe
+					if (base == InformationManager::Instance().getEnemyMainBaseLocation()
+						&& !InformationManager::Instance().isEnemyBaseHasStatic(InformationManager::Instance().getEnemyNaturalBaseLocation()))
+					base = potentialBase;
+					break;
+				}
 
         // If the enemy doesn't have a base here, make sure the squad is cleared
         if (!base)
@@ -703,7 +710,7 @@ void CombatCommander::updateAttackSquads()
 				if (flyingSquad.containsUnit(unit))
 				{
 					flyingSquad.removeUnit(unit);
-					UAB_ASSERT(_squadData.canAssignUnitToSquad(unit, groundSquad), "can't go to ground");
+					BBS_ASSERT(_squadData.canAssignUnitToSquad(unit, groundSquad), "can't go to ground");
 				}
 				if (_squadData.canAssignUnitToSquad(unit, groundSquad))
 				{
@@ -747,7 +754,19 @@ void CombatCommander::updateAttackSquads()
             defendPosition = wall.gapCenter;
             radius /= 4;
         }
-
+		//If enemy uses ProxyGateway,keep our army at mainbase
+		else if (OpponentModel::Instance().getEnemyPlan() == OpeningPlan::ProxyGateway)
+		{
+			defendPosition = base->getPosition();
+		}
+		else if (Config::Strategy::StrategyName == "TurtleShrink")
+		{
+			defendPosition = base->getPosition();
+			if (InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Photon_Cannon, BWAPI::Broodwar->self()) >= 4)
+				for (const auto & cannon : BWAPI::Broodwar->self()->getUnits())
+					if (cannon && cannon->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon && cannon->getPosition().isValid() && defendPosition.getApproxDistance(base->getPosition()) < cannon->getPosition().getApproxDistance(base->getPosition()))
+						defendPosition = (cannon->getPosition() + base->getPosition()) / 2;
+		}
         // If we have taken the natural, defend it
         else if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
         {
@@ -1263,7 +1282,7 @@ void CombatCommander::updateBaseDefenseSquads()
         }
 
 		// assign units to the squad
-		UAB_ASSERT(_squadData.squadExists(squadName.str()), "Squad should exist: %s", squadName.str().c_str());
+		BBS_ASSERT(_squadData.squadExists(squadName.str()), "Squad should exist: %s", squadName.str().c_str());
         Squad & defenseSquad = _squadData.getSquad(squadName.str());
 
         // Allocate a bit more defenders than there are attackers so we fight efficiently
@@ -1271,9 +1290,9 @@ void CombatCommander::updateBaseDefenseSquads()
 
 		// Pull workers only in narrow conditions.
 		// Pulling workers (as implemented) can lead to big losses.
-		bool pullWorkers = !_goAggressive || (
+		bool pullWorkers = !Config::Strategy::EnemyScoutNotRush && (!_goAggressive || (
 			Config::Micro::WorkersDefendRush &&
-			(!staticDefense && numZerglingsInOurBase() > 0 || buildingRush() || groundDefendersNeeded < 4));
+			(!staticDefense && numZerglingsInOurBase() > 0 || buildingRush() || groundDefendersNeeded < 4)));
 
 		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, preferRangedUnits);
 
@@ -1369,7 +1388,7 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	while (flyingDefendersNeeded > flyingDefendersAdded &&
 		(defenderToAdd = findClosestDefender(defenseSquad, defenseSquad.getSquadOrder().getPosition(), true, false, false, false)))
 	{
-		UAB_ASSERT(!defenderToAdd->getType().isWorker(), "flying worker defender");
+		BBS_ASSERT(!defenderToAdd->getType().isWorker(), "flying worker defender");
 		_squadData.assignUnitToSquad(defenderToAdd, defenseSquad);
 		++flyingDefendersAdded;
 	}
@@ -1384,11 +1403,11 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 	{
 		if (defenderToAdd->getType().isWorker())
 		{
-			UAB_ASSERT(pullWorkers, "pulled worker defender mistakenly");
-
+			BBS_ASSERT(pullWorkers, "pulled worker defender mistakenly");
             // Don't take the worker if we already have enough
             if (groundDefendersNeeded <= groundDefendersAdded) break;
-
+			// Don't take the worker if we already have cannon
+			if (OpponentModel::Instance().getEnemyPlan() == OpeningPlan::ProxyGateway && BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon) > 1) break;
 			WorkerManager::Instance().setCombatWorker(defenderToAdd);
 			++groundDefendersAdded;
 
@@ -1400,7 +1419,11 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 			groundDefendersAdded += 4;
 		else
 			groundDefendersAdded += 5;
-		_squadData.assignUnitToSquad(defenderToAdd, defenseSquad);
+		// if enemy scout and no gas steal, we just use dragoon defend
+		if (!Config::Strategy::EnemyScoutNotRush ||
+			(Config::Strategy::EnemyStealGas && Config::Strategy::StrategyName != "Proxy9-9Gate") ||
+			defenderToAdd->getType() != BWAPI::UnitTypes::Protoss_Zealot)
+			_squadData.assignUnitToSquad(defenderToAdd, defenseSquad);
 	}
 
     // Remove excess workers
@@ -1778,9 +1801,9 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
                 double defenseFactor = defenseCount == 0 ? 1.0 : 1.0 / (1.0 + defenseCount);
 
                 // Importance of the base scales linearly with time, we don't care when it is 10 minutes old
-                // An exception is the enemy main, which we do not age until after frame 10000
+                // An exception is the enemy main without proxy-gate opening, which we do not age until after frame 10000
                 double ageFactor = 1.0;
-                if (BWAPI::Broodwar->getFrameCount() > 10000 ||
+                if (BWAPI::Broodwar->getFrameCount() > 10000 || Config::Strategy::StrategyName == "Proxy9-9Gate" ||
                     base != InformationManager::Instance().getEnemyMainBaseLocation())
                 {
                     int age = BWAPI::Broodwar->getFrameCount() - InformationManager::Instance().getBaseOwnedSince(base);
@@ -1971,7 +1994,7 @@ BWAPI::Position CombatCommander::getDefenseLocation()
 // Choose one worker to pull for scout defense.
 BWAPI::Unit CombatCommander::findClosestWorkerToTarget(BWAPI::Unitset & unitsToAssign, BWAPI::Unit target)
 {
-    UAB_ASSERT(target != nullptr, "target was null");
+    BBS_ASSERT(target != nullptr, "target was null");
 
     if (!target)
     {
@@ -2025,6 +2048,12 @@ int CombatCommander::numZerglingsInOurBase() const
 // Is an enemy building near our base? If so, we may pull workers.
 bool CombatCommander::buildingRush() const
 {
+	// If they have a lure pylon
+	if (Config::Strategy::EnemyScoutNotRush)
+	{
+		return false;
+	}
+
 	// If we have units, there will be no need to pull workers.
 	if (InformationManager::Instance().weHaveCombatUnits())
 	{

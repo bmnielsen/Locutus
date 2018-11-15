@@ -2,7 +2,7 @@
 
 #include "Squad.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 class SquadData
 {

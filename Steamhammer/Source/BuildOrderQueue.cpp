@@ -1,7 +1,7 @@
 #include "BuildOrderQueue.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 BuildOrderItem::BuildOrderItem(MacroAct m, bool workerScoutBuilding)
 	: macroAct(m)
@@ -70,7 +70,7 @@ void BuildOrderQueue::doneWithHighestPriorityItem()
 
 void BuildOrderQueue::pullToTop(size_t i)
 {
-	UAB_ASSERT(i >= 0 && i < queue.size()-1, "bad index");
+	BBS_ASSERT(i >= 0 && i < queue.size()-1, "bad index");
 
 	// BWAPI::Broodwar->printf("pulling %d to top", i);
 
@@ -91,7 +91,7 @@ bool BuildOrderQueue::isEmpty() const
 
 const BuildOrderItem & BuildOrderQueue::getHighestPriorityItem() const
 {
-	UAB_ASSERT(!queue.empty(), "taking from empty queue");
+	BBS_ASSERT(!queue.empty(), "taking from empty queue");
 
 	// the queue will be sorted with the highest priority at the back
 	return queue.back();

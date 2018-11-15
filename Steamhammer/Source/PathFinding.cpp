@@ -5,7 +5,7 @@
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 int PathFinding::GetGroundDistance(BWAPI::Position start, BWAPI::Position end, PathFindingOptions options)
 {

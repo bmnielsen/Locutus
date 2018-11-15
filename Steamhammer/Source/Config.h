@@ -41,6 +41,8 @@ namespace Config
         extern bool FoundEnemySpecificStrategy;
         extern bool FoundMapSpecificStrategy;
         extern bool TrainingMode;
+		extern bool EnemyScoutNotRush;
+		extern bool EnemyStealGas;
     }
 
     namespace BWAPIOptions
@@ -112,6 +114,7 @@ namespace Config
 		extern int AbsoluteMaxWorkers;
         extern int BuildingSpacing;
         extern int PylonSpacing;
+		extern int BorderSpacing;
 		extern int ProductionJamFrameLimit;
 		extern bool ExpandToIslands;
     }

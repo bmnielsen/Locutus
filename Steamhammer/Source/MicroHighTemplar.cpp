@@ -1,7 +1,7 @@
 #include "MicroHighTemplar.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 // For now, all this does is immediately merge high templar into archons.
 
@@ -24,7 +24,7 @@ void MicroHighTemplar::update()
 	// No base should be close against an edge, so this position should always be valid.
 	const BWAPI::Position gatherPoint =
 		InformationManager::Instance().getMyMainBaseLocation()->getPosition() - BWAPI::Position(32, 32);
-	UAB_ASSERT(gatherPoint.isValid(), "bad gather point");
+	BBS_ASSERT(gatherPoint.isValid(), "bad gather point");
 
 	BWAPI::Unitset mergeGroup;
 

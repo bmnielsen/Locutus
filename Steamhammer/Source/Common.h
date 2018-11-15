@@ -23,7 +23,7 @@
 
 #include "Config.h"
 #include "Logger.h"
-#include "UABAssert.h"
+#include "BBSAssert.h"
 
 BWAPI::AIModule * __NewAIModule();
 

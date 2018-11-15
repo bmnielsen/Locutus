@@ -1,7 +1,7 @@
 #include "JSONTools.h"
 
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 namespace JSONTools
 {
@@ -9,7 +9,7 @@ namespace JSONTools
     {
         if (value.HasMember(key))
         {
-            UAB_ASSERT(value[key].IsBool(), "%s should be a bool", key);
+            BBS_ASSERT(value[key].IsBool(), "%s should be a bool", key);
             dest = value[key].GetBool();
         }
     }
@@ -18,7 +18,7 @@ namespace JSONTools
     {
         if (value.HasMember(key))
         {
-            UAB_ASSERT(value[key].IsString(), "%s should be a string", key);
+            BBS_ASSERT(value[key].IsString(), "%s should be a string", key);
             dest = value[key].GetString();
         }
     }

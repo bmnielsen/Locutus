@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 enum class OpeningPlan
@@ -18,6 +18,10 @@ enum class OpeningPlan
 	, NakedExpand	// undefended fast expansion (usual for zerg, bold for others)
 	, Turtle		// cannons/bunker/sunkens thought to be on 1 base
 	, Size
+	, ProxyGateway  // 2 or more gateways in the field
+	, DTOpening
+	, MassDragoon   // 3 or more gateways, 1 nexus, dragoon rush=
+	, HiddenDT
 	};
 
 const std::vector< std::pair<OpeningPlan, std::string> > PlanNames =
@@ -32,7 +36,11 @@ const std::vector< std::pair<OpeningPlan, std::string> > PlanNames =
 	std::pair<OpeningPlan, std::string>(OpeningPlan::Factory, "Factory"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::SafeExpand, "Safe expand"),
 	std::pair<OpeningPlan, std::string>(OpeningPlan::NakedExpand, "Naked expand"),
-	std::pair<OpeningPlan, std::string>(OpeningPlan::Turtle, "Turtle")
+	std::pair<OpeningPlan, std::string>(OpeningPlan::Turtle, "Turtle"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::ProxyGateway, "ProxyGateway"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::DTOpening, "DTOpening"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::MassDragoon, "MassDragoon"),
+	std::pair<OpeningPlan, std::string>(OpeningPlan::HiddenDT, "HiddenDT")
 };
 
 // Turn an opening plan into a string.

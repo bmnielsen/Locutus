@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 enum class MacroCommandType
@@ -23,7 +23,6 @@ enum class MacroCommandType
 	, PullWorkers
 	, PullWorkersLeaving
 	, ReleaseWorkers
-	, Nonadaptive
 	, GiveUp
 	, QueueBarrier
 	};
@@ -54,7 +53,6 @@ public:
 			, MacroCommandType::PullWorkers
 			, MacroCommandType::PullWorkersLeaving
 			, MacroCommandType::ReleaseWorkers
-			, MacroCommandType::Nonadaptive
 			, MacroCommandType::GiveUp
 			, MacroCommandType::QueueBarrier
 		};
@@ -71,14 +69,14 @@ public:
 		: _type(type)
         , _amount(0)
 	{
-		UAB_ASSERT(!hasArgument(type), "missing MacroCommand argument");
+		BBS_ASSERT(!hasArgument(type), "missing MacroCommand argument");
 	}
 
 	MacroCommand(MacroCommandType type, int amount)
 		: _type(type)
 		, _amount(amount)
 	{
-		UAB_ASSERT(hasArgument(type), "extra MacroCommand argument");
+		BBS_ASSERT(hasArgument(type), "extra MacroCommand argument");
 	}
 
     const int getAmount() const
@@ -166,10 +164,6 @@ public:
 		{
 			return "go release workers";
 		}
-		if (t == MacroCommandType::Nonadaptive)
-		{
-			return "go nonadaptive";
-		}
 		if (t == MacroCommandType::GiveUp)
 		{
 			return "go away";
@@ -179,7 +173,7 @@ public:
 			return "go queue barrier";
 		}
 
-		UAB_ASSERT(t == MacroCommandType::None, "unrecognized MacroCommandType");
+		BBS_ASSERT(t == MacroCommandType::None, "unrecognized MacroCommandType");
 		return "go none";
 	}
 

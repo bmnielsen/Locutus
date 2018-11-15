@@ -2,7 +2,7 @@
 #include "MapTools.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
@@ -60,7 +60,7 @@ void MicroTransports::calculateWaypoints()
 // i may be as small as -_waypoints.size() + 1.
 int MicroTransports::waypointIndex(int i)
 {
-	UAB_ASSERT(_waypoints.size(), "no waypoints");
+	BBS_ASSERT(_waypoints.size(), "no waypoints");
 	const int m = int(_waypoints.size());
 	return ((i % m) + m) % m;
 }
@@ -190,7 +190,7 @@ void MicroTransports::moveTransport()
 void MicroTransports::followPerimeter()
 {
 	// We must have a _transportShip before calling this.
-	UAB_ASSERT(hasTransportShip(), "no transport");
+	BBS_ASSERT(hasTransportShip(), "no transport");
 
 	// Place a loop of points around the edge of the map, to use as waypoints.
 	if (_waypoints.empty())

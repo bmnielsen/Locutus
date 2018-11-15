@@ -1,9 +1,9 @@
 #include "DistanceMap.h"
 
 #include "MapTools.h"
-#include "UABAssert.h"
+#include "BBSAssert.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 const size_t LegalActions = 4;
 const int actionX[LegalActions] = {1, -1, 0, 0};
@@ -37,7 +37,7 @@ DistanceMap::DistanceMap(const BWAPI::TilePosition & startTile, int limit, bool 
 
 int DistanceMap::getDistance(int tileX, int tileY) const
 { 
-    UAB_ASSERT(tileX >= 0 && tileY >= 0 && tileX < _width && tileY < _height, "bad tile %d,%d", tileX, tileY);
+    BBS_ASSERT(tileX >= 0 && tileY >= 0 && tileX < _width && tileY < _height, "bad tile %d,%d", tileX, tileY);
     return _dist[tileX][tileY]; 
 }
 
@@ -53,7 +53,7 @@ int DistanceMap::getDistance(const BWAPI::Position & pos) const
 
 int DistanceMap::getDistance(const BWAPI::Unit unit) const
 {
-	UAB_ASSERT(unit && unit->isVisible(), "bad unit");
+	BBS_ASSERT(unit && unit->isVisible(), "bad unit");
 	return getDistance(unit->getTilePosition());
 }
 

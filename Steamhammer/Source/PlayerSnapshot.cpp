@@ -5,7 +5,7 @@
 #include "UnitUtil.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 // Is this unit type to be excluded from the game record?
 // We leave out boring units like interceptors. Larvas are interesting.
@@ -37,7 +37,7 @@ PlayerSnapshot::PlayerSnapshot(BWAPI::Player side)
 	}
 	else
 	{
-		UAB_ASSERT(false, "wrong player");
+		BBS_ASSERT(false, "wrong player");
 	}
 }
 

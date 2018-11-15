@@ -4,7 +4,7 @@
 
 #include "MacroAct.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 struct BuildOrderItem
 {

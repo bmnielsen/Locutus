@@ -6,7 +6,7 @@
 #include "InformationManager.h"
 #include "Micro.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 class MicroManager

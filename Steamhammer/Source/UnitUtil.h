@@ -3,7 +3,7 @@
 #include <Common.h>
 #include <BWAPI.h>
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 namespace UnitUtil
 {      

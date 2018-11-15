@@ -6,7 +6,7 @@
 #include "MapGrid.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 Squad::Squad()
 	: _name("Default")
@@ -109,7 +109,6 @@ void Squad::update()
 		_microDarkTemplar.regroup(regroupPosition, vanguard, _nearEnemy);
 		_microRanged.regroup(regroupPosition, vanguard, _nearEnemy);
         _microCarriers.regroup(regroupPosition, vanguard, _nearEnemy);
-		_microTanks.regroup(regroupPosition, vanguard, _nearEnemy);
 	}
 	else
 	{
@@ -119,7 +118,6 @@ void Squad::update()
 		_microDarkTemplar.execute();
 		_microRanged.execute();
         _microCarriers.execute();
-		_microTanks.execute();
 	}
 
     // Execute micro for bunker squads
@@ -128,10 +126,6 @@ void Squad::update()
         pair.second.execute(getSquadOrder().getPosition(), needToRegroup);
     }
 
-	// Lurkers never regroup, always execute their order.
-	// TODO It is because regrouping works poorly. It retreats and unburrows them too often.
-	_microLurkers.execute();
-
 	// Maybe stim marines and firebats.
 	stimIfNeeded();
 
@@ -139,10 +133,6 @@ void Squad::update()
 	if (BWAPI::Broodwar->getFrameCount() % 8 == 3)    // deliberately lag a little behind reality
 	{
 		BWAPI::Unit vanguard = unitClosestToOrderPosition();
-
-		// Medics.
-		BWAPI::Position medicGoal = vanguard && vanguard->getPosition().isValid() ? vanguard->getPosition() : calcCenter();
-		_microMedics.update(medicGoal);
 
 		// Detectors.
 		_microDetectors.setUnitClosestToEnemy(vanguard);
@@ -252,9 +242,6 @@ void Squad::addUnitsToMicroManagers()
     BWAPI::Unitset darkTemplarUnits;
     BWAPI::Unitset highTemplarUnits;
 	BWAPI::Unitset transportUnits;
-	BWAPI::Unitset lurkerUnits;
-    BWAPI::Unitset tankUnits;
-    BWAPI::Unitset medicUnits;
 
 	for (const auto unit : _units)
 	{
@@ -279,19 +266,6 @@ void Squad::addUnitsToMicroManagers()
             {
                 carrierUnits.insert(unit);
             }
-			else if (unit->getType() == BWAPI::UnitTypes::Terran_Medic)
-            {
-                medicUnits.insert(unit);
-            }
-			else if (unit->getType() == BWAPI::UnitTypes::Zerg_Lurker)
-			{
-				lurkerUnits.insert(unit);
-			}
-			else if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
-				unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
-            {
-                tankUnits.insert(unit);
-            }   
 			else if (unit->getType().isDetector() && unit->getType().isFlyer())   // not a building
 			{
 				detectorUnits.insert(unit);
@@ -304,13 +278,14 @@ void Squad::addUnitsToMicroManagers()
 			}
 			// NOTE This excludes spellcasters.
 			else if ((unit->getType().groundWeapon().maxRange() > 32) ||
-				unit->getType() == BWAPI::UnitTypes::Zerg_Scourge ||
 				unit->getType() == BWAPI::UnitTypes::Protoss_Reaver)
 			{
 				rangedUnits.insert(unit);
 			}
 			else if (unit->getType().isWorker() && _combatSquad)
 			{
+				// If a lure, continue
+				if (Config::Strategy::EnemyScoutNotRush) continue;
 				// If this is a combat squad, then workers are melee units like any other,
 				// but we have to tell WorkerManager about them.
 				// If it's not a combat squad, WorkerManager owns them; don't add them to a micromanager.
@@ -333,9 +308,6 @@ void Squad::addUnitsToMicroManagers()
 	_microDetectors.setUnits(detectorUnits);
 	_microDarkTemplar.setUnits(darkTemplarUnits);
 	_microHighTemplar.setUnits(highTemplarUnits);
-	_microLurkers.setUnits(lurkerUnits);
-	_microMedics.setUnits(medicUnits);
-	_microTanks.setUnits(tankUnits);
 	_microTransports.setUnits(transportUnits);
 }
 
@@ -389,7 +361,7 @@ bool Squad::needsToRegroup()
 	const int retreatDuration = 2 * 24;
 	bool retreat = _lastRetreatSwitchVal && (BWAPI::Broodwar->getFrameCount() - _lastRetreatSwitch < retreatDuration);
 
-	if (!retreat)
+	if (!retreat && Config::Strategy::StrategyName != "Proxy9-9Gate")
 	{
         // All other checks are done. Finally do the expensive combat simulation.
         int score = runCombatSim(_order.getPosition());
@@ -443,7 +415,7 @@ void Squad::clear()
 
 bool Squad::unitNearEnemy(BWAPI::Unit unit)
 {
-	UAB_ASSERT(unit, "missing unit");
+	BBS_ASSERT(unit, "missing unit");
 
 	BWAPI::Unitset enemyNear;
 
@@ -568,7 +540,7 @@ BWAPI::Unit Squad::unitClosestTo(BWAPI::Position position, bool debug) const
 	BWAPI::Unit closest = nullptr;
 	int closestDist = INT_MAX;
 
-	UAB_ASSERT(position.isValid(), "bad position");
+	BBS_ASSERT(position.isValid(), "bad position");
 
 	for (auto unit : _units)
 	{
@@ -625,9 +597,6 @@ void Squad::setSquadOrder(const SquadOrder & so)
 	_microDetectors.setOrder(so);
 	_microDarkTemplar.setOrder(so);
 	_microHighTemplar.setOrder(so);
-	_microLurkers.setOrder(so);
-	_microMedics.setOrder(so);
-	_microTanks.setOrder(so);
 	_microTransports.setOrder(so);
 }
 
@@ -653,7 +622,7 @@ void Squad::removeUnit(BWAPI::Unit u)
 // Remove all workers from the squad, releasing them back to WorkerManager.
 void Squad::releaseWorkers()
 {
-	UAB_ASSERT(_combatSquad, "Idle squad should not release workers");
+	BBS_ASSERT(_combatSquad, "Idle squad should not release workers");
 
 	for (const auto unit : _units)
 	{
@@ -724,63 +693,6 @@ void Squad::stimIfNeeded()
 	if (_nearEnemy.empty())
 	{
 		return;
-	}
-
-	// So far so good. Time to get into details.
-
-	// Stim can be used more freely if we have medics with lots of energy.
-	int totalMedicEnergy = _microMedics.getTotalEnergy();
-
-	// Stim costs 10 HP, which requires 5 energy for a medic to heal.
-	const int stimEnergyCost = 5;
-
-	// Firebats first, because they are likely to be right up against the enemy.
-	for (const auto firebat : _microMelee.getUnits())
-	{
-		// Invalid position means the firebat is probably in a bunker or transport.
-		if (firebat->getType() != BWAPI::UnitTypes::Terran_Firebat || !firebat->getPosition().isValid())
-		{
-			continue;
-		}
-		// Don't overstim and lose too many HP.
-		if (firebat->getHitPoints() < 35 || totalMedicEnergy <= 0 && firebat->getHitPoints() < 45)
-		{
-			continue;
-		}
-
-		BWAPI::Unitset nearbyEnemies;
-		MapGrid::Instance().getUnits(nearbyEnemies, firebat->getPosition(), 64, false, true);
-
-		// NOTE We don't check whether the enemy is attackable or worth attacking.
-		if (!nearbyEnemies.empty())
-		{
-			Micro::Stim(firebat);
-			totalMedicEnergy -= stimEnergyCost;
-		}
-	}
-
-	// Next marines, treated the same except for range and hit points.
-	for (const auto marine : _microRanged.getUnits())
-	{
-		// Invalid position means the marine is probably in a bunker or transport.
-		if (marine->getType() != BWAPI::UnitTypes::Terran_Marine || !marine->getPosition().isValid())
-		{
-			continue;
-		}
-		// Don't overstim and lose too many HP.
-		if (marine->getHitPoints() <= 30 || totalMedicEnergy <= 0 && marine->getHitPoints() < 40)
-		{
-			continue;
-		}
-
-		BWAPI::Unitset nearbyEnemies;
-		MapGrid::Instance().getUnits(nearbyEnemies, marine->getPosition(), 5 * 32, false, true);
-
-		if (!nearbyEnemies.empty())
-		{
-			Micro::Stim(marine);
-			totalMedicEnergy -= stimEnergyCost;
-		}
 	}
 }
 
@@ -940,10 +852,6 @@ const bool Squad::isOverlordHunterSquad() const
 			return false;
 		}
 		if (!type.isDetector() &&
-			type != BWAPI::UnitTypes::Terran_Wraith &&
-			type != BWAPI::UnitTypes::Terran_Valkyrie &&
-			type != BWAPI::UnitTypes::Zerg_Mutalisk &&
-			type != BWAPI::UnitTypes::Zerg_Scourge &&      // questionable, but the squad may have both
 			type != BWAPI::UnitTypes::Protoss_Corsair &&
 			type != BWAPI::UnitTypes::Protoss_Scout)
 		{
@@ -961,10 +869,7 @@ bool Squad::hasMicroManager(const MicroManager* microManager) const
         &_microDetectors == microManager ||
         &_microDarkTemplar == microManager ||
         &_microHighTemplar == microManager ||
-        &_microLurkers == microManager ||
-        &_microMedics == microManager ||
         &_microMelee == microManager ||
         &_microRanged == microManager ||
-        &_microTanks == microManager ||
         &_microTransports == microManager;
 }

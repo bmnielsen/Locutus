@@ -5,12 +5,12 @@
 #include "Logger.h"
 #include "Random.h"
 
-UAlbertaBot::FastAPproximation fap;
+BlueBlueSky::FastAPproximation fap;
 
 // NOTE FAP does not use UnitInfo.goneFromLastPosition. The flag is always set false
 // on a UnitInfo value which is passed in (CombatSimulation makes sure of it).
 
-namespace UAlbertaBot {
+namespace BlueBlueSky {
 
     FastAPproximation::FastAPproximation() {
 #ifdef FAP_DEBUG
@@ -118,6 +118,7 @@ namespace UAlbertaBot {
     void FastAPproximation::dealDamage(const FastAPproximation::FAPUnit &fu,
         int damage,
         BWAPI::DamageType damageType) const {
+		if (fu.isCloaked) return;
         damage <<= 8;
         int remainingShields = fu.shields - damage + (fu.shieldArmor << 8);
         if (remainingShields > 0) {
@@ -475,7 +476,7 @@ namespace UAlbertaBot {
 
     void FastAPproximation::convertToUnitType(const FAPUnit &fu,
         BWAPI::UnitType ut) {
-        UAlbertaBot::UnitInfo ui;
+        BlueBlueSky::UnitInfo ui;
         ui.lastPosition = BWAPI::Position(fu.x, fu.y);
         ui.player = fu.player;
         ui.type = ut;
@@ -520,9 +521,9 @@ namespace UAlbertaBot {
         unitType(ui.type),
         isOrganic(ui.type.isOrganic()),
         score(ui.type.destroyScore()),
+		isCloaked(ui.player == BWAPI::Broodwar->self() && ui.unit && ui.unit->exists() && ui.unit->isCloaked()),
         player(ui.player)
     {
-
         static int nextId = 0;
         id = nextId++;
 
@@ -600,6 +601,12 @@ namespace UAlbertaBot {
             airCooldown /= 2;
         }
 
+		if (isCloaked)
+		{
+			if (InformationManager::Instance().isInAnyDetector(ui.lastPosition))
+				isCloaked = false;
+		}
+
         elevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(ui.lastPosition));
 
         //groundMaxRange *= groundMaxRange;
@@ -633,6 +640,7 @@ namespace UAlbertaBot {
         didHealThisFrame = other.didHealThisFrame;
         elevation = other.elevation;
         player = other.player;
+		isCloaked = other.isCloaked;
 
         return *this;
     }

@@ -6,7 +6,7 @@
 #include "MacroAct.h"
 #include "MapTools.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 class BuildingManager
 {

@@ -2,7 +2,7 @@
 #include "OpponentModel.h"
 #include "Random.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 OpeningPlan OpponentModel::predictEnemyPlan() const
 {
@@ -247,8 +247,8 @@ void OpponentModel::considerOpenings()
 		}
 	}
 
-	UAB_ASSERT(totalWins == planInfo.sameWins + planInfo.otherWins, "bad total");
-	UAB_ASSERT(totalGames == planInfo.sameGames + planInfo.otherGames, "bad total");
+	BBS_ASSERT(totalWins == planInfo.sameWins + planInfo.otherWins, "bad total");
+	BBS_ASSERT(totalGames == planInfo.sameGames + planInfo.otherGames, "bad total");
 
 	OpeningPlan enemyPlan = _expectedEnemyPlan;
 
@@ -263,8 +263,8 @@ void OpponentModel::considerOpenings()
 		return;										// with or without expected play
 	}
 
-	UAB_ASSERT(totalGames > 0 && totalWins >= 0, "bad total");
-	UAB_ASSERT(openingInfo.size() > 0 && int(openingInfo.size()) <= totalGames, "bad total");
+	BBS_ASSERT(totalGames > 0 && totalWins >= 0, "bad total");
+	BBS_ASSERT(openingInfo.size() > 0 && int(openingInfo.size()) <= totalGames, "bad total");
 
 	// If we keep winning, stick to the winning track.
 	if (totalWins == totalGames ||
@@ -316,7 +316,7 @@ void OpponentModel::considerOpenings()
 	// Explore different actions this proportion of the time.
 	// The number varies depending on the overall win rate: Explore less if we're usually winning.
 	const double overallWinRate = double(totalWins) / totalGames;
-	UAB_ASSERT(overallWinRate >= 0.0 && overallWinRate <= 1.0, "bad total");
+	BBS_ASSERT(overallWinRate >= 0.0 && overallWinRate <= 1.0, "bad total");
 	const double explorationRate = 0.05 + (1.0 - overallWinRate) * 0.10;
 
 	// Decide whether to explore, and choose which kind of exploration to do.
@@ -987,6 +987,10 @@ void OpponentModel::setPylonHarassObservation(PylonHarassBehaviour observation)
 
 bool OpponentModel::expectCloakedCombatUnitsSoon()
 {
+	if (getEnemyPlan() == OpeningPlan::Turtle || getEnemyPlan() == OpeningPlan::NakedExpand)
+		if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
+			return false;
+
 	return _worstCaseExpectedCloakTech < (
         BWAPI::Broodwar->getFrameCount() + 
         BWAPI::UnitTypes::Protoss_Observer.buildTime() +

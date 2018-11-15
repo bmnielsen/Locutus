@@ -3,7 +3,7 @@
 #include <vector>
 #include "BWAPI.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
     
 class DistanceMap

@@ -13,7 +13,7 @@
 #include "TimerManager.h"
 #include "WorkerManager.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 class UnitToAssign

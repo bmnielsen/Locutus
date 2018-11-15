@@ -1,7 +1,7 @@
 #include "Common.h"
 #include "LocutusMapGrid.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 LocutusMapGrid::LocutusMapGrid() {}
 

@@ -3,7 +3,7 @@
 #include <Common.h>
 #include "MicroRanged.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 class MicroCarriers : public MicroRanged
 {

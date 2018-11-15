@@ -1,7 +1,7 @@
 #include "MicroAirToAir.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 // The splash air-to-air units: Valkyries, corsairs, devourers.
 

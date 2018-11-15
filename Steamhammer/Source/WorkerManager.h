@@ -4,7 +4,7 @@
 #include "BuildingManager.h"
 #include "WorkerData.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 class Building;
 
@@ -12,6 +12,7 @@ class WorkerManager
 {
     WorkerData  workerData;
     BWAPI::Unit previousClosestWorker;
+	BWAPI::Unit proxyWorker;
 	bool		_collectGas;
 
 	void        setMineralWorker(BWAPI::Unit unit);
@@ -25,6 +26,7 @@ class WorkerManager
 	void        handleRepairWorkers();
     void        handleMoveWorkers();
 	void		handleMineralLocking();
+	void        handleProxyWorker();
 
 	BWAPI::Unit findEnemyTargetForWorker(BWAPI::Unit worker) const;
 	BWAPI::Unit findEscapeMinerals(BWAPI::Unit worker) const;
@@ -55,7 +57,7 @@ public:
 	int			getNumCombatWorkers() const;
 	int         getNumIdleWorkers() const;
 	int			getMaxWorkers() const;
-
+	
     void        setScoutWorker(BWAPI::Unit worker);
 
 	// NOTE _collectGas == false allows that a little more gas may still be collected.
@@ -72,13 +74,13 @@ public:
     BWAPI::Unit getGasWorker(BWAPI::Unit refinery);
     BWAPI::Unit getClosestMineralWorkerTo(BWAPI::Unit enemyUnit);
     BWAPI::Unit getWorkerScout();
+	BWAPI::Unit getProxyWorker() { return proxyWorker; };
 
     void        setBuildingWorker(BWAPI::Unit worker,Building & b);
     void        setRepairWorker(BWAPI::Unit worker,BWAPI::Unit unitToRepair);
     void        stopRepairing(BWAPI::Unit worker);
 	void        setMoveWorker(BWAPI::Unit worker, int mineralsNeeded, int gasNeeded, BWAPI::Position & p);
     void        setCombatWorker(BWAPI::Unit worker);
-
     bool        willHaveResources(int mineralsRequired,int gasRequired,double framesToMove);
     void        rebalanceWorkers();
 

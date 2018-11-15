@@ -1,5 +1,8 @@
 #include "MapTools.h"
 
+#include <ctime>
+#include <Windows.h>
+#include <fstream>
 #include "BuildingPlacer.h"
 #include "InformationManager.h"
 
@@ -8,7 +11,7 @@ const double pi = 3.14159265358979323846;
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 MapTools & MapTools::Instance()
 {
@@ -368,9 +371,13 @@ void MapTools::drawHomeDistanceMap()
     }
 }
 
+void MapTools::drawChokePath()
+{
+}
+
 BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 {
-	UAB_ASSERT(wantMinerals || wantGas, "unwanted expansion");
+	BBS_ASSERT(wantMinerals || wantGas, "unwanted expansion");
 
 	// Abbreviations.
 	BWAPI::Player player = BWAPI::Broodwar->self();
@@ -461,7 +468,8 @@ BWTA::BaseLocation * MapTools::nextExpansion(bool hidden, bool wantMinerals, boo
 		// More resources -> better.
 		if (wantMinerals)
 		{
-			score += 0.01 * base->minerals();
+			//Unnecessary
+			//score += 0.01 * base->minerals();
 		}
 		if (wantGas)
 		{
@@ -515,4 +523,165 @@ BWAPI::TilePosition MapTools::getNextExpansion(bool hidden, bool wantMinerals, b
 		return base->getTilePosition();
 	}
 	return BWAPI::TilePositions::None;
+}
+
+bool MapTools::calcPath(const BWEM::Area * area, const BWEM::ChokePoint * cp)
+{
+	if (_minPath.find(area) != _minPath.end())
+	{
+		if (_minPath[area].find(cp) != _minPath[area].end()) return false;
+		_minPath[area][cp].clear();
+	}
+	else
+	{
+		_minPath[area].clear();
+		_minPath[area][cp].clear();
+	}
+
+	auto & knownLastTiles = _minPath[area][cp];
+	const auto & tilesWithDist = _tileWithDistToBorder[area];
+
+	BWAPI::TilePosition destiny = (BWAPI::TilePosition)cp->Center();
+	std::map<BWAPI::TilePosition, BWAPI::TilePosition> lastTiles;
+	std::set<std::pair<int, BWAPI::TilePosition>> visitedDistTiles;
+	std::map<BWAPI::TilePosition, int> visitedTilesDist;
+
+	visitedDistTiles.insert(std::make_pair(0, destiny));
+	visitedTilesDist[destiny] = 0;
+	lastTiles[destiny] = BWAPI::TilePositions::None;
+
+	int level = 0, maxLevel = (int)tilesWithDist.size() + 10;
+	while (!visitedDistTiles.empty() && level++ < maxLevel)
+	{
+		std::set<BWAPI::TilePosition> newTiles;
+		int bestDist = visitedDistTiles.begin()->first;
+		BWAPI::TilePosition bestTile = visitedDistTiles.begin()->second;
+		visitedDistTiles.erase(visitedDistTiles.begin());
+		knownLastTiles[bestTile] = lastTiles[bestTile];
+		for (int x = -1; x <= 1; ++x)
+			for (int y = -1; y <= 1; ++y)
+				if (x != 0 || y != 0)
+				{
+					BWAPI::TilePosition newTile = BWAPI::TilePosition(bestTile.x + x, bestTile.y + y);
+					if (tilesWithDist.find(newTile) != tilesWithDist.end())
+					{
+						int dist = bestDist + (x == 0 || y == 0 ? 0 : 1) + tilesWithDist.at(newTile) * 2;
+						if (visitedTilesDist.find(newTile) == visitedTilesDist.end())
+						{
+							visitedDistTiles.insert(std::make_pair(dist, newTile));
+							visitedTilesDist[newTile] = dist;
+							lastTiles[newTile] = bestTile;
+						}
+						else if (visitedTilesDist[newTile] > dist)
+						{
+							visitedDistTiles.erase(std::make_pair(visitedTilesDist[newTile], newTile));
+							visitedDistTiles.insert(std::make_pair(dist, newTile));
+							visitedTilesDist[newTile] = dist;
+							lastTiles[newTile] = bestTile;
+						}
+					}
+				}
+	}
+	return true;
+}
+
+bool MapTools::calcBorder(const BWEM::Area & area)
+{
+	if (_tileWithDistToBorder.find(&area) != _tileWithDistToBorder.end())
+		return false;
+	_tileWithDistToBorder[&area].clear();
+
+	std::set<BWAPI::TilePosition> innerTiles;
+	for (int xx = area.TopLeft().x; xx <= area.BottomRight().x; ++xx)
+		for (int yy = area.TopLeft().y; yy <= area.BottomRight().y; ++yy)
+		{
+			BWAPI::TilePosition tile(xx, yy);
+			if (&area == BWEM::Map::Instance().GetArea(tile))
+				innerTiles.insert(tile);
+		}
+
+	std::set<BWAPI::TilePosition> oldBorders;
+	std::map<BWAPI::TilePosition, int> & innerTilesWithDist = _tileWithDistToBorder[&area];
+
+	for (const auto & tile : innerTiles)
+		if (innerTiles.find(BWAPI::TilePosition(tile.x, tile.y - 1)) == innerTiles.end() ||
+			innerTiles.find(BWAPI::TilePosition(tile.x, tile.y + 1)) == innerTiles.end() ||
+			innerTiles.find(BWAPI::TilePosition(tile.x - 1, tile.y)) == innerTiles.end() ||
+			innerTiles.find(BWAPI::TilePosition(tile.x + 1, tile.y)) == innerTiles.end())
+			innerTilesWithDist[BWAPI::TilePosition(tile)] = 0;
+	// remove initial border from inners
+	for (const auto & border : innerTilesWithDist)
+	{
+		innerTiles.erase(border.first);
+		oldBorders.insert(border.first);
+	}
+
+	int level = 1;
+	while (!innerTiles.empty() && level <= Config::Macro::BorderSpacing)
+	{
+		std::set<BWAPI::TilePosition> newBorders;
+		for (const auto & old : oldBorders)
+			// around old border, find new border
+			for (int x = -1; x <= 1; ++x)
+				for (int y = -1; y <= 1; ++y)
+					if (std::abs(x) + std::abs(y) == 1)
+						if (innerTiles.find(BWAPI::TilePosition(old.x + x, old.y + y)) != innerTiles.end())
+							newBorders.insert(BWAPI::TilePosition(old.x + x, old.y + y));
+		// assign new border to old border
+		oldBorders.clear();
+		for (const auto & border : newBorders)
+		{
+			innerTiles.erase(border);
+			oldBorders.insert(border);
+			innerTilesWithDist[BWAPI::TilePosition(border)] = level;
+		}
+		++level;
+	}
+	for (const auto & tile : innerTiles)
+		innerTilesWithDist[BWAPI::TilePosition(tile)] = level - 1;
+
+	for (auto & tileWithDist : innerTilesWithDist)
+		tileWithDist.second = level - tileWithDist.second;
+	return true;
+}
+
+void MapTools::update()
+{
+	for (const auto & area : BWEM::Map::Instance().Areas())
+	{
+		if (calcBorder(area)) return;
+
+		for (const auto & choke : area.ChokePoints())
+			if (calcPath(&area, choke)) return;
+	}
+}
+
+const ChokePath & MapTools::getChokePath(const BWAPI::TilePosition & unitP, const BWAPI::WalkPosition & chokeP)
+{
+	_chokePath.clear();
+	const auto & area = BWEM::Map::Instance().GetArea(unitP);
+	if (_minPath.find(area) == _minPath.end()) return _chokePath;
+	const auto & _paths = _minPath[area];
+	for (const auto & choke : area->ChokePoints())
+		if (_paths.find(choke) != _paths.end())
+			if (choke->Center().getApproxDistance(chokeP) < 20)
+			{
+				BWAPI::TilePosition seek = unitP;
+				auto & path = _paths.at(choke);
+				while (path.find(seek) != path.end() && _chokePath.size() < 300)
+					_chokePath.push_back(seek = path.at(seek));
+			}
+	return _chokePath;
+}
+
+int MapTools::borderDist(const BWAPI::TilePosition & t)
+{
+	const auto & area = BWEM::Map::Instance().GetArea(t);
+	if (_tileWithDistToBorder.find(area) != _tileWithDistToBorder.end())
+	{
+		const auto & tiles = _tileWithDistToBorder.at(area);
+		if (tiles.find(t) != tiles.end())
+			return tiles.at(t);
+	}
+	return Config::Macro::BorderSpacing;			
 }

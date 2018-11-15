@@ -3,7 +3,7 @@
 #include "Common.h"
 #include "MacroCommand.h"
 
-namespace UAlbertaBot
+namespace BlueBlueSky
 {
 
 enum class MacroLocation
@@ -18,6 +18,7 @@ enum class MacroLocation
 	, Center       // middle of the map
 	, Proxy        // somewhere out on the map close to where the enemy base might be
 	, HiddenTech   // somewhere out of the way where it hopefully will not be scouted
+	, ChokeGuard   // somewhere near the main choke, for static defense
 	};
 
 namespace MacroActs

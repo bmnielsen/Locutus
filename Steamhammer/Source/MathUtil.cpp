@@ -1,6 +1,6 @@
 #include "MathUtil.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 int MathUtil::EdgeToEdgeDistance(BWAPI::UnitType firstType, BWAPI::Position firstCenter, BWAPI::UnitType secondType, BWAPI::Position secondCenter)
 {

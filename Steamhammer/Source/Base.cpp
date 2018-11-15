@@ -1,6 +1,6 @@
 #include "Base.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 // For setting base.id on initialization.
 // The first base gets base id 1.

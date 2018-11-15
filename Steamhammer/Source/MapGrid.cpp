@@ -1,7 +1,7 @@
 #include "Common.h"
 #include "MapGrid.h"
 
-using namespace UAlbertaBot;
+using namespace BlueBlueSky;
 
 MapGrid & MapGrid::Instance() 
 {
