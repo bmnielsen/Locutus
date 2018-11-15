@@ -33,7 +33,10 @@ void StrategyManager::update()
     // Check if we should stop a rush
     if (_rushing)
     {
-        // Stop the rush when the enemy has some non-tier-1 combat units or a flying building
+        // Stop the rush when the enemy:
+        // - has some non-tier-1 combat units
+        // - has a flying building
+        // - has done a wall-in
         int nonTierOneCombatUnits = 0;
         bool flyingBuilding = false;
         for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
@@ -50,10 +53,11 @@ void StrategyManager::update()
             nonTierOneCombatUnits++;
         }
 
-        if (flyingBuilding || nonTierOneCombatUnits >= 3 ||
+        if (OpponentModel::Instance().getEnemyPlan() == OpeningPlan::WallIn || flyingBuilding || nonTierOneCombatUnits >= 3 ||
             (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran && nonTierOneCombatUnits > 0))
         {
             _rushing = false;
+            _proxying = false;
             if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
             {
                 _openingGroup = "dragoons";
@@ -111,7 +115,7 @@ bool StrategyManager::isRushingOrProxyRushing() const
     // While proxying, we consider ourselves in "rush mode" while we're building up our forces and
     // for a short time period after
     return !CombatCommander::Instance().getAggression() || 
-        BWAPI::Broodwar->getFrameCount() > std::min(CombatCommander::Instance().getAggressionAt() + 2000, 10000);
+        BWAPI::Broodwar->getFrameCount() < std::min(CombatCommander::Instance().getAggressionAt() + 2000, 10000);
 }
 
 const BuildOrder & StrategyManager::getOpeningBookBuildOrder() const
@@ -296,6 +300,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	double zealotRatio = 0.0;
 	double goonRatio = 0.0;
     double archonRatio = 0.0;
+    bool getTemplarArchives = false;
 
     // On Plasma, transition to carriers on two bases or if our proxy gateways die
     if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" && (!_proxying || numNexusAll >= 2))
@@ -326,6 +331,10 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
                 goonRatio = 0.25;
                 archonRatio = 0.15;
             }
+            else if (numNexusCompleted >= 2 && InformationManager::Instance().enemyHasAirTech())
+            {
+                getTemplarArchives = true;
+            }
         }
     }
 	else if (_openingGroup == "dragoons" || _openingGroup == "drop")
@@ -339,6 +348,12 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             goonRatio = 0.85;
             archonRatio = 0.15;
         }
+        else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg &&
+            numNexusCompleted >= 2 && InformationManager::Instance().enemyHasAirTech())
+        {
+            getTemplarArchives = true;
+        }
+
 	}
     else if (_openingGroup == "dark templar")
     {
@@ -487,22 +502,11 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             // This will let us efficiently upgrade both weapons and armor to 3
             if (numNexusCompleted >= 3)
             {
+                getTemplarArchives = true;
+
                 if (numForges < 2)
                 {
                     goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 2));
-                }
-
-                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) < 1)
-                {
-                    if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
-
-                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
-                        && !startedCitadel)
-                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
-
-                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
-                        && !startedTemplarArchives)
-                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
                 }
             }
 
@@ -579,7 +583,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         }
 	}
 
-	if (buildDarkTemplar)
+	if (buildDarkTemplar || getTemplarArchives)
 	{
 		if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
 
@@ -591,7 +595,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			&& !startedTemplarArchives)
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
 
-		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0
+		if (buildDarkTemplar && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0
 			&& idleGateways > 0)
 		{
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, numDarkTemplar + 1));

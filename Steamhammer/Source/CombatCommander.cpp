@@ -192,7 +192,6 @@ void CombatCommander::updateKamikazeSquad()
     // - Our squad cannot fight air effectively and we are fighting a zerg opponent who has done a muta switch
     // - We are transitioning out of a rush and want to do as much damage as possible with the remaining units
     // (the second case is handled in finishedRushing())
-
     if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
     {
         if (!InformationManager::Instance().enemyHasAirCombatUnits())
@@ -207,8 +206,9 @@ void CombatCommander::updateKamikazeSquad()
             if (UnitUtil::CanAttackAir(unit)) antiAirUnits++;
         }
 
-        // If more than half can attack air, don't switch to kamikaze
-        if ((double)antiAirUnits / (double)totalUnits > 0.5) return;
+        // If we have less than 4 anti-ground units total, or more than half can attack air, don't switch to kamikaze
+        if ((totalUnits - antiAirUnits) < 4 ||
+            (double)antiAirUnits / (double)totalUnits > 0.5) return;
     }
     else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
     {
@@ -250,7 +250,8 @@ void CombatCommander::updateKamikazeSquad()
     // Move the units
     std::vector<BWAPI::Unit> unitsToMove;
     for (auto & unit : groundSquad.getUnits())
-        if (_squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+        if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot &&
+            _squadData.canAssignUnitToSquad(unit, kamikazeSquad))
             unitsToMove.push_back(unit);
 
     for (auto & unit : unitsToMove)
@@ -1228,6 +1229,7 @@ void CombatCommander::updateBlockScoutingSquad()
         if (blockRampSquad.getUnits().size() >= chokeData.probeBlockScoutPositions.size()) break;
 
         if (!unit->getType().isWorker()) continue;
+        if (!WorkerManager::Instance().isFree(unit)) continue;
         if (unit->isCarryingMinerals() || unit->isCarryingGas()) continue;
         if (!_squadData.canAssignUnitToSquad(unit, blockRampSquad)) continue;
 

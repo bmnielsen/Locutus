@@ -98,6 +98,8 @@ std::ostringstream& Log::Debug()
 
 Log::~Log()
 {
+    if (debug && !Config::Debug::LogDebug) return;
+
 	os << "\n";
     std::ofstream*& stream = debug ? debugLog : normalLog;
 

@@ -6,143 +6,90 @@ using namespace UAlbertaBot;
 
 OpeningPlan OpponentModel::predictEnemyPlan() const
 {
-	struct PlanInfoType
+	struct PlanInfo
 	{
-		int wins;
-		int games;
-		double weight;
-
-        // Used to determine whether the opponent tends to play this plan again after a win or loss
-        int knownPlanAfter;     // How many times did we detect this plan played with another detected plan after?
-        int playedAfterWin;     // How many times was this plan played again after a win?
-        int playedAfterLoss;    // How many times was this plan played again after a loss?
-
-        // We assume the opponent will play the plan again after a win if it does so more than 80% of the time
-        bool playsAfterWin()
-        {
-            return knownPlanAfter > 0 &&
-                (double)playedAfterWin / (double)knownPlanAfter > 0.799;
-        }
-
-        // We assume the opponent will not play the plan again after a loss if it does so less than 20% of the time
-        bool playsAfterLoss()
-        {
-            return knownPlanAfter == 0 ||
-                (double)playedAfterLoss / (double)knownPlanAfter < 0.201;
-        }
+        std::map<OpeningPlan, int> playedAfterWin;  // Which plans were played after this plan won?
+        std::map<OpeningPlan, int> playedAfterLoss; // Which plans were played after this plan lost?
 	};
-	PlanInfoType planInfo[int(OpeningPlan::Size)];
+    std::map<OpeningPlan, PlanInfo> plans;
 
-	// 1. Initialize.
-	for (int plan = int(OpeningPlan::Unknown); plan < int(OpeningPlan::Size); ++plan)
-	{
-		planInfo[plan].wins = 0;
-		planInfo[plan].games = 0;
-		planInfo[plan].weight = 0.0;
-		planInfo[plan].knownPlanAfter = 0;
-		planInfo[plan].playedAfterWin = 0;
-		planInfo[plan].playedAfterLoss = 0;
-	}
-
-    std::ostringstream log;
-    log << "Predicting enemy plan:";
-
-    // 2. Perform initial forward pass to initialize "alwaysSwitchesAfterLoss" and "alwaysPlaysAfterWin"
+    // Step 1: gather information about how the enemy reacts to winning / losing with various plans
     GameRecord* previous = nullptr;
     for (int i = std::max(0U, _pastGameRecords.size() - 50); i < _pastGameRecords.size(); i++)
     {
         GameRecord* current = _pastGameRecords[i];
+
+        if (!_gameRecord.sameMatchup(*current)) continue;
+
         if (previous && previous->getEnemyPlan() != OpeningPlan::Unknown && current->getEnemyPlan() != OpeningPlan::Unknown)
         {
-            log << "\nCurrent " << OpeningPlanString(current->getEnemyPlan()) << ", previous " << OpeningPlanString(previous->getEnemyPlan());
-            if (current->getWin())
-                log << " (win): ";
+            if (previous->getWin())
+                plans[previous->getEnemyPlan()].playedAfterLoss[current->getEnemyPlan()]++;
             else
-                log << " (loss): ";
-
-            planInfo[int(previous->getEnemyPlan())].knownPlanAfter++;
-
-            if (previous->getEnemyPlan() == current->getEnemyPlan())
-                if (previous->getWin())
-                    planInfo[int(previous->getEnemyPlan())].playedAfterLoss++;
-                else
-                    planInfo[int(previous->getEnemyPlan())].playedAfterWin++;
-
-            log << "knownPlanAfter=" << planInfo[int(previous->getEnemyPlan())].knownPlanAfter;
-            log << "; playedAfterWin=" << planInfo[int(previous->getEnemyPlan())].playedAfterWin;
-            log << "; playedAfterLoss=" << planInfo[int(previous->getEnemyPlan())].playedAfterLoss;
+                plans[previous->getEnemyPlan()].playedAfterWin[current->getEnemyPlan()]++;
         }
-
+        
         previous = current;
     }
 
-	// 3. Perform backwards pass to weight the opponent plans
-	double weight = 100000.0;
-    int count = 0;
-    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 25; it++)
-	{
-        auto record = *it;
-        count++;
-
-		if (_gameRecord.sameMatchup(*record))
-		{
-            log << "\n" << count << ": " << OpeningPlanString(record->getEnemyPlan());
-            if (record->getWin())
-                log << " (win): ";
-            else
-                log << " (loss): ";
-
-			PlanInfoType & info = planInfo[int(record->getEnemyPlan())];
-			info.games += 1;
-
-            // If this is the most recent game, check if the enemy will definitely use the plan from the previous game again
-            if (count == 1 && !record->getWin() && info.playsAfterWin())
-            {
-                log << "Enemy always continues with this plan after a win; short-circuiting";
-                Log().Debug() << log.str();
-                return record->getEnemyPlan();
-            }
-
-            // If this is the most recent game, check if the enemy will definitely switch strategies from the previous game
-            if (count == 1 && record->getWin() && !info.playsAfterLoss())
-            {
-                info.weight = -1000000.0;
-                log << "Enemy never continues this plan after a loss";
-            }
-
-            else
-            {
-                // Weight games we won lower
-                double change = weight * (record->getWin() ? 0.5 : 1.0);
-                info.weight += weight * (record->getWin() ? 0.5 : 1.0);
-                log << "Increased by " << change << " to " << info.weight;
-            }
-
-            // more recent game records are more heavily weighted
-			weight *= 0.8;
-		}
-	}
-
-	// 3. Decide.
-	// For now, set the most heavily weighted plan other than Unknown as the expected plan. Ignore the other info.
-	OpeningPlan bestPlan = OpeningPlan::Unknown;
-	double bestWeight = 0.0;
-	for (int plan = int(OpeningPlan::Unknown) + 1; plan < int(OpeningPlan::Size); ++plan)
-	{
-		if (planInfo[plan].weight > bestWeight)
-		{
-			bestPlan = OpeningPlan(plan);
-			bestWeight = planInfo[plan].weight;
-		}
-	}
-
-    if (count > 0)
+    std::ostringstream log;
+    log << "Enemy plan summary:";
+    for (auto & plan : plans)
     {
-        log << "\nDecided on " << OpeningPlanString(bestPlan);
-        Log().Debug() << log.str();
+        log << "\nPlans played after winning with " << OpeningPlanString(plan.first) << ":";
+        for (auto & win : plan.second.playedAfterWin)
+            log << "\n" << OpeningPlanString(win.first) << ": " << win.second;
+
+        log << "\nPlans played after losing with " << OpeningPlanString(plan.first) << ":";
+        for (auto & win : plan.second.playedAfterLoss)
+            log << "\n" << OpeningPlanString(win.first) << ": " << win.second;
+    }
+    Log().Debug() << log.str();
+
+    // Step 2: predict most likely plan based on what happened in the last game
+    OpeningPlan expectedEnemyPlan = OpeningPlan::Unknown;
+    for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend(); it++)
+    {
+        auto record = *it;
+
+        // Advance through the list until we find a record with a known enemy plan
+        if (!_gameRecord.sameMatchup(*record)) continue;
+        if (record->getEnemyPlan() == OpeningPlan::Unknown) continue;
+
+        // Default to assuming the enemy will try this plan again
+        expectedEnemyPlan = record->getEnemyPlan();
+
+        // Try to find information about what the enemy does with this plan
+        auto planData = plans.find(expectedEnemyPlan);
+        if (planData != plans.end())
+        {
+            // Reference the correct map depending on whether the enemy won or lost the game
+            auto & planOutcomes =
+                record->getWin() ? planData->second.playedAfterLoss : planData->second.playedAfterWin;
+
+            // Find the plan with the most occurrances
+            OpeningPlan mostCommonPlan = OpeningPlan::Unknown;
+            int mostCommonCount = 0;
+            for (auto & outcome : planOutcomes)
+            {
+                if (outcome.second > mostCommonCount)
+                {
+                    mostCommonCount = outcome.second;
+                    mostCommonPlan = outcome.first;
+                }
+            }
+
+            // Set expected plan if we got a result
+            if (mostCommonPlan != OpeningPlan::Unknown)
+                expectedEnemyPlan = mostCommonPlan;
+        }
+
+        break;
     }
 
-	return bestPlan;
+    Log().Debug() << "Decided on " << OpeningPlanString(expectedEnemyPlan);
+
+	return expectedEnemyPlan;
 }
 
 // Does the opponent seem to play the same strategy every game?
@@ -293,7 +240,7 @@ void OpponentModel::considerOpenings()
 	double nAlwaysWins = 0.0;
 	std::string alwaysWinsOnThisMap;
 	double nAlwaysWinsOnThisMap = 0.0;
-	for (auto item : openingInfo)
+	for (auto & item : openingInfo)
 	{
 		const OpeningInfoType & info = item.second;
 		if (info.sameWins + info.otherWins > 0 && info.sameWins + info.otherWins == info.sameGames + info.otherGames)
@@ -901,172 +848,92 @@ OpeningPlan OpponentModel::getBestGuessEnemyPlan() const
 // Look through past games and adjust our strategy weights appropriately
 std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
 {
+	std::map<std::string, double> result;
+	std::map<std::string, int> strategyCount;
+	std::map<std::string, int> strategyLosses;
+
     std::ostringstream log;
     log << "Deciding strategy weight factors:";
 
-    // Used to aggregate results for similar strategies, e.g. rush openings, DT openings, etc.
-    struct StrategyGroupType
-    {
-        int wins;
-        int games;
-
-        std::vector<int> playedAfter;   // How many times did we play a strategy in this group after playing it 1..5 games earlier?
-        std::vector<int> winsAfter;     // In how many of the above games did we win?
-        int lastPlayed;                 // How many games since we used a strategy in this group?
-
-        StrategyGroupType()
-            : wins(0)
-            , games(0)
-            , playedAfter({ 0, 0, 0, 0, 0 })
-            , winsAfter({ 0, 0, 0, 0, 0 })
-            , lastPlayed(0)
-        {}
-    };
-
-    auto getGroupLabel = [](std::string strategyName)
-    {
-        if (strategyName.find("Proxy") != std::string::npos ||
-            strategyName.find("9-9Gate") != std::string::npos)
+    // If we have a game record in the past 25 games where the enemy used the expected plan for this game,
+    // only consider games that used this plan
+    bool onlyConsiderSamePlan = false;
+    int count = 0;
+    if (_expectedEnemyPlan != OpeningPlan::Unknown)
+        for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 25; it++)
         {
-            return (std::string)"Rush";
+            if (!_gameRecord.sameMatchup(**it)) continue;
+            count++;
+
+            if ((*it)->getEnemyPlan() == _expectedEnemyPlan)
+            {
+                onlyConsiderSamePlan = true;
+                break;
+            }
         }
 
-        if (strategyName.find("DT") != std::string::npos)
-            return (std::string)"Dark Templar";
-
-        return strategyName;
-    };
-
-    // Used to score the individual strategies
-    struct StrategyInfoType
-    {
-        int wins;
-        int games;
-
-        double weight;  // Final score
-        int count;      // Used while computing the weight
-
-        StrategyInfoType()
-            : wins(0)
-            , games(0)
-            , weight(1.0)
-            , count(0) {}
-    };
-
-    // Step 1: Initial forward pass to initialize groups
-    std::map<std::string, StrategyGroupType> strategyGroups;
-    int count = 0;
-    for (auto it = _pastGameRecords.begin(); it != _pastGameRecords.end(); it++)
-    {
-        if (!_gameRecord.sameMatchup(**it)) continue;
-        count++;
-
-        auto strategyGroupName = getGroupLabel((*it)->getOpeningName());
-        StrategyGroupType & strategyGroup = strategyGroups[strategyGroupName];
-
-        strategyGroup.games++;
-        if ((*it)->getWin()) strategyGroup.wins++;
-        if (strategyGroup.lastPlayed > 0)
-            for (int i = 4; i >= count - strategyGroup.lastPlayed - 1; i--)
-            {
-                strategyGroup.playedAfter[i]++;
-                if ((*it)->getWin()) strategyGroup.winsAfter[i]++;
-            }
-        strategyGroup.lastPlayed = count;
-    }
-
-    // Step 2: Convert lastPlayed to be the offset from the end instead of the beginnning
-    for (auto & strategyGroup : strategyGroups)
-    {
-        strategyGroup.second.lastPlayed = count - strategyGroup.second.lastPlayed;
-        log << "\n" << strategyGroup.first << ": "
-            << strategyGroup.second.games << " game(s), "
-            << strategyGroup.second.wins << " win(s), "
-            << strategyGroup.second.lastPlayed << " game(s) since last played, "
-            << "repeat effectiveness: [" 
-            << strategyGroup.second.winsAfter[0] << ":" << strategyGroup.second.playedAfter[0] << "," 
-            << strategyGroup.second.winsAfter[1] << ":" << strategyGroup.second.playedAfter[1] << "," 
-            << strategyGroup.second.winsAfter[2] << ":" << strategyGroup.second.playedAfter[2] << "," 
-            << strategyGroup.second.winsAfter[3] << ":" << strategyGroup.second.playedAfter[3] << "," 
-            << strategyGroup.second.winsAfter[4] << ":" << strategyGroup.second.playedAfter[4] << "]";
-    }
-
-    // Step 3: Backwards pass to do the initial weighting based on wins/losses
+    // Compute a factor to adjust the weight for each strategy
     // More recent results are weighted more heavily
     // Results on the same map are weighted more heavily
-    std::map<std::string, StrategyInfoType> strategies;
     count = 0;
 	for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend(); it++)
 	{
 		if (!_gameRecord.sameMatchup(**it)) continue;
+        if (onlyConsiderSamePlan && (*it)->getEnemyPlan() != _expectedEnemyPlan) continue;
+
         count++;
         bool sameMap = (*it)->getMapName() == BWAPI::Broodwar->mapFileName();
 
-		auto& strategyName = (*it)->getOpeningName();
-        StrategyInfoType & strategy = strategies[strategyName];
+		auto& strategy = (*it)->getOpeningName();
 
-        log << "\n" << count << ": " << strategyName << " " << ((*it)->getWin() ? "won" : "lost") << " on " << (*it)->getMapName() << ". ";
+        log << "\n" << count << ": " << strategy << " " << ((*it)->getWin() ? "won" : "lost") << " on " << (*it)->getMapName() << ". ";
 
-        // Age based on how many games with this strategy we have seen
-        strategy.count++;
-        double aging = std::pow(strategy.count, 1.1);
-        log << "Aging factor " << aging << "; initial weight " << strategy.weight;
+		if (result.find(strategy) == result.end())
+		{
+            result[strategy] = 1.0;
+			strategyCount[strategy] = 0;
+            strategyLosses[strategy] = 0;
+		}
+
+		double factor = result[strategy];
+		strategyCount[strategy] = strategyCount[strategy] + 1;
+        
+        double aging = std::pow(strategyCount[strategy], 1.1);
+
+        log << "Aging factor " << aging << "; initial weight " << factor;
 
         if ((*it)->getWin())
         {
-            strategy.weight *= 1.0 + (sameMap ? 0.6 : 0.4) / aging;
+            factor *= 1.0 + (sameMap ? 0.6 : 0.4) / aging;
         }
         else
         {
-            strategy.weight *= 1.0 - (sameMap ? 0.7 : 0.5) / aging;
+            factor *= 1.0 - (sameMap ? 0.7 : 0.5) / aging;
+            strategyLosses[strategy] = strategyLosses[strategy] + 1;
         }
 
-        log << "; updated to " << strategy.weight;
+        log << "; updated to " << factor;
+
+		result[strategy] = factor;
 	}
 
-    // Step 4: Adjust weights based on overall metrics
-    // - Penalize strategies that have never won
-    // - Penalize strategies that generally work at lower frequency and we have recently played
-    for (auto & strategyPair : strategies)
+    // Analyze the losses
+    for (auto it = strategyLosses.begin(); it != strategyLosses.end(); it++)
     {
-        auto & strategy = strategyPair.second;
-
-        // Penalize heavily if we have played this strategy at least 3 times and never won
-        if (strategy.games >= 3 && strategy.wins == 0)
+        // Any strategies that have never lost are given a boost
+        if (it->second == 0)
         {
-            strategy.weight *= 0.1;
-            log << "\nLowering " << strategyPair.first << " to " << strategy.weight << " as it has never won";
+            result[it->first] = result[it->first] * 2;
+            log << "\nBoosting " << it->first << " to " << result[it->first] << " as it has never lost";
         }
 
-        // Penalize moderately if this strategy tends to work best at a lower frequency
-        // No need to do this is the strategy has never won or if we have no frequency data
-        auto& strategyGroup = strategyGroups[getGroupLabel(strategyPair.first)];
-        if (strategyGroup.wins > 0 && strategyGroup.lastPlayed <= 4 && strategyGroup.playedAfter[4] > 0)
+        // Any strategies that have been played at least 3 times and always lost are given a large penalty
+        if (it->second >= 3 && strategyCount[it->first] == it->second)
         {
-            // Find the win ratio at this frequency or higher
-            double frequencyEffectiveness = 0.0;
-            for (int i = 0; i <= strategyGroup.lastPlayed; i++)
-            {
-                if (strategyGroup.playedAfter[i] == 0) continue;
-                double thisEfficiency = (double)strategyGroup.winsAfter[i] / (double)strategyGroup.playedAfter[i];
-                frequencyEffectiveness = std::max(frequencyEffectiveness, thisEfficiency);
-            }
-
-            // Make it a ratio of this frequency efficiency to the overall efficiency, capping it at 1.0
-            double overallEfficiency = (double)strategyGroup.wins / (double)strategyGroup.games;
-            double factor = std::min(1.0, 0.5 + 0.5 * frequencyEffectiveness / overallEfficiency);
-            strategy.weight *= factor;
-
-            log << "\nEffectiveness of " << strategyPair.first << " at this frequency: " << frequencyEffectiveness 
-                << "; overall efficiency: " << overallEfficiency 
-                << "; adjusting weight by " << factor << " to " << strategy.weight;
+            result[it->first] = result[it->first] * 0.1;
+            log << "\nLowering " << it->first << " to " << result[it->first] << " as it has never won";
         }
     }
-
-    // Finally collect everything into one result map
-    std::map<std::string, double> result;
-    for (auto & strategyPair : strategies)
-        result[strategyPair.first] = strategyPair.second.weight;
 
     Log().Debug() << log.str();
 

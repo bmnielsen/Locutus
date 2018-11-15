@@ -16,8 +16,9 @@
         private const string BaseDir = "C:\\Users\\bmn\\AppData\\Roaming\\scbw";
         //private const string BotName = "Locutus";
         //private const string BotSource = "C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll";
-        private const string BotName = "Hugh";
-        private const string BotSource = "C:\\Dev\\BW\\Hugh\\Release\\ExampleAIModule.dll";
+        private const string BotName = "Locutus";
+        private const string BotDestination = "Newcutus";
+        private const string BotSource = "C:\\Dev\\BW\\Newcutus\\VisualStudio\\Release\\Locutus.dll";
 
         private const int ShortTimeout = 60;
         private const int MediumTimeout = 300;
@@ -156,7 +157,7 @@
                 {
                     try
                     {
-                        File.Copy(BotSource, $"{BaseDir}\\bots\\{BotName}\\AI\\{BotName}.dll", true);
+                        File.Copy(BotSource, $"{BaseDir}\\bots\\{BotDestination}\\AI\\{BotName}.dll", true);
                         File.Copy("C:\\Dev\\BW\\Locutus\\Locutus.json", $"{BaseDir}\\bots\\{BotName}\\AI\\Locutus.json", true);
                         break;
                     }
@@ -175,8 +176,8 @@
 
             if (args.Contains("clean"))
             {
-                ClearDirectory($"{BaseDir}\\bots\\{BotName}\\read");
-                ClearDirectory($"{BaseDir}\\bots\\{BotName}\\write");
+                ClearDirectory($"{BaseDir}\\bots\\{BotDestination}\\read");
+                ClearDirectory($"{BaseDir}\\bots\\{BotDestination}\\write");
                 ClearDirectory($"{BaseDir}\\bots\\{opponent}\\read");
                 ClearDirectory($"{BaseDir}\\bots\\{opponent}\\write");
             }
@@ -297,7 +298,7 @@
             var headless = isHeadless ? "--headless" : string.Empty;
             var timeoutParam = timeout > 0 ? "--timeout " + timeout : string.Empty;
             var overwriteParam = noOverwrite ? string.Empty : "--read_overwrite";
-            var args = $"--bots \"{BotName}\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} {overwriteParam}";
+            var args = $"--bots \"{BotDestination}\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} {overwriteParam}";
 
             currentGame = new GameData();
 
@@ -328,8 +329,8 @@
                 }
 
                 // Output our log to console
-                CheckLogFile($"{BaseDir}\\bots\\{BotName}\\write\\GAME_{currentGame.Id}_0\\{BotName}_ErrorLog.txt", "Err: ");
-                CheckLogFile($"{BaseDir}\\bots\\{BotName}\\write\\GAME_{currentGame.Id}_0\\{BotName}_log.txt", "Log: ");
+                CheckLogFile($"{BaseDir}\\bots\\{BotDestination}\\write\\GAME_{currentGame.Id}_0\\{BotName}_ErrorLog.txt", "Err: ");
+                CheckLogFile($"{BaseDir}\\bots\\{BotDestination}\\write\\GAME_{currentGame.Id}_0\\{BotName}_log.txt", "Log: ");
 
                 // Process output files
                 ProcessOutputFiles(opponent, map, showReplay);
@@ -501,7 +502,7 @@
         private static bool IsGameOver(string opponent)
         {
             // Check logs for repeated "waiting for players" messages
-            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{BotName}_game.log";
+            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{BotDestination}_game.log";
             var opponentLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{opponent.Replace(' ', '_')}_game.log";
             foreach (var line in GetNewLinesFromFile(myLogFilename).Concat(GetNewLinesFromFile(opponentLogFilename)))
             {

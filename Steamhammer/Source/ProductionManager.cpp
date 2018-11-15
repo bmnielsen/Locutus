@@ -780,6 +780,15 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 		_predictedTilePosition = BuildingManager::Instance().getBuildingLocation(b);
 	}
 
+    // If the predicted tile position is a long way away from our main, and we have another pylon
+    // being built, wait
+    if (_predictedTilePosition.getApproxDistance(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition()) > 30 &&
+        BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Pylon))
+    {
+        _predictedTilePosition = BWAPI::TilePositions::None;
+        return;
+    }
+
 	if (_predictedTilePosition != BWAPI::TilePositions::None)
 	{
 		_haveLocationForThisBuilding = true;
