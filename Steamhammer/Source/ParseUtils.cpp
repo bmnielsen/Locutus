@@ -263,9 +263,32 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
         {
             const rapidjson::Value & specific = strategy["MapSpecificStrategy"];
 
-            // Check for a race-specific strategy for this map
-            std::string mapSpecificVersus = BWAPI::Broodwar->mapHash() + " v" + RaceChar(BWAPI::Broodwar->enemy()->getRace());
-            if (specific.HasMember(mapSpecificVersus.c_str()))
+			
+			std::string mapSpecificVersusEnemyName = BWAPI::Broodwar->mapHash() + " vN";
+
+			std::string mapSpecificVersus = BWAPI::Broodwar->mapHash() + " v" + RaceChar(BWAPI::Broodwar->enemy()->getRace());
+
+			// Check for a name-specific strategy for this map
+			if (specific.HasMember(mapSpecificVersusEnemyName.c_str())) {
+				const rapidjson::Value & specific_name = specific[mapSpecificVersusEnemyName.c_str()];
+				const std::string enemyName = InformationManager::Instance().getEnemyName();
+				// check to see if our current enemy name is listed in the specific strategies
+				if (specific_name.HasMember(enemyName.c_str()))
+				{
+					std::string strategyName;
+
+					// if that enemy has a strategy listed for our current race, use it                                              
+					if (_ParseStrategy(specific_name[enemyName.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))
+					{
+						Config::Strategy::StrategyName = strategyName;
+						Config::Strategy::FoundEnemySpecificStrategy = true;   // defaults to false; see Config.cpp
+						openingStrategyDecided = true;
+						Log().Get() << "name-specific StrategyName " << strategyName << " maphash " << mapSpecificVersus << " enemyname " << enemyName;
+					}
+				}
+			} 
+			// Check for a race-specific strategy for this map
+			if (specific.HasMember(mapSpecificVersus.c_str()) && !openingStrategyDecided) 
             {
                 std::string strategyName;
                 if (_ParseStrategy(specific[mapSpecificVersus.c_str()], strategyName, mapWeightString, ourRaceStr, strategyCombos, strategyWeightFactors))

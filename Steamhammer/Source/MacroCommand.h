@@ -26,6 +26,7 @@ enum class MacroCommandType
 	, Nonadaptive
 	, GiveUp
 	, QueueBarrier
+	, PrepareProxy
 	};
 
 class MacroCommand
@@ -57,6 +58,7 @@ public:
 			, MacroCommandType::Nonadaptive
 			, MacroCommandType::GiveUp
 			, MacroCommandType::QueueBarrier
+			, MacroCommandType::PrepareProxy
 		};
 	}
 
@@ -177,6 +179,10 @@ public:
 		if (t == MacroCommandType::QueueBarrier)
 		{
 			return "go queue barrier";
+		}
+		if (t == MacroCommandType::PrepareProxy)
+		{
+			return "go prepare proxy";
 		}
 
 		UAB_ASSERT(t == MacroCommandType::None, "unrecognized MacroCommandType");

@@ -1018,3 +1018,10 @@ bool WorkerManager::maybeMineMineralBlocks(BWAPI::Unit worker)
 
 	return false;
 }
+
+bool UAlbertaBot::WorkerManager::isMoveWorker(BWAPI::Unit worker)
+{
+	UAB_ASSERT(worker, "Worker was null");
+
+	return workerData.getWorkerJob(worker) == WorkerData::Move;
+}

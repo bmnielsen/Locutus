@@ -5,6 +5,7 @@
 #include "ScoutManager.h"
 #include "StrategyBossZerg.h"
 #include "UnitUtil.h"
+#include "Random.h"
 
 using namespace UAlbertaBot;
 
@@ -19,7 +20,13 @@ StrategyManager::StrategyManager()
 	, _hasDropTech(false)
 	, _highWaterBases(1)
 	, _openingStaticDefenseDropped(false)
+	, _predModel(PredictModel::Instance()) // by pfan8, 20181002, predict model member init
 {
+	_CitadelQueued = false;
+	_ArchiveQueued = false;
+	_SneakDone = false;
+	_enemyProxyDetected = false;
+	_enemyZealotRushDetected = false;
 }
 
 StrategyManager & StrategyManager::Instance() 
@@ -129,8 +136,9 @@ void StrategyManager::initializeOpening()
     // Is the build a rush build?
     _rushing = 
         Config::Strategy::StrategyName == "9-9Gate" ||
-        Config::Strategy::StrategyName == "9-9GateDefensive" ||
-        Config::Strategy::StrategyName == "Proxy9-9Gate";
+        //Config::Strategy::StrategyName == "9-9GateDefensive" ||	// by wei guo 20180927
+        Config::Strategy::StrategyName == "Proxy9-9Gate" ||
+		Config::Strategy::StrategyName == "Proxy9-9GateCSE";
 
     if (_rushing) Log().Get() << "Enabled rush mode";
 }
@@ -138,6 +146,162 @@ void StrategyManager::initializeOpening()
 const std::string & StrategyManager::getOpeningGroup() const
 {
 	return _openingGroup;
+}
+
+bool UAlbertaBot::StrategyManager::almostSeenHisWholeBase()
+{
+	BWTA::BaseLocation *enemyMainBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
+
+	if (!enemyMainBaseLocation)
+	{
+		return false;
+	}
+
+	if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301")
+	{
+		return shouldSeenHisWholeBase();
+	}
+
+	static int nFirstSeenEnemyNexusTime = -1;
+
+	if (nFirstSeenEnemyNexusTime == -1)
+	{
+		for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+		{
+			if (kv.second.type == BWAPI::UnitTypes::Protoss_Nexus
+				&& kv.second.completed
+				&& BWTA::getRegion(kv.second.lastPosition) == enemyMainBaseLocation->getRegion())
+			{
+				nFirstSeenEnemyNexusTime = BWAPI::Broodwar->getFrameCount();
+				break;
+			}
+		}
+	}
+	else if (BWAPI::Broodwar->getFrameCount() - nFirstSeenEnemyNexusTime > 100)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool UAlbertaBot::StrategyManager::shouldSeenHisWholeBase()
+{
+	BWTA::BaseLocation *enemyMainBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
+
+	if (!enemyMainBaseLocation)
+	{
+		return false;
+	}
+
+	BWAPI::TilePosition EnemyBaseUpTile = enemyMainBaseLocation->getTilePosition() + BWAPI::TilePosition(0, -8);
+	BWAPI::TilePosition EnemyBaseDownTile = enemyMainBaseLocation->getTilePosition() + BWAPI::TilePosition(0, +13);
+	BWAPI::TilePosition EnemyBaseLeftTile = enemyMainBaseLocation->getTilePosition() + BWAPI::TilePosition(-8, 0);
+	BWAPI::TilePosition EnemyBaseRightTile = enemyMainBaseLocation->getTilePosition() + BWAPI::TilePosition(+13, 0);
+
+	static bool bIsEnemyUpTileScouted = false;
+	static bool bIsEnemyDownTileScouted = false;
+	static bool bIsEnemyLeftTileScouted = false;
+	static bool bIsEnemyRightTileScouted = false;
+
+	if (!EnemyBaseUpTile.isValid() ||
+		BWTA::getRegion(BWAPI::Position(EnemyBaseUpTile)) != enemyMainBaseLocation->getRegion() ||
+		BWAPI::Broodwar->isVisible(EnemyBaseUpTile))
+	{
+		bIsEnemyUpTileScouted = true;
+	}
+
+	if (!EnemyBaseDownTile.isValid() ||
+		BWTA::getRegion(BWAPI::Position(EnemyBaseDownTile)) != enemyMainBaseLocation->getRegion() ||
+		BWAPI::Broodwar->isVisible(EnemyBaseDownTile))
+	{
+		bIsEnemyDownTileScouted = true;
+	}
+
+	if (!EnemyBaseLeftTile.isValid() ||
+		BWTA::getRegion(BWAPI::Position(EnemyBaseLeftTile)) != enemyMainBaseLocation->getRegion() ||
+		BWAPI::Broodwar->isVisible(EnemyBaseLeftTile))
+	{
+		bIsEnemyLeftTileScouted = true;
+	}
+
+	if (!EnemyBaseRightTile.isValid() ||
+		BWTA::getRegion(BWAPI::Position(EnemyBaseRightTile)) != enemyMainBaseLocation->getRegion() ||
+		BWAPI::Broodwar->isVisible(EnemyBaseRightTile))
+	{
+		bIsEnemyRightTileScouted = true;
+	}
+
+	return bIsEnemyUpTileScouted && bIsEnemyDownTileScouted && bIsEnemyLeftTileScouted && bIsEnemyRightTileScouted;
+}
+
+bool UAlbertaBot::StrategyManager::checkIfIndicateProxy()
+{
+	BWTA::BaseLocation *pMyMain = InformationManager::Instance().getMyMainBaseLocation();
+	BWTA::BaseLocation *pEnemyMain = InformationManager::Instance().getEnemyMainBaseLocation();
+
+	if (!pMyMain || !pEnemyMain)
+	{
+		return false;
+	}
+
+	int nEnemyBaseGate = 0;
+	int nEnemyNexus = 0;
+	int nEnemyForge = 0;
+
+	for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+	{
+		const UnitInfo & ui(kv.second);
+		BWAPI::Position unitPos = ui.lastPosition;
+
+		if (ui.type == BWAPI::UnitTypes::Protoss_Gateway 
+			&& BWTA::getRegion(ui.lastPosition) == pEnemyMain->getRegion())
+		{
+			nEnemyBaseGate++;
+		}
+		else if (ui.type == BWAPI::UnitTypes::Protoss_Nexus)
+		{
+			nEnemyNexus++;
+		}
+		else if (ui.type == BWAPI::UnitTypes::Protoss_Forge)
+		{
+			nEnemyForge++;
+		}
+	}
+
+	if (nEnemyNexus >= 2)
+		return false;
+
+	if (nEnemyForge >= 1)
+		return false;
+
+	if (nEnemyBaseGate >= 1)
+		return false;
+
+	if (ScoutManager::Instance().getWorkerScout())
+	{
+		int nMyCompletedGate = 0;
+		for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway && unit->isCompleted())
+			{
+				nMyCompletedGate++;
+			}
+		}
+
+		if (nMyCompletedGate >= 1 && nEnemyBaseGate == 0)
+		{
+			Log().Get() << "Enemy dont have in-base gate, they may have proxy buildings!";
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void UAlbertaBot::StrategyManager::changeOpeningGroup(const std::string & openinggroup)
+{
+	_openingGroup = openinggroup;
 }
 
 const MetaPairVector StrategyManager::getBuildOrderGoal()
@@ -157,6 +321,528 @@ const MetaPairVector StrategyManager::getBuildOrderGoal()
 
     return MetaPairVector();
 }
+
+// by pfan8, 20181002, get predict Unit through MLP Model
+const	BWAPI::UnitType	StrategyManager::getPredictUnitType(BWAPI::Race enemyRace)
+{
+	// the goal to return
+	BWAPI::UnitType predictType;
+
+	std::vector<double> features;
+	// extract features
+	std::vector<int> interval;
+	std::vector<int> bf;
+	int frameValue = BWAPI::Broodwar->getFrameCount();
+	int mineralValue = BWAPI::Broodwar->self()->minerals();
+	int gatheredMineralValue = BWAPI::Broodwar->self()->gatheredMinerals();
+	int gaslValue = BWAPI::Broodwar->self()->gas();
+	int gatheredGasValue = BWAPI::Broodwar->self()->gatheredGas();
+	int supplyUsedValue = BWAPI::Broodwar->self()->supplyUsed();
+	int supplyTotalValue = BWAPI::Broodwar->self()->supplyTotal();
+	/*interval = { 6 * 1440, 12 * 1440, 20 * 1440, 30 * 1440, 1000 * 1440 };
+	bf = getBinaryFeature(frameValue, interval);
+	features.reserve(features.size() + bf.size());
+	std::move(std::begin(bf), std::end(bf), std::back_inserter(features));
+
+	interval = { 50, 100, 200, 300, 500, 800, 1200, 100000 };
+	bf = getBinaryFeature(mineralValue, interval);
+	features.reserve(features.size() + bf.size());
+	std::move(std::begin(bf), std::end(bf), std::back_inserter(features));
+
+	interval = { 5000, 10000, 20000, 30000, 40000, 50000, 60000, 100000 };
+	bf = getBinaryFeature(gatheredMineralValue, interval);
+	features.reserve(features.size() + bf.size());
+	std::move(std::begin(bf), std::end(bf), std::back_inserter(features));
+
+	interval = { 50, 100, 200, 300, 500, 800, 1200, 100000 };
+	bf = getBinaryFeature(gaslValue, interval);
+	features.reserve(features.size() + bf.size());
+	std::move(std::begin(bf), std::end(bf), std::back_inserter(features));
+
+	interval = { 1000, 3000, 5000, 10000, 20000, 30000, 40000, 100000 };
+	bf = getBinaryFeature(gatheredGasValue, interval);
+	features.reserve(features.size() + bf.size());
+	std::move(std::begin(bf), std::end(bf), std::back_inserter(features));
+
+	interval = { 9, 18, 27, 36, 45, 63, 81, 120, 150, 200, 1000 };
+	bf = getBinaryFeature(supplyUsedValue, interval);
+	features.reserve(features.size() + bf.size());
+	std::move(std::begin(bf), std::end(bf), std::back_inserter(features));
+
+	bf = getBinaryFeature(supplyTotalValue, interval);
+	features.reserve(features.size() + bf.size());
+	std::move(std::begin(bf), std::end(bf), std::back_inserter(features));*/
+
+	//Resourses
+	features.push_back(frameValue);
+	features.push_back(mineralValue);
+	features.push_back(gatheredMineralValue);
+	features.push_back(gaslValue);
+	features.push_back(gatheredGasValue);
+	features.push_back(supplyUsedValue);
+	features.push_back(supplyTotalValue);
+
+	UAB_ASSERT(features.size() == 7, "Extract Resource Features error");
+	int numObserver = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer);
+	int numCarrier = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Carrier);
+	int numConsair = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Corsair);
+	int numShuttle = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Shuttle);
+	int numProbe = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe);
+	int numZealot = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Zealot);
+	int numReaver = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Reaver);
+	int numDragoon = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dragoon);
+	int numArbiter = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Arbiter);
+	int numScout = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Scout);
+	int numInterceptor = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Interceptor);
+	int numHighTemplar = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_High_Templar);
+	int numDarkTemplar = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar);
+	int numArchon = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Archon);
+	int numDarkArchon = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dark_Archon);
+
+	// Units
+	features.push_back(numDragoon);
+	features.push_back(numZealot);
+	features.push_back(numProbe);
+	features.push_back(numReaver);
+	features.push_back(numObserver);
+	features.push_back(numCarrier);
+	features.push_back(numArbiter);
+	features.push_back(numConsair);
+	features.push_back(numShuttle);
+	features.push_back(numScout);
+	features.push_back(numInterceptor);
+	features.push_back(numHighTemplar);
+	features.push_back(numDarkTemplar);
+	features.push_back(numArchon);
+	features.push_back(numDarkArchon);
+	// Buildings
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Pylon));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Assimilator));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Gateway));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Stargate));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Support_Bay));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observatory));
+	features.push_back(UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Shield_Battery));
+	// Upgrades
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Protoss_Ground_Armor));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Protoss_Air_Armor));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Protoss_Ground_Weapons));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Protoss_Air_Weapons));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Singularity_Charge));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Leg_Enhancements));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Protoss_Plasma_Shields));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Carrier_Capacity));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Scarab_Damage));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Reaver_Capacity));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Gravitic_Drive));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Sensor_Array));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Gravitic_Boosters));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Khaydarin_Amulet));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Apial_Sensors));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Gravitic_Thrusters));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Khaydarin_Core));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Argus_Jewel));
+	features.push_back(_predModel.getUpgradeFeature(BWAPI::UpgradeTypes::Argus_Talisman));
+	//Researchs
+	features.push_back(_predModel.getResearchFeature(BWAPI::TechTypes::Psionic_Storm));
+	features.push_back(_predModel.getResearchFeature(BWAPI::TechTypes::Hallucination));
+	features.push_back(_predModel.getResearchFeature(BWAPI::TechTypes::Recall));
+	features.push_back(_predModel.getResearchFeature(BWAPI::TechTypes::Disruption_Web));
+	features.push_back(_predModel.getResearchFeature(BWAPI::TechTypes::Mind_Control));
+	features.push_back(_predModel.getResearchFeature(BWAPI::TechTypes::Maelstrom));
+
+	if (enemyRace == BWAPI::Races::Zerg)
+	{
+		std::vector<int> Zerg_Enemy(33, 0);
+		for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+		{
+			const UnitInfo & ui(kv.second);
+			if (ui.type == BWAPI::UnitTypes::Zerg_Broodling)
+				Zerg_Enemy[0] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Defiler)
+				Zerg_Enemy[1] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Drone)
+				Zerg_Enemy[2] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Egg)
+				Zerg_Enemy[3] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Hydralisk)
+				Zerg_Enemy[4] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Larva)
+				Zerg_Enemy[5] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Lurker)
+				Zerg_Enemy[6] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Lurker_Egg)
+				Zerg_Enemy[7] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Ultralisk)
+				Zerg_Enemy[8] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Zergling)
+				Zerg_Enemy[9] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Cocoon)
+				Zerg_Enemy[10] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Devourer)
+				Zerg_Enemy[11] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Guardian)
+				Zerg_Enemy[12] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Mutalisk)
+				Zerg_Enemy[13] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Overlord)
+				Zerg_Enemy[14] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Queen)
+				Zerg_Enemy[15] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Scourge)
+				Zerg_Enemy[16] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Creep_Colony)
+				Zerg_Enemy[17] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Defiler_Mound)
+				Zerg_Enemy[18] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Evolution_Chamber)
+				Zerg_Enemy[19] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Extractor)
+				Zerg_Enemy[20] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Greater_Spire)
+				Zerg_Enemy[21] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Hatchery)
+				Zerg_Enemy[22] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Hive)
+				Zerg_Enemy[23] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Hydralisk_Den)
+				Zerg_Enemy[24] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Lair)
+				Zerg_Enemy[25] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+				Zerg_Enemy[26] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Queens_Nest)
+				Zerg_Enemy[27] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Spawning_Pool)
+				Zerg_Enemy[28] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Spire)
+				Zerg_Enemy[29] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Spore_Colony)
+				Zerg_Enemy[30] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Sunken_Colony)
+				Zerg_Enemy[31] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Zerg_Ultralisk_Cavern)
+				Zerg_Enemy[32] += 1;
+			else
+				continue;
+		}
+		features.reserve(features.size() + Zerg_Enemy.size());
+		std::move(std::begin(Zerg_Enemy), std::end(Zerg_Enemy), std::back_inserter(features));
+		_predModel.normalize_feature_pvz(features);
+		UAB_ASSERT(features.size() == ZERG_FEATURE_NUM, "Extract unit Features error");
+	}
+	else if (enemyRace == BWAPI::Races::Terran)
+	{
+		std::vector<int> Terran_Enemy(34, 0);
+		for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+		{
+			const UnitInfo & ui(kv.second);
+			if (ui.type == BWAPI::UnitTypes::Terran_Firebat)
+				Terran_Enemy[0] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Ghost)
+				Terran_Enemy[1] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Goliath)
+				Terran_Enemy[2] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Marine)
+				Terran_Enemy[3] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Medic)
+				Terran_Enemy[4] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_SCV)
+				Terran_Enemy[5] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+				Terran_Enemy[6] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
+				Terran_Enemy[7] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Vulture)
+				Terran_Enemy[8] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
+				Terran_Enemy[9] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Battlecruiser)
+				Terran_Enemy[10] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Dropship)
+				Terran_Enemy[11] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Nuclear_Missile)
+				Terran_Enemy[12] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Science_Vessel)
+				Terran_Enemy[13] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Valkyrie)
+				Terran_Enemy[14] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Wraith)
+				Terran_Enemy[15] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Academy)
+				Terran_Enemy[16] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Armory)
+				Terran_Enemy[17] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Barracks)
+				Terran_Enemy[18] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Bunker)
+				Terran_Enemy[19] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Command_Center)
+				Terran_Enemy[20] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Engineering_Bay)
+				Terran_Enemy[21] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Factory)
+				Terran_Enemy[22] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Missile_Turret)
+				Terran_Enemy[23] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Refinery)
+				Terran_Enemy[24] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Science_Facility)
+				Terran_Enemy[25] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Starport)
+				Terran_Enemy[26] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Supply_Depot)
+				Terran_Enemy[27] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Comsat_Station)
+				Terran_Enemy[28] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Control_Tower)
+				Terran_Enemy[29] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Covert_Ops)
+				Terran_Enemy[30] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Machine_Shop)
+				Terran_Enemy[31] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Nuclear_Silo)
+				Terran_Enemy[32] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Terran_Physics_Lab)
+				Terran_Enemy[33] += 1;
+			else
+				continue;
+		}
+		features.reserve(features.size() + Terran_Enemy.size());
+		std::move(std::begin(Terran_Enemy), std::end(Terran_Enemy), std::back_inserter(features));
+		_predModel.normalize_feature_pvt(features);
+		UAB_ASSERT(features.size() == TERRAN_FEATURE_NUM, "Extract unit Features error");
+	}
+	else
+	{
+		std::vector<int> Protoss_Enemy(32, 0);
+		for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+		{
+			const UnitInfo & ui(kv.second);
+			if (ui.type == BWAPI::UnitTypes::Protoss_Archon)
+				Protoss_Enemy[0] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Dark_Archon)
+				Protoss_Enemy[1] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar)
+				Protoss_Enemy[2] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Dragoon)
+				Protoss_Enemy[3] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_High_Templar)
+				Protoss_Enemy[4] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Probe)
+				Protoss_Enemy[5] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Reaver)
+				Protoss_Enemy[6] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Scarab)
+				Protoss_Enemy[7] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Zealot)
+				Protoss_Enemy[8] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Arbiter)
+				Protoss_Enemy[9] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Carrier)
+				Protoss_Enemy[10] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Corsair)
+				Protoss_Enemy[11] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Interceptor)
+				Protoss_Enemy[12] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Observer)
+				Protoss_Enemy[13] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Scout)
+				Protoss_Enemy[14] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Shuttle)
+				Protoss_Enemy[15] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Arbiter_Tribunal)
+				Protoss_Enemy[16] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Assimilator)
+				Protoss_Enemy[17] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun)
+				Protoss_Enemy[18] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Cybernetics_Core)
+				Protoss_Enemy[19] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Fleet_Beacon)
+				Protoss_Enemy[20] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Forge)
+				Protoss_Enemy[21] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Gateway)
+				Protoss_Enemy[22] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Nexus)
+				Protoss_Enemy[23] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Observatory)
+				Protoss_Enemy[24] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+				Protoss_Enemy[25] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Pylon)
+				Protoss_Enemy[26] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Robotics_Facility)
+				Protoss_Enemy[27] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Robotics_Support_Bay)
+				Protoss_Enemy[28] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Shield_Battery)
+				Protoss_Enemy[29] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Stargate)
+				Protoss_Enemy[30] += 1;
+			else if (ui.type == BWAPI::UnitTypes::Protoss_Templar_Archives)
+				Protoss_Enemy[31] += 1;
+			else
+				continue;
+		}
+		features.reserve(features.size() + Protoss_Enemy.size());
+		std::move(std::begin(Protoss_Enemy), std::end(Protoss_Enemy), std::back_inserter(features));
+		_predModel.normalize_feature_pvp(features);
+		UAB_ASSERT(features.size() == PROTOSS_FEATURE_NUM, "Extract unit Features error");
+	}
+	//BWAPI::Broodwar->printf("features size: %d", features.size());
+	int numGateways = 0;
+	int numStargates = 0;
+	int numForges = 0;
+	int idleGateways = 0;
+	int idleStargates = 0;
+	int idleRoboFacilities = 0;
+	int idleForges = 0;
+	int idleCyberCores = 0;
+	bool gatewaysAreAtProxy = true;
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+		if (unit->isCompleted()
+			&& (!unit->getType().requiresPsi() || unit->isPowered()))
+		{
+			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway)
+			{
+				numGateways++;
+				gatewaysAreAtProxy = gatewaysAreAtProxy && BuildingPlacer::Instance().isCloseToProxyBlock(unit);
+			}
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Stargate)
+				numStargates++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge)
+				numForges++;
+
+			if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway
+				&& unit->getRemainingTrainTime() < 12)
+				idleGateways++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Stargate
+				&& unit->getRemainingTrainTime() < 12)
+				idleStargates++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Robotics_Facility
+				&& unit->getRemainingTrainTime() < 12)
+				idleRoboFacilities++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge
+				&& unit->getRemainingUpgradeTime() < 12)
+				idleForges++;
+			else if (unit->getType() == BWAPI::UnitTypes::Protoss_Cybernetics_Core
+				&& unit->getRemainingUpgradeTime() < 12)
+				idleCyberCores++;
+		}
+	_predModel.setEnemyRace(enemyRace);
+	vector<double> predictProb = _predModel.getPredictUnits(features);
+	// calculate Gateway units create ratio
+	int trainNumDragoon = 1;
+	int trainNumZealot = 1;
+	int trainNumDarkTemplar = 1;
+	double denominator = predictProb[5] + predictProb[6] + predictProb[9];
+	if (denominator != 0)
+	{
+		trainNumDarkTemplar = (int)((predictProb[5] / denominator) * idleGateways + 0.5);
+		trainNumDragoon = (int)((predictProb[6] / denominator) * idleGateways + 0.5);
+		trainNumZealot = (int)((predictProb[9] / denominator) * idleGateways + 0.5);
+	}
+	vector<size_t> predictUnits = _predModel.sort_indexes(predictProb);
+	vector<size_t> predGateUnits;
+	vector<size_t> predRoboUnits;
+	vector<size_t> predStarUnits;
+	vector<size_t> predForgeUpgrades;
+	vector<size_t> predCyberCoreUpgrades;
+	vector<size_t> predOthers;
+	_predModel.count++;
+	int k = 0;
+	int topNum = 1;
+	for (int i = 0; i < predictUnits.size(); i++)
+	{
+		if (predictUnits[i] < 3)
+			predStarUnits.insert(predStarUnits.begin(), predictUnits[i]);
+		else if (predictUnits[i] < 5 || predictUnits[i] == 8)
+			predRoboUnits.insert(predRoboUnits.begin(), predictUnits[i]);
+		else if (predictUnits[i] < 7 || predictUnits[i] == 9)
+			predGateUnits.insert(predGateUnits.begin(), predictUnits[i]);
+		//else if (predictUnits[i] == 24 || predictUnits[i] == 26 || predictUnits[i] == 28)
+		//	predForgeUpgrades.insert(predForgeUpgrades.begin(), predictUnits[i]);
+		//else if (predictUnits[i] == 25 || predictUnits[i] == 27 || predictUnits[i] == 29)
+		//	predCyberCoreUpgrades.insert(predCyberCoreUpgrades.begin(), predictUnits[i]);
+		else
+			predOthers.insert(predOthers.begin(), predictUnits[i]);
+	}
+	int maxProbes = WorkerManager::Instance().getMaxWorkers();
+	BWAPI::Player self = BWAPI::Broodwar->self();
+	BWAPI::UpgradeType upgrade;
+	int currentLevel = 0;
+	while (k < topNum) {
+		int predictUnit;
+		if (idleGateways > 0)
+		{
+			predictUnit = predGateUnits.back();
+			predGateUnits.pop_back();
+			idleGateways--;
+		}
+		else if (idleStargates > 0)
+		{
+			predictUnit = predStarUnits.back();
+			predStarUnits.pop_back();
+			idleStargates--;
+		}
+		else if (idleRoboFacilities > 0)
+		{
+			predictUnit = predRoboUnits.back();
+			predRoboUnits.pop_back();
+			idleRoboFacilities--;
+		}
+		//else if (idleForges > 0)
+		//{
+		//	predictUnit = predForgeUpgrades.back();
+		//	predForgeUpgrades.pop_back();
+		//}
+		//else if (idleCyberCores > 0)
+		//{
+		//	predictUnit = predCyberCoreUpgrades.back();
+		//	predCyberCoreUpgrades.pop_back();
+		//}
+		else
+		{
+			predictUnit = predOthers.back();
+			predOthers.pop_back();
+		}
+		k++;
+		//BWAPI::Broodwar->printf("%d predict unit: %d", _predModel.count, predictUnit);
+		switch (predictUnit)
+		{
+		case 0:
+			break;
+		case 6:
+			//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoon + trainNumDragoon));
+			predictType = BWAPI::UnitTypes::Protoss_Dragoon;
+			break;
+		case 9:
+			//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Zealot, numZealot + trainNumZealot));
+			predictType = BWAPI::UnitTypes::Protoss_Zealot;
+			break;
+		default:
+			//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Probe, 1));
+			break;
+		}
+	}
+	//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, 1));
+	/*if ((numDarkTemplar > 2) || (numZealot > 5) || (numDragoon > 5))
+	CombatCommander::Instance().setAggression(true);
+	else
+	CombatCommander::Instance().setAggression(false);*/
+	return predictType;
+}
+
 
 const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 {
@@ -272,7 +958,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
             getZealotSpeed = true;
     }
-	else if (_openingGroup == "dragoons" || _openingGroup == "drop")
+	else if (_openingGroup == "dragoons" || _openingGroup == "drop" || _openingGroup == "cse")
 	{
 		getGoonRange = true;
 		goonRatio = 1.0;
@@ -339,6 +1025,16 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
                 zealotRatio = 1.0;
                 goonRatio = 0.0;
             }
+			else
+			{
+				// by pfan8, 20181002, get predict Unit through MLP Model
+				auto predType = (_enemyRace == BWAPI::Races::Terran) ? getPredictUnitType(_enemyRace) : BWAPI::UnitTypes::Unknown;
+				if (predType == BWAPI::UnitTypes::Protoss_Dragoon)
+				{
+					zealotRatio = zealotRatio == 0.0 ? 0.0 : zealotRatio - 0.1;
+					goonRatio = 1 - zealotRatio;
+				}
+			}
         }
 
         // If we are currently gas blocked, train some zealots
@@ -434,18 +1130,18 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
                     goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 2));
                 }
 
-                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) < 1)
-                {
-                    if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
-
-                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
-                        && !startedCitadel)
-                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
-
-                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
-                        && !startedTemplarArchives)
-                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
-                }
+//                 if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) < 1)
+//                 {
+//                     if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+// 
+//                     if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+//                         && !startedCitadel)
+//                         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
+// 
+//                     if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
+//                         && !startedTemplarArchives)
+//                         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
+//                 }
             }
 
             // Weapon to 1, armor to 1, weapon to 3, armor to 3
@@ -1223,6 +1919,168 @@ int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue 
     return count + (queuedPylon ? 1 : 0);
 }
 
+bool StrategyManager::checkIfWeSawProxy()
+{
+	BWTA::BaseLocation *enemyMainBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
+	BWTA::BaseLocation *myMainBaseLocation = InformationManager::Instance().getMyMainBaseLocation();
+
+	if (!myMainBaseLocation)
+	{
+		return false;
+	}
+
+	bool bSawEnemyProxy = false;
+
+	for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (!ui.type.isBuilding())
+		{
+			continue;
+		}
+
+		BWAPI::TilePosition unitTilePos = BWAPI::TilePosition(ui.lastPosition);
+		BWAPI::Position unitPos = ui.lastPosition;
+
+		BWAPI::TilePosition mapCenter = BWAPI::TilePosition((BWAPI::Broodwar->mapWidth() - 1) / 2, (BWAPI::Broodwar->mapHeight() - 1) / 2);
+
+		int nMax = (mapCenter.x > mapCenter.y) ? mapCenter.x : mapCenter.y;
+		int nRadius = (nMax >> 2) + 1;
+
+		if (mapCenter.getApproxDistance(unitTilePos) <= nRadius)
+		{
+			Log().Get() << "Map center proxy found!";
+			return true;
+		}
+
+		bool bIsProxy = true;
+
+		if (BWTA::getRegion(unitTilePos)
+			== BWTA::getRegion(myMainBaseLocation->getPosition()))
+		{
+			bIsProxy = false;
+		}
+		else if (enemyMainBaseLocation)
+		{
+			BWAPI::Position enemyLocation = enemyMainBaseLocation->getPosition();
+			BWAPI::Position myLocation = myMainBaseLocation->getPosition();
+
+			if (unitPos.getApproxDistance(myLocation) > unitPos.getApproxDistance(enemyLocation))
+			{
+				bIsProxy = false;
+			}
+		}
+		else
+		{
+			bIsProxy = false;
+		}
+
+		if (bIsProxy)
+		{
+			Log().Get() << "Enemy near base proxy found!";
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool StrategyManager::recognizeZealotRush()
+{
+	if (_enemyProxyDetected)
+	{
+		return false;
+	}
+
+	if (StrategyManager::Instance().getOpeningGroup() != "cse")
+	{
+		return false;
+	}
+
+	if (BWAPI::Broodwar->getFrameCount() > 5000)
+	{
+		return false;
+	}
+
+	BWTA::BaseLocation *enemyMainBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
+	BWTA::BaseLocation *myMainBaseLocation = InformationManager::Instance().getMyMainBaseLocation();
+
+	int nEnemyZealotInMyMainBase = 0;
+	for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+	{
+		if (kv.second.type == BWAPI::UnitTypes::Protoss_Zealot 
+			&& myMainBaseLocation 
+			&& BWTA::getRegion(kv.second.lastPosition) == myMainBaseLocation->getRegion())
+		{
+			nEnemyZealotInMyMainBase++;
+		}
+	}
+
+	if (nEnemyZealotInMyMainBase > 1)
+	{
+		return true;
+	}
+
+
+	if (!enemyMainBaseLocation || !myMainBaseLocation)
+	{
+		return false;
+	}
+
+	int nEnemyGate = 0;
+	bool bSawEnemyGeyser = false;
+	bool bEnemyHasAssimilator = false;
+
+	BWAPI::Unitset geysers = enemyMainBaseLocation->getGeysers();
+	if (geysers.size() == 1)
+	{
+		BWAPI::Unit geyser = *(geysers.begin());
+		if (geyser->isVisible() && geyser->exists())
+		{
+			bSawEnemyGeyser = true;
+		}
+		if (geyser->getType() == BWAPI::UnitTypes::Protoss_Assimilator)
+		{
+			bEnemyHasAssimilator = true;
+		}
+	}
+
+	for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+	{
+		const UnitInfo & ui(kv.second);
+		BWAPI::Position unitPos = ui.lastPosition;
+
+		if (ui.type == BWAPI::UnitTypes::Protoss_Gateway)
+		{
+			nEnemyGate++;
+		}
+		else if (ui.type == BWAPI::UnitTypes::Protoss_Nexus)
+		{
+			if (!ui.completed
+				|| BWTA::getRegion(ui.lastPosition) != enemyMainBaseLocation->getRegion())
+			{
+				return false;
+			}
+		}
+		else if (ui.type == BWAPI::UnitTypes::Protoss_Assimilator)
+		{
+			bEnemyHasAssimilator = true;
+		}
+	}
+
+	if (bSawEnemyGeyser)
+	{
+
+		if (nEnemyGate >= 2 && (!bEnemyHasAssimilator))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 {
 	// This is the enemy plan that we have seen in action.
@@ -1249,6 +2107,365 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 			// 3. Never do it again.
 			_openingStaticDefenseDropped = true;
+		}
+	}
+
+	static bool bShouldAntiCloak = false;
+	if (StrategyManager::Instance().getOpeningGroup() == "cse")
+	{
+		static bool bEnemyEarlyNatural = false;
+		if (!ProductionManager::Instance().isOutOfBook() && !bEnemyEarlyNatural)
+		{
+			if (InformationManager::Instance().getEnemyBases().size() > 1)
+			{
+				bEnemyEarlyNatural = true;
+			}
+
+			BWTA::BaseLocation *pEnemyMain = InformationManager::Instance().getEnemyMainBaseLocation();
+			BWTA::BaseLocation *pMyMain = InformationManager::Instance().getMyMainBaseLocation();
+
+			if (pEnemyMain && pMyMain && !bEnemyEarlyNatural)
+			{
+				for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+				{
+					if (!kv.second.type.isBuilding())
+					{
+						continue;
+					}
+
+					if (BWTA::getRegion(kv.second.lastPosition) == pEnemyMain->getRegion())
+					{
+						continue;
+					}
+
+					BWAPI::TilePosition mapCenter = BWAPI::TilePosition((BWAPI::Broodwar->mapWidth() - 1) / 2, (BWAPI::Broodwar->mapHeight() - 1) / 2);
+					int nMax = (mapCenter.x > mapCenter.y) ? mapCenter.x : mapCenter.y;
+					int nRadius = (nMax >> 2) + 1;
+					if (mapCenter.getApproxDistance(BWAPI::TilePosition(kv.second.lastPosition)) <= nRadius)
+					{
+						continue;
+					}
+
+					if (kv.second.lastPosition.getApproxDistance(pEnemyMain->getPosition()) > kv.second.lastPosition.getApproxDistance(pMyMain->getPosition()))
+					{
+						continue;
+					}
+
+					bEnemyEarlyNatural = true;
+					break;
+				}
+			}
+		}
+
+		static bool bSawProxy = false;
+		if (!_enemyProxyDetected && !_enemyZealotRushDetected && !bEnemyEarlyNatural)
+		{
+			if (BWAPI::Broodwar->getFrameCount() <= 5000)
+			{
+				if (!bSawProxy && checkIfWeSawProxy())
+				{
+					bSawProxy = true;
+					_enemyProxyDetected = true;
+				}
+				if (almostSeenHisWholeBase() && checkIfIndicateProxy())
+				{
+					_enemyProxyDetected = true;
+				}
+
+				if (_enemyProxyDetected)
+				{
+					EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 3, queue);
+				}
+			}
+			if (!_enemyProxyDetected && recognizeZealotRush())
+			{
+				_enemyZealotRushDetected = true;
+				//	by wei guo, 20180830
+				CombatCommander::Instance().setAggression(true);
+			}
+		}
+		else if (_enemyProxyDetected && BWAPI::Broodwar->getFrameCount() < 10000)
+		{
+			static bool doubleChecked = false;
+			bool bIsFalseAlarm = false;
+			bool bEnemyBaseGateFound = false;
+
+			if (!bSawProxy && !doubleChecked && shouldSeenHisWholeBase())
+			{
+				doubleChecked = true;
+				if (!checkIfIndicateProxy())
+				{
+					bIsFalseAlarm = true;
+				}
+			}
+			else if (BWAPI::Broodwar->getFrameCount() < 5000 && InformationManager::Instance().getEnemyMainBaseLocation() && (!bSawProxy) && doubleChecked)
+			{
+				for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+				{
+					if (kv.second.type == BWAPI::UnitTypes::Protoss_Gateway
+						&& BWTA::getRegion(kv.second.lastPosition) == InformationManager::Instance().getEnemyMainBaseLocation()->getRegion())
+					{
+						bIsFalseAlarm = true;
+						bEnemyBaseGateFound = true;
+						break;
+					}
+				}
+			}
+
+			if (bEnemyBaseGateFound)
+			{
+				bEnemyEarlyNatural = true;
+			}
+
+			if (bIsFalseAlarm)
+			{
+				_enemyProxyDetected = false;
+				WorkerManager::Instance().setCollectGas(true);
+
+				if (!queue.isEmpty()
+					&& queue.getHighestPriorityItem().macroAct.isBuilding()
+					&& queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Forge)
+				{
+					ProductionManager::Instance().cancelHighestPriorityItem();
+				}
+
+				if (!queue.isEmpty()
+					&& queue.getHighestPriorityItem().macroAct.isBuilding()
+					&& queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+				{
+					ProductionManager::Instance().cancelHighestPriorityItem();
+				}
+
+				for (auto& building : BuildingManager::Instance().buildingsQueued())
+				{
+					if (building->type == BWAPI::UnitTypes::Protoss_Forge
+						|| building->type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+					{
+						BuildingManager::Instance().cancelBuilding(*building);
+					}
+				}
+
+				for (auto unit : BWAPI::Broodwar->self()->getUnits())
+				{
+					if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge
+						|| unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+					{
+						if (unit->cancelConstruction())
+						{
+							unit->cancelConstruction();
+						}
+					}
+				}
+
+				queue.dropStaticDefenses();
+			}
+			else
+			{
+				EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 3, queue);
+			}
+		}
+		
+		bool bTendToSneak = (OpponentModel::Instance().getLastGameEnemyMobileDetectionFrame() == 0
+			&& BWAPI::Broodwar->mapHash() != "83320e505f35c65324e93510ce2eafbaa71c9aa1"		//	The Fortress
+			/*&& OpponentModel::Instance().worstCaseExpectedAirTech() > 15000*/
+			/*&& OpponentModel::Instance().worstCaseExpectedCloakTech() > 15000*/);	//	by wei guo, 20180916
+
+		bool bWeHaveCompletedCore = false;
+		bool bWeHaveCitadel = false;
+		bool bWeHaveCompletedCitadel = false;
+		bool bWeHaveTemplarArchives = false;
+		bool bWeHaveCompletedTemplarArchives = false;
+		BWAPI::Unit pCitadelUnit = nullptr;
+		BWAPI::Unit pArchiveUnit = nullptr;
+		int nDarkTemplarCount = 0;
+
+		if (bTendToSneak && !_SneakDone)
+		{
+			for (auto pMyUnit : BWAPI::Broodwar->self()->getUnits())
+			{
+				if (pMyUnit->getType() == BWAPI::UnitTypes::Protoss_Cybernetics_Core
+					&& pMyUnit->isCompleted())
+				{
+					bWeHaveCompletedCore = true;
+				}
+
+				if (pMyUnit->getType() == BWAPI::UnitTypes::Protoss_Citadel_of_Adun)
+				{
+					bWeHaveCitadel = true;
+					pCitadelUnit = pMyUnit;
+					if (pMyUnit->isCompleted())
+					{
+						bWeHaveCompletedCitadel = true;
+					}
+				}
+
+				if (pMyUnit->getType() == BWAPI::UnitTypes::Protoss_Templar_Archives)
+				{
+					bWeHaveTemplarArchives = true;
+					pArchiveUnit = pMyUnit;
+					if (pMyUnit->isCompleted())
+					{
+						bWeHaveCompletedTemplarArchives = true;
+					}
+				}
+
+				if (pMyUnit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
+				{
+					nDarkTemplarCount++;
+				}
+			}
+		}
+
+		bool bSneakPlanedButNothingHappened = false;
+
+		if (bTendToSneak && InformationManager::Instance().enemyScoutKilled() && !_SneakDone)
+		{
+			if (_enemyProxyDetected || _enemyZealotRushDetected 
+				|| InformationManager::Instance().enemyHasCloakedCombatUnits()
+				|| InformationManager::Instance().enemyProtossCloakTechDetected()
+				|| bShouldAntiCloak)
+			{		
+				_SneakDone = true;
+			}
+
+			if (bEnemyEarlyNatural)
+			{
+				_SneakDone = true;
+			}
+
+			if (bWeHaveCompletedCore && !_SneakDone)
+			{
+				if (InformationManager::Instance().enemyHasCloakDetection())
+				{
+					_SneakDone = true;
+				}
+				else if (!_CitadelQueued)
+				{
+					PullToTopOrQueue(queue, BWAPI::UnitTypes::Protoss_Citadel_of_Adun);
+					_CitadelQueued = true;
+				}
+			}
+
+			if (bWeHaveCitadel && !_SneakDone)
+			{
+				if (bWeHaveCompletedCitadel)
+				{
+					if (InformationManager::Instance().enemyHasCloakDetection())
+					{
+						_SneakDone = true;
+					}
+					else if (!_ArchiveQueued)
+					{
+						PullToTopOrQueue(queue, BWAPI::UnitTypes::Protoss_Templar_Archives);
+						_ArchiveQueued = true;
+					}
+				}
+				else
+				{
+					if (InformationManager::Instance().enemyHasCloakDetection())
+					{
+						_SneakDone = true;
+					}
+				}
+			}
+
+			if (bWeHaveTemplarArchives && !_SneakDone)
+			{
+				if (bWeHaveCompletedTemplarArchives)
+				{
+					if (nDarkTemplarCount < 2)
+					{
+						PullToTopOrQueue(queue, BWAPI::UnitTypes::Protoss_Dark_Templar);
+					}
+					else
+					{
+						_SneakDone = true;
+					}
+				}
+				else
+				{
+					if (InformationManager::Instance().enemyHasCloakDetection())
+					{
+						_SneakDone = true;
+					}
+				}
+			}
+
+			if (_SneakDone)
+			{
+				if (!queue.isEmpty()
+					&& queue.getHighestPriorityItem().macroAct.isBuilding()
+					&& queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Citadel_of_Adun)
+				{
+					ProductionManager::Instance().cancelHighestPriorityItem();
+				}
+
+				if (!queue.isEmpty()
+					&& queue.getHighestPriorityItem().macroAct.isBuilding()
+					&& queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Templar_Archives)
+				{
+					ProductionManager::Instance().cancelHighestPriorityItem();
+				}
+
+				for (auto& building : BuildingManager::Instance().buildingsQueued())
+				{
+					if (building->type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun
+						|| building->type == BWAPI::UnitTypes::Protoss_Templar_Archives)
+					{
+						BuildingManager::Instance().cancelBuilding(*building);
+					}
+				}
+
+				queue.dropCloakUnits();
+
+				if (pCitadelUnit && pCitadelUnit->canCancelConstruction())
+				{
+					pCitadelUnit->cancelConstruction();
+				}
+
+				if (pArchiveUnit && pArchiveUnit->canCancelConstruction())
+				{
+					pArchiveUnit->cancelConstruction();
+				}
+
+				if (!bWeHaveCompletedCitadel)
+				{
+					bSneakPlanedButNothingHappened = true;
+				}
+			}
+		}
+
+		int nCannons = 0;
+		int nDragoons = 0;
+
+		for (auto pUnit : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (pUnit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon
+				&& pUnit->isCompleted())
+			{
+				nCannons++;
+			}
+
+			if (pUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon
+				&& pUnit->isCompleted())
+			{
+				nDragoons++;
+			}
+		}
+
+		if (!ProductionManager::Instance().isOutOfBook())
+		{
+			if (_enemyProxyDetected)
+			{
+				if (nCannons < 2)
+				{
+					WorkerManager::Instance().setCollectGas(false);
+				}
+				else
+				{
+					WorkerManager::Instance().setCollectGas(true);
+				}
+			}
 		}
 	}
 
@@ -1325,60 +2542,138 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 		}
 
-		// If they have cloaked combat units, get some detection.
-        // The logic is:
-        // - If we have seen a cloaked combat unit, we definitely need detection
-        // - If our opponent model tells us they might soon get cloaked combat units, get
-        //   them unless the opponent is terran or we are currently scouting the enemy base
-        //   and have seen no sign of cloak tech
-		if (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
-            (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
-                !ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech())))
+		if (StrategyManager::Instance().getOpeningGroup() == "cse" && !isRushing())
 		{
-			if (_selfRace == BWAPI::Races::Protoss &&
-                UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
+			//	by wei guo 201800930
+			static bool bScoutEarlyDead = false;
+			static bool bScoutDeadChecked = false;
+			if (!bScoutDeadChecked && BWAPI::Broodwar->getFrameCount() > 4900)
 			{
-				// Get mobile detection once we are out of our opening book or deep into it
-                // Earlier it messes up the build order too much, as it requires so much gas
-				if ((ProductionManager::Instance().isOutOfBook() || BWAPI::Broodwar->getFrameCount() > 6000) 
-                    && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
+				bScoutDeadChecked = true;
+				if (!ScoutManager::Instance().getWorkerScout() 
+					|| !ScoutManager::Instance().getWorkerScout()->exists()
+					|| !ScoutManager::Instance().getWorkerScout()->isVisible())
+				{
+					bScoutEarlyDead = true;
+				}
+			}
+
+			static bool bEarlyGameExpectCloak = false;
+			int nEarlyGameThreshold = 6700;
+			if (Config::Strategy::StrategyName == "CSEvP_LessOM")
+			{
+				nEarlyGameThreshold = 9000;
+			}
+
+			bool bIsEarlyGame = (BWAPI::Broodwar->getFrameCount() <= nEarlyGameThreshold);
+
+			if (bIsEarlyGame 
+				&& !bScoutEarlyDead
+				&& OpponentModel::Instance().expectCloakedCombatUnitsSoon())
+			{
+				if (!bEarlyGameExpectCloak)
+				{
+					bEarlyGameExpectCloak = true;
+				}
+			}
+
+			if (bIsEarlyGame && !bScoutEarlyDead)
+			{
+				if (InformationManager::Instance().enemyHasCloakedCombatUnits()
+					|| InformationManager::Instance().enemyProtossCloakTechDetected())
+				{
+					bShouldAntiCloak = true;
+				}
+			}
+			else
+			{
+				if (!bEarlyGameExpectCloak
+					&& (InformationManager::Instance().enemyHasCloakedCombatUnits()
+						|| InformationManager::Instance().enemyProtossCloakTechDetected()
+						|| (OpponentModel::Instance().expectCloakedCombatUnitsSoon() 
+							&& (!ScoutManager::Instance().eyesOnEnemyBase() 
+								|| InformationManager::Instance().enemyHasMobileCloakTech()))))
+				{
+					bShouldAntiCloak = true;
+				}
+			}
+
+			if (bShouldAntiCloak)
+			{
+				if ((ProductionManager::Instance().isOutOfBook() || BWAPI::Broodwar->getFrameCount() > 6000)
+					&& UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
 				{
 					QueueUrgentItem(BWAPI::UnitTypes::Protoss_Observer, queue);
 				}
 
-                // Ensure the wall has cannons
-                if (BuildingPlacer::Instance().getWall().exists())
-                {
-                    SetWallCannons(queue, 2);
-                }
-                else
-                {
-                    // Otherwise, put cannons at our most forward base
-                    BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
-                    if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
-                    {
-                        EnsureCannonsAtBase(natural, 2, queue);
-                    }
-                    else
-                    {
-                        EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 2, queue);
-                    }
-                }
-			}
-			else if (_selfRace == BWAPI::Races::Terran)
-			{
-				if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Terran_Missile_Turret) < 3 &&
-					!queue.anyInQueue(BWAPI::UnitTypes::Terran_Missile_Turret) &&
-					!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Missile_Turret))
+				BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+				if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
 				{
-					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Missile_Turret));
-					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Missile_Turret));
-					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Missile_Turret));
-
-					if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Terran_Engineering_Bay) == 0 &&
-						!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Engineering_Bay))
+					EnsureCannonsAtBase(natural, 2, queue);
+				}
+				else
+				{
+					EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 2, queue);
+				}
+			}
+		}
+		else
+		{
+			// If they have cloaked combat units, get some detection.
+			// The logic is:
+			// - If we have seen a cloaked combat unit, we definitely need detection
+			// - If our opponent model tells us they might soon get cloaked combat units, get
+			//   them unless the opponent is terran or we are currently scouting the enemy base
+			//   and have seen no sign of cloak tech
+			if ((!isRushing()) && (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
+				(BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
+					!ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech()))))
+			{
+				if (_selfRace == BWAPI::Races::Protoss &&
+					UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
+				{
+					// Get mobile detection once we are out of our opening book or deep into it
+					// Earlier it messes up the build order too much, as it requires so much gas
+					if ((ProductionManager::Instance().isOutOfBook() || BWAPI::Broodwar->getFrameCount() > 6000)
+						&& UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
 					{
-						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Engineering_Bay));
+						QueueUrgentItem(BWAPI::UnitTypes::Protoss_Observer, queue);
+					}
+
+					// Ensure the wall has cannons
+					if (BuildingPlacer::Instance().getWall().exists())
+					{
+						SetWallCannons(queue, 2);
+					}
+					else
+					{
+						// Otherwise, put cannons at our most forward base
+						BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+						if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
+						{
+							EnsureCannonsAtBase(natural, 2, queue);
+						}
+						else
+						{
+							EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 2, queue);
+						}
+					}
+				}
+				else if (_selfRace == BWAPI::Races::Terran)
+				{
+					if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Terran_Missile_Turret) < 3 &&
+						!queue.anyInQueue(BWAPI::UnitTypes::Terran_Missile_Turret) &&
+						!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Missile_Turret))
+					{
+						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Missile_Turret));
+						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Missile_Turret));
+						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Missile_Turret));
+
+						if (BWAPI::Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Terran_Engineering_Bay) == 0 &&
+							!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Terran_Engineering_Bay))
+						{
+							queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Terran_Engineering_Bay));
+						}
 					}
 				}
 			}
@@ -1441,12 +2736,12 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
             {
             case OpeningPlan::FastRush:
                 // Fast rushes need two cannons immediately and a third shortly afterwards
-                if (frame > 3000)
-                    cannons = 3;
-                else
-                    cannons = 2;
+				if (frame > 3000)
+					cannons = 3;
+				else
+					cannons = 2;
 
-                break;
+				break;
 
             case OpeningPlan::HeavyRush:
                 // Heavy rushes ramp up to four cannons at a bit slower timing
@@ -1517,12 +2812,31 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                     // Otherwise scale up gradually to two cannons to handle early pressure
                     else if (frame > 4000 && InformationManager::Instance().enemyCanProduceCombatUnits())
                         cannons = 2;
-                    else if (frame > 3000)
-                        cannons = 1;
+					else if (frame > 3000)
+					{
+						if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+						{
+							cannons = 2;
+						}
+						else
+						{
+							cannons = 1;
+						}
+					}
                 }
             }
 
-            SetWallCannons(queue, cannons);
+			if (getOpeningGroup() == "cse")
+			{
+				if (!StrategyManager::Instance().isRushing())	//	by wei guo
+				{
+					SetWallCannons(queue, cannons);
+				}
+			}
+			else
+			{
+				SetWallCannons(queue, cannons);
+			}
         }
 
 		if (numDepots > _highWaterBases)
@@ -1575,8 +2889,24 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
     // If we currently want dragoons, only expand once we have some
     // This helps when transitioning out of a rush or when we might be in trouble
-    if (_openingGroup == "dragoons" && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 1)
+    if ((_openingGroup == "dragoons") && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 1)
         safeToMacro = false;
+
+
+	//	by wei guo, 20181004
+	if (_openingGroup == "cse")
+	{
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dragoon) < 5)
+		{
+			safeToMacro = false;
+		}
+		
+		if ((InformationManager::Instance().enemyHasCloakedCombatUnits() || InformationManager::Instance().enemyProtossCloakTechDetected())
+			&& (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) < 1))
+		{
+			safeToMacro = false;
+		}
+	}
 
     // Count how many active mineral patches we have
     // We don't count patches that are close to being mined out

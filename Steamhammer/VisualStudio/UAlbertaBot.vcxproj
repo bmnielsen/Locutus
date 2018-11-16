@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>Locutus</ProjectName>
+    <ProjectName>CSE</ProjectName>
     <ProjectGuid>{2E63AE74-758A-4607-9DE4-D28E814A6E13}</ProjectGuid>
     <RootNamespace>ExampleAIModule</RootNamespace>
     <Keyword>Win32Proj</Keyword>
@@ -23,7 +23,7 @@
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v120_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -182,6 +182,7 @@
     <ClCompile Include="..\Source\ParseUtils.cpp" />
     <ClCompile Include="..\Source\PathFinding.cpp" />
     <ClCompile Include="..\Source\PlayerSnapshot.cpp" />
+    <ClCompile Include="..\Source\PredictModel.cpp" />
     <ClCompile Include="..\Source\TechCompleteProductionGoal.cpp" />
     <ClCompile Include="..\source\ProductionManager.cpp" />
     <ClCompile Include="..\Source\Random.cpp" />
@@ -260,11 +261,13 @@
     <ClInclude Include="..\Source\MicroRanged.h" />
     <ClInclude Include="..\Source\MicroTanks.h" />
     <ClInclude Include="..\Source\MicroTransports.h" />
+    <ClInclude Include="..\Source\ModelWeightInit.h" />
     <ClInclude Include="..\Source\OpponentModel.h" />
     <ClInclude Include="..\Source\OpponentPlan.h" />
     <ClInclude Include="..\Source\ParseUtils.h" />
     <ClInclude Include="..\Source\PathFinding.h" />
     <ClInclude Include="..\Source\PlayerSnapshot.h" />
+    <ClInclude Include="..\Source\PredictModel.h" />
     <ClInclude Include="..\Source\ProductionGoal.h" />
     <ClInclude Include="..\source\ProductionManager.h" />
     <ClInclude Include="..\Source\Random.h" />

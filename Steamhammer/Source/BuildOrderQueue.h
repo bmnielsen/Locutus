@@ -29,6 +29,8 @@ public:
 
     void clearAll();											// clear the entire build order queue
 	void dropStaticDefenses();									// delete any static defense buildings
+	void dropGasOperations();									//	by wei guo 20180916
+	void dropCloakUnits();										//	by wei guo 20180928
 
     void queueAsLowestPriority(MacroAct m);						// queue something at the lowest priority
 	void queueAsHighestPriority(MacroAct m, bool isWorkerScoutBuilding = false);		// queues something at the highest priority

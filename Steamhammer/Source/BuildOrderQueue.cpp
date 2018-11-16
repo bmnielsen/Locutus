@@ -42,6 +42,25 @@ void BuildOrderQueue::dropStaticDefenses()
 	}
 }
 
+void BuildOrderQueue::dropGasOperations()
+{
+	for (auto it = queue.begin(); it != queue.end(); )
+	{
+		MacroAct act = (*it).macroAct;
+
+		if (act.isCommand()
+			&& (act.getCommandType().getType() == MacroCommandType::StartGas
+				|| act.getCommandType().getType() == MacroCommandType::StopGas))
+		{
+			it = queue.erase(it);
+		}
+		else
+		{
+			++it;
+		}
+	}
+}
+
 void BuildOrderQueue::queueAsHighestPriority(MacroAct m, bool gasSteal)
 {
 	queue.push_back(BuildOrderItem(m, gasSteal));
@@ -298,4 +317,29 @@ BuildOrderItem BuildOrderQueue::operator [] (int i)
 const BuildOrderItem & BuildOrderQueue::operator [] (int i) const
 {
 	return queue[i];
+}
+
+void UAlbertaBot::BuildOrderQueue::dropCloakUnits()
+{
+	for (auto it = queue.begin(); it != queue.end(); )
+	{
+		MacroAct act = (*it).macroAct;
+
+		if (!act.isUnit())
+		{
+			++it;
+			continue;
+		}
+
+		if (act.getUnitType() == BWAPI::UnitTypes::Protoss_Citadel_of_Adun
+			|| act.getUnitType() == BWAPI::UnitTypes::Protoss_Templar_Archives
+			|| act.getUnitType() == BWAPI::UnitTypes::Hero_Dark_Templar)
+		{
+			it = queue.erase(it);
+		}
+		else
+		{
+			++it;
+		}
+	}
 }

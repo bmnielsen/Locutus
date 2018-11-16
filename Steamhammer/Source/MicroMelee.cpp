@@ -50,6 +50,19 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
     Squad & squad = CombatCommander::Instance().getSquadData().getSquad(this);
 
 	BWAPI::Unitset meleeUnitTargets;
+
+	//	by wei guo, 20180905
+	bool bWeHaveZealotOrDragoon = false;
+	for (const auto myUnit : BWAPI::Broodwar->self()->getUnits())
+	{
+		if (myUnit->isCompleted() && (myUnit->getType() == BWAPI::UnitTypes::Protoss_Zealot
+			|| myUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon))
+		{
+			bWeHaveZealotOrDragoon = true;
+		}
+	}
+
+	bool firstWorker = true;
 	for (const auto target : targets) 
 	{
 		if (target->isVisible() &&
@@ -61,6 +74,13 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 			!target->isStasised() &&
 			!target->isUnderDisruptionWeb())             // melee unit can't attack under dweb
 		{
+			//	by wei guo, 20180905
+			if (StrategyManager::Instance().getOpeningGroup() == "cse"
+				&& target->getType().isWorker() && firstWorker && !bWeHaveZealotOrDragoon)
+			{
+				firstWorker = false;
+				continue;
+			}
 			meleeUnitTargets.insert(target);
 		}
 	}
@@ -187,13 +207,14 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
             continue;
         }
 
+
         // Consider whether to attack enemies that are outside of our weapon range when on the attack
         bool inWeaponRange = meleeUnit->isInWeaponRange(target);
         if (!inWeaponRange && order.getType() != SquadOrderTypes::Defend)
         {
-            // Never chase units that can kite us easily
-            if (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon ||
-                target->getType() == BWAPI::UnitTypes::Terran_Vulture) continue;
+			// Never chase units that can kite us easily
+			if (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon ||
+				target->getType() == BWAPI::UnitTypes::Terran_Vulture) continue;
 
             // Check if the target is moving away from us
             BWAPI::Position targetPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(target, 5);

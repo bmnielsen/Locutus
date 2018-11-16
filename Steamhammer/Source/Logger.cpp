@@ -99,8 +99,8 @@ Log::~Log()
 	if (debug)
 	{
 		if (Config::Debug::LogDebug)
-			Logger::LogAppendToFile("bwapi-data/write/Locutus_log_debug.txt", os.str());
+			Logger::LogAppendToFile("bwapi-data/write/CSE_log_debug.txt", os.str());
 	}
 	else
-		Logger::LogAppendToFile("bwapi-data/write/Locutus_log.txt", os.str());
+		Logger::LogAppendToFile("bwapi-data/write/CSE_log.txt", os.str());
 }

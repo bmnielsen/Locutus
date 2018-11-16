@@ -34,6 +34,7 @@ InformationManager::InformationManager()
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
 	, _enemyHasSiegeTech(false)
 	, _enemyHasInfantryRangeUpgrade(false)
+	, _enemyProtossCloakTechDetected(false)
 
 	, _enemyBaseStation(nullptr)
 {
@@ -420,10 +421,17 @@ void InformationManager::updateBaseLocationInfo()
 		// an unexplored base location holder
 		BWTA::BaseLocation * unexplored = nullptr;
 
+		int nEnemyBuildingNearbyThreshold = 1500;
+		if (StrategyManager::Instance().getOpeningGroup() == "cse"
+			&& BWAPI::Broodwar->mapHash() == "ba2fc0ed637e4ec91cc70424335b3c13e131b75a")		//	Aztec 1.1
+		{
+			nEnemyBuildingNearbyThreshold = 1000;
+		}
+
 		for (BWTA::BaseLocation * startLocation : BWTA::getStartLocations()) 
 		{
 			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()), true) ||
-                isEnemyBuildingNearby(startLocation->getPosition(), 1500))
+                isEnemyBuildingNearby(startLocation->getPosition(), nEnemyBuildingNearbyThreshold))
 			{
 				updateOccupiedRegions(BWTA::getRegion(startLocation->getTilePosition()), _enemy);
 
@@ -1971,7 +1979,79 @@ bool InformationManager::enemyHasCloakedCombatUnits()
         }
     }
 
-    return false;
+	return false;
+}
+
+//	by wei guo, 20180930
+bool UAlbertaBot::InformationManager::enemyProtossCloakTechDetected()
+{
+	if (_enemyHasCloakedCombatUnits || _enemyProtossCloakTechDetected)
+	{
+		_enemyProtossCloakTechDetected = true;
+		return true;
+	}
+
+	bool bhaveCitadel = false;
+	int nEnemyZealotCount = 0;
+	static int nEnemyHaveCompletedCoreFrame = -1;
+	static bool bEnemyUpdatedSigularity = false;
+	bool bEnemyCoreInSight = false;
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (ui.type.isCloakable() || 
+			ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar ||
+			ui.type == BWAPI::UnitTypes::Protoss_Templar_Archives )
+		{
+			_enemyProtossCloakTechDetected = true;
+			return true;
+		}
+
+		if (ui.type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun)
+		{
+			bhaveCitadel = true;
+		}
+
+		if (ui.type == BWAPI::UnitTypes::Protoss_Zealot)
+		{
+			nEnemyZealotCount++;
+		}
+
+		if (ui.type == BWAPI::UnitTypes::Protoss_Cybernetics_Core
+			&& ui.completed)
+		{
+			if (ui.unit && ui.unit->exists() && ui.unit->isVisible())
+			{
+				bEnemyCoreInSight = true;
+			}
+			if (nEnemyHaveCompletedCoreFrame == -1)
+			{
+				nEnemyHaveCompletedCoreFrame = BWAPI::Broodwar->getFrameCount();
+			}
+
+			if (ui.unit && ui.unit->isUpgrading())
+			{
+				bEnemyUpdatedSigularity = true;
+			}
+		}
+	}
+
+	if (bhaveCitadel && nEnemyZealotCount <= 5 && !StrategyManager::Instance().EnemyZealotRushDetected())
+	{
+		_enemyProtossCloakTechDetected = true;
+		return true;
+	}
+
+	if (nEnemyHaveCompletedCoreFrame != -1)
+	{
+		if (nEnemyHaveCompletedCoreFrame - BWAPI::Broodwar->getFrameCount() > 500 && !bEnemyUpdatedSigularity && bEnemyCoreInSight)
+		{
+			_enemyProtossCloakTechDetected = true;
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -2074,6 +2154,67 @@ bool InformationManager::enemyHasMobileDetection()
 	}
 
 	return false;
+}
+
+//	by wei guo, 20180914
+bool InformationManager::enemyHasCloakDetection()
+{
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (ui.type == BWAPI::UnitTypes::Protoss_Robotics_Facility ||
+			ui.type == BWAPI::UnitTypes::Protoss_Forge ||
+			ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
+			ui.type == BWAPI::UnitTypes::Protoss_Observatory ||
+			ui.type == BWAPI::UnitTypes::Protoss_Observer)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool InformationManager::enemyHasCompletedCloakDetection()
+{
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (ui.completed && (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
+			ui.type == BWAPI::UnitTypes::Protoss_Observer))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool InformationManager::enemyScoutKilled()
+{
+	if (!getMyMainBaseLocation() || !_enemy)
+	{
+		return false;
+	}
+	BWTA::Region * myRegion = BWTA::getRegion(getMyMainBaseLocation()->getTilePosition());
+	if (!myRegion || !myRegion->getCenter().isValid())
+	{
+		return false;
+	}
+
+	for (const auto & ui : getUnitInfo(_enemy))
+	{
+		if (!ui.second.lastPosition.isValid()) continue;
+		if (BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition)) != myRegion) continue;
+
+		if (ui.second.type == BWAPI::UnitTypes::Zerg_Overlord || ui.second.type.isWorker())
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 // Enemy has the capability of sieging tanks.
@@ -2251,6 +2392,48 @@ int InformationManager::nScourgeNeeded()
 	return count;
 }
 
+// by pfan8,20180927, check if we deliminated enemy's main base
+bool UAlbertaBot::InformationManager::isEnemyMainBaseEliminated()
+{
+	if (getEnemyMainBaseLocation() == nullptr) return false;
+	if (isEnemyBuildingNearby(getEnemyMainBaseLocation()->getPosition(), 10)) return false;
+	return true;
+}
+
+// by pfan8, 20180928, condition used to cancel sneak
+bool UAlbertaBot::InformationManager::isSneakTooLate()
+{
+	if (_sneakTooLate) return true;
+	for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
+		if (unit->getType().isBuilding()
+			&& unit->getType().isDetector()
+			&& unit->isCompleted()
+			&& (unit->getHitPoints() + unit->getShields() > 120))
+		{
+			_sneakTooLate = true;
+		}
+	return _sneakTooLate;
+}
+
+//by pfan8, 20180928, unitset of units attack our base
+BWAPI::Unitset UAlbertaBot::InformationManager::getThreatingUnits(BWTA::BaseLocation * base)
+{
+	if (base == nullptr) base = getMyMainBaseLocation();
+	BWAPI::Unitset targets;
+	for (auto target : BWAPI::Broodwar->enemy()->getUnits())
+	{
+		if (target->getType() == BWAPI::UnitTypes::Unknown) continue;
+		int distance = target->getDistance(base->getPosition());
+		if ((distance < SIEGE_THREASHOLD)
+			&& (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon
+				|| target->getType() == BWAPI::UnitTypes::Protoss_Zealot))
+		{
+			if (!targets.contains(target))
+				targets.insert(target);
+		}
+	}
+	return targets;
+}
 BWAPI::Position InformationManager::predictUnitPosition(BWAPI::Unit unit, int frames) const
 {
     if (!unit || !unit->exists() || !unit->isVisible()) return BWAPI::Positions::Invalid;
@@ -2266,6 +2449,11 @@ LocutusUnit& InformationManager::getLocutusUnit(BWAPI::Unit unit)
     return _myUnits[unit];
 }
 
+// by pfan8, set sneak too late
+void UAlbertaBot::InformationManager::sneak2Late()
+{
+	_sneakTooLate = true;
+}
 InformationManager & InformationManager::Instance()
 {
 	static InformationManager instance;

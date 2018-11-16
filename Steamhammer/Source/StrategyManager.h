@@ -5,6 +5,7 @@
 #include "WorkerManager.h"
 #include "BuildOrder.h"
 #include "BuildOrderQueue.h"
+#include "PredictModel.h"
 
 namespace UAlbertaBot
 {
@@ -48,6 +49,13 @@ class StrategyManager
 	bool							_hasDropTech;
 	int								_highWaterBases;				// most bases we've ever had, terran and protoss only
 	bool							_openingStaticDefenseDropped;	// make sure we do this at most once ever
+	PredictModel					_predModel;
+
+	bool							_CitadelQueued;
+	bool							_ArchiveQueued;
+	bool							_SneakDone;
+	bool							_enemyProxyDetected;
+	bool							_enemyZealotRushDetected;
 
 	const	bool				    shouldExpandNow() const;
     const	MetaPairVector		    getProtossBuildOrderGoal();
@@ -60,6 +68,12 @@ class StrategyManager
 	bool							canPlanBuildOrderNow() const;
 	void							performBuildOrderSearch();
 
+	bool							checkIfWeSawProxy();
+	bool							checkIfIndicateProxy();
+
+
+	bool							recognizeZealotRush();
+
 public:
     
 	static	StrategyManager &	    Instance();
@@ -69,7 +83,9 @@ public:
             void                    addStrategy(const std::string & name, Strategy & strategy);
 			void					initializeOpening();
 	const	std::string &			getOpeningGroup() const;
+	void							changeOpeningGroup(const std::string & openinggroup);
  	const	MetaPairVector		    getBuildOrderGoal();
+	const	BWAPI::UnitType			getPredictUnitType(BWAPI::Race enemyRace);
 	const	BuildOrder &            getOpeningBookBuildOrder() const;
 
             bool                    isRushing() const { return _rushing; };
@@ -81,6 +97,10 @@ public:
 
 			bool					dropIsPlanned() const;
 			bool					hasDropTech();
+			bool					EnemyProxyDetected() const { return _enemyProxyDetected; }
+			bool					EnemyZealotRushDetected() const { return _enemyZealotRushDetected; }
+			bool					shouldSeenHisWholeBase();
+			bool					almostSeenHisWholeBase();
 };
 
 }

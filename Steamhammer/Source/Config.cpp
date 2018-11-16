@@ -12,7 +12,7 @@ namespace Config
     {
         bool ConfigFileFound                = false;
         bool ConfigFileParsed               = false;
-        std::string ConfigFileLocation      = "bwapi-data/AI/Locutus.json";
+        std::string ConfigFileLocation      = "bwapi-data/AI/CSE.json";
     }
 
 	namespace IO
@@ -44,8 +44,8 @@ namespace Config
 
     namespace BotInfo
     {
-        std::string BotName                 = "Locutus";
-        std::string Authors                 = "Bruce Nielsen";
+        std::string BotName                 = "CSE";
+        std::string Authors                 = "Junge Zhang, Wei Guo, Qiyue Yin, Dong Zhan, Qiwei Wang, Yihui Hu, Shengqi Shen, Kaiqi Huang";
         bool PrintInfoOnStart               = false;
     }
 
@@ -88,7 +88,7 @@ namespace Config
         bool DrawSquadInfo                  = false;
         bool DrawBOSSStateInfo              = false;
 
-        std::string ErrorLogFilename        = "Locutus_ErrorLog.txt";
+        std::string ErrorLogFilename        = "CSE_ErrorLog.txt";
         bool LogAssertToErrorFile           = false;
 
         bool LogDebug			            = false;

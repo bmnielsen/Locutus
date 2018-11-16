@@ -20,6 +20,7 @@ const size_t BaseDefensePriority = 4;
 const size_t ScoutDefensePriority = 5;
 const size_t DropPriority = 6;         // don't steal from Drop squad for Defense squad
 const size_t KamikazePriority = 7;
+const size_t SneakPriority = 8;
 
 // The attack squads.
 const int AttackRadius = 800;
@@ -88,6 +89,14 @@ void CombatCommander::initializeSquads()
 		_squadData.addSquad(Squad("Drop", doDrop, DropPriority));
     }
 
+	//	by wei guo, 20180913
+	if (StrategyManager::Instance().getOpeningGroup() == "cse")
+	{
+		SquadOrder sneakOrder(SquadOrderTypes::Sneak, getAttackLocation(nullptr), AttackRadius, "Sneak to enemy base");
+		_squadData.addSquad(Squad("Sneak", sneakOrder, SneakPriority));
+		_noSneak = false;
+	}
+
     _initialized = true;
 }
 
@@ -112,6 +121,7 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
         updateDefuseSquads();
 		updateReconSquad();
 		updateAttackSquads();
+		updateSneakSquads();
 	}
 	else if (frame8 % 4 == 2)
 	{
@@ -937,7 +947,8 @@ void CombatCommander::updateScoutDefenseSquad()
 
     // Chase the scout unless there is an enemy unit in the region that isn't a scout
     bool hasScout = false;
-    bool hasNonScout = true;
+	//	by wei guo, 20180913, we want to kill the scout.
+ //   bool hasNonScout = true;
     for (const auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
     {
         // Was the unit last seen in our main region?
@@ -946,20 +957,30 @@ void CombatCommander::updateScoutDefenseSquad()
 
         // Is this a scout?
         // Workers are not considered scouts if one has attacked recently
-        if (ui.second.type == BWAPI::UnitTypes::Zerg_Overlord ||
-            (ui.second.type.isWorker() && _enemyWorkerAttackedAt < (BWAPI::Broodwar->getFrameCount() - 120)))
+        if (ui.second.type.isWorker() 
+			&& ui.second.unit 
+			&& ui.second.unit->exists() 
+			&& ui.second.unit->isVisible()
+			&& !StrategyManager::Instance().EnemyZealotRushDetected()
+			&& !StrategyManager::Instance().EnemyProxyDetected()
+			&& StrategyManager::Instance().getOpeningGroup() == "cse")		//	by wei guo, 20180930
         {
             hasScout = true;
         }
-        else
-        {
-            hasNonScout = true;
-            break;
-        }
+//         else
+//         {
+//             hasNonScout = true;
+//             break;
+//         }
     }
 
     // If we don't want to chase a scout, disband the squad
-    if (hasNonScout || !hasScout)
+//     if (hasNonScout || !hasScout)
+//     {
+//         if (!scoutDefenseSquad.isEmpty()) scoutDefenseSquad.clear();
+//         return;
+//     }
+    if (!hasScout)
     {
         if (!scoutDefenseSquad.isEmpty()) scoutDefenseSquad.clear();
         return;
@@ -984,7 +1005,7 @@ void CombatCommander::updateScoutDefenseSquad()
 
 void CombatCommander::updateBaseDefenseSquads() 
 {
-	if (_combatUnits.empty()) 
+	if (_combatUnits.empty() || StrategyManager::Instance().isRushing())		// by wei guo, 20180921, we dont want to defense while rushing
     { 
         return; 
     }
@@ -1097,20 +1118,67 @@ void CombatCommander::updateBaseDefenseSquads()
 
         bool firstWorker = true;
         bool hasShuttle = false;
+
+		//	by wei guo,20180905
+		bool firstPylon = true;
+		int nEnemyPylonCount = 0;
+		int nEnemyWorkerCount = 0;
+
+		bool bWeHaveZealotOrDragoon = false;
+		for (const auto myUnit : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (myUnit->isCompleted() && (myUnit->getType() == BWAPI::UnitTypes::Protoss_Zealot
+				|| myUnit->getType() == BWAPI::UnitTypes::Protoss_Dragoon))
+			{
+				bWeHaveZealotOrDragoon = true;
+
+			}
+		}
+
         for (const auto unit : enemyUnits)
         {
             // We assume the first enemy worker in the region is a scout, unless it has attacked us recently
             if (unit->getType().isWorker())
             {
+				nEnemyWorkerCount++;
                 if (unit->isAttacking())
                     _enemyWorkerAttackedAt = BWAPI::Broodwar->getFrameCount();
 
-                if (firstWorker && _enemyWorkerAttackedAt < (BWAPI::Broodwar->getFrameCount() - 120))
-                {
-                    firstWorker = false;
-                    continue;
-                }
+				if (firstWorker && _enemyWorkerAttackedAt < (BWAPI::Broodwar->getFrameCount() - 120))
+				{
+					firstWorker = false;
+					continue;
+				}
             }
+
+			//	by wei guo,20180905
+			bool bEnemyHasForge = false;
+			bool bEnemyDoesNotHaveGateway = true;
+			for (const auto & kv : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+			{
+				const UnitInfo & ui(kv.second);
+				if (ui.type == BWAPI::UnitTypes::Protoss_Forge)
+				{
+					bEnemyHasForge = true;
+				}
+
+				if (ui.type == BWAPI::UnitTypes::Protoss_Gateway)
+				{
+					bEnemyDoesNotHaveGateway = true;
+				}
+			}
+
+			bool bMayCannonRush = bEnemyHasForge && bEnemyDoesNotHaveGateway;
+			if (unit->getType() == BWAPI::UnitTypes::Protoss_Pylon)
+			{
+				nEnemyPylonCount++;
+
+				if (!bMayCannonRush && !bWeHaveZealotOrDragoon && firstPylon)
+				{
+					firstPylon = false;
+					continue;
+				}
+			}
 
             // Flag things that affect what units we choose for the squad
             if (unit->getType() == BWAPI::UnitTypes::Terran_Vulture) preferRangedUnits = true;
@@ -1275,6 +1343,23 @@ void CombatCommander::updateBaseDefenseSquads()
 			Config::Micro::WorkersDefendRush &&
 			(!staticDefense && numZerglingsInOurBase() > 0 || buildingRush() || groundDefendersNeeded < 4));
 
+
+		//	by wei guo, 20180913
+		if (StrategyManager::Instance().getOpeningGroup() == "cse")
+		{
+			if ((enemyUnits.size() == nEnemyPylonCount + nEnemyWorkerCount)
+				&& (nEnemyPylonCount <= 1) && (nEnemyWorkerCount <= 1) && (bWeHaveZealotOrDragoon))
+			{
+				pullWorkers = false;
+			}
+		}
+
+		//	by wei guo, 20180927
+		if (StrategyManager::Instance().EnemyProxyDetected() || StrategyManager::Instance().EnemyZealotRushDetected())
+		{
+			pullWorkers = false;
+		}
+
 		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, preferRangedUnits);
 
         // Add an observer if needed
@@ -1374,6 +1459,21 @@ void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t
 		++flyingDefendersAdded;
 	}
 
+	// add moving worker to defense base
+	if (WorkerManager::Instance().getNumCombatWorkers() >= 0 && BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg) {
+
+		for (const auto unit : BWAPI::Broodwar->self()->getUnits()) 
+		{
+			if (unit->getType().isWorker() && WorkerManager::Instance().isCombatWorker(unit)) {
+				if (_squadData.canAssignUnitToSquad(unit, defenseSquad))
+				{
+					_squadData.assignUnitToSquad(unit, defenseSquad);
+				}
+				
+			}
+		}
+	}
+
     // We pull distant workers only if we have less than 5 close workers
     bool pullDistantWorkers = pullWorkers && workersInGroup < 5;
 
@@ -1456,6 +1556,7 @@ BWAPI::Unit CombatCommander::findClosestDefender(
 
             // Don't pull builders, this can delay defensive structures
             if (WorkerManager::Instance().isBuilder(unit)) continue;
+			if (WorkerManager::Instance().isMoveWorker(unit)) continue;
 
 			closestWorker = unit;
 			minWorkerDistance = dist;
@@ -1472,6 +1573,46 @@ BWAPI::Unit CombatCommander::findClosestDefender(
 	// Return a worker if it's all we have or if the nearest non-worker is more than 400 away
 	if (closestWorker && (!closestDefender || (minWorkerDistance < minDistance && minDistance > 400))) return closestWorker;
 	return closestDefender;
+}
+
+void CombatCommander::updateSneakSquads()
+{
+	if (_combatUnits.empty() || StrategyManager::Instance().getOpeningGroup() != "cse"
+		|| InformationManager::Instance().getEnemyBases().empty()
+		|| BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Protoss
+		|| !InformationManager::Instance().getEnemyMainBaseLocation())
+	{
+		return;
+	}
+
+	Squad & sneakSquad = _squadData.getSquad("Sneak");
+
+	if (_noSneak)
+	{
+		InformationManager::Instance().sneak2Late();
+		return;
+	}
+
+
+	if (InformationManager::Instance().enemyHasMobileDetection())
+	{
+		_noSneak = true;
+		return;
+	}
+
+	for (const auto unit : _combatUnits)
+	{
+		if (unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar &&
+			_squadData.canAssignUnitToSquad(unit, sneakSquad))
+		{
+			_squadData.assignUnitToSquad(unit, sneakSquad);
+			break;
+		}
+	}
+	 
+
+	SquadOrder sneakOrder(SquadOrderTypes::Sneak, InformationManager::Instance().getEnemyMainBaseLocation()->getPosition(), AttackRadius, "Sneak to enemy base");
+	sneakSquad.setSquadOrder(sneakOrder);
 }
 
 // NOTE This implementation is kind of cheesy. Orders ought to be delegated to a squad.
@@ -1578,29 +1719,72 @@ bool CombatCommander::unitIsGoodToDrop(const BWAPI::Unit unit) const
 // NOTE See BuildingManager::cancelBuilding() for another way to cancel buildings.
 void CombatCommander::cancelDyingItems()
 {
+	//	by wei guo, 20180906
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 	{
-        if (!unit->isUnderAttack()) continue;
-        if (!unit->getType().isBuilding()) continue;
-        if (unit->isCompleted()) continue;
-        if (!unit->canCancelConstruction()) continue;
-        if ((unit->getShields() + unit->getHitPoints()) >= 20) continue;
+		if (!unit->isUnderAttack()) continue;
+		if (!unit->getType().isBuilding()) continue;
+		if (unit->isCompleted()) continue;
+		if (!unit->canCancelConstruction()) continue;
 
-        // Don't cancel buildings being attacked by a single worker
-        int workersAttacking = 0;
-        bool nonWorkersAttacking = false;
-        for (const auto enemyUnit : BWAPI::Broodwar->enemy()->getUnits())
-            if (enemyUnit->getOrderTarget() == unit)
-            {
-                if (enemyUnit->getType().isWorker()) workersAttacking++;
-                else nonWorkersAttacking = true;
-            }
-        if (workersAttacking <= 1 && !nonWorkersAttacking) continue;
+		double dTotalDamagePerFrames = 0.0;
+		for (const auto enemyUnit : BWAPI::Broodwar->enemy()->getUnits())
+		{
+			if (enemyUnit->getOrderTarget() == unit)
+			{
+				dTotalDamagePerFrames += (double)enemyUnit->getType().groundWeapon().damageAmount()
+					 / ((double)enemyUnit->getType().groundWeapon().damageCooldown() + 1.0);
+			}
+		}
 
-        Log().Get() << "Cancelling dying " << unit->getType() << " @ " << unit->getTilePosition();
-        BuildingPlacer::Instance().freeTiles(unit->getTilePosition(), unit->getType().width(), unit->getType().height());
+		int nFramesBeforeBuilt = unit->getRemainingBuildTime();
+		int nLifeRemain = unit->getShields() + unit->getHitPoints();
+
+		bool bWillDieIn15Frames = false;
+		bool bLifeLessThan20 = false;
+		bool bNearlyBuiltButWillDieAfter = false;
+
+
+		if (nLifeRemain <= int(15 * dTotalDamagePerFrames))
+			bWillDieIn15Frames = true;
+
+		if (nLifeRemain < 20)
+			bLifeLessThan20 = true;
+
+		if ((nFramesBeforeBuilt < 5) && (nLifeRemain <= int(30 * dTotalDamagePerFrames)))
+			bNearlyBuiltButWillDieAfter = true;
+
+		if (!bWillDieIn15Frames && !bLifeLessThan20 && !bNearlyBuiltButWillDieAfter) 
+			continue;
+
+		Log().Get() << "Cancelling dying " << unit->getType() << " @ " << unit->getTilePosition();
+		BuildingPlacer::Instance().freeTiles(unit->getTilePosition(), unit->getType().width(), unit->getType().height());
 		unit->cancelConstruction();
 	}
+
+// 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+// 	{
+//         if (!unit->isUnderAttack()) continue;
+//         if (!unit->getType().isBuilding()) continue;
+//         if (unit->isCompleted()) continue;
+//         if (!unit->canCancelConstruction()) continue;
+//         if ((unit->getShields() + unit->getHitPoints()) >= 20) continue;
+// 
+//         // Don't cancel buildings being attacked by a single worker
+//         int workersAttacking = 0;
+//         bool nonWorkersAttacking = false;
+//         for (const auto enemyUnit : BWAPI::Broodwar->enemy()->getUnits())
+//             if (enemyUnit->getOrderTarget() == unit)
+//             {
+//                 if (enemyUnit->getType().isWorker()) workersAttacking++;
+//                 else nonWorkersAttacking = true;
+//             }
+//         if (workersAttacking <= 1 && !nonWorkersAttacking) continue;
+// 
+//         Log().Get() << "Cancelling dying " << unit->getType() << " @ " << unit->getTilePosition();
+//         BuildingPlacer::Instance().freeTiles(unit->getTilePosition(), unit->getType().width(), unit->getType().height());
+// 		unit->cancelConstruction();
+// 	}
 }
 
 BWAPI::Position CombatCommander::getDefendLocation()
@@ -1724,6 +1908,77 @@ void CombatCommander::drawSquadInformation(int x, int y)
 // Choose a point of attack for the given squad (which may be null).
 BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 {
+	//	by wei guo, 20180930
+
+	if (StrategyManager::Instance().getOpeningGroup() == "cse")
+	{
+		bool bWeHaveObserver = false;
+		bool bWeHaveCannon = false;
+		bool bWeHaveCompletedCannon = false;
+		int nBestCannonRemainingConstructionTime = 9999;
+		int nBestCannonGroundDistanceToEnemyBase = 9999;
+		BWAPI::Position bestCannonPosToEscape;
+
+		if (!bWeHaveObserver)
+		{
+			for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->self()).getUnits())
+			{
+				const UnitInfo & ui(kv.second);
+
+				if (ui.type == BWAPI::UnitTypes::Protoss_Observer && ui.completed)
+				{
+					bWeHaveObserver = true;
+				}
+
+				if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+				{
+					bWeHaveCannon = true;
+					if (ui.completed && InformationManager::Instance().getEnemyMainBaseLocation())
+					{
+						BWAPI::Position enemyMainBasePos = InformationManager::Instance().getEnemyMainBaseLocation()->getPosition();
+						bWeHaveCompletedCannon = true;
+						int nCurCannonDist = PathFinding::GetGroundDistance(ui.lastPosition, enemyMainBasePos);
+						if (nCurCannonDist < nBestCannonGroundDistanceToEnemyBase)
+						{
+							nBestCannonGroundDistanceToEnemyBase = nCurCannonDist;
+							bestCannonPosToEscape = ui.lastPosition;
+						}
+					}
+					else if (!bWeHaveCompletedCannon && ui.unit && ui.unit->isVisible() && ui.unit->exists())
+					{
+						int nCurRemainingTime = ui.unit->getRemainingBuildTime();
+						if (nCurRemainingTime < nBestCannonRemainingConstructionTime)
+						{
+							nBestCannonRemainingConstructionTime = nCurRemainingTime;
+							bestCannonPosToEscape = ui.lastPosition;
+						}
+					}
+				}
+			}
+		}
+
+		if (InformationManager::Instance().enemyHasCloakedCombatUnits() && !bWeHaveObserver)
+		{
+			if (bWeHaveCannon)
+			{
+				return bestCannonPosToEscape;
+			}
+			else
+			{
+				BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
+				BWTA::BaseLocation * main = InformationManager::Instance().getMyMainBaseLocation();
+				if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
+				{
+					return natural->getPosition();
+				}
+				else if (main)
+				{
+					return main->getPosition();
+				}
+			}
+		}
+	}
+
 	// Ground and air considerations.
 	bool hasGround = true;
 	bool hasAir = false;

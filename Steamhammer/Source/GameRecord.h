@@ -137,6 +137,7 @@ public:
 	int getAirTechFrame() const { return frameEnemyGetsAirUnits; };
 	int getCloakTechFrame() const { return frameEnemyGetsCloakedUnits; };
     int getPylonHarassBehaviour() const { return pylonHarassBehaviour; };
+	int getFrameEnemyGetsMobileDetection() const { return frameEnemyGetsMobileDetection; };
 
 	void debugLog();
 	static GameRecord & Instance();

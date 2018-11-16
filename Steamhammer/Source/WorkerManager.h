@@ -66,6 +66,7 @@ public:
 	bool		isCombatWorker(BWAPI::Unit worker);
     bool        isFree(BWAPI::Unit worker);
     bool        isBuilder(BWAPI::Unit worker);
+	bool		isMoveWorker(BWAPI::Unit worker);
 
     BWAPI::Unit getBuilder(const Building & b,bool setJobAsBuilder = true);
     BWAPI::Unit getMoveWorker(BWAPI::Position p);

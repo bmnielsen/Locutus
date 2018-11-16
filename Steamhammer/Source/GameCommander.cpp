@@ -30,21 +30,22 @@ void GameCommander::update()
 	Log().Debug() << "surrenderMonkey";
 #endif
 
+	//	by wei guo, 20180916
 	// Decide whether to give up early. Implements config option SurrenderWhenHopeIsLost.
-	if (surrenderMonkey())
-	{
-		_surrenderTime = BWAPI::Broodwar->getFrameCount();
-		BWAPI::Broodwar->printf("gg");
-	}
-	if (_surrenderTime)
-	{
-		if (BWAPI::Broodwar->getFrameCount() - _surrenderTime >= 36)  // 36 frames = 1.5 game seconds
-		{
-			Log().Get() << "Surrendering";
-			BWAPI::Broodwar->leaveGame();
-		}
-		return;
-	}
+// 	if (surrenderMonkey())
+// 	{
+// 		_surrenderTime = BWAPI::Broodwar->getFrameCount();
+// 		BWAPI::Broodwar->printf("gg");
+// 	}
+// 	if (_surrenderTime)
+// 	{
+// 		if (BWAPI::Broodwar->getFrameCount() - _surrenderTime >= 36)  // 36 frames = 1.5 game seconds
+// 		{
+// 			Log().Get() << "Surrendering";
+// 			BWAPI::Broodwar->leaveGame();
+// 		}
+// 		return;
+// 	}
 
 #ifdef CRASH_DEBUG
 	Log().Debug() << "InformationManager";

@@ -20,6 +20,7 @@ class InformationManager
 	bool			_enemyProxy;
 
 	bool			_weHaveCombatUnits;
+	bool			_sneakTooLate; //by pfan8, 20180927, sneak too late if enemy has detection already
 	bool			_enemyHasCombatUnits;
 	bool			_enemyCanProduceCombatUnits;
 	bool			_enemyHasStaticAntiAir;
@@ -29,6 +30,7 @@ class InformationManager
 	bool			_enemyHasCloakTech;
 	bool			_enemyHasMobileCloakTech;
 	bool			_enemyHasCloakedCombatUnits;
+	bool			_enemyProtossCloakTechDetected;
 	bool			_enemyHasOverlordHunters;
 	bool			_enemyHasStaticDetection;
 	bool			_enemyHasMobileDetection;
@@ -50,6 +52,7 @@ class InformationManager
     std::map<BWAPI::Bullet, int>    bulletFrames;   // All interesting bullets we've seen and the frame we first saw them on
     int                             bulletsSeenAtExtendedMarineRange;
 
+	const int						SIEGE_THREASHOLD = 1000; //by pfan8, 20180928, set siege range const
     // All enemy walls we have detected
     // First set in the pair: the forward tiles in the wall. These tiles are covered by the wall buildings.
     // Second set in the pair: all tiles behind or part of the wall.
@@ -61,14 +64,13 @@ class InformationManager
     std::map<BWAPI::UnitType, int> enemyUnitCooldown;
     std::map<BWAPI::UnitType, double> enemyUnitTopSpeed;
     std::map<BWAPI::UnitType, int> enemyUnitArmor;
+	BWAPI::Unitset					enemyThreatingUnits; //by pfan8, 20180928, unitset of units attack our base
 
 	InformationManager();
 
 	void					initializeTheBases();
 	void                    initializeRegionInformation();
 	void					initializeNaturalBase();
-
-	int                     getIndex(BWAPI::Player player) const;
 
 	void					baseInferred(BWTA::BaseLocation * base);
 	void					baseFound(BWAPI::Unit depot);
@@ -111,8 +113,9 @@ public:
 
 	bool					isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries);
 	bool					isEnemyBuildingNearby(BWAPI::Position position, int threshold);
+	bool					isEnemyMainBaseEliminated();	// by pfan8, 20180928, if we eliminate enemy base, back home to defense
+	bool					isSneakTooLate();				// by pfan8, 20180928, condition used to cancel sneak
     int						getNumUnits(BWAPI::UnitType type,BWAPI::Player player) const;
-    bool					nearbyForceHasCloaked(BWAPI::Position p,BWAPI::Player player,int radius);
 
     void                    getNearbyForce(std::vector<UnitInfo> & unitInfo,BWAPI::Position p,BWAPI::Player player,int radius);
 
@@ -138,7 +141,6 @@ public:
     std::vector<BWTA::BaseLocation *> getEnemyBases() { return getBases(BWAPI::Broodwar->enemy()); }
     Base*					getBase(BWTA::BaseLocation * base) { return _theBases[base]; };
     Base*					baseAt(BWAPI::TilePosition baseTilePosition);
-    int						getTotalNumBases() const;
 	int						getNumBases(BWAPI::Player player);
 	int						getNumFreeLandBases();
 	int						getMyNumMineralPatches();
@@ -163,9 +165,13 @@ public:
 	bool                    enemyHasCloakTech();
 	bool                    enemyHasMobileCloakTech();
 	bool                    enemyHasCloakedCombatUnits();
+	bool					enemyProtossCloakTechDetected();
 	bool					enemyHasOverlordHunters();
 	bool					enemyHasStaticDetection();
 	bool					enemyHasMobileDetection();
+	bool					enemyHasCloakDetection();	//	by wei guo, 20180914
+	bool					enemyHasCompletedCloakDetection();	//	by wei guo, 20180914
+	bool					enemyScoutKilled();
 	bool					enemyHasSiegeTech();
     bool                    enemyHasInfantryRangeUpgrade();
 
@@ -189,6 +195,7 @@ public:
 	void					drawBaseInformation(int x, int y);
 
     const UnitData &        getUnitData(BWAPI::Player player) const;
+	BWAPI::Unitset			getThreatingUnits(BWTA::BaseLocation * base = nullptr); //by pfan8, 20180928, unitset of units attack our base
 
     std::string             getEnemyName() const { return _enemyName; }
 
@@ -197,6 +204,7 @@ public:
     LocutusUnit&            getLocutusUnit(BWAPI::Unit unit);
     LocutusMapGrid&         getMyUnitGrid() { return _myUnitGrid; };
 
+	void					sneak2Late(); // by pfan8, set sneak too late
 	// yay for singletons!
 	static InformationManager & Instance();
 };

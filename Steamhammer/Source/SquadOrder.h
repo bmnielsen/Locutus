@@ -18,6 +18,7 @@ namespace SquadOrderTypes
 		Drop,      // go drop on the enemy (Drop squad)
 		Harass,    // harass the enemy
 		KamikazeAttack,    // attacks the enemy with much higher aggression, ignoring air units
+		Sneak	//	by wei guo, 20180913
 	};
 }
 
@@ -78,6 +79,7 @@ public:
 			case SquadOrderTypes::Drop:    return 'D';
 			case SquadOrderTypes::Harass:  return 'S';
 			case SquadOrderTypes::KamikazeAttack:  return 'K';
+			case SquadOrderTypes::Sneak:   return 'N';
 		}
 		return '?';
 	}
@@ -92,7 +94,8 @@ public:
 			_type == SquadOrderTypes::HoldWall ||
 			_type == SquadOrderTypes::Harass ||
 			_type == SquadOrderTypes::KamikazeAttack ||
-			_type == SquadOrderTypes::Drop;
+			_type == SquadOrderTypes::Drop||
+			_type == SquadOrderTypes::Sneak;
 	}
 
 	// These orders use the regrouping mechanism to retreat when facing superior enemies.

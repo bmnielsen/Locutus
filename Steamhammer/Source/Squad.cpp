@@ -270,7 +270,8 @@ void Squad::addUnitsToMicroManagers()
 			{
 				highTemplarUnits.insert(unit);
 			}
-			else if (_order.getType() == SquadOrderTypes::Harass &&
+			else if ((_order.getType() == SquadOrderTypes::Harass ||
+				_order.getType() == SquadOrderTypes::Sneak) &&
                 unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
 			{
 				darkTemplarUnits.insert(unit);
@@ -342,6 +343,11 @@ void Squad::addUnitsToMicroManagers()
 // Calculates whether to regroup, aka retreat. Does combat sim if necessary.
 bool Squad::needsToRegroup()
 {
+	if (StrategyManager::Instance().isRushing())		// by wei guo, 20180921
+	{
+		return false;
+	}
+
 	if (_units.empty())
 	{
 		_regroupStatus = std::string("No attackers available");

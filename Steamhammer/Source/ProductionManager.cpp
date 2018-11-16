@@ -5,6 +5,7 @@
 #include "TechCompleteProductionGoal.h"
 #include "UpgradeCompleteProductionGoal.h"
 #include "PathFinding.h"
+#include "BuildingPlacer.h"
 
 using namespace UAlbertaBot;
 
@@ -143,8 +144,23 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
 		!(UnitUtil::CanAttackAir(unit) || UnitUtil::CanAttackGround(unit)) &&
 		unit->getType().supplyProvided() == 0)
 	{
-		Log().Get() << "Lost an important building, going out of book";
-		goOutOfBookAndClearQueue();
+		// by wei guo, 20181004
+		if (StrategyManager::Instance().getOpeningGroup() == "cse")
+		{
+			if (unit->getType() != BWAPI::UnitTypes::Protoss_Forge
+				&& unit->getType() != BWAPI::UnitTypes::Protoss_Photon_Cannon
+				&& unit->getType() != BWAPI::UnitTypes::Protoss_Citadel_of_Adun
+				&& unit->getType() != BWAPI::UnitTypes::Protoss_Templar_Archives)
+			{
+				Log().Get() << "Lost an important building, going out of book";
+				goOutOfBookAndClearQueue();
+			}
+		}
+		else
+		{
+			Log().Get() << "Lost an important building, going out of book";
+			goOutOfBookAndClearQueue();
+		}
 	}
 }
 
@@ -411,8 +427,29 @@ void ProductionManager::manageBuildOrderQueue()
 			Log().Get() << "Breaking a production jam; current queue item is " << currentItem.macroAct.getName();
 			goOutOfBookAndClearQueue();
 
-			if (_assignedWorkerForThisBuilding)
-				WorkerManager::Instance().finishedWithWorker(_assignedWorkerForThisBuilding);
+			if (_assignedWorkerForThisBuilding) {
+
+				std::set<BWAPI::Unit> enemyUnits;
+				LocutusWall& wall = BuildingPlacer::Instance().getWall();
+				bool needCombatWorker = false;
+				if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg) {
+					for (const auto unit : BWAPI::Broodwar->enemy()->getUnits()) {
+						if (unit->getType().isWorker())
+						{
+							if (unit->isAttacking()) {
+								if (wall.exists() && unit->getDistance(BuildingPlacer::Instance().getWall().gapCenter) < 320)
+								{
+									WorkerManager::Instance().setCombatWorker(_assignedWorkerForThisBuilding);
+									needCombatWorker = true;
+								}
+							}
+						}
+					}
+				}
+				if (!needCombatWorker) {
+					WorkerManager::Instance().finishedWithWorker(_assignedWorkerForThisBuilding);
+				}
+			}
 
 			_assignedWorkerForThisBuilding = nullptr;
 			_haveLocationForThisBuilding = false;
@@ -776,7 +813,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 		// BWAPI::Broodwar->printf("can't place building %s", b.type.getName().c_str());
 		// If we can't place the building now, we probably can't place it next frame either.
 		// Delay for a while before trying again. We could overstep the time limit.
-		_delayBuildingPredictionUntilFrame = 12 + BWAPI::Broodwar->getFrameCount();
+		_delayBuildingPredictionUntilFrame = 2 + BWAPI::Broodwar->getFrameCount();
 		return;
 	}
 
@@ -805,11 +842,11 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 			if (!nextCompletedUnit) 
 			{
 				// Prerequisite is queued for build, check again in a bit
-				_delayBuildingPredictionUntilFrame = 20 + BWAPI::Broodwar->getFrameCount();
+				_delayBuildingPredictionUntilFrame = 2 + BWAPI::Broodwar->getFrameCount();	// by dong zhan, 20180930, 20->2
 				return;
 			}
 
-			framesUntilDependenciesMet = std::max(framesUntilDependenciesMet, nextCompletedUnit->getRemainingBuildTime() + 80);
+			framesUntilDependenciesMet = std::max(framesUntilDependenciesMet, nextCompletedUnit->getRemainingBuildTime() + 5);	// by dong zhan, 20180930, 80->5
 		}
 
 		_frameWhenDependendenciesMet = BWAPI::Broodwar->getFrameCount() + framesUntilDependenciesMet;
@@ -834,7 +871,17 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	int gasRequired						= std::max(0, b.type.gasPrice() - getFreeGas());
 
 	// get a candidate worker to move to this location
-	BWAPI::Unit moveWorker				= WorkerManager::Instance().getMoveWorker(walkToPosition);
+	BWAPI::Unit moveWorker = nullptr;
+	// by wei guo, 20180926
+	if (_proxyPrepareWorker && b.macroLocation == MacroLocation::Proxy)
+	{
+		moveWorker = _proxyPrepareWorker;
+		_proxyPrepareWorker = nullptr;
+	}
+	else
+	{
+		moveWorker = WorkerManager::Instance().getMoveWorker(walkToPosition);
+	}
 	if (!moveWorker) return;
 
 	// how many frames it will take us to move to the building location
@@ -847,7 +894,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	{
 		// We don't need to recompute for a few frames if it's a long way off
 		if (framesUntilDependenciesMet - framesToMove > 20)
-			_delayBuildingPredictionUntilFrame = BWAPI::Broodwar->getFrameCount() + 10;
+			_delayBuildingPredictionUntilFrame = BWAPI::Broodwar->getFrameCount() + 2;
 		return;
 	}
 
@@ -945,6 +992,16 @@ void ProductionManager::executeCommand(MacroCommand command)
 	else if (cmd == MacroCommandType::QueueBarrier)
 	{
 		// It does nothing! Every command is a queue barrier.
+	}
+	else if (cmd == MacroCommandType::PrepareProxy)	// by weiguo, 20180924
+	{
+		BWAPI::TilePosition ProxyPos = BuildingPlacer::Instance().placeBuildingBWEB(BWAPI::UnitTypes::Protoss_Pylon, BWAPI::TilePosition(), MacroLocation::Proxy);
+		BWAPI::Unit moveWorker = WorkerManager::Instance().getMoveWorker(BWAPI::Position(ProxyPos));
+		if (moveWorker)
+		{
+			WorkerManager::Instance().setMoveWorker(moveWorker, 0, 0, BWAPI::Position(ProxyPos));
+			_proxyPrepareWorker = moveWorker;
+		}
 	}
 	else
 	{
@@ -1228,7 +1285,10 @@ bool ProductionManager::nextIsBuilding() const
 void ProductionManager::goOutOfBookAndClearQueue()
 {
 	_queue.clearAll();
-	_outOfBook = true;
+	if (_outOfBook == false)
+	{
+		_outOfBook = true;
+	}
 	CombatCommander::Instance().setAggression(true);
 	_lastProductionFrame = BWAPI::Broodwar->getFrameCount();
 }

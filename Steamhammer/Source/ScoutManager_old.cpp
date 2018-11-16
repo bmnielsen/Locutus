@@ -3,8 +3,6 @@
 #include "OpponentModel.h"
 #include "ProductionManager.h"
 #include "UnitUtil.h"
-#include "math.h"
-
 
 // This class is responsible for early game scouting.
 // It controls any scouting worker and scouting overlord that it is given.
@@ -39,15 +37,12 @@ ScoutManager & ScoutManager::Instance()
 }
 
 
-// by yihuihu, 20180927
+// by yihuihu, 20180927：寻找对角基地
 BWAPI::TilePosition findDiagonal(BWAPI::TilePosition my, const std::vector<BWAPI::TilePosition> &_bases) {
 	BWAPI::TilePosition a = _bases[0];
 	BWAPI::TilePosition b = _bases[1];
 	BWAPI::TilePosition c = _bases[2];
 
-	//int lena = abs(a.x - my.x) + abs(a.y - my.y);
-	//int lenb = abs(b.x - my.x) + abs(b.y - my.y);
-	//int lenc = abs(c.x - my.x) + abs(c.y - my.y);
 	int lena = (a.x - my.x)*(a.x - my.x) + (a.y - my.y)*(a.y - my.y);
 	int lenb = (b.x - my.x)*(b.x - my.x) + (b.y - my.y)*(b.y - my.y);
 	int lenc = (c.x - my.x)*(c.x - my.x) + (c.y - my.y)*(c.y - my.y);
@@ -77,8 +72,10 @@ void ScoutManager::setScoutTargets()
 {
 	if (!InformationManager::Instance().getMyMainBaseLocation())
 	{
+		BWAPI::Broodwar->sendText("Error: MyMainBaseLocation is not initialized!");
 		return;
 	}
+
 	BWTA::BaseLocation * enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
 	if (enemyBase)
 	{
@@ -96,150 +93,38 @@ void ScoutManager::setScoutTargets()
 		_workerScoutTarget = BWAPI::TilePositions::Invalid;
 	}
 
-	BWAPI::TilePosition pos1;
-	BWAPI::TilePosition pos2;
-	pos1.x = 67; pos1.y = 53;
-	pos2.x = 59; pos2.y = 74;
-
-
 	std::vector<BWAPI::TilePosition> _bases;		//	by yihuihu, 20180927
-
-	if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301"&&BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)		//	Python
+	_bases.clear();
+	// Unset any targets that we have searched.
+	for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
 	{
-		_bases.clear();
-
-		if (!_workerScout) return;
-		int explored_base = 0;
-		bool explored_bug = false;
-		for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
+		if (pos != InformationManager::Instance().getMyMainBaseLocation()->getTilePosition()) 
 		{
-			if (pos != InformationManager::Instance().getMyMainBaseLocation()->getTilePosition()) {
-				_bases.push_back(pos);
-
-				if (BWAPI::Broodwar->isExplored(pos))
-				{
-					explored_base++;
-				}
-			}
+			_bases.push_back(pos);
 		}
-		_workerScoutTarget = BWAPI::TilePositions::Invalid;
-		for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
-		{
-			if (pos == InformationManager::Instance().getMyMainBaseLocation()->getTilePosition())
-				continue;
-			if (explored_base == 0)
-			{
-				if (pos != findDiagonal(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition(), _bases) && !BWAPI::Broodwar->isExplored(pos))
-				{
-					_workerScoutTarget = pos;
-					return;
-				}
-			}
-			if (explored_base == 1 && explored_bug == false)
-			{
-				_workerScoutTarget = ((abs(_workerScout->getPosition().x - pos1.x) + abs(_workerScout->getPosition().y - pos1.y)) < \
-					(abs(_workerScout->getPosition().x - pos2.x) + abs(_workerScout->getPosition().y - pos2.y))) ? pos1: pos2;
-				if (!BWAPI::Broodwar->isExplored(_workerScoutTarget))
-				{
-					return;
-				}
-				else
-				{
-					_workerScoutTarget = ((abs(_workerScout->getPosition().x - pos1.x) + abs(_workerScout->getPosition().y - pos1.y)) < \
-						(abs(_workerScout->getPosition().x - pos2.x) + abs(_workerScout->getPosition().y - pos2.y))) ? pos2 : pos1;
-					if (!BWAPI::Broodwar->isExplored(_workerScoutTarget))
-					{
-						return;
-					}
-					else
-					{
-						explored_bug = true;
-					}
-				}				
-			}
-			if (explored_base == 1 && explored_bug == true)
-			{
-				if (pos != findDiagonal(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition(), _bases) && !BWAPI::Broodwar->isExplored(pos))
-				{
-					_workerScoutTarget = pos;
-					return;
-				}
-			}
-			if (explored_base == 2)
-			{
-				_workerScoutTarget = findDiagonal(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition(), _bases);
-				return;
-			}
-		}
-	} 
-	else if (BWAPI::Broodwar->enemy()->getRace()==BWAPI::Races::Protoss 
-		&& BWAPI::Broodwar->mapHash() != "de2ada75fbc741cfa261ee467bf6416b10f9e301"		//	Python
-		&& BWAPI::Broodwar->mapHash() != "a220d93efdf05a439b83546a579953c63c863ca7"		//	Empire Of The Sun
-		&& BWAPI::Broodwar->getStartLocations().size() == 4)
-	{
-		_bases.clear();
-		if (!_workerScout) return;
 
-		int explored_base = 0;
-		for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
+		if (BWAPI::Broodwar->isExplored(pos))
 		{
-			if (pos != InformationManager::Instance().getMyMainBaseLocation()->getTilePosition()) {
-				_bases.push_back(pos);
-
-				if (BWAPI::Broodwar->isExplored(pos))
-				{
-					explored_base++;
-				}
-			}
-		}
-		_workerScoutTarget = BWAPI::TilePositions::Invalid;
-		for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
-		{
-			if (pos == InformationManager::Instance().getMyMainBaseLocation()->getTilePosition())
-				continue;
-			if (explored_base == 0)
+			// We've seen it. No need to look there any more.
+			if (_overlordScoutTarget == pos)
 			{
-				if (pos != findDiagonal(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition(), _bases) && !BWAPI::Broodwar->isExplored(pos))
-				{
-					_workerScoutTarget = pos;
-					return;
-				}
+				_overlordScoutTarget = BWAPI::TilePositions::Invalid;
 			}
-			if (explored_base == 1)
+			if (_workerScoutTarget == pos)
 			{
-				if (pos != findDiagonal(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition(), _bases) && !BWAPI::Broodwar->isExplored(pos))
-				{
-					_workerScoutTarget = pos;
-					return;
-				}
-			}
-			if (explored_base == 2)
-			{
-				_workerScoutTarget = findDiagonal(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition(), _bases);
-				return;
+				_workerScoutTarget = BWAPI::TilePositions::Invalid;
 			}
 		}
 	}
-	else
-	{
-		for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
-		{
-			if (BWAPI::Broodwar->isExplored(pos))
-			{
-				// We've seen it. No need to look there any more.
-				if (_overlordScoutTarget == pos)
-				{
-					_overlordScoutTarget = BWAPI::TilePositions::Invalid;
-				}
-				if (_workerScoutTarget == pos)
-				{
-					_workerScoutTarget = BWAPI::TilePositions::Invalid;
-				}
-			}
-		}
 
-		// Set any target that we need to search.
-		for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
+	// Set any target that we need to search.
+
+	for (BWAPI::TilePosition pos : BWAPI::Broodwar->getStartLocations())
+	{
+		if (BWAPI::Broodwar->mapHash() == "a220d93efdf05a439b83546a579953c63c863ca7"		// by weiguo, 20180927, Empire of the sun
+			||BWAPI::Broodwar->mapHash() == "86afe0f744865befb15f65d47865f9216edc37e5"		// by weiguo, 20180927, Python
+			|| BWAPI::Broodwar->getStartLocations().size() != 4
+			|| BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Protoss)				//	目前的功能实现上看还只能针对
 		{
 			if (!BWAPI::Broodwar->isExplored(pos))
 			{
@@ -252,8 +137,26 @@ void ScoutManager::setScoutTargets()
 					_workerScoutTarget = pos;
 				}
 			}
+		} 
+		else 
+		{
+			if (pos != findDiagonal(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition(), _bases)) 
+			{
+				if (!BWAPI::Broodwar->isExplored(pos))
+				{
+					if (_overlordScout && !_overlordScoutTarget.isValid() && _workerScoutTarget != pos)
+					{
+						_overlordScoutTarget = pos;
+					}
+					else if (_workerScout && !_workerScoutTarget.isValid() && _overlordScoutTarget != pos)
+					{
+						_workerScoutTarget = pos;
+					}
+				}
+			}
 		}
 	}
+
 	// NOTE There cannot be only one target. We found the base, or there are >= 2 possibilities.
 	//      If there is one place left to search, then the enemy base is there and we know it,
 	//      because InformationManager infers the enemy base position by elimination.
@@ -381,7 +284,7 @@ void ScoutManager::update()
 	// If we're done with a gas steal and we don't want to keep scouting, release the worker.
 	// If we're zerg, the worker may have turned into an extractor. That is handled elsewhere.
 
-	//	by wei guo, 20180914
+	//	by wei guo, 20180914，不让侦察兵随随便便就回来，继续探敌人的科技。
 // 	if (_scoutCommand == MacroCommandType::None && _gasStealOver)
 // 	{
 // 		releaseWorkerScout();
@@ -711,22 +614,22 @@ bool ScoutManager::gasSteal()
         return false;
     }
 
-	// by wei guo, 20180928
+	// by wei guo, 20180928：增加是否偷气的判断，提高探路成功率
 	if (StrategyManager::Instance().getOpeningGroup() == "cse")
 	{
-		if (!StrategyManager::Instance().shouldSeenHisWholeBase())
+		if (!StrategyManager::Instance().shouldSeenHisWholeBase())	//	不能让Pylon Harass耽误了探路
 		{
 			_gasStealStatus = "Enemy whole base not seen";
 			return false;
 		}
 
-		if (!StrategyManager::Instance().EnemyProxyDetected())
+		if (!StrategyManager::Instance().EnemyProxyDetected())		//	如果对方都要Rush你来了，就不要费钱去骚扰了
 		{
 			_gasStealOver = true;
 			return false;
 		}
 
-		if (!StrategyManager::Instance().EnemyZealotRushDetected())
+		if (!StrategyManager::Instance().EnemyZealotRushDetected())		//	如果对方都要Rush你来了，就不要费钱去骚扰了
 		{
 			_gasStealOver = true;
 			return false;
@@ -1210,21 +1113,20 @@ bool ScoutManager::pylonHarass()
     const BWEB::Station * enemyStation = InformationManager::Instance().getEnemyMainBaseStation();
     if (!enemyBase || !enemyStation) return false;
 
-	// Wait until we know the enemy race
-	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Random ||
-		BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg ||		//	by wei guo, 20180928
-		BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Unknown) return false;
+    // Wait until we know the enemy race
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Random ||
+		BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg ||		//	by wei guo, 20180928：对虫族不做Pylon Harass
+        BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Unknown) return false;
 
 	if (StrategyManager::Instance().getOpeningGroup() == "cse")
 	{
-		return false;	//	by weiguo, 20181001
-		if (!StrategyManager::Instance().shouldSeenHisWholeBase())
+		if (!StrategyManager::Instance().shouldSeenHisWholeBase())	//	不能让Pylon Harass耽误了探路
 			return false;
 
-		if (!StrategyManager::Instance().EnemyProxyDetected())
+		if (!StrategyManager::Instance().EnemyProxyDetected())		//	如果对方都要Rush你来了，就不要费钱去骚扰了
 			return false;
 
-		if (!StrategyManager::Instance().EnemyZealotRushDetected())
+		if (!StrategyManager::Instance().EnemyZealotRushDetected())		//	如果对方都要Rush你来了，就不要费钱去骚扰了
 			return false;
 	}
 

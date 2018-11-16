@@ -600,6 +600,10 @@ void BuildingPlacer::findProxyBlocks()
             // Consider each start location
             int minDist = INT_MAX;
             int maxDist = 0;
+
+			//	by wei guo, 20180925
+			int nProxyThreathold = (BWTA::getStartLocations().size() > 2) ? 2000 : 1000;
+
             for (auto base : enemyStartLocations)
             {
                 // Don't build horror gates
@@ -621,7 +625,8 @@ void BuildingPlacer::findProxyBlocks()
 
                 // Update best distance for this base if appropriate, but don't build too close
                 // We don't want them to find the proxy early and kill it before we can make units
-                if (dist < distBest[base] && dist >= 2000)
+                // if (dist < distBest[base] && dist >= 2000)
+				if (dist < distBest[base] && dist >= nProxyThreathold)	// by wei guo 20180921
                 {
                     debug << "(best); ";
                     distBest[base] = dist;
@@ -634,7 +639,8 @@ void BuildingPlacer::findProxyBlocks()
             }
 
             // Don't consider center positions too close to a base
-            if (minDist < 2000)
+            //if (minDist < 2000)		// by wei guo, 20180921
+			if (minDist < nProxyThreathold)
             {
                 debug << "rejecting for center, too close to a base";
                 continue;

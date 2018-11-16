@@ -243,6 +243,9 @@
     <ClCompile Include="..\Source\PathFinding.cpp">
       <Filter>game\util</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\PredictModel.cpp">
+      <Filter>game</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -443,6 +446,12 @@
     </ClInclude>
     <ClInclude Include="..\Source\PathFinding.h">
       <Filter>game\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\ModelWeightInit.h">
+      <Filter>game</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\PredictModel.h">
+      <Filter>game</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

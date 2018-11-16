@@ -17,6 +17,8 @@ class CombatCommander
 
 	bool			_goAggressive;
 
+	bool			_noSneak;
+
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
 
@@ -31,6 +33,7 @@ class CombatCommander
 	void            updateIdleSquad();
     void            updateKamikazeSquad();
     void            updateDefuseSquads();
+	void			updateSneakSquads();
 
 	void			loadOrUnloadBunkers();
 	void			doComsatScan();
@@ -46,8 +49,6 @@ class CombatCommander
 
 	void			cancelDyingItems();
 
-	int             getNumType(BWAPI::Unitset & units, BWAPI::UnitType type);
-
 	BWAPI::Unit     findClosestDefender(
         const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullCloseWorkers, bool pullDistantWorkers, bool preferRangedUnits);
     BWAPI::Unit     findClosestWorkerToTarget(BWAPI::Unitset & unitsToAssign, BWAPI::Unit target);
@@ -60,10 +61,6 @@ class CombatCommander
 	BWAPI::Position	getDefenseLocation();
 
     void            initializeSquads();
-    void            assignFlyingDefender(Squad & squad);
-    void            emptySquad(Squad & squad, BWAPI::Unitset & unitsToAssign);
-    int             getNumGroundDefendersInSquad(Squad & squad);
-    int             getNumAirDefendersInSquad(Squad & squad);
 
     void            updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool preferRangedUnits);
 

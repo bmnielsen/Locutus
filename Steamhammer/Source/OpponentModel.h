@@ -86,9 +86,25 @@ namespace UAlbertaBot
 		bool expectAirTechSoon();
 		bool expectCloakedCombatUnitsSoon();
 
+		int worstCaseExpectedCloakTech() { return _worstCaseExpectedCloakTech; }
+		int worstCaseExpectedAirTech() { return _worstCaseExpectedAirTech; }
+
         int getExpectedPylonHarassBehaviour() const { return _expectedPylonHarassBehaviour; };
         int getActualPylonHarassBehaviour() const { return _pylonHarassBehaviour; };
         void setPylonHarassObservation(PylonHarassBehaviour observation);
+
+		//	by wei guo, 20180916
+		int getLastGameEnemyMobileDetectionFrame()
+		{
+			if (_pastGameRecords.rbegin() == _pastGameRecords.rend())
+			{
+				return 1;
+			}
+			else
+			{
+				return (*_pastGameRecords.rbegin())->getFrameEnemyGetsMobileDetection();
+			}
+		}
 
 		static OpponentModel & Instance();
 	};

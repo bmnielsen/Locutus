@@ -31,3 +31,24 @@ int MathUtil::EdgeToPointDistance(BWAPI::UnitType type, BWAPI::Position center, 
     // Compute distance
     return BWAPI::Positions::Origin.getApproxDistance(BWAPI::Position(xDist, yDist));
 }
+
+// by pfan8, 20180930, calculate distance of point to line
+int UAlbertaBot::MathUtil::DistanceFromPointToLine(BWAPI::Position linepoint1, BWAPI::Position linepoint2, BWAPI::Position targetpoint)
+{
+	int distance = 0;
+	if (linepoint1.getDistance(linepoint2) == 0) distance = linepoint1.getDistance(targetpoint);
+	else
+	{
+		int A = linepoint2.y - linepoint1.y;
+		int B = linepoint1.x - linepoint2.x;
+		int C = linepoint2.x * linepoint1.y - linepoint1.x * linepoint2.y;
+		double qx = (double)(B*B*targetpoint.x - A*B*targetpoint.y - A*C) / (double)(A*A + B*B);
+		bool qout = (linepoint1.x < linepoint2.x) ? (qx < linepoint1.x || qx > linepoint2.x) : (qx < linepoint2.x || qx > linepoint1.x);
+		if (qout)
+		{
+			return linepoint2.getDistance(targetpoint);
+		}
+		distance = (int)(round(std::abs((A * targetpoint.x + B * targetpoint.y + C) / std::sqrt(A*A + B*B))));
+	}
+	return distance;
+}

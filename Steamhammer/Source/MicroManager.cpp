@@ -88,12 +88,30 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 			MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
 		}
 	}
+
+	// by pfan8, 20180927, when base get attacked, insert siege enemy into targets
+	if (order.getType() == SquadOrderTypes::Sneak)
+	{
+		// by pfan8, 20180928, when eliminated enemy base or s2l, insert any enemy
+		if (InformationManager::Instance().isEnemyMainBaseEliminated() || InformationManager::Instance().isSneakTooLate())
+		{
+			for (auto target : BWAPI::Broodwar->enemy()->getUnits())
+			{
+				targets.insert(target);
+			}
+		}
+	}
 }
 
 // Determine if we should ignore the given target and look for something better closer to our order position
 bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target)
 {
     if (!combatUnit || !target) return true;
+
+	// by pfan8, 20180928, if unit execute sneak order and eliminated enemy base or s2l, don't ignore any dragoon or zealot
+	if (order.getType() == SquadOrderTypes::Sneak
+		&& (InformationManager::Instance().isEnemyMainBaseEliminated() || InformationManager::Instance().isSneakTooLate()))
+		return false;
 
     // Check if this unit is currently performing a run-by of a bunker
     // If so, ignore all targets while we are doing the run-by
@@ -157,9 +175,9 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
     if ((StrategyManager::Instance().isRushing() && order.getType() == SquadOrderTypes::Attack) ||
         order.getType() == SquadOrderTypes::KamikazeAttack)
     {
-        if (combatUnit->getDistance(order.getPosition()) > 500 &&
-            target->getType().isWorker() &&
-            !target->isConstructing()) return true;
+ 		if (combatUnit->getDistance(order.getPosition()) > 500 &&
+ 			target->getType().isWorker() &&
+ 			!target->isConstructing()) return true;
     }
 
     // Consider outlying buildings
@@ -171,6 +189,12 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
 
         // Never ignore buildings that are part of walls
         if (InformationManager::Instance().isEnemyWallBuilding(target)) return false;
+
+		// by wei guo, 20180927
+		if (target->getType() == BWAPI::UnitTypes::Protoss_Pylon)
+		{
+			return false;
+		}
 
         // Otherwise, let's ignore this and find something better to attack
         return true;
