@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>Locutus</ProjectName>
+    <ProjectName>ISAMind</ProjectName>
     <ProjectGuid>{2E63AE74-758A-4607-9DE4-D28E814A6E13}</ProjectGuid>
     <RootNamespace>ExampleAIModule</RootNamespace>
     <Keyword>Win32Proj</Keyword>
@@ -60,6 +60,10 @@
     <CodeAnalysisIgnoreGeneratedCode Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CodeAnalysisIgnoreGeneratedCode>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectName)_d</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>../../cv/include/opencv2;../../cv/include/opencv;../../cv/include;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <LibraryPath>../../cv/lib;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
@@ -106,7 +110,7 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>$(BWAPI_DIR)/lib/BWAPI.lib;../../BOSS/bin/BOSS.lib;$(BWTA_DIR)/lib/BWTA.lib;$(BWTA_DIR)/lib/libboost_system-vc120-mt-1_56.lib;$(BWTA_DIR)/lib/libboost_thread-vc120-mt-1_56.lib;$(BWTA_DIR)/lib/libCGAL-vc120-mt-4.4.lib;$(BWTA_DIR)/lib/libgmp-10.lib;$(BWTA_DIR)/lib/libmpfr-4.lib;$(BWTA_DIR)/lib/libboost_filesystem-vc120-mt-1_56.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BWAPI_DIR)/lib/BWAPI.lib;../../BOSS/bin/BOSS.lib;$(BWTA_DIR)/lib/BWTA.lib;$(BWTA_DIR)/lib/libboost_system-vc120-mt-1_56.lib;$(BWTA_DIR)/lib/libboost_thread-vc120-mt-1_56.lib;$(BWTA_DIR)/lib/libCGAL-vc120-mt-4.4.lib;$(BWTA_DIR)/lib/libgmp-10.lib;$(BWTA_DIR)/lib/libmpfr-4.lib;$(BWTA_DIR)/lib/libboost_filesystem-vc120-mt-1_56.lib;zlib.lib;opencv_core2411.lib;opencv_ml2411.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -179,6 +183,7 @@
     <ClCompile Include="..\Source\MicroTransports.cpp" />
     <ClCompile Include="..\Source\OpponentModel.cpp" />
     <ClCompile Include="..\Source\OpponentPlan.cpp" />
+    <ClCompile Include="..\Source\OpponentPrediction.cpp" />
     <ClCompile Include="..\Source\ParseUtils.cpp" />
     <ClCompile Include="..\Source\PathFinding.cpp" />
     <ClCompile Include="..\Source\PlayerSnapshot.cpp" />
@@ -262,6 +267,7 @@
     <ClInclude Include="..\Source\MicroTransports.h" />
     <ClInclude Include="..\Source\OpponentModel.h" />
     <ClInclude Include="..\Source\OpponentPlan.h" />
+    <ClInclude Include="..\Source\OpponentPrediction.h" />
     <ClInclude Include="..\Source\ParseUtils.h" />
     <ClInclude Include="..\Source\PathFinding.h" />
     <ClInclude Include="..\Source\PlayerSnapshot.h" />

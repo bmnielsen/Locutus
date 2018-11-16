@@ -1,8 +1,8 @@
 {
     "Bot Info" :
     {
-        "BotName"                   : "Locutus",
-        "Authors"                   : "Bruce Nielsen",
+        "BotName"                   : "ISAMind",
+        "Authors"                   : "Gao Fang",
         "PrintInfoOnStart"          : false
     },
     
@@ -38,8 +38,8 @@
 
     "Debug" :
     {
-        "ErrorLogFilename"          : "bwapi-data/write/Locutus_ErrorLog.txt",
-        "LogAssertToErrorFile"      : true,
+        "ErrorLogFilename"          : "bwapi-data/write/ISAMind_ErrorLog.txt",
+        "LogAssertToErrorFile"      : false,
 		"LogDebug"					: false,
 		
         "DrawGameInfo"              : false,   
@@ -88,7 +88,7 @@
         "ScoutHarassEnemy"          : false,
 		"AutoGasSteal"				: true,
 		"RandomGasStealRate"		: 0.0,
-		"SurrenderWhenHopeIsLost"   : true,
+		"SurrenderWhenHopeIsLost"   : false,
 		"UsePlanRecognizer"         : true,
 		"TrainingMode"				: false,
 
@@ -179,7 +179,7 @@
 			]}
 		},
 
-		"UseEnemySpecificStrategy" : true,
+		"UseEnemySpecificStrategy" : false,
         "EnemySpecificStrategy" :
         {
 			"locutus": "TestWall",

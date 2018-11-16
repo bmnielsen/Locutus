@@ -268,6 +268,109 @@ void OpponentPlan::update()
 	if (frame > 100 && frame < 7200 &&       // only try to recognize openings
 		frame % 12 == 7)                     // update interval
 	{
-		recognize();
+		//recognize();
+        recognize_nn();
 	}
+}
+
+void OpponentPlan::recognize_nn()
+{
+    if (0 == nn.m_NnLoaded)
+    {
+        recognize();
+        Log().Get() << "Opponent recognition: no nn model, use rule based opponent recognize";
+        return;
+    }
+    int strategy_id = 0;
+    std::vector<int> features;
+    PlayerSnapshot snap;
+    snap.takeEnemy();
+    features.push_back(int(_openingPlan));
+    features.push_back(BWAPI::Broodwar->getFrameCount());
+    // Terran
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Command_Center));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Refinery));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Barracks));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Academy));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Factory));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Bunker));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_SCV));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Marine));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Firebat));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Medic));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Terran_Vulture));
+
+    //Protoss
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Nexus));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Assimilator));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Gateway));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Templar_Archives));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Photon_Cannon));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Probe));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Zealot));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Dragoon));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Protoss_Dark_Templar));
+
+    //Zerg
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Extractor));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Spawning_Pool));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Hydralisk_Den));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Sunken_Colony));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Drone));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Zergling));
+    features.push_back(snap.getCount(BWAPI::UnitTypes::Zerg_Hydralisk));
+
+    features.push_back(int(InformationManager::Instance().getEnemyProxy()));
+    features.push_back(int(recognizeWorkerRush()));
+
+    strategy_id = nn.getOpeningPlan(features);
+
+    switch (strategy_id)
+    {
+    case 1:
+        _openingPlan = OpeningPlan::Proxy;
+        _planIsFixed = true;
+        break;
+    case 2:
+        _openingPlan = OpeningPlan::WorkerRush;
+        break;
+    case 3:
+        _openingPlan = OpeningPlan::FastRush;
+        _planIsFixed = true;
+        break;
+    case 4:
+        _openingPlan = OpeningPlan::NotFastRush;
+        break;
+    case 5:
+        _openingPlan = OpeningPlan::HeavyRush;
+        _planIsFixed = true;
+        break;
+    case 6:
+        _openingPlan = OpeningPlan::HydraBust;
+        _planIsFixed = true;
+        break;
+    case 7:
+        _openingPlan = OpeningPlan::Factory;
+        break;
+    case 8:
+        _openingPlan = OpeningPlan::SafeExpand;
+        break;
+    case 9:
+        _openingPlan = OpeningPlan::NakedExpand;
+        break;
+    case 10:
+        _openingPlan = OpeningPlan::Turtle;
+        break;
+    default:
+        recognize();
+        Log().Debug() << "Opponent recognition: NN recognition failed, use rule based opponent recognize";
+    }
+//     if (_openingPlan == OpeningPlan::Unknown)
+//     {
+//         recognize();
+//     }
+    return;
 }
