@@ -18,6 +18,8 @@ class CombatCommander
 
 	bool			_goAggressive;
 
+	BWAPI::Position	_scourgeTarget;
+
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
 
@@ -25,6 +27,7 @@ class CombatCommander
 
 	void            updateIdleSquad();
 	void            updateOverlordSquad();
+	void			updateScourgeSquad();
 	void            updateAttackSquads();
 	void			updateReconSquad();
 	void			updateWatchSquads();
@@ -51,6 +54,7 @@ class CombatCommander
 	BWAPI::Unit     findClosestDefender(const Squad & defenseSquad, BWAPI::Position pos, bool flyingDefender, bool pullWoekers, bool enemyHasAntiAir);
     BWAPI::Unit     findClosestWorkerToTarget(BWAPI::Unitset & unitsToAssign, BWAPI::Unit target);
 
+	void			chooseScourgeTarget(const Squad & squad);
 	BWAPI::Position getDefendLocation();
 	void			chooseReconTarget();
 	BWAPI::Position getReconLocation() const;

@@ -95,13 +95,16 @@ void SquadData::drawSquadInformation(int x, int y)
 
 		const BWAPI::Unitset & units = squad.getUnits();
 		const SquadOrder & order = squad.getSquadOrder();
-		char code = order.getCharCode();                            // a == attack, etc.
+		const char code = order.getCharCode();                      // a == attack, etc.
 		const BWAPI::TilePosition orderTile(order.getPosition());   // shorter and easier to read
+		const char visibibleOnly = squad.getFightVisible() ? 'V' : ' ';
+		const char meatgrinder = squad.getMeatgrinder() ? 'M' : ' ';
 
-		BWAPI::Broodwar->drawTextScreen(x, y + (yspace * 10), "%c%c", yellow, code);
-		BWAPI::Broodwar->drawTextScreen(x + 10, y + (yspace * 10), "%c%s", white, squad.getName().c_str());
-		BWAPI::Broodwar->drawTextScreen(x + 80, y + (yspace * 10), "%c%d", yellow, units.size());
-		BWAPI::Broodwar->drawTextScreen(x + 105, y + (yspace * 10), "%c%d,%d", yellow, orderTile.x, orderTile.y);
+		BWAPI::Broodwar->drawTextScreen(x      , y + (yspace * 10), "%c%c%c", cyan, visibibleOnly, meatgrinder);
+		BWAPI::Broodwar->drawTextScreen(x +  20, y + (yspace * 10), "%c%c", yellow, code);
+		BWAPI::Broodwar->drawTextScreen(x +  30, y + (yspace * 10), "%c%s", white, squad.getName().c_str());
+		BWAPI::Broodwar->drawTextScreen(x + 100, y + (yspace * 10), "%c%d", yellow, units.size());
+		BWAPI::Broodwar->drawTextScreen(x + 125, y + (yspace * 10), "%c%d,%d", yellow, orderTile.x, orderTile.y);
 		++yspace;
 
 		BWAPI::Broodwar->drawCircleMap(order.getPosition(), 10, BWAPI::Colors::Green, true);

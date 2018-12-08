@@ -25,6 +25,10 @@ MicroRanged::MicroRanged()
 void MicroRanged::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 	BWAPI::Unitset units = Intersection(getUnits(), cluster.units);
+	if (units.empty())
+	{
+		return;
+	}
 	assignTargets(units, targets);
 }
 
@@ -169,11 +173,12 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 			continue;
 		}
 
+		// TODO disabled - seems to be wrong, skips targets it should not
 		// Don't chase targets that we can't catch.
-		if (!CanCatchUnit(rangedUnit, target))
-		{
-			continue;
-		}
+		//if (!CanCatchUnit(meleeUnit, target))
+		//{
+		//	continue;
+		//}
 
 		// Let's say that 1 priority step is worth 160 pixels (5 tiles).
 		// We care about unit-target range and target-order position distance.
@@ -290,37 +295,6 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 {
 	const BWAPI::UnitType rangedType = rangedUnit->getType();
 	const BWAPI::UnitType targetType = target->getType();
-
-	if (rangedType == BWAPI::UnitTypes::Zerg_Scourge)
-    {
-		if (!targetType.isFlyer())
-		{
-			// Can't target it. Also, ignore lifted buildings.
-			return 0;
-		}
-		if (targetType == BWAPI::UnitTypes::Zerg_Overlord ||
-			targetType == BWAPI::UnitTypes::Zerg_Scourge ||
-			targetType == BWAPI::UnitTypes::Protoss_Interceptor)
-		{
-			// Usually not worth scourge at all.
-			return 0;
-		}
-		
-		// Arbiters first.
-		if (targetType == BWAPI::UnitTypes::Protoss_Arbiter)
-		{
-			return 10;
-		}
-
-		// Carriers next.
-		if (targetType == BWAPI::UnitTypes::Protoss_Carrier)
-		{
-			return 9;
-		}
-
-		// Everything else is the same. Hit whatever's closest.
-		return 8;
-	}
 
 	if (rangedType == BWAPI::UnitTypes::Zerg_Guardian && target->isFlying())
 	{

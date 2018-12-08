@@ -13,12 +13,21 @@ MicroLurkers::MicroLurkers()
 void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 	const BWAPI::Unitset & lurkers = Intersection (getUnits(), cluster.units);
+	if (lurkers.empty())
+	{
+		return;
+	}
 
 	// Potential targets.
 	BWAPI::Unitset LurkerTargets;
 	std::copy_if(targets.begin(), targets.end(), std::inserter(LurkerTargets, LurkerTargets.end()),
-		[](BWAPI::Unit u){ return u->isVisible() && !u->isFlying() && u->getPosition().isValid(); });
-
+		[](BWAPI::Unit u){
+			return
+				u->isVisible() &&
+				!u->isFlying() &&
+				u->getPosition().isValid();
+		});
+	
 	for (const auto lurker : lurkers)
 	{
 		const bool inOrderRange = lurker->getDistance(order.getPosition()) <= 3 * 32;

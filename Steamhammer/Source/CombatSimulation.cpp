@@ -8,8 +8,37 @@ CombatSimulation::CombatSimulation()
 {
 }
 
+bool CombatSimulation::includeEnemy(CombatSimEnemies which, BWAPI::UnitType type) const
+{
+	if (which == CombatSimEnemies::AntigroundEnemies)
+	{
+		// Ground enemies plus air enemies that can shoot down.
+		return
+			!type.isFlyer() ||
+			UnitUtil::GetGroundWeapon(type) != BWAPI::WeaponTypes::None;
+	}
+
+	if (which == CombatSimEnemies::ScourgeEnemies)
+	{
+		// Only ground enemies that can shoot up.
+		// The scourge will take on air enemies no matter what.
+		return
+			!type.isFlyer() &&
+			UnitUtil::GetAirWeapon(type) != BWAPI::WeaponTypes::None;
+	}
+
+	// AllEnemies.
+	return true;
+}
+
 // Set up the combat sim state based on the given friendly units and the enemy units within a given circle.
-void CombatSimulation::setCombatUnits(const BWAPI::Unitset & myUnits, const BWAPI::Position & center, int radius, bool visibleOnly)
+void CombatSimulation::setCombatUnits
+	( const BWAPI::Unitset & myUnits
+	, const BWAPI::Position & center
+	, int radius
+	, bool visibleOnly
+	, CombatSimEnemies which
+	)
 {
 	fap.clearState();
 
@@ -34,7 +63,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Unitset & myUnits, const BWAP
 		MapGrid::Instance().getUnits(enemyCombatUnits, center, radius, false, true);
 		for (const auto unit : enemyCombatUnits)
 		{
-			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit))
+			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit) && includeEnemy(which, unit->getType()))
 			{
 				fap.addIfCombatUnitPlayer2(unit);
 				if (Config::Debug::DrawCombatSimulationInfo)
@@ -50,7 +79,7 @@ void CombatSimulation::setCombatUnits(const BWAPI::Unitset & myUnits, const BWAP
 		InformationManager::Instance().getNearbyForce(enemyStaticDefense, center, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyStaticDefense)
 		{
-			if (ui.type.isBuilding() && !ui.unit->isVisible())
+			if (ui.type.isBuilding() && !ui.unit->isVisible() && includeEnemy(which, ui.type))
 			{
 				fap.addIfCombatUnitPlayer2(ui);
 				if (Config::Debug::DrawCombatSimulationInfo)
@@ -71,7 +100,8 @@ void CombatSimulation::setCombatUnits(const BWAPI::Unitset & myUnits, const BWAP
 			// The check is careful about seen units and assumes that unseen units are completed and powered.
 			if (ui.lastHealth > 0 &&
 				(ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
-				(ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)))
+				(ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)) &&
+				includeEnemy(which, ui.type))
 			{
 				fap.addIfCombatUnitPlayer2(ui);
 				if (ui.type == BWAPI::UnitTypes::Zerg_Spore_Colony)
@@ -130,29 +160,58 @@ void CombatSimulation::setCombatUnits(const BWAPI::Unitset & myUnits, const BWAP
 	*/
 }
 
-// Simulate combat and return the result as a ratio my losses / your losses.
-double CombatSimulation::simulateCombat()
+// Simulate combat and return the result as a score. Score >= 0 means you win.
+double CombatSimulation::simulateCombat(bool meatgrinder)
 {
 	std::pair<int, int> startScores = fap.playerScores();
+	if (startScores.second == 0)
+	{
+		// No enemies. We can stop early.
+		return 0.0;
+	}
+
 	fap.simulate();
 	std::pair<int, int> endScores = fap.playerScores();
 
-	// TODO old style for debugging
+	const int myLosses = startScores.first - endScores.first;
+	const int yourLosses = startScores.second - endScores.second;
+
+	//BWAPI::Broodwar->printf("  p1 %d - %d = %d, p2 %d - %d = %d  ==>  %d",
+	//	startScores.first, endScores.first, myLosses,
+	//	startScores.second, endScores.second, yourLosses,
+	//	(myLosses == 0) ? yourLosses : endScores.first - endScores.second);
+
+	// If we came out ahead, call it a win regardless.
+	// if (yourLosses > myLosses)
+	// The most conservative case: If we lost nothing, it's a win (since a draw counts as a win).
+	if (myLosses == 0)
+	{
+		return double(yourLosses);
+	}
+
+	// Be more aggressive if requested. The setting is on the squad.
+	// NOTE This tested poorly. I recommend against using it as it stands. - Jay
+	if (meatgrinder)
+	{
+		// We only need to do a limited amount of damage to "win".
+		BWAPI::Broodwar->printf("  meangrinder result = ", 3 * yourLosses - myLosses);
+
+		// Call it a victory if we took down at least this fraction of the enemy army.
+		return double(3 * yourLosses - myLosses);
+	}
+
+	// Winner is the side with smaller losses.
+	// return double(yourLosses - myLosses);
+
+	// Original scoring: Winner is whoever has more stuff left.
 	return double(endScores.first - endScores.second);
 
-	int myLosses = startScores.first - endScores.first;
-	int yourLosses = startScores.second - endScores.second;
-
-	double score = yourLosses
-		? double(myLosses) / yourLosses
-		: (myLosses ? double(myLosses) : 1.0);
-
+	/*
 	if (Config::Debug::DrawCombatSimulationInfo)
 	{
 		BWAPI::Broodwar->drawTextScreen(150, 200, "%cCombat sim: us %c%d %c/ them %c%d %c= %c%g",
 			white, orange, endScores.first, white, orange, endScores.second, white,
-			score <= 1.0 ? green : red, score);
+			score >= 0.0 ? green : red, score);
 	}
-
-	return score;
+	*/
 }

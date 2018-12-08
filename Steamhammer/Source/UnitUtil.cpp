@@ -107,6 +107,7 @@ bool UnitUtil::IsCombatSimUnit(BWAPI::UnitType type)
 		type == BWAPI::UnitTypes::Terran_Medic;
 }
 
+// Used for our units in deciding whether the include them in a squad.
 bool UnitUtil::IsCombatUnit(BWAPI::UnitType type)
 {
     // No workers, buildings, or carrier interceptors (which are not controllable).

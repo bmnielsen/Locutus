@@ -16,6 +16,10 @@ MicroMelee::MicroMelee()
 void MicroMelee::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 	BWAPI::Unitset units = Intersection(getUnits(), cluster.units);
+	if (units.empty())
+	{
+		return;
+	}
 	assignTargets(units, targets);
 }
 
@@ -46,7 +50,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
 		}
 
 		// Special case for irradiated zerg units.
-		if (meleeUnit->isIrradiated() && meleeUnit->getType().getRace() == BWAPI::Races::Zerg)
+		if (meleeUnit->isIrradiated())
 		{
 			if (meleeUnit->canBurrow())
 			{
@@ -62,14 +66,17 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
             if (meleeUnitShouldRetreat(meleeUnit, targets))
             {
 				BWAPI::Unit shieldBattery = InformationManager::Instance().nearestShieldBattery(meleeUnit->getPosition());
-				if (shieldBattery &&
+				if (false &&
+					shieldBattery &&
 					meleeUnit->getDistance(shieldBattery) < 400 &&
 					shieldBattery->getEnergy() >= 10)
 				{
-					useShieldBattery(meleeUnit, shieldBattery);
+					useShieldBattery(meleeUnit, shieldBattery);	// TODO not working yet
 				}
 				else
 				{
+					// Clustering overrides the retreat once the melee unit retreats far enough to be outside
+					// attack range. So it rarely goes far. The retreat location rarely matters much.
 					BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
 					the.micro.Move(meleeUnit, fleeTo);
 				}
@@ -81,7 +88,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
 				{
 					// CatchAndAttackUnit() does not work well in big melee battles.
 					// We still use it for worker targets, to catch the enemy scout.
-					if (target->getType().isWorker())
+					if (true || target->getType().isWorker())	// TODO DISABLED - always use catch and attack
 					{
 						the.micro.CatchAndAttackUnit(meleeUnit, target);
 					}
@@ -106,7 +113,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
 	}
 }
 
-// Choose a target from the set. Never return null!
+// Choose a target from the set.
 BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets)
 {
 	int bestScore = -999999;
@@ -125,11 +132,12 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 			continue;
 		}
 
+		// TODO disabled - seems to be wrong, skips targets it should not
 		// Don't chase targets that we can't catch.
-		if (!CanCatchUnit(meleeUnit, target))
-		{
-			continue;
-		}
+		//if (!CanCatchUnit(meleeUnit, target))
+		//{
+		//	continue;
+		//}
 
 		// Let's say that 1 priority step is worth 64 pixels (2 tiles).
 		// We care about unit-target range and target-order position distance.

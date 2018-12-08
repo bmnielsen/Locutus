@@ -80,16 +80,6 @@ int MicroDefilers::swarmScore(BWAPI::Unit u) const
 		// Special cases.
 		return type.supplyRequired();
 	}
-	if (type.groundWeapon() == BWAPI::WeaponTypes::None)
-	{
-		// This includes reavers, so they have to be counted first.
-		return 0;
-	}
-	if (type.groundWeapon().maxRange() <= 32)
-	{
-		// It's a melee attacker.
-		return type.supplyRequired();
-	}
 	if (type == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
 	{
 		return 1;		// it doesn't take supply
@@ -101,6 +91,16 @@ int MicroDefilers::swarmScore(BWAPI::Unit u) const
 	if (type == BWAPI::UnitTypes::Protoss_Archon)
 	{
 		return 4;		// it does splash damage only
+	}
+	if (type.groundWeapon() == BWAPI::WeaponTypes::None)
+	{
+		// This includes reavers, so they have to be counted first.
+		return 0;
+	}
+	if (type.groundWeapon().maxRange() <= 32)
+	{
+		// It's a melee attacker.
+		return type.supplyRequired();
 	}
 
 	// Remaining units are ranged units that cannot do damage under swarm.
@@ -222,13 +222,13 @@ double MicroDefilers::plagueScore(BWAPI::Unit u) const
 	// If it's a building other than static defense, give it a discount.
 	else if (u->getType().isBuilding())
 	{
-		score = 0.6 * score;
+		score = 0.3 * score;
 	}
 
 	// If it's a carrier interceptor, give it a bonus. We like plague on interceptor.
 	else if (u->getType() == BWAPI::UnitTypes::Protoss_Interceptor)
 	{
-		score += 5.0;
+		score += 20.0;
 	}
 
 	return std::pow(score, 0.8);

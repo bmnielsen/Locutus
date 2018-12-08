@@ -66,6 +66,9 @@ void UAlbertaBotModule::onStart()
 
 	// Turn off latency compensation, which is on by default.
 	// BWAPI::Broodwar->setLatCom(false);
+
+	// Turn on latency compensation, in case somebody sets it off by default.
+	BWAPI::Broodwar->setLatCom(true);
 }
 
 void UAlbertaBotModule::onEnd(bool isWinner)

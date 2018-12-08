@@ -277,7 +277,7 @@ void InformationManager::updateBaseLocationInfo()
 
 				// On a competition map, our base and the enemy base will never be in the same region.
 				// If we find an enemy building in our region, it's a proxy.
-				if (startLocation == getMyMainBaseLocation())
+				if (startLocation == BWTA::getStartLocation(_self))
 				{
 					_enemyProxy = true;
 				}
@@ -820,7 +820,6 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
 // NOTE It could be more accurate if ui.comleted were ui.completionTime or something similar.
 void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI::Position p, BWAPI::Player player, int radius) 
 {
-	// for each unit we know about for that player
 	for (const auto & kv : getUnitData(player).getUnits())
 	{
 		const UnitInfo & ui(kv.second);
@@ -1155,6 +1154,36 @@ bool InformationManager::enemyHasMobileCloakTech()
 		{
 			_enemyHasCloakTech = true;
 			_enemyHasMobileCloakTech = true;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Enemy has cloaked wraiths or arbiters.
+bool InformationManager::enemyHasAirCloakTech()
+{
+	for (const auto & kv : getUnitData(_enemy).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		// We have to see a wraith that is cloaked to be sure.
+		if (ui.type == BWAPI::UnitTypes::Terran_Wraith &&
+			ui.unit->isVisible() && !ui.unit->isDetected())
+		{
+			_enemyHasCloakTech = true;
+			_enemyHasMobileCloakTech = true;
+			_enemyHasAirCloakTech = true;
+			return true;
+		}
+
+		if (ui.type == BWAPI::UnitTypes::Protoss_Arbiter_Tribunal ||
+			ui.type == BWAPI::UnitTypes::Protoss_Arbiter)
+		{
+			_enemyHasCloakTech = true;
+			_enemyHasMobileCloakTech = true;
+			_enemyHasAirCloakTech = true;
 			return true;
 		}
 	}

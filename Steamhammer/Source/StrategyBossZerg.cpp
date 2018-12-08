@@ -109,11 +109,6 @@ void StrategyBossZerg::updateSupply()
 	// Note: _existingSupply is less than _self->supplyTotal() when an overlord
 	// has just died. In other words, it recognizes the lost overlord sooner,
 	// which is better for planning.
-
-	//if (_self->supplyUsed() != _supplyUsed)
-	//{
-	//	BWAPI::Broodwar->printf("official supply used /= measured supply used %d /= %d", _self->supplyUsed(), supplyUsed);
-	//}
 }
 
 // Called once per frame, possibly more.
@@ -1239,11 +1234,11 @@ void StrategyBossZerg::makeUrgentReaction(BuildOrderQueue & queue)
 			Bases::Instance().myNaturalBase()->getOwner() == _self;
 		if (_enemyRace == BWAPI::Races::Terran)
 		{
-			// Don't count battlecruisers. A spore is not strong defense against one.
+			// Don't count battlecruisers. A spore is not strong defense against them.
 			int enemyAir =
 				InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Wraith, BWAPI::Broodwar->enemy()) +
 				InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Valkyrie, BWAPI::Broodwar->enemy());
-			if (enemyAir >= 4 && nBases > 1 && !hasGreaterSpire)
+			if (enemyAir >= 3 && nBases > 1 && !hasGreaterSpire)
 			{
 				spores = 2;
 			}
@@ -1300,7 +1295,7 @@ void StrategyBossZerg::makeUrgentReaction(BuildOrderQueue & queue)
 						queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Zerg_Creep_Colony, spore1));
 					}
 				}
-				else if (spores == 1)
+				else if (spores == 1 || spores == 2 && nSpores == 1)
 				{
 					queue.queueAsHighestPriority(BWAPI::UnitTypes::Zerg_Spore_Colony);
 					queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Zerg_Creep_Colony, spore1));
@@ -1309,7 +1304,7 @@ void StrategyBossZerg::makeUrgentReaction(BuildOrderQueue & queue)
 		}
 
 		// Prepare the evo as soon as the enemy has the tech, so the spores can go up ASAP.
-		if (nEvo == 0 && nDrones >= 9 && outOfBook && hasPool &&
+		if (nEvo == 0 && nDrones >= 9 && hasPool &&
 			!queue.anyInQueue(BWAPI::UnitTypes::Zerg_Evolution_Chamber) &&
 			UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Zerg_Evolution_Chamber) == 0 &&
 			!isBeingBuilt(BWAPI::UnitTypes::Zerg_Evolution_Chamber))
@@ -1329,6 +1324,7 @@ void StrategyBossZerg::makeUrgentReaction(BuildOrderQueue & queue)
 			{
 				queue.queueAsHighestPriority(BWAPI::UnitTypes::Zerg_Spire);
 			}
+			// Also consider overlord speed so overlords are harder to catch.
 			else if (hasLair &&
 				minerals >= 150 && gas >= 150 &&
 				_enemyRace != BWAPI::Races::Zerg &&
@@ -1468,15 +1464,22 @@ void StrategyBossZerg::checkGroundDefenses(BuildOrderQueue & queue)
 		const UnitInfo & ui(kv.second);
 
 		if (!ui.type.isBuilding() && !ui.type.isWorker() &&
-			ui.type.groundWeapon() != BWAPI::WeaponTypes::None &&
+			ui.type.groundWeapon() != BWAPI::WeaponTypes::None &&        // excludes reavers
 			!ui.type.isFlyer())
 		{
-			enemyPower += ui.type.supplyRequired();
+			int power = ui.type.supplyRequired();
+			if (ui.type == BWAPI::UnitTypes::Protoss_Dragoon ||
+				ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar)
+			{
+				// Some types count a little more.
+				power += 1;
+			}
+			enemyPower += power;
 			if (ui.updateFrame >= _lastUpdateFrame - 30 * 24 &&          // seen in the last 30 seconds
 				ui.lastPosition.isValid() &&                             // don't check goneFromLastPosition
 				ourHatchery->getDistance(ui.lastPosition) < 1500)		 // not far from our front base
 			{
-				enemyPowerNearby += ui.type.supplyRequired();
+				enemyPowerNearby += power;
 			}
 			if (ui.type == BWAPI::UnitTypes::Terran_Marine)
 			{
@@ -1965,7 +1968,7 @@ void StrategyBossZerg::vTerranTechScores(const PlayerSnapshot & snap)
 			{
 				// Medics make other infantry much more effective vs ground, especially vs tier 1.
 				techScores[int(TechUnit::Zerglings)] -= count;
-				techScores[int(TechUnit::Hydralisks)] -= 2 * count;
+				techScores[int(TechUnit::Hydralisks)] -= count * 2;
 			}
 			techScores[int(TechUnit::Lurkers)] += count * 2;
 			techScores[int(TechUnit::Guardians)] += count;
@@ -1979,7 +1982,6 @@ void StrategyBossZerg::vTerranTechScores(const PlayerSnapshot & snap)
 			techScores[int(TechUnit::Lurkers)] += count * 2;
 			techScores[int(TechUnit::Guardians)] += count;
 			techScores[int(TechUnit::Ultralisks)] += count * 4;
-			defilerScore += 1;
 		}
 		else if (type == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
 		{
@@ -2022,7 +2024,7 @@ void StrategyBossZerg::vTerranTechScores(const PlayerSnapshot & snap)
 		{
 			techScores[int(TechUnit::Hydralisks)] += count * 3;
 			techScores[int(TechUnit::Lurkers)] -= count * 2;
-			techScores[int(TechUnit::Guardians)] -= count * 3;
+			techScores[int(TechUnit::Guardians)] -= count * 4;
 			techScores[int(TechUnit::Devourers)] += count * 4;
 			defilerScore += 2;
 		}
@@ -2032,7 +2034,12 @@ void StrategyBossZerg::vTerranTechScores(const PlayerSnapshot & snap)
 			techScores[int(TechUnit::Hydralisks)] += count * 4;
 			techScores[int(TechUnit::Guardians)] -= count * 3;
 			techScores[int(TechUnit::Devourers)] += count * 6;
-			if (BWAPI::UnitTypes::Terran_Battlecruiser)
+			if (type == BWAPI::UnitTypes::Terran_Valkyrie)
+			{
+				// Large valkyrie counts mow down mutalisks in passing.
+				techScores[int(TechUnit::Mutalisks)] -= count * count * 2;
+			}
+			if (type == BWAPI::UnitTypes::Terran_Battlecruiser)
 			{
 				defilerScore += 8;
 			}

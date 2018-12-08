@@ -14,9 +14,9 @@ void MicroMedics::executeMicro(const BWAPI::Unitset & targets, const UnitCluster
 {
 }
 
-void MicroMedics::update(const BWAPI::Position & center)
+void MicroMedics::update(const UnitCluster & cluster, const BWAPI::Position & goal)
 {
-	const BWAPI::Unitset & medics = getUnits();
+	const BWAPI::Unitset & medics = Intersection(getUnits(), cluster.units);
     
 	// create a set of all medic targets
 	BWAPI::Unitset medicTargets;
@@ -67,10 +67,10 @@ void MicroMedics::update(const BWAPI::Position & center)
         }
     }
 
-    // the remaining medics should head toward the middle of the squad
+    // remaining medics should head toward the goal position
     for (const auto medic : availableMedics)
     {
-        the.micro.AttackMove(medic, center);
+        the.micro.AttackMove(medic, goal);
     }
 }
 

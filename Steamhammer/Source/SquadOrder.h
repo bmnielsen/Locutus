@@ -11,6 +11,7 @@ namespace SquadOrderTypes
 		Idle,			// workers, overlords with no other job
 		Watch,			// stand watch over a location
 		Attack,			// go attack
+		OmniAttack,		// attack any visible enemy, not only a nearby one
 		Defend,			// defend a base (automatically disbanded when enemy is gone)
 		Hold,			// hold ground, stand ready to defend until needed
 		Load,			// load into a transport (Drop squad)
@@ -52,12 +53,12 @@ public:
         return _position;
     }
 
-    const int & getRadius() const
+    int getRadius() const
     {
         return _radius;
     }
 
-    const size_t & getType() const
+    size_t getType() const
     {
         return _type;
     }
@@ -70,6 +71,7 @@ public:
 			case SquadOrderTypes::Idle:				return 'I';
 			case SquadOrderTypes::Watch:			return 'W';
 			case SquadOrderTypes::Attack:			return 'a';
+			case SquadOrderTypes::OmniAttack:		return 'A';
 			case SquadOrderTypes::Defend:			return 'd';
 			case SquadOrderTypes::Hold:				return 'H';
 			case SquadOrderTypes::Load:				return 'L';
@@ -85,6 +87,7 @@ public:
 		return
 			_type == SquadOrderTypes::Watch ||
 			_type == SquadOrderTypes::Attack ||
+			_type == SquadOrderTypes::OmniAttack ||
 			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::Hold ||
 			_type == SquadOrderTypes::Drop ||
@@ -98,6 +101,7 @@ public:
 		return
 			_type == SquadOrderTypes::Watch ||
 			_type == SquadOrderTypes::Attack ||
+			_type == SquadOrderTypes::OmniAttack ||
 			_type == SquadOrderTypes::Defend ||
 			_type == SquadOrderTypes::DestroyNeutral;
 	}

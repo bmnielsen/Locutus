@@ -158,6 +158,7 @@
     <ClCompile Include="..\Source\MicroMutas.cpp" />
     <ClCompile Include="..\Source\MicroDefilers.cpp" />
     <ClCompile Include="..\Source\OpsBoss.cpp" />
+    <ClCompile Include="..\Source\MicroScourge.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -284,5 +285,6 @@
     <ClInclude Include="..\Source\MicroMutas.h" />
     <ClInclude Include="..\Source\MicroDefilers.h" />
     <ClInclude Include="..\Source\OpsBoss.h" />
+    <ClInclude Include="..\Source\MicroScourge.h" />
   </ItemGroup>
 </Project>

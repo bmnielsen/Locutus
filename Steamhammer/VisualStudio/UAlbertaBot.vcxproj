@@ -152,6 +152,7 @@
     <ClCompile Include="..\Source\MicroMutas.cpp" />
     <ClCompile Include="..\Source\MicroOverlords.cpp" />
     <ClCompile Include="..\Source\MicroRanged.cpp" />
+    <ClCompile Include="..\Source\MicroScourge.cpp" />
     <ClCompile Include="..\Source\MicroTanks.cpp" />
     <ClCompile Include="..\Source\MicroTransports.cpp" />
     <ClCompile Include="..\Source\OpponentModel.cpp" />
@@ -215,6 +216,7 @@
     <ClInclude Include="..\Source\MicroMutas.h" />
     <ClInclude Include="..\Source\MicroOverlords.h" />
     <ClInclude Include="..\Source\MicroRanged.h" />
+    <ClInclude Include="..\Source\MicroScourge.h" />
     <ClInclude Include="..\Source\MicroTanks.h" />
     <ClInclude Include="..\Source\MicroTransports.h" />
     <ClInclude Include="..\Source\OpponentModel.h" />

@@ -410,7 +410,8 @@ namespace UAlbertaBot {
 
 		unitType(ui.type),
 		isOrganic(ui.type.isOrganic()),
-		score(ui.type.destroyScore()),
+		// score(ui.type.destroyScore()),						// original value
+		score(ui.type.mineralPrice() + ui.type.gasPrice()),		// try this instead
 		player(ui.player)
 	{
 		static int nextId = 0;

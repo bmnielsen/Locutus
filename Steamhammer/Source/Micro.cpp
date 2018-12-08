@@ -271,8 +271,8 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 
     // if we have issued a command to this unit already this frame, ignore this one
     if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() ||
-		(attacker->isAttackFrame() && attacker->getType() != BWAPI::UnitTypes::Zerg_Mutalisk))
-    {
+		(attacker->isAttackFrame() && !Micro::AlwaysKite(attacker->getType())))
+	{
         return;
     }
 

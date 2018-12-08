@@ -407,7 +407,7 @@ void OpponentModel::considerGasSteal()
 
 	// 3. Gather data.
 	// We add fictitious games saying that not stealing gas was tried once and won, and stealing gas
-	// was tried twice and lost. That way we don't try stealing gas unless we lose games without;
+	// was tried thrice and lost. That way we don't try stealing gas unless we lose games without;
 	// it represents that stealing gas has a cost.
 	int nGames = 4;           // 4 fictitious games total
 	int nWins = 1;            // 1 fictitious win total

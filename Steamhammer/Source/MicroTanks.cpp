@@ -12,14 +12,18 @@ MicroTanks::MicroTanks()
 
 void MicroTanks::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
-	const BWAPI::Unitset & tanks = getUnits();
+	const BWAPI::Unitset tanks = Intersection(getUnits(), cluster.units);
+	if (tanks.empty())
+	{
+		return;
+	}
 
 	// figure out targets
 	BWAPI::Unitset tankTargets;
     std::copy_if(targets.begin(), targets.end(), std::inserter(tankTargets, tankTargets.end()), 
                  [](BWAPI::Unit u){ return u->isVisible() && !u->isFlying(); });
     
-    int siegeTankRange = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 8;
+    const int siegeTankRange = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 8;
 
 	for (const auto tank : tanks)
 	{
@@ -126,7 +130,7 @@ BWAPI::Unit MicroTanks::getTarget(BWAPI::Unit tank, const BWAPI::Unitset & targe
 	int closestDist = 99999;
 	BWAPI::Unit closestTarget = nullptr;
 
-    int siegeTankRange = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 8;
+    const int siegeTankRange = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 8;
     BWAPI::Unitset targetsInSiegeRange;
     for (const auto target : targets)
     {

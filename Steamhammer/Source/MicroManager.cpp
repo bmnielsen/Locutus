@@ -69,15 +69,22 @@ void MicroManager::execute(const UnitCluster & cluster)
 			// Units near the order position.
 			MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
 		}
-
-		if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
+		else if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
 		{
 			// Units in sight of our cluster.
+			// Don't be distracted by distant units; move toward the goal.
 			for (const auto unit : cluster.units)
 			{
 				// NOTE Ignores possible sight range upgrades. It's fine.
 				MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
 			}
+		}
+		else if (order.getType() == SquadOrderTypes::OmniAttack)
+		{
+			// All visible enemy units.
+			// This is for when units are the goal, not a location.
+
+			targets = BWAPI::Broodwar->enemy()->getUnits();
 		}
 
 		executeMicro(targets, cluster);
@@ -201,6 +208,11 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition, const UnitCl
 			{
 				the.micro.Move(unit, regroupPosition);
 			}
+		}
+		else if (unit->getType() == BWAPI::UnitTypes::Zerg_Scourge && unit->getDistance(regroupPosition) > groundRegroupRadius)
+		{
+			// Scourge is allowed to spread out more.
+			the.micro.Move(unit, regroupPosition);
 		}
 		else if (unit->isFlying() && unit->getDistance(regroupPosition) > airRegroupRadius)
 		{

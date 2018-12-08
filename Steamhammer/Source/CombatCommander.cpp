@@ -19,7 +19,8 @@ const size_t ReconPriority = 3;
 const size_t WatchPriority = 4;
 const size_t BaseDefensePriority = 5;
 const size_t ScoutDefensePriority = 6;
-const size_t DropPriority = 7;         // don't steal from Drop squad for anything else
+const size_t DropPriority = 7;			// don't steal from Drop squad for anything else
+const size_t ScourgePriority = 8;		// scourge go in the Scourge squad, nowhere else
 
 // The attack squads.
 const int DefendFrontRadius = 400;
@@ -46,12 +47,21 @@ void CombatCommander::initializeSquads()
     SquadOrder idleOrder(SquadOrderTypes::Idle, BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation()), 100, "Chill out");
 	_squadData.createSquad("Idle", idleOrder, IdlePriority);
 
-    // The overlord squad doesn't care what order it is given.
-    // It analyzes the situation for itself. (The regular squad orders make no sense for it.)
+    // These squads don't care what order they are given.
+    // They analyze the situation for themselves.
 	if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg)
 	{
-		SquadOrder ovieOrder(SquadOrderTypes::Idle, BWAPI::Positions::Origin, 0, "React");
-		_squadData.createSquad("Overlord", ovieOrder, OverlordPriority);
+		SquadOrder emptyOrder(SquadOrderTypes::Idle, BWAPI::Positions::Origin, 0, "React");
+
+		// The overlord squad has only overlords, but not all overlords:
+		// They may be assigned elsewhere too.
+		_squadData.createSquad("Overlord", emptyOrder, OverlordPriority);
+
+		// The scourge squad has all the scourge.
+		if (BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Zerg)
+		{
+			_squadData.createSquad("Scourge", emptyOrder, ScourgePriority);
+		}
 	}
     
     // The ground squad will pressure an enemy base.
@@ -102,6 +112,7 @@ void CombatCommander::update(const BWAPI::Unitset & combatUnits)
 	{
 		updateIdleSquad();
 		updateOverlordSquad();
+		updateScourgeSquad();
 		updateDropSquads();
 		updateScoutDefenseSquad();
 		updateBaseDefenseSquads();
@@ -154,6 +165,92 @@ void CombatCommander::updateOverlordSquad()
 			_squadData.assignUnitToSquad(unit, ovieSquad);
 		}
 	}
+}
+
+// TODO stub
+void CombatCommander::chooseScourgeTarget(const Squad & sourgeSquad)
+{
+	BWAPI::Position center = sourgeSquad.calcCenter();
+
+	BWAPI::Position bestTarget = Bases::Instance().myStartingBase()->getPosition();
+	int bestScore = -99999;
+
+	for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		// Skip ground units and units known to have moved away some time ago.
+		if (!ui.type.isFlyer() ||
+			ui.goneFromLastPosition && BWAPI::Broodwar->getFrameCount() - ui.updateFrame < 5 * 24)
+		{
+			continue;
+		}
+
+		int score = MicroScourge::getAttackPriority(ui.type);
+
+		if (ui.unit && ui.unit->isVisible())
+		{
+			score += 2;
+		}
+
+		// Each score increment is worth 2 tiles of distance.
+		const int distance = center.getApproxDistance(ui.lastPosition);
+		score = 2 * score - distance / 32;
+		if (score > bestScore)
+		{
+			bestTarget = ui.lastPosition;
+			bestScore = score;
+		}
+	}
+
+	_scourgeTarget = bestTarget;
+}
+
+// Put all scourge into the Scourge squad.
+void CombatCommander::updateScourgeSquad()
+{
+	// If we don't have a scourge squad, then do nothing.
+	// It is created in initializeSquads().
+	if (!_squadData.squadExists("Scourge"))
+	{
+		return;
+	}
+
+	Squad & scourgeSquad = _squadData.getSquad("Scourge");
+
+	bool hasDetector = scourgeSquad.hasDetector();
+
+	// We want an overlord to come along if the enemy has arbiters or cloaked wraiths,
+	// but only if we have overlord speed.
+	bool wantDetector =
+		BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Pneumatized_Carapace) > 0 &&
+		InformationManager::Instance().enemyHasAirCloakTech();
+
+	if (hasDetector && !wantDetector)
+	{
+		for (BWAPI::Unit unit : scourgeSquad.getUnits())
+		{
+			if (unit->getType().isDetector())
+			{
+				scourgeSquad.removeUnit(unit);
+				break;
+			}
+		}
+		hasDetector = false;
+	}
+
+	for (const auto unit : _combatUnits)
+	{
+		if (unit->getType() == BWAPI::UnitTypes::Zerg_Scourge && _squadData.canAssignUnitToSquad(unit, scourgeSquad))
+		{
+			_squadData.assignUnitToSquad(unit, scourgeSquad);
+		}
+	}
+
+	// Issue the order.
+	chooseScourgeTarget(scourgeSquad);
+	SquadOrder scourgeOrder(SquadOrderTypes::OmniAttack, _scourgeTarget, 300, "Air defense");
+	scourgeSquad.setSquadOrder(scourgeOrder);
 }
 
 // Update the watch squads, which set a sentry in each free base to see enemy expansions
@@ -538,14 +635,14 @@ BWAPI::Position CombatCommander::getReconLocation() const
 
 // Form the ground squad and the flying squad, the main attack squads.
 // NOTE Arbiters and guardians go into the ground squad.
-//      Devourers, scourge, and carriers are flying squad if it exists, otherwise ground.
+//      Devourers and carriers are flying squad if it exists, otherwise ground.
 //      Other air units always go into the flying squad.
 void CombatCommander::updateAttackSquads()
 {
     Squad & groundSquad = _squadData.getSquad("Ground");
 	Squad & flyingSquad = _squadData.getSquad("Flying");
 
-	// If safe, include exactly 1 detector in each squad.
+	// If safe, add exactly 1 detector to the ground and flying squads.
 	bool groundDetector = groundSquad.hasDetector();
 	bool groundSquadExists = groundSquad.hasCombatUnits();
 
@@ -594,10 +691,10 @@ void CombatCommander::updateAttackSquads()
 	}
 
     for (const auto unit : _combatUnits)
-    {
-		// Each squad gets at most 1 detector. Priority to the ground squad which can't see uphill otherwise.
+	{
 		if (unit->getType().isDetector())
 		{
+			// Each squad gets at most 1 detector. Priority to the ground squad which can't see uphill otherwise.
 			if (wantDetector)
 			{
 				if (groundSquadExists && !groundDetector && _squadData.canAssignUnitToSquad(unit, groundSquad))
@@ -682,7 +779,6 @@ bool CombatCommander::isFlyingSquadUnit(const BWAPI::UnitType type) const
 bool CombatCommander::isOptionalFlyingSquadUnit(const BWAPI::UnitType type) const
 {
 	return
-		type == BWAPI::UnitTypes::Zerg_Scourge ||
 		type == BWAPI::UnitTypes::Zerg_Devourer ||
 		type == BWAPI::UnitTypes::Protoss_Carrier;
 }

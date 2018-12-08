@@ -15,7 +15,10 @@ MicroAirToAir::MicroAirToAir()
 void MicroAirToAir::executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster)
 {
 	BWAPI::Unitset units = Intersection(getUnits(), cluster.units);
-
+	if (units.empty())
+	{
+		return;
+	}
 	assignTargets(units, targets);
 }
 

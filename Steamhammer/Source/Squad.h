@@ -14,6 +14,7 @@
 #include "MicroLurkers.h"
 #include "MicroMedics.h"
 #include "MicroMutas.h"
+#include "MicroScourge.h"
 #include "MicroOverlords.h"
 #include "MicroTanks.h"
 #include "MicroTransports.h"
@@ -30,6 +31,7 @@ class Squad
 	bool				_combatSquad;
 	int					_combatSimRadius;
 	bool				_fightVisibleOnly;  // combat sim uses visible enemies only (vs. all known enemies)
+	bool				_meatgrinder;		// combat sim says "win" even if you do only modest damage
 	bool				_hasAir;
 	bool				_hasGround;
 	bool				_canAttackAir;
@@ -52,6 +54,7 @@ class Squad
 	MicroLurkers		_microLurkers;
 	MicroMedics			_microMedics;
 	//MicroMutas          _microMutas;
+	MicroScourge        _microScourge;
 	MicroOverlords      _microOverlords;
 	MicroTanks			_microTanks;
 	MicroTransports		_microTransports;
@@ -70,7 +73,8 @@ class Squad
 	
 	void			setClusterStatus(UnitCluster & cluster);
 	void			clusterCombat(const UnitCluster & cluster);
-	bool			noFight(const UnitCluster & cluster);
+	bool			noCombatUnits(const UnitCluster & cluster) const;
+	bool			notNearEnemy(const UnitCluster & cluster);
 	bool			joinUp(const UnitCluster & cluster);
 	void			moveCluster(const UnitCluster & cluster, const BWAPI::Position & destination);
 
@@ -116,6 +120,9 @@ public:
 
 	bool				getFightVisible() const { return _fightVisibleOnly; };
 	void				setFightVisible(bool visibleOnly) { _fightVisibleOnly = visibleOnly; };
+
+	bool				getMeatgrinder() const { return _meatgrinder; };
+	void				setMeatgrinder(bool toWound) { _meatgrinder = toWound; };
 
 	const bool			hasAir()			const { return _hasAir; };
 	const bool			hasGround()			const { return _hasGround; };
