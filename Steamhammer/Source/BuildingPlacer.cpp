@@ -544,6 +544,37 @@ int addProxyBlock(BWAPI::TilePosition tile, std::set<BWAPI::TilePosition> & unbu
         Log().Debug() << "Added 10x6 proxy block @ " << tile;
 
         return bwebMap.blocks.size() - 1;
+    }   
+    
+    if (canAddProxyBlock(tile, 10, 3, unbuildableTiles))
+    {
+        bwebMap.addOverlap(tile, 10, 3);
+
+        BWEB::Block newBlock(10, 3, tile);
+        newBlock.insertLarge(tile);
+        newBlock.insertSmall(tile + BWAPI::TilePosition(4, 0));
+        newBlock.insertLarge(tile + BWAPI::TilePosition(6, 0));
+        bwebMap.blocks.push_back(newBlock);
+
+        Log().Debug() << "Added 10x3 proxy block @ " << tile;
+
+        return bwebMap.blocks.size() - 1;
+    }   
+    
+    if (canAddProxyBlock(tile, 4, 8, unbuildableTiles))
+    {
+        bwebMap.addOverlap(tile, 4, 8);
+
+        BWEB::Block newBlock(4, 8, tile);
+        newBlock.insertLarge(tile);
+        newBlock.insertSmall(tile + BWAPI::TilePosition(0, 3));
+        newBlock.insertSmall(tile + BWAPI::TilePosition(2, 3));
+        newBlock.insertLarge(tile + BWAPI::TilePosition(0, 5));
+        bwebMap.blocks.push_back(newBlock);
+
+        Log().Debug() << "Added 4x8 proxy block @ " << tile;
+
+        return bwebMap.blocks.size() - 1;
     }
 
     Log().Debug() << "Could not add proxy block @ " << tile;
@@ -620,8 +651,6 @@ void BuildingPlacer::findProxyBlocks()
     }
 
     // Initialize variables for scoring possible locations
-    int overallDistBest = INT_MAX;
-    BWAPI::TilePosition overallTileBest = BWAPI::TilePositions::Invalid;
     std::map<BWTA::BaseLocation*, int> distBest;
     std::map<BWTA::BaseLocation*, BWAPI::TilePosition> tileBest;
     for (auto base : enemyStartLocations)
@@ -643,7 +672,7 @@ void BuildingPlacer::findProxyBlocks()
             if (!tile.isValid()) continue;
             if (!BWAPI::Broodwar->isBuildable(tile)) continue;
 
-            // Consider two types of blocks
+            // Consider only block with four gates
             BWAPI::Position blockCenter;
             if (canAddProxyBlock(tile, 10, 6, unbuildableTiles))
             {
@@ -705,6 +734,83 @@ void BuildingPlacer::findProxyBlocks()
                 tileBest[base] = tile;
                 debug << " (best). ";
             }
+        nextTile:;
+        }
+
+    // Add the blocks
+    for (auto base : enemyStartLocations)
+    {
+        // Map-specific tweak: on Heartbreak Ridge units somewhat randomly take the top or bottom paths around the middle base
+        // So here we manually fix one base location that otherwise puts the proxy in an easy-to-discover location
+        // TODO: Find a more elegant way to deal with this
+        if (BWAPI::Broodwar->mapHash() == "6f8da3c3cc8d08d9cf882700efa049280aedca8c" &&
+            base->getTilePosition() == BWAPI::TilePosition(117, 56))
+        {
+            tileBest[base] = BWAPI::TilePosition(76, 2);
+        }
+
+        _baseProxyBlocks[base] = addProxyBlock(tileBest[base], unbuildableTiles);
+    }
+
+    // Initialize variables for scoring center locations
+    int overallDistBest = INT_MAX;
+    BWAPI::TilePosition overallTileBest = BWAPI::TilePositions::Invalid;
+
+    debug << "\nFinding proxy locations - center";
+
+    // Find the best locations
+    for (int x = 0; x < BWAPI::Broodwar->mapWidth(); x++)
+        for (int y = 0; y < BWAPI::Broodwar->mapHeight(); y++)
+        {
+            BWAPI::TilePosition tile(x, y);
+            if (!tile.isValid()) continue;
+            if (!BWAPI::Broodwar->isBuildable(tile)) continue;
+
+            // Consider two types of blocks
+            BWAPI::Position blockCenter;
+            if (canAddProxyBlock(tile, 10, 3, unbuildableTiles))
+            {
+                blockCenter = BWAPI::Position(tile) + BWAPI::Position(10 * 16, 3 * 16);
+            }
+            if (canAddProxyBlock(tile, 4, 8, unbuildableTiles))
+            {
+                blockCenter = BWAPI::Position(tile) + BWAPI::Position(4 * 16, 8 * 16);
+            }
+            else
+                continue;
+
+            debug << "\nBlock @ " << tile << ": ";
+
+            // Consider each start location
+            bool inStartLocationRegion = false;
+            int minDist = INT_MAX;
+            int maxDist = 0;
+            for (auto base : enemyStartLocations)
+            {
+                debug << "base@" << base->getTilePosition() << ": ";
+
+                // Don't build horror gates
+                if (BWTA::getRegion(blockCenter) == base->getRegion())
+                {
+                    debug << "In base region. ";
+                    inStartLocationRegion = true;
+                    continue;
+                }
+
+                // Compute distance, abort if it is not connected
+                int dist = PathFinding::GetGroundDistance(base->getPosition(), blockCenter, BWAPI::UnitTypes::Protoss_Zealot, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+                if (dist == -1)
+                {
+                    debug << "Not connected. ";
+                    goto nextTileCenter;
+                }
+
+                debug << "dist=" << dist;
+
+                // Update overall stats for this tile that we will use for picking a center block
+                if (dist < minDist) minDist = dist;
+                if (dist > maxDist) maxDist = dist;
+            }
 
             // Don't consider center positions in a base
             if (inStartLocationRegion)
@@ -739,24 +845,11 @@ void BuildingPlacer::findProxyBlocks()
                 overallTileBest = tile;
             }
 
-        nextTile:;
+        nextTileCenter:;
         }
 
-    // Add the blocks
+    // Add the block
     _centerProxyBlock = addProxyBlock(overallTileBest, unbuildableTiles);
-    for (auto base : enemyStartLocations)
-    {
-        // Map-specific tweak: on Heartbreak Ridge units somewhat randomly take the top or bottom paths around the middle base
-        // So here we manually fix one base location that otherwise puts the proxy in an easy-to-discover location
-        // TODO: Find a more elegant way to deal with this
-        if (BWAPI::Broodwar->mapHash() == "6f8da3c3cc8d08d9cf882700efa049280aedca8c" &&
-            base->getTilePosition() == BWAPI::TilePosition(117, 56))
-        {
-            tileBest[base] = BWAPI::TilePosition(76, 2);
-        }
-
-        _baseProxyBlocks[base] = addProxyBlock(tileBest[base], unbuildableTiles);
-    }
 
     Log().Debug() << debug.str();
 }
