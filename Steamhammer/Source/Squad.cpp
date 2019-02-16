@@ -15,7 +15,8 @@ Squad::Squad()
 	: _name("Default")
 	, _combatSquad(false)
 	, _combatSimRadius(Config::Micro::CombatSimRadius)
-	, _fightVisibleOnly(false)
+    , _ignoreCombatSimUntil(0)
+    , _fightVisibleOnly(false)
 	, _hasAir(false)
 	, _hasGround(false)
 	, _canAttackAir(false)
@@ -37,6 +38,7 @@ Squad::Squad(const std::string & name, SquadOrder order, size_t priority)
 	: _name(name)
 	, _combatSquad(name != "Idle")
 	, _combatSimRadius(Config::Micro::CombatSimRadius)
+	, _ignoreCombatSimUntil(0)
 	, _fightVisibleOnly(false)
 	, _hasAir(false)
 	, _hasGround(false)
@@ -356,6 +358,64 @@ void Squad::addUnitsToMicroManagers()
 	_microTransports.setUnits(transportUnits);
 }
 
+bool Squad::attackTerranPush()
+{
+    // Against terran attack a terran push when it gets close to firing range of our natural
+    // We otherwise have a tendency to just keep backing up until we get rolled over
+
+    if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran) return false;
+
+    if (getName() != "Ground") return false;
+    if (_units.size() < 15) return false;
+
+    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Probe) < 45) return false;
+
+    if (!InformationManager::Instance().haveWeTakenOurNatural()) return false;
+
+    BWAPI::Unit ourVanguard = unitClosestTo(_order.getPosition());
+    if (!ourVanguard) return false; // We have no units?
+
+    // Is our squad near the natural?
+    auto naturalDist = PathFinding::GetGroundDistance(ourVanguard->getPosition(), InformationManager::Instance().getMyNaturalLocation()->getPosition());
+    auto mainDist = PathFinding::GetGroundDistance(ourVanguard->getPosition(), InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+    if (naturalDist > 640 || mainDist < naturalDist) return false;
+
+    // Count our units
+    int ourUnitCount = 0;
+    int ourHeight = 0;
+    for (auto unit : _units)
+        if (UnitUtil::IsCombatUnit(unit) && unit->getDistance(ourVanguard) < 640) // 20 tiles
+        {
+            ourUnitCount++;
+            ourHeight += BWAPI::Broodwar->getGroundHeight(unit->getTilePosition());
+        }
+    if (ourUnitCount < 15) return false;
+
+    // Get nearby opponent units
+    int enemyMechUnitCount = 0;
+    int enemyMechUnitHeight = 0;
+    for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+    {
+        if (!unit.second.lastPosition.isValid() || unit.second.goneFromLastPosition) continue;
+        if (unit.second.type != BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode &&
+            unit.second.type != BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode &&
+            unit.second.type != BWAPI::UnitTypes::Terran_Vulture &&
+            unit.second.type != BWAPI::UnitTypes::Terran_Goliath)
+        {
+            continue;
+        }
+        if (unit.second.lastPosition.getApproxDistance(ourVanguard->getPosition()) > 1280) continue; // 40 tiles
+        enemyMechUnitCount++;
+        enemyMechUnitHeight += BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(unit.second.lastPosition));
+    }
+    if (enemyMechUnitCount < 5) return false;
+
+    // If the enemy army is on higher ground, don't attack
+    if (((double)enemyMechUnitHeight / (double)enemyMechUnitCount) > (0.1 + ((double)ourHeight / (double)ourUnitCount))) return false;
+
+    return ourUnitCount > enemyMechUnitCount;
+}
+
 // Calculates whether to regroup, aka retreat. Does combat sim if necessary.
 bool Squad::needsToRegroup()
 {
@@ -372,6 +432,21 @@ bool Squad::needsToRegroup()
 		_regroupStatus = std::string("No attack order");
 		return false;
 	}
+
+    // We don't want to run the combat sim until a later frame
+    if (BWAPI::Broodwar->getFrameCount() < _ignoreCombatSimUntil)
+    {
+        _regroupStatus = std::string("Attack terran push");
+        return false;
+    }
+
+    if (attackTerranPush())
+    {
+        Log().Get() << "Attacking terran push";
+        _ignoreCombatSimUntil = BWAPI::Broodwar->getFrameCount() + (15 * 24);
+        _regroupStatus = std::string("Attack terran push");
+        return false;
+    }
 
 	// If we're nearly maxed and have good income or cash, don't retreat.
 	if (BWAPI::Broodwar->self()->supplyUsed() >= 390 &&

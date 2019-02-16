@@ -859,7 +859,7 @@ std::map<std::string, double> OpponentModel::getStrategyWeightFactors() const
     // only consider games that used this plan
     bool onlyConsiderSamePlan = false;
     int count = 0;
-    if (_expectedEnemyPlan != OpeningPlan::Unknown)
+    if (_expectedEnemyPlan != OpeningPlan::Unknown && _expectedEnemyPlan != OpeningPlan::NotFastRush)
         for (auto it = _pastGameRecords.rbegin(); it != _pastGameRecords.rend() && count < 25; it++)
         {
             if (!_gameRecord.sameMatchup(**it)) continue;

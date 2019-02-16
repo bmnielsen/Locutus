@@ -71,7 +71,7 @@ class CombatCommander
     void            updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool preferRangedUnits, bool requiresMineralWalk);
 
     int             numZerglingsInOurBase() const;
-    bool            buildingRush() const;
+    bool            buildingRush(BWTA::Region * region) const;
 
 	static int		workerPullScore(BWAPI::Unit worker);
 

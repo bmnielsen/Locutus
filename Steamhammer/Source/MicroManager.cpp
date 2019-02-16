@@ -79,9 +79,16 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 	MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
 
 	// For some orders, add enemies which are near our units.
-	if (order.getType() == SquadOrderTypes::Attack || 
+    bool addForHarass = false;
+    if (order.getType() == SquadOrderTypes::Harass)
+    {
+        auto base = InformationManager::Instance().baseAt(BWAPI::TilePosition(order.getPosition()));
+        addForHarass = !base || base->getOwner() != BWAPI::Broodwar->enemy();
+    }
+    if (order.getType() == SquadOrderTypes::Attack ||
 	    order.getType() == SquadOrderTypes::KamikazeAttack || 
-        order.getType() == SquadOrderTypes::Defend)
+        order.getType() == SquadOrderTypes::Defend ||
+        addForHarass)
 	{
 		for (const auto unit : _units)
 		{
@@ -161,9 +168,6 @@ bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target
             target->getType().isWorker() &&
             !target->isConstructing()) return true;
     }
-
-    // Dark templar don't ignore detectors
-    if (combatUnit->isCloaked() && target->getType().isDetector()) return false;
 
     // Consider outlying buildings
     // Static defenses are handled separately so we can consider run-bys as a squad
@@ -389,7 +393,8 @@ bool MicroManager::unstickStuckUnit(BWAPI::Unit unit) const
 {
 	if (!unit->isMoving() && !unit->getType().isFlyer() && !unit->isBurrowed() &&
 		unit->getOrder() == BWAPI::Orders::PlayerGuard &&
-		BWAPI::Broodwar->getFrameCount() % 4 == 0)
+		BWAPI::Broodwar->getFrameCount() % 4 == 0 &&
+        unit->getType() != BWAPI::UnitTypes::Protoss_Dragoon) // Handled separately
 	{
 		Micro::Stop(unit);
 		return true;

@@ -81,6 +81,7 @@ public:
     void        stopRepairing(BWAPI::Unit worker);
 	void        setMoveWorker(BWAPI::Unit worker, int mineralsNeeded, int gasNeeded, BWAPI::Position & p);
     void        setCombatWorker(BWAPI::Unit worker);
+    void        reserveProxyBuilder();
 
     bool        willHaveResources(int mineralsRequired,int gasRequired,double framesToMove);
     void        rebalanceWorkers();

@@ -3,6 +3,7 @@
 #include "InformationManager.h"
 #include "CombatCommander.h"
 #include "UnitUtil.h"
+#include "MathUtil.h"
 
 using namespace UAlbertaBot;
 
@@ -36,6 +37,10 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 
     const BWAPI::Unitset & meleeUnits = getUnits();
 
+    // If the squad is regrouping, we will attempt to flee from detection
+    // Otherwise we will attack along with the rest of the squad
+    bool attackSquad = order.getType() == SquadOrderTypes::Attack && !CombatCommander::Instance().getSquadData().getSquad(this).isRegrouping();
+
     // Filter the set for units we may want to attack
 	BWAPI::Unitset meleeUnitTargets;
 	for (const auto target : targets) 
@@ -47,17 +52,17 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 			target->getType() != BWAPI::UnitTypes::Zerg_Larva && 
 			target->getType() != BWAPI::UnitTypes::Zerg_Egg &&
 			!target->isStasised() &&
-			!target->isUnderDisruptionWeb())             // melee unit can't attack under dweb
+			!target->isUnderDisruptionWeb() && // melee unit can't attack under dweb
+            (attackSquad || BWTA::getRegion(target->getPosition()) == BWTA::getRegion(order.getPosition())))
 		{
 			meleeUnitTargets.insert(target);
 		}
 	}
 
-    auto & enemyUnitGrid = InformationManager::Instance().getEnemyUnitGrid();
+    bool explored = false;
+    BWAPI::Position exploreTo = BWAPI::Positions::Invalid;
 
-    // If the squad is regrouping, we will attempt to flee from detection
-    // Otherwise we will attack along with the rest of the squad
-    bool squadRegrouping = CombatCommander::Instance().getSquadData().getSquad(this).isRegrouping();
+    auto & enemyUnitGrid = InformationManager::Instance().getEnemyUnitGrid();
 
     std::ostringstream debug;
     debug << "DT micro:";
@@ -72,7 +77,8 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
         }
 
         // If we are on the attack, are detected and can be attacked here, try to flee from detection
-        if (squadRegrouping && attackOrder() && isVulnerable(meleeUnit->getPosition(), enemyUnitGrid))
+        if (!attackSquad && attackOrder() && isVulnerable(meleeUnit->getPosition(), enemyUnitGrid)
+            && BWTA::getRegion(meleeUnit->getPosition()) == BWTA::getRegion(order.getPosition()))
         {
             BWAPI::WalkPosition start = BWAPI::WalkPosition(meleeUnit->getPosition());
             BWAPI::WalkPosition fleeTo = BWAPI::WalkPositions::Invalid;
@@ -104,41 +110,83 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
             }
         }
 
-		BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets, enemyUnitGrid, squadRegrouping);
+		BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets, enemyUnitGrid, attackSquad);
         if (target)
         {
             debug << "attacking target " << target->getType() << " @ " << target->getTilePosition();
             Micro::AttackUnit(meleeUnit, target);
+            continue;
         }
-        else if (meleeUnit->getDistance(order.getPosition()) > 96)
+
+        // If the base is still owned by the enemy, move towards the order position
+        auto base = InformationManager::Instance().baseAt(BWAPI::TilePosition(order.getPosition()));
+        if (base && base->getOwner() == BWAPI::Broodwar->enemy())
         {
             debug << "moving towards order position " << BWAPI::TilePosition(order.getPosition());
-            // There are no targets. Move to the order position if not already close.
             InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(order.getPosition());
+            continue;
         }
-        else
-            debug << "do nothing";
+
+        // Move towards buildings outside of our current vision
+        for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+            if (ui.second.type.isBuilding() && !ui.second.isFlying && !ui.second.type.isAddon() &&
+                ui.second.lastPosition.isValid() && !ui.second.goneFromLastPosition &&
+                BWTA::getRegion(ui.second.lastPosition) == BWTA::getRegion(order.getPosition()))
+            {
+                debug << "moving towards " << ui.second.type << " @ " << BWAPI::TilePosition(ui.second.lastPosition);
+                InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(ui.second.lastPosition);
+                goto nextUnit;
+            }
+
+        // Explore around the order position
+        if (!explored)
+        {
+            explored = true;
+            int leastExplored;
+            exploreTo = MapGrid::Instance().getLeastExploredInRegion(order.getPosition(), &leastExplored);
+            if (leastExplored > (BWAPI::Broodwar->getFrameCount() - 1000)) exploreTo = BWAPI::Positions::Invalid;
+        }
+        if (exploreTo.isValid())
+        {
+            debug << "exploring towards " << BWAPI::TilePosition(exploreTo);
+            InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(exploreTo);
+            continue;
+        }
+
+        debug << "doing nothing";
 
 		if (Config::Debug::DrawUnitTargetInfo)
 		{
 			BWAPI::Broodwar->drawLineMap(meleeUnit->getPosition(), meleeUnit->getTargetPosition(),
 				Config::Debug::ColorLineTarget);
 		}
+    nextUnit:;
 	}
 
-    //Log().Debug() << debug.str();
+    Log().Debug() << debug.str();
 }
 
 // Choose a target from the set, or null if we don't want to attack anything
-BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets, LocutusMapGrid & enemyUnitGrid, bool squadRegrouping)
+BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets, LocutusMapGrid & enemyUnitGrid, bool attackSquad)
 {
 	int bestScore = -999999;
 	BWAPI::Unit bestTarget = nullptr;
 
+    BWAPI::Position myPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(meleeUnit, 5);
+
+    std::ostringstream debug;
+    debug << "Getting target for " << meleeUnit->getID();
+
 	for (const auto target : targets)
 	{
+        debug << "\n" << target->getType() << " @ " << target->getTilePosition() << ": ";
+
         // If the rest of the squad is regrouping, avoid attacking anything covered by detection
-        if (squadRegrouping && attackOrder() && isVulnerable(target->getPosition(), enemyUnitGrid)) continue;
+        if (!attackSquad && attackOrder() && isVulnerable(target->getPosition(), enemyUnitGrid))
+        {
+            debug << "covered by detection";
+            continue;
+        }
 
 		const int priority = getAttackPriority(meleeUnit, target);		// 0..12
 		const int range = meleeUnit->getDistance(target);				// 0..map size in pixels
@@ -148,12 +196,35 @@ BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unit
 		// Skip targets that are too far away to worry about.
 		if (range >= 13 * 32)
 		{
+            debug << "too far away";
 			continue;
 		}
 
 		// Let's say that 1 priority step is worth 64 pixels (2 tiles).
 		// We care about unit-target range and target-order position distance.
 		int score = 2 * 32 * priority - range;
+
+        // Consider whether to attack enemies that are outside of our weapon range when on the attack
+        bool inWeaponRange = meleeUnit->isInWeaponRange(target);
+        if (!inWeaponRange)
+        {
+            // Never chase units that can kite us easily
+            if (target->getType() == BWAPI::UnitTypes::Protoss_Dragoon ||
+                target->getType() == BWAPI::UnitTypes::Terran_Vulture) continue;
+
+            // When not acting as part of an attack squad, don't attack anything moving away from us
+            // Otherwise penalize them
+            BWAPI::Position targetPositionInFiveFrames = InformationManager::Instance().predictUnitPosition(target, 5);
+            if (target->isMoving() &&
+                range <= MathUtil::EdgeToEdgeDistance(meleeUnit->getType(), myPositionInFiveFrames, target->getType(), targetPositionInFiveFrames))
+            {
+                if (!attackSquad) continue;
+                score -= 4 * 32;
+            }
+
+            // Skip targets behind a wall
+            if (InformationManager::Instance().isBehindEnemyWall(meleeUnit, target)) continue;
+        }
 
 		// Adjust for special features.
 
@@ -219,14 +290,24 @@ BWAPI::Unit MicroDarkTemplar::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unit
 			score += 24;
 		}
 
+        debug << score;
 		if (score > bestScore)
 		{
+            debug << " (best)";
 			bestScore = score;
 			bestTarget = target;
 		}
 	}
-    
-    return shouldIgnoreTarget(meleeUnit, bestTarget) ? nullptr : bestTarget;
+
+    if (shouldIgnoreTarget(meleeUnit, bestTarget))
+    {
+        debug << "\nIgnoring best target";
+        Log().Debug() << debug.str();
+        return nullptr;
+    }
+
+    Log().Debug() << debug.str();
+    return bestTarget;
 }
 
 // get the attack priority of a type

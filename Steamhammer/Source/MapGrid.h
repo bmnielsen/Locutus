@@ -54,6 +54,7 @@ public:
 	void				update();
 	void				getUnits(BWAPI::Unitset & units, BWAPI::Position center, int radius, bool ourUnits, bool oppUnits);
 	BWAPI::Position		getLeastExplored(bool byGround);
+	BWAPI::Position		getLeastExploredInRegion(BWAPI::Position target, int* lastExplored);
 
 	GridCell & getCellByIndex(int r, int c)		{ return cells[r*cols + c]; }
 	GridCell & getCell(BWAPI::Position pos)		{ return getCellByIndex(pos.y / cellSize, pos.x / cellSize); }

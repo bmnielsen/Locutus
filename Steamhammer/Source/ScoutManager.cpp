@@ -742,45 +742,49 @@ void ScoutManager::calculateEnemyRegionVertices()
     if (!enemyBaseLocation) return;
 
     std::vector<BWAPI::Position> enemyMainVertices = calculateScoutVerticesForBase(enemyBaseLocation);
-    std::vector<BWAPI::Position> enemyNaturalVertices = calculateScoutVerticesForBase(InformationManager::Instance().getEnemyNaturalLocation());
 
-    // Splice the two together where they have vertices closest to each other
-    if (!enemyMainVertices.empty() && !enemyNaturalVertices.empty())
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
     {
-        int bestDist = INT_MAX;
-        std::vector<BWAPI::Position>::iterator bestMain = enemyMainVertices.end();
-        std::vector<BWAPI::Position>::iterator bestNatural = enemyNaturalVertices.end();
-        for (auto mainIt = enemyMainVertices.begin(); mainIt != enemyMainVertices.end(); mainIt++)
-            for (auto naturalIt = enemyNaturalVertices.begin(); naturalIt != enemyNaturalVertices.end(); naturalIt++)
-            {
-                int dist = PathFinding::GetGroundDistance(*mainIt, *naturalIt, BWAPI::UnitTypes::Protoss_Probe, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    bestMain = mainIt;
-                    bestNatural = naturalIt;
-                }
-            }
+        std::vector<BWAPI::Position> enemyNaturalVertices = calculateScoutVerticesForBase(InformationManager::Instance().getEnemyNaturalLocation());
 
-        if (bestMain != enemyMainVertices.end() && bestNatural != enemyNaturalVertices.end())
+        // Splice the two together where they have vertices closest to each other
+        if (!enemyMainVertices.empty() && !enemyNaturalVertices.empty())
         {
-            std::vector<BWAPI::Position> result;
+            int bestDist = INT_MAX;
+            std::vector<BWAPI::Position>::iterator bestMain = enemyMainVertices.end();
+            std::vector<BWAPI::Position>::iterator bestNatural = enemyNaturalVertices.end();
             for (auto mainIt = enemyMainVertices.begin(); mainIt != enemyMainVertices.end(); mainIt++)
+                for (auto naturalIt = enemyNaturalVertices.begin(); naturalIt != enemyNaturalVertices.end(); naturalIt++)
+                {
+                    int dist = PathFinding::GetGroundDistance(*mainIt, *naturalIt, BWAPI::UnitTypes::Protoss_Probe, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestMain = mainIt;
+                        bestNatural = naturalIt;
+                    }
+                }
+
+            if (bestMain != enemyMainVertices.end() && bestNatural != enemyNaturalVertices.end())
             {
-                result.push_back(*mainIt);
-                if (mainIt != bestMain) continue;
+                std::vector<BWAPI::Position> result;
+                for (auto mainIt = enemyMainVertices.begin(); mainIt != enemyMainVertices.end(); mainIt++)
+                {
+                    result.push_back(*mainIt);
+                    if (mainIt != bestMain) continue;
 
-                for (auto naturalIt = bestNatural; naturalIt != enemyNaturalVertices.end(); naturalIt++)
-                    result.push_back(*naturalIt);
+                    for (auto naturalIt = bestNatural; naturalIt != enemyNaturalVertices.end(); naturalIt++)
+                        result.push_back(*naturalIt);
 
-                for (auto naturalIt = enemyNaturalVertices.begin(); naturalIt != bestNatural; naturalIt++)
-                    result.push_back(*naturalIt);
+                    for (auto naturalIt = enemyNaturalVertices.begin(); naturalIt != bestNatural; naturalIt++)
+                        result.push_back(*naturalIt);
 
-                result.push_back(*bestNatural);
-                result.push_back(*bestMain);
+                    result.push_back(*bestNatural);
+                    result.push_back(*bestMain);
+                }
+
+                enemyMainVertices = result;
             }
-
-            enemyMainVertices = result;
         }
     }
 
@@ -1096,6 +1100,10 @@ bool ScoutManager::pylonHarass()
 	{
 	case PylonHarassStates::Initial:
     {
+        // Disabled
+        _pylonHarassState = PylonHarassStates::Finished;
+        return false;
+
         // Determine our initial pylon harassment strategy
 
         // Never harass if we don't make it into the enemy base before frame 2500

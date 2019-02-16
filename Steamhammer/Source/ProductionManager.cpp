@@ -8,6 +8,8 @@
 
 using namespace UAlbertaBot;
 
+namespace { auto & bwebMap = BWEB::Map::Instance(); }
+
 ProductionManager::ProductionManager()
 	: _lastProductionFrame				 (0)
 	, _assignedWorkerForThisBuilding     (nullptr)
@@ -132,7 +134,7 @@ void ProductionManager::onUnitDestroy(BWAPI::Unit unit)
     if (!_outOfBook && unit->getType().isWorker())
     {
         _workersLostInOpening++;
-        if (_workersLostInOpening >= 5)
+        if (_workersLostInOpening >= 5 && !StrategyManager::Instance().isProxying())
         {
             Log().Get() << "Lost a lot of workers in the opening, going out of book";
             goOutOfBookAndClearQueue();
@@ -209,6 +211,15 @@ void ProductionManager::manageBuildOrderQueue()
 		maybeReorderQueue();
 
 		const BuildOrderItem & currentItem = _queue.getHighestPriorityItem();
+
+        // Bug mitigation: sometimes we reserve build locations for cannons that get used before we hit that point in the queue
+        if (currentItem.macroAct.isBuilding() && currentItem.macroAct.hasReservedPosition() && 
+            bwebMap.usedTiles.find(currentItem.macroAct.getReservedPosition()) != bwebMap.usedTiles.end())
+        {
+            _queue.doneWithHighestPriorityItem();
+            _lastProductionFrame = BWAPI::Broodwar->getFrameCount();
+            continue;
+        }
 
         // In some builds we delay until we know the enemy location
         // We will build probes or pylons while we wait
@@ -457,6 +468,9 @@ void ProductionManager::maybeReorderQueue()
 	{
 		return;
 	}
+
+    // Don't reorder if we have already reserved a builder for the next item
+    if (_assignedWorkerForThisBuilding) return;
 
 	MacroAct top = _queue.getHighestPriorityItem().macroAct;
 
@@ -831,7 +845,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 				return;
 			}
 
-			framesUntilDependenciesMet = std::max(framesUntilDependenciesMet, nextCompletedUnit->getRemainingBuildTime() + 80);
+			framesUntilDependenciesMet = std::max(framesUntilDependenciesMet, nextCompletedUnit->getRemainingBuildTime() + 71);
 		}
 
 		_frameWhenDependendenciesMet = BWAPI::Broodwar->getFrameCount() + framesUntilDependenciesMet;
@@ -953,6 +967,10 @@ void ProductionManager::executeCommand(MacroCommand command)
 	else if (cmd == MacroCommandType::Proxying)
 	{
 		StrategyManager::Instance().setProxying();
+	}
+	else if (cmd == MacroCommandType::GoToProxy)
+	{
+        WorkerManager::Instance().reserveProxyBuilder();
 	}
 	else if (cmd == MacroCommandType::PullWorkers)
 	{

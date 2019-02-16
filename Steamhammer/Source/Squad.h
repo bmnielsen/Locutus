@@ -29,6 +29,7 @@ class Squad
 	BWAPI::Unitset      _units;
 	bool				_combatSquad;
 	int					_combatSimRadius;
+    int                 _ignoreCombatSimUntil;
 	bool				_fightVisibleOnly;  // combat sim uses visible enemies only (vs. all known enemies)
 	bool				_hasAir;
 	bool				_hasGround;
@@ -74,6 +75,8 @@ class Squad
 
     void            updateBlockScouting();
 
+    bool attackTerranPush();
+
 public:
 
 	Squad(const std::string & name, SquadOrder order, size_t priority);
@@ -108,6 +111,7 @@ public:
 	int					getCombatSimRadius() const { return _combatSimRadius; };
 	void				setCombatSimRadius(int radius) { _combatSimRadius = radius; };
     int                 runCombatSim(BWAPI::Position position);
+    void                ignoreCombatSimUntil(int frame) { _ignoreCombatSimUntil = frame; }
 
 	bool				getFightVisible() const { return _fightVisibleOnly; };
 	void				setFightVisible(bool visibleOnly) { _fightVisibleOnly = visibleOnly; };

@@ -394,7 +394,7 @@ void InformationManager::update()
             debug << ". isMoving=" << unit->isMoving();
         }
 
-        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && false)
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_Probe && true)
         {
             anyDebugUnits = true;
 
@@ -415,7 +415,7 @@ void InformationManager::update()
             debug << ". isMoving=" << unit->isMoving();
         }        
         
-        else if (unit->getType() == BWAPI::UnitTypes::Protoss_High_Templar && true)
+        else if (unit->getType() == BWAPI::UnitTypes::Protoss_High_Templar && false)
         {
             anyDebugUnits = true;
 
@@ -503,8 +503,8 @@ void InformationManager::updateBaseLocationInfo()
 
 		for (BWTA::BaseLocation * startLocation : BWTA::getStartLocations()) 
 		{
-			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()), true) ||
-                isEnemyBuildingNearby(startLocation->getPosition(), 1500))
+			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()), startLocation == getMyMainBaseLocation(), startLocation == getMyMainBaseLocation()) ||
+                isEnemyBuildingNearby(startLocation->getPosition(), 1500, startLocation == getMyMainBaseLocation(), startLocation == getMyMainBaseLocation()))
 			{
 				updateOccupiedRegions(BWTA::getRegion(startLocation->getTilePosition()), _enemy);
 
@@ -595,6 +595,15 @@ void InformationManager::updateBaseLocationInfo()
 			updateOccupiedRegions(region, _self);
 		}
 	}
+
+    // Detect enemy proxies
+    //if (!_enemyProxy && BWAPI::Broodwar->getFrameCount() < 6000)
+    //{
+    //    auto natural = getMyNaturalLocation();
+    //    _enemyProxy =
+    //        isEnemyBuildingInRegion(getMyMainBaseLocation()->getRegion(), true, true) ||
+    //        (natural && isEnemyBuildingInRegion(natural->getRegion(), true, false));
+    //}
 }
 
 // If the opponent is zerg and it's early in the game, we may be able to infer the enemy
@@ -1055,7 +1064,7 @@ bool InformationManager::isBehindEnemyWall(BWAPI::TilePosition tile)
     return false;
 }
 
-bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries) 
+bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries, bool ignorePylons) 
 {
 	// invalid regions aren't considered the same, but they will both be null
 	if (!region)
@@ -1068,6 +1077,7 @@ bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region, bool ign
 		const UnitInfo & ui(kv.second);
 
         if (ignoreRefineries && ui.type.isRefinery()) continue;
+        if (ignorePylons && ui.type == BWAPI::UnitTypes::Protoss_Pylon) continue;
 
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
@@ -1081,13 +1091,13 @@ bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region, bool ign
 	return false;
 }
 
-bool InformationManager::isEnemyBuildingNearby(BWAPI::Position position, int threshold)
+bool InformationManager::isEnemyBuildingNearby(BWAPI::Position position, int threshold, bool ignoreRefineries, bool ignorePylons)
 {
 	for (const auto & kv : _unitData[_enemy].getUnits())
 	{
 		const UnitInfo & ui(kv.second);
 
-		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
+		if (ui.type.isBuilding() && !ui.goneFromLastPosition && (!ignoreRefineries || !ui.type.isRefinery()) && (!ignorePylons || ui.type != BWAPI::UnitTypes::Protoss_Pylon))
 		{
 			if (ui.lastPosition.getApproxDistance(position) < threshold) 
 			{
@@ -1988,6 +1998,24 @@ bool InformationManager::enemyWillSoonHaveAirTech()
 	return false;
 }
 
+bool InformationManager::enemyCurrentlyHasAirCombatUnits()
+{
+    for (const auto & kv : getUnitData(_enemy).getUnits())
+    {
+        const UnitInfo & ui(kv.second);
+
+        if (!ui.type.isBuilding() && ui.type.isFlyer() &&
+            ui.type != BWAPI::UnitTypes::Zerg_Overlord &&
+            ui.type != BWAPI::UnitTypes::Protoss_Observer &&
+            ui.type != BWAPI::UnitTypes::Zerg_Scourge)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool InformationManager::enemyHasAirCombatUnits()
 {
 	if (_enemyHasAirCombatUnits)
@@ -2030,7 +2058,7 @@ bool InformationManager::enemyHasCloakTech()
 		if (ui.type.hasPermanentCloak() ||                             // DT, observer
 			ui.type.isCloakable() ||                                   // wraith, ghost
 			ui.type == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
-			ui.type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun ||    // assume DT
+			(ui.type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun && getEnemyName() != "cse") ||    // assume DT
 			ui.type == BWAPI::UnitTypes::Protoss_Templar_Archives ||   // assume DT
 			ui.type == BWAPI::UnitTypes::Protoss_Observatory ||
 			ui.type == BWAPI::UnitTypes::Protoss_Arbiter_Tribunal ||
@@ -2063,7 +2091,7 @@ bool InformationManager::enemyHasMobileCloakTech()
 
 		if (ui.type.isCloakable() ||                                   // wraith, ghost
 			ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar ||
-			ui.type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun ||    // assume DT
+			(ui.type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun && getEnemyName() != "cse") ||    // assume DT
 			ui.type == BWAPI::UnitTypes::Protoss_Templar_Archives ||   // assume DT
 			ui.type == BWAPI::UnitTypes::Protoss_Arbiter_Tribunal ||
 			ui.type == BWAPI::UnitTypes::Protoss_Arbiter ||

@@ -109,8 +109,8 @@ public:
     void                    onEnemyBuildingLanded(BWAPI::Unit unit);
     void                    onEnemyBuildingFlying(BWAPI::UnitType type, BWAPI::Position lastPosition);
 
-	bool					isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries);
-	bool					isEnemyBuildingNearby(BWAPI::Position position, int threshold);
+	bool					isEnemyBuildingInRegion(BWTA::Region * region, bool ignoreRefineries, bool ignorePylons = false);
+	bool					isEnemyBuildingNearby(BWAPI::Position position, int threshold, bool ignoreRefineries = false, bool ignorePylons = false);
     int						getNumUnits(BWAPI::UnitType type,BWAPI::Player player) const;
     bool					nearbyForceHasCloaked(BWAPI::Position p,BWAPI::Player player,int radius);
 
@@ -163,6 +163,7 @@ public:
 	bool					enemyHasAntiAir();
 	bool					enemyHasAirTech();
 	bool					enemyWillSoonHaveAirTech();
+	bool					enemyCurrentlyHasAirCombatUnits();
 	bool					enemyHasAirCombatUnits();
 	bool                    enemyHasCloakTech();
 	bool                    enemyHasMobileCloakTech();

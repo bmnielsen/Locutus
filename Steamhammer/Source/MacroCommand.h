@@ -23,6 +23,7 @@ enum class MacroCommandType
 	, Defensive
 	, Rushing
 	, Proxying
+	, GoToProxy
 	, PullWorkers
 	, PullWorkersLeaving
 	, ReleaseWorkers
@@ -59,6 +60,7 @@ public:
 			, MacroCommandType::Defensive
 			, MacroCommandType::Rushing
 			, MacroCommandType::Proxying
+			, MacroCommandType::GoToProxy
 			, MacroCommandType::PullWorkers
 			, MacroCommandType::PullWorkersLeaving
 			, MacroCommandType::ReleaseWorkers
@@ -176,6 +178,10 @@ public:
         if (t == MacroCommandType::Proxying)
         {
             return "go proxy";
+        }
+        if (t == MacroCommandType::GoToProxy)
+        {
+            return "go to proxy";
         }
 		if (t == MacroCommandType::PullWorkers)
 		{

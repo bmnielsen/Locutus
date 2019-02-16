@@ -147,16 +147,37 @@ void MicroTransports::loadTroops()
 	}
 }
 
+bool inTargetRegion(BWAPI::Position target, BWAPI::Position pos)
+{
+    if (!target.isValid()) return false;
+
+    auto targetRegion = BWTA::getRegion(target);
+    if (BWTA::getRegion(pos) != targetRegion) return false;
+    
+    auto points = { BWAPI::Position(64, 0), BWAPI::Position(-64, 0),BWAPI::Position(0, 64),BWAPI::Position(0, -64) };
+    for (auto point : points)
+    {
+        BWAPI::Position test = pos + point;
+        if (!test.isValid()) continue;
+        if (BWTA::getRegion(test) != targetRegion) return false;
+    }
+
+    return true;
+}
+
 // Only called when the transport exists and is loaded.
 void MicroTransports::maybeUnloadTroops()
 {
 	// Unload if we're close to the destination, or if we're scary low on hit points.
 	// It's possible that we'll land on a cliff and the units will be stuck there.
 	const int transportHP = _transportShip->getHitPoints() + _transportShip->getShields();
+
+    auto positionShortly = InformationManager::Instance().predictUnitPosition(_transportShip, 24);
 	
-	if ((transportHP < 50 || (_target.isValid() && _transportShip->getDistance(_target) < 300)) &&
-		_transportShip->canUnloadAtPosition(_transportShip->getPosition())
-        && bwebMap.usedTiles.find(BWAPI::TilePosition(_transportShip->getPosition())) == bwebMap.usedTiles.end())
+	//if ((transportHP < 50 || (_target.isValid() && BWTA::getRegion(_target) == BWTA::getRegion(_transportShip->getPosition()))) &&
+	if ((transportHP < 50 || inTargetRegion(_target, positionShortly)) &&
+		_transportShip->canUnloadAtPosition(positionShortly)
+        && bwebMap.usedTiles.find(BWAPI::TilePosition(positionShortly)) == bwebMap.usedTiles.end())
 	{
 		// get the unit's current command
 		BWAPI::UnitCommand currentCommand(_transportShip->getLastCommand());
@@ -167,7 +188,7 @@ void MicroTransports::maybeUnloadTroops()
 			return;
 		}
 
-		_transportShip->unloadAll(_transportShip->getPosition());
+		_transportShip->unloadAll(positionShortly);
 	}	
 }
 

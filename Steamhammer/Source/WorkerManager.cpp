@@ -262,7 +262,21 @@ void WorkerManager::handleIdleWorkers()
                 if (StrategyManager::Instance().isProxying() &&
                     proxyLocation.isValid())
                 {
-                    Micro::Move(worker, proxyLocation);
+                    // If there is a stationary enemy worker nearby, attack it
+                    BWAPI::Unit enemyWorker = nullptr;
+                    for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
+                    {
+                        if (!unit->getType().isWorker()) continue;
+                        if (unit->isMoving()) continue;
+                        if (unit->getDistance(proxyLocation) > 192) continue;
+                        enemyWorker = unit;
+                        break;
+                    }
+
+                    if (enemyWorker)
+                        Micro::AttackUnit(worker, enemyWorker);
+                    else
+                        Micro::Move(worker, proxyLocation);
                 }
                 else
                     proxyBuilder = nullptr;
@@ -839,6 +853,22 @@ void WorkerManager::setCombatWorker(BWAPI::Unit worker)
 	UAB_ASSERT(worker, "Worker was null");
 
 	workerData.setWorkerJob(worker, WorkerData::Combat, nullptr);
+}
+
+void WorkerManager::reserveProxyBuilder()
+{
+    if (proxyBuilder) return;
+
+    // Get a builder for the proxy building location
+    auto position = BuildingPlacer::Instance().placeBuildingBWEB(BWAPI::UnitTypes::Protoss_Pylon, BWAPI::Broodwar->self()->getStartLocation(), MacroLocation::Proxy);
+    Building b(BWAPI::UnitTypes::Protoss_Pylon, position);
+    b.macroLocation = MacroLocation::Proxy;
+    b.finalPosition = position;
+    proxyBuilder = getBuilder(b, false);
+    if (proxyBuilder)
+        workerData.setWorkerJob(proxyBuilder, WorkerData::Idle, nullptr);
+    else 
+        Log().Get() << "Warning: Could not set proxy builder";
 }
 
 void WorkerManager::onUnitMorph(BWAPI::Unit unit)

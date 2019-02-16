@@ -68,15 +68,18 @@ void StrategyManager::update()
         }
     }
 
-    // On maps with island bases or bases that require mineral walking to reach, switch to carriers in the late
-    // game if we have no idea where any enemy unit is.
+    // Switch to carriers if we have explored the entire ground-accessible map and have no idea where the enemy is
     // This probably means the enemy has taken one of these bases.
-    if (BWAPI::Broodwar->getFrameCount() > 20000 && 
-        (MapTools::Instance().hasIslandBases() || MapTools::Instance().hasMineralWalkChokes()) &&
-        InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()).empty())
+    if (InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()).empty() &&
+        BWAPI::Broodwar->isExplored(BWAPI::TilePosition(MapGrid::Instance().getLeastExplored(true))))
     {
-        Log().Get() << "Enemy has disappeared, assuming they are at an island and switching to carriers";
         _openingGroup = "carriers";
+    }
+
+    // Switch back if we had previously switched to carriers and have now found the enemy
+    else if (BWAPI::Broodwar->mapHash() != "6f5295624a7e3887470f3f2e14727b1411321a67" && _openingGroup == "carriers")
+    {
+        _openingGroup = "dragoons";
     }
 }
 
@@ -115,7 +118,8 @@ bool StrategyManager::isRushingOrProxyRushing() const
     // While proxying, we consider ourselves in "rush mode" while we're building up our forces and
     // for a short time period after
     return !CombatCommander::Instance().getAggression() || 
-        BWAPI::Broodwar->getFrameCount() < std::min(CombatCommander::Instance().getAggressionAt() + 2000, 10000);
+        (CombatCommander::Instance().getAggressionAt() > -1 && 
+            BWAPI::Broodwar->getFrameCount() < std::min(CombatCommander::Instance().getAggressionAt() + 2000, 10000));
 }
 
 const BuildOrder & StrategyManager::getOpeningBookBuildOrder() const
@@ -369,7 +373,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         upgradeAir = true;
         getCarrierCapacity = true;
         buildCarriers = true;
-        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && numCorsairs < 6)
             buildCorsairs = true;
 
         // Build ground units while we have an active proxy
@@ -384,6 +388,23 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		UAB_ASSERT_WARNING(false, "Unknown Opening Group: %s", _openingGroup.c_str());
 		_openingGroup = "dragoons";    // we're misconfigured, but try to do something
 	}
+
+    // Build corsairs against zerg if they have air combat units
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg && InformationManager::Instance().enemyCurrentlyHasAirCombatUnits() &&
+        numCorsairs < 6)
+    {
+        buildCorsairs = true;
+
+        // Only upgrade +1 weapons
+        int weaponsUps = self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Air_Weapons);
+        if (idleCyberCores > 0 &&
+            !self->isUpgrading(BWAPI::UpgradeTypes::Protoss_Air_Weapons) &&
+            self->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Air_Weapons) < 1)
+        {
+            goal.push_back(std::pair<MacroAct, int>(BWAPI::UpgradeTypes::Protoss_Air_Weapons, 1));
+            idleCyberCores--;
+        }
+    }
 
     // Adjust ground unit ratios
     if (buildGround)
@@ -664,7 +685,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	}
 
     // Corsairs
-    if (buildCorsairs && numCorsairs < 6 && idleStargates > 0)
+    if (buildCorsairs && idleStargates > 0)
     {
         if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
         if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
@@ -723,18 +744,24 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		}
 	}
 
-    // Queue a gateway if we have no idle gateways and enough minerals for it
+    // Queue one or more gateways if we have no idle gateways and enough minerals for it
     // If we queue too many, the production manager will cancel them
     if (buildGround && idleGateways == 0 && self->minerals() >= 150)
     {
-        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 1));
+        if (self->minerals() >= 1000)
+            goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 3));
+        else if (self->minerals() >= 500)
+            goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 2));
+        else
+            goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 1));
     }
 
-    // Queue a stargate if we have no idle stargates and enough resources for it
+    // Queue a stargate if we need our first one or have no idle stargates and enough resources for it
     // If we queue too many, the production manager will cancel them
-    if (buildCarriers && idleStargates == 0 &&
+    if ((buildCorsairs && numStargates == 0) || (
+        (buildCorsairs || buildCarriers) && idleStargates == 0 && (buildCarriers || numStargates < 2) &&
         self->minerals() >= BWAPI::UnitTypes::Protoss_Stargate.mineralPrice() &&
-        self->gas() >= BWAPI::UnitTypes::Protoss_Stargate.gasPrice())
+        self->gas() >= BWAPI::UnitTypes::Protoss_Stargate.gasPrice()))
     {
         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, numStargates + 1));
     }
@@ -1174,7 +1201,22 @@ void SetWallCannons(BuildOrderQueue & queue, int numCannons)
     {
         // Ensure we have a forge
         QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
-        if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return;
+
+        // Queue the cannon(s) when the forge is 20 seconds from completion
+        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1)
+        {
+            int framesUntilForgeCompletion = INT_MAX;
+            for (auto unit : BWAPI::Broodwar->self()->getUnits())
+            {
+                if (unit->getType() == BWAPI::UnitTypes::Protoss_Forge && !unit->isCompleted())
+                {
+                    framesUntilForgeCompletion = unit->getRemainingBuildTime() + 71;
+                    break;
+                }
+            }
+
+            if (framesUntilForgeCompletion > 480) return;
+        }
 
         queue.queueAsHighestPriority(m);
     }
@@ -1420,10 +1462,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         // The logic is:
         // - If we have seen a cloaked combat unit, we definitely need detection
         // - If our opponent model tells us a protoss opponent is probably opening dark templar,
-        //   get them unless we are currently scouting the enemy base and have seen no sign of cloak tech
-		if (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
-            (likelyEnemyPlan == OpeningPlan::DarkTemplar && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
-                !ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech())))
+        //   get them unless we are currently scouting the enemy base and have seen no sign of cloak tech (DISABLED as it causes more harm than good)
+		if (InformationManager::Instance().enemyHasCloakedCombatUnits())
 		{
 			if (_selfRace == BWAPI::Races::Protoss &&
                 UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
@@ -1564,8 +1604,18 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
             default:
                 // We haven't scouted a dangerous plan directly
 
+                // Protoss logic
+                if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
+                {
+                    if (frame > 12000) cannons = 5;
+                    else if (frame > 10000) cannons = 4;
+                    else if (frame > 8000) cannons = 3;
+                    else if (frame > 6000) cannons = 2;
+                    else if (frame > 4000) cannons = 1;
+                }
+
                 // We don't have scouting info
-                if (!ScoutManager::Instance().eyesOnEnemyBase())
+                else if (!ScoutManager::Instance().eyesOnEnemyBase())
                 {
                     // Build two cannons immediately if a zerg opponent does fast rushes
                     // Otherwise, scale up to two cannons more gradually to protect against unscouted early pressure
@@ -1584,8 +1634,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                     snap.takeEnemy();
 
                     // If a zerg enemy is relatively low on workers, prepare for some heavy pressure
-                    if (frame > 5000 && 
-                        enemyMayBeZerg && 
+                    if (frame > 5000 &&
+                        enemyMayBeZerg &&
                         snap.getCount(BWAPI::UnitTypes::Zerg_Drone) < 11)
                     {
                         if (frame > 6000)
@@ -1594,7 +1644,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                             cannons = 3;
                     }
 
-                    // Otherwise scale up gradually to two cannons to handle early pressure
+                    // Otherwise scale up gradually
                     else if (frame > 4000 && InformationManager::Instance().enemyCanProduceCombatUnits())
                         cannons = 2;
                     else if (frame > 3000)
@@ -1681,8 +1731,8 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     bool gasBlocked = WorkerManager::Instance().isCollectingGas() &&
         BWAPI::Broodwar->self()->gas() < 50 && BWAPI::Broodwar->self()->minerals() > 700;
 
-    // Is the enemy contained and we want to macro hard?
-    bool macroHard = enemyContained && predictedProbes < 60 && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) < 4;
+    // Is a Terran enemy contained and we want to macro hard?
+    bool macroHard = BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran && enemyContained && predictedProbes < 60 && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) < 4;
 
     // Queue an expansion if:
     // - it is safe to do so
