@@ -55,6 +55,7 @@ Squad::Squad(const std::string & name, SquadOrder order, size_t priority)
 
 Squad::~Squad()
 {
+    if (gameEnded) return;
     clear();
 }
 

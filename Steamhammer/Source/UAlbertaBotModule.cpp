@@ -19,6 +19,8 @@ using namespace UAlbertaBot;
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
+bool gameEnded;
+
 // This gets called when the bot starts.
 void UAlbertaBotModule::onStart()
 {
