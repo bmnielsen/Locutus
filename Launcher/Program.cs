@@ -14,11 +14,12 @@
     public class Program
     {
         private const string BaseDir = "C:\\Users\\bmn\\AppData\\Roaming\\scbw";
-        //private const string BotName = "Locutus";
-        //private const string BotSource = "C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll";
         private const string BotName = "Locutus";
-        private const string BotDestination = "Newcutus";
-        private const string BotSource = "C:\\Dev\\BW\\Newcutus\\VisualStudio\\Release\\Locutus.dll";
+        private const string BotSource = "C:\\Dev\\BW\\Locutus\\Steamhammer\\bin\\Locutus.dll";
+        private const string BotDestination = "Locutus";
+        //private const string BotName = "Locutus";
+        //private const string BotDestination = "Newcutus";
+        //private const string BotSource = "C:\\Dev\\BW\\Newcutus\\VisualStudio\\Release\\Locutus.dll";
 
         private const int ShortTimeout = 60;
         private const int MediumTimeout = 300;
@@ -94,6 +95,17 @@
                                                             "aitt/(4)Neo Jade.scx"
                                                         };
 
+        private static readonly List<string> Aists2Maps = new List<string>
+                                                        {
+                                                            "aists2/(2)Benzene.scx",
+                                                            "aists2/(2)New Heartbreak Ridge.scx",
+                                                            "aists2/(3)Aztec.scx",
+                                                            "aists2/(4)Circuit Breaker.scx",
+                                                            "aists2/(4)Eddy.scx",
+                                                            "aists2/(4)Fighting Spirit.scx",
+                                                            "aists2/(4)Roadkill 1.08.scx"
+                                                        };
+
         private static readonly Dictionary<string, string> LogCache = new Dictionary<string, string>();
 
         private static DockerClient dockerClient;
@@ -131,6 +143,11 @@
             var isHeadless = !args.Contains("ui");
             var showReplay = args.Contains("replay");
             var noOverwrite = args.Contains("noReadOverwrite");
+            string seed = null;
+            if (args.Contains("seedOverride"))
+            {
+                seed = args[Array.IndexOf(args, "seedOverride") + 1];
+            }
 
             var timeout = MaxTimeout;
             if (args.Contains("short"))
@@ -176,8 +193,8 @@
 
             if (args.Contains("clean"))
             {
-                ClearDirectory($"{BaseDir}\\bots\\{BotDestination}\\read");
-                ClearDirectory($"{BaseDir}\\bots\\{BotDestination}\\write");
+                //ClearDirectory($"{BaseDir}\\bots\\{BotDestination}\\read");
+                //ClearDirectory($"{BaseDir}\\bots\\{BotDestination}\\write");
                 ClearDirectory($"{BaseDir}\\bots\\{opponent}\\read");
                 ClearDirectory($"{BaseDir}\\bots\\{opponent}\\write");
             }
@@ -185,8 +202,9 @@
             var maps = args.Contains("cig") ? CigMaps : Maps;
             maps = args.Contains("aiide") ? AiideMaps : maps;
             maps = args.Contains("aitt") ? AittMaps : maps;
+            maps = args.Contains("aists2") ? Aists2Maps : maps;
 
-            foreach (var arg in args.Where(x => x != "ui" && x != "cig" && x != "aiide" && x != "aitt"))
+            foreach (var arg in args.Where(x => x != "ui" && x != "cig" && x != "aiide" && x != "aitt" && x != "aists2"))
             {
                 var map = maps.FirstOrDefault(
                     x => CultureInfo.InvariantCulture.CompareInfo.IndexOf(x, arg, CompareOptions.IgnoreCase) >= 0);
@@ -260,7 +278,7 @@
                         }
                     }
 
-                    Run(trainingOpponent[0], map, true, false, timeout, noOverwrite);
+                    Run(trainingOpponent[0], map, true, false, timeout, noOverwrite, seed);
 
                     var result = currentGame.HaveResult ? (currentGame.Won ? "win" : "loss") : "crash";
                     File.AppendAllText(resultsFilename, $"{trainingOpponent[0]};{map};{currentGame.Id};{currentGame.MyStrategy};{currentGame.ExpectedOpponentStrategy};{currentGame.OpponentStrategy};{result}\n");
@@ -277,7 +295,7 @@
 
                 foreach (var map in shuffledMaps)
                 {
-                    Run(opponent, map, isHeadless, false, timeout, noOverwrite);
+                    Run(opponent, map, isHeadless, false, timeout, noOverwrite, seed);
 
                     Output("Score is {0} wins {1} losses {2} crashes {3} timeouts", wins, losses, crashes, timeouts);
 
@@ -288,17 +306,18 @@
                 return;
             }
 
-            Run(opponent, shuffledMaps.First(), isHeadless, showReplay, timeout, noOverwrite);
+            Run(opponent, shuffledMaps.First(), isHeadless, showReplay, timeout, noOverwrite, seed);
         }
 
-        private static void Run(string opponent, string map, bool isHeadless, bool showReplay, int timeout, bool noOverwrite)
+        private static void Run(string opponent, string map, bool isHeadless, bool showReplay, int timeout, bool noOverwrite, string seed)
         {
             Output("Starting game against {0} on {1}", opponent, map);
 
             var headless = isHeadless ? "--headless" : string.Empty;
             var timeoutParam = timeout > 0 ? "--timeout " + timeout : string.Empty;
             var overwriteParam = noOverwrite ? string.Empty : "--read_overwrite";
-            var args = $"--bots \"{BotDestination}\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} {overwriteParam}";
+            var seedParam = seed != null ? "--random_seed " + seed : string.Empty;
+            var args = $"--bots \"{BotDestination}\" \"{opponent}\" --game_speed 0 {headless} --vnc_host localhost --map \"{map}\" {timeoutParam} {overwriteParam} {seedParam} --docker_image starcraft:game";
 
             currentGame = new GameData();
 
@@ -329,8 +348,8 @@
                 }
 
                 // Output our log to console
-                CheckLogFile($"{BaseDir}\\bots\\{BotDestination}\\write\\GAME_{currentGame.Id}_0\\{BotName}_ErrorLog.txt", "Err: ");
-                CheckLogFile($"{BaseDir}\\bots\\{BotDestination}\\write\\GAME_{currentGame.Id}_0\\{BotName}_log.txt", "Log: ");
+                CheckLogFile($"{BaseDir}\\games\\GAME_{currentGame.Id}\\write_0\\{BotName}_ErrorLog.txt", "Err: ");
+                CheckLogFile($"{BaseDir}\\games\\GAME_{currentGame.Id}\\write_0\\{BotName}_Log.txt", "Log: ");
 
                 // Process output files
                 ProcessOutputFiles(opponent, map, showReplay);
@@ -380,15 +399,15 @@
         private static void ProcessOutputFiles(string opponent, string map, bool showReplay)
         {
             // Parse the results files
-            HandleResults($"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_results.json", true);
-            HandleResults($"{BaseDir}\\logs\\GAME_{currentGame.Id}_1_results.json", false);
+            HandleResults($"{BaseDir}\\games\\GAME_{currentGame.Id}\\logs_0\\scores.json", true);
+            HandleResults($"{BaseDir}\\games\\GAME_{currentGame.Id}\\logs_1\\scores.json", false);
 
             // Rename the replay file as soon as we see it after the game is over
             if (currentGame.HaveResult)
             {
                 currentGame.RenamedReplay = currentGame.RenamedReplay
-                                            || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGame.Id}_0.rep", opponent, map, showReplay)
-                                            || HandleReplay($"{BaseDir}\\maps\\replays\\GAME_{currentGame.Id}_1.rep", opponent, map, showReplay);
+                                            || HandleReplay($"{BaseDir}\\games\\GAME_{currentGame.Id}\\player_0.rep", opponent, map, showReplay)
+                                            || HandleReplay($"{BaseDir}\\games\\GAME_{currentGame.Id}\\player_1.rep", opponent, map, showReplay);
             }
         }
 
@@ -426,11 +445,12 @@
         {
             if (File.Exists(file))
             {
-                var fileName = file.Substring(0, file.Length - 4);
+                int start = file.LastIndexOf("\\", StringComparison.InvariantCulture) + 1;
+                var fileName = file.Substring(start, file.Length - start - 4);
                 var mapShortName = map.Split('/')[1];
                 mapShortName = mapShortName.Substring(3, mapShortName.Length - 7);
                 var result = currentGame.Won ? "win" : "loss";
-                var newFileName = $"{fileName}-{opponent}-{mapShortName}-{result}.rep";
+                var newFileName = $"{BaseDir}\\replays\\{currentGame.Id}-{fileName}-{opponent}-{mapShortName}-{result}.rep";
 
                 try
                 {
@@ -492,7 +512,7 @@
             
             Output($"{DateTime.Now:HH:mm:ss} {e.Data}");
 
-            if (e.Data.Contains("Waiting until game GAME_"))
+            if (e.Data.Contains("waiting until game GAME_"))
             {
                 currentGame.Id = e.Data.Substring(e.Data.IndexOf("GAME_", StringComparison.Ordinal) + 5, 8);
                 Output("Got game ID {0}", currentGame.Id);
@@ -502,8 +522,8 @@
         private static bool IsGameOver(string opponent)
         {
             // Check logs for repeated "waiting for players" messages
-            var myLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{BotDestination}_game.log";
-            var opponentLogFilename = $"{BaseDir}\\logs\\GAME_{currentGame.Id}_0_{opponent.Replace(' ', '_')}_game.log";
+            var myLogFilename = $"{BaseDir}\\games\\GAME_{currentGame.Id}\\logs_0\\game.log";
+            var opponentLogFilename = $"{BaseDir}\\games\\GAME_{currentGame.Id}\\logs_1\\game.log";
             foreach (var line in GetNewLinesFromFile(myLogFilename).Concat(GetNewLinesFromFile(opponentLogFilename)))
             {
                 if (line == "waiting for players...")
@@ -525,6 +545,7 @@
             // Kill if it has been 20 seconds since we got a result
             if (currentGame.HaveResult && (DateTime.UtcNow - currentGame.ResultTimestamp).TotalSeconds > 20)
             {
+                Output("HAS HAD RESULT FOR 20 SECONDS");
                 return true;
             }
 

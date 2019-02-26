@@ -117,7 +117,15 @@ bool StrategyManager::isRushingOrProxyRushing() const
 
     // While proxying, we consider ourselves in "rush mode" while we're building up our forces and
     // for a short time period after
-    return !CombatCommander::Instance().getAggression() || 
+    if (!CombatCommander::Instance().getAggression()) return true;
+    
+    int enemyDragoons = 0;
+    if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
+        for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+            if (unit.second.type == BWAPI::UnitTypes::Protoss_Dragoon)
+                enemyDragoons++;
+
+    return enemyDragoons < 4 && 
         (CombatCommander::Instance().getAggressionAt() > -1 && 
             BWAPI::Broodwar->getFrameCount() < std::min(CombatCommander::Instance().getAggressionAt() + 2000, 10000));
 }
@@ -1462,8 +1470,10 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         // The logic is:
         // - If we have seen a cloaked combat unit, we definitely need detection
         // - If our opponent model tells us a protoss opponent is probably opening dark templar,
-        //   get them unless we are currently scouting the enemy base and have seen no sign of cloak tech (DISABLED as it causes more harm than good)
-		if (InformationManager::Instance().enemyHasCloakedCombatUnits())
+        //   get them unless we are currently scouting the enemy base and have seen no sign of cloak tech
+		if (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
+            (likelyEnemyPlan == OpeningPlan::DarkTemplar && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
+                !ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech())))
 		{
 			if (_selfRace == BWAPI::Races::Protoss &&
                 UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)

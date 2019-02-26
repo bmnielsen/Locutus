@@ -156,14 +156,13 @@ void ScoutManager::update()
     }
 
 	// Find out if we want to steal gas.
-	if (_workerScout && 
-        !StrategyManager::Instance().isRushing() && 
+    _tryGasSteal =
+        _workerScout &&
+        !StrategyManager::Instance().isRushing() &&
         OpponentModel::Instance().getRecommendGasSteal() &&
+        BWAPI::Broodwar->getFrameCount() < 3000 &&
         BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
-        Config::Strategy::StrategyName != "PlasmaProxy2Gate")
-	{
-		_tryGasSteal = true;
-	}
+        Config::Strategy::StrategyName != "PlasmaProxy2Gate";
 
 	// If we only want to locate the enemy base and we have, release the scout worker.
 	if (_scoutCommand == MacroCommandType::ScoutLocation &&
