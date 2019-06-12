@@ -1186,6 +1186,7 @@ void CombatCommander::blockScouting()
 void CombatCommander::updateBlockScoutingSquad()
 {
     if (!_squadData.squadExists("Block scout")) return;
+    if (!bwebMap.mainChoke) return;
 
     Squad & blockRampSquad = _squadData.getSquad("Block scout");
     ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
@@ -1700,7 +1701,12 @@ void CombatCommander::updateBaseDefenseSquads()
 		// Pulling workers (as implemented) can lead to big losses.
 		bool pullWorkers = (!_goAggressive && (!StrategyManager::Instance().isProxying() || BWAPI::Broodwar->getFrameCount() < 4000)) || (
 			Config::Micro::WorkersDefendRush &&
-			(!staticDefense && numZerglingsInOurBase() > 0 || buildingRush(myRegion) || groundDefendersNeeded < 4));
+			(!staticDefense && (numZerglingsInOurBase() > 0 || buildingRush(myRegion) || groundDefendersNeeded < 4)));
+
+        if (myRegion == mainRegion && staticDefense)
+        {
+            pullWorkers = false;
+        }
 
         // If the squad needs detection, find an observer
         BWAPI::Unit closestObserver = nullptr;

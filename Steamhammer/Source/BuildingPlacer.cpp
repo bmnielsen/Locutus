@@ -614,26 +614,51 @@ void BuildingPlacer::findProxyBlocks()
             for (int y = 0; y <= unit->getType().tileHeight(); y++)
                 insertWithCollision(unit->getTilePosition() + BWAPI::TilePosition(x, y), unbuildableTiles);
 
-    // For base-specific locations, avoid all areas likely to be traversed by worker scouts
-    std::set<const BWEM::Area*> areasToAvoid;
-    for (auto first : BWTA::getStartLocations())
+    // Hard-coded for Plasma
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67")
     {
-        for (auto second : BWTA::getStartLocations())
+        for (auto base : BWTA::getStartLocations())
         {
-            if (first == second) continue;
-
-            for (auto choke : PathFinding::GetChokePointPath(first->getPosition(), second->getPosition(), BWAPI::UnitTypes::Protoss_Probe, PathFinding::PathFindingOptions::UseNearestBWEMArea))
+            if (base->getTilePosition().y == 110)
             {
-                areasToAvoid.insert(choke->GetAreas().first);
-                areasToAvoid.insert(choke->GetAreas().second);
+                _baseProxyBlocks[base] = addProxyBlock(BWAPI::TilePosition(48,123), unbuildableTiles);
+            }
+            else if (base->getTilePosition().y == 14)
+            {
+                _baseProxyBlocks[base] = addProxyBlock(BWAPI::TilePosition(1,45), unbuildableTiles);
+            }
+            else
+            {
+                _baseProxyBlocks[base] = addProxyBlock(BWAPI::TilePosition(91,92), unbuildableTiles);
             }
         }
 
-        // Also add any areas that neighbour each start location
-        auto baseArea = bwemMap.GetNearestArea(first->getTilePosition());
-        for (auto area : baseArea->AccessibleNeighbours())
-            areasToAvoid.insert(area);
+        return;
     }
+
+    // For base-specific locations, avoid all areas likely to be traversed by worker scouts
+    std::set<const BWEM::Area*> areasToAvoid;
+	if (BWAPI::Broodwar->mapHash() != "6f5295624a7e3887470f3f2e14727b1411321a67") // disabled on Plasma
+	{
+		for (auto first : BWTA::getStartLocations())
+		{
+			for (auto second : BWTA::getStartLocations())
+			{
+				if (first == second) continue;
+
+				for (auto choke : PathFinding::GetChokePointPath(first->getPosition(), second->getPosition(), BWAPI::UnitTypes::Protoss_Probe, PathFinding::PathFindingOptions::UseNearestBWEMArea))
+				{
+					areasToAvoid.insert(choke->GetAreas().first);
+					areasToAvoid.insert(choke->GetAreas().second);
+				}
+			}
+
+			// Also add any areas that neighbour each start location
+			auto baseArea = bwemMap.GetNearestArea(first->getTilePosition());
+			for (auto area : baseArea->AccessibleNeighbours())
+				areasToAvoid.insert(area);
+		}
+	}
 
     // Gather the possible enemy start locations
     std::vector<BWTA::BaseLocation*> enemyStartLocations;
@@ -662,6 +687,10 @@ void BuildingPlacer::findProxyBlocks()
 
     std::ostringstream debug;
     debug << "Finding proxy locations";
+
+    // By default place base proxy blocks at least 2000 pixels away from the base, though we accept a bit closer on Plasma
+    int minDistCutoff = 2000;
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67") minDistCutoff = 1500;
 
     // Find the best locations
     BWAPI::Position mainPosition = InformationManager::Instance().getMyMainBaseLocation()->getPosition();
@@ -704,7 +733,7 @@ void BuildingPlacer::findProxyBlocks()
                 if (dist == -1)
                 {
                     debug << "Not connected. ";
-                    goto nextTile;
+					continue;
                 }
 
                 debug << "dist=" << dist;
@@ -713,7 +742,7 @@ void BuildingPlacer::findProxyBlocks()
                 if (dist < minDist) minDist = dist;
                 if (dist > maxDist) maxDist = dist;
 
-                if (dist >= distBest[base] || dist < 2000)
+                if (dist >= distBest[base] || dist < minDistCutoff)
                 {
                     debug << ". ";
                     continue;
@@ -1151,12 +1180,10 @@ void BuildingPlacer::reserveWall(const BuildOrder & buildOrder)
 
 bool BuildingPlacer::isCloseToProxyBlock(BWAPI::Unit unit)
 {
-    if (_proxyBlock == -1) return false;
+    auto proxyLocation = getProxyBlockLocation();
+    if (!proxyLocation.isValid()) return false;
 
-    return unit->getDistance(
-        BWAPI::Position(bwebMap.Blocks()[_proxyBlock].Location()) +
-        BWAPI::Position(bwebMap.Blocks()[_proxyBlock].width() * 16, bwebMap.Blocks()[_proxyBlock].height() * 16))
-            < 320;
+    return unit->getPosition().getApproxDistance(proxyLocation) < 400;
 }
 
 BWAPI::Position BuildingPlacer::getProxyBlockLocation() const

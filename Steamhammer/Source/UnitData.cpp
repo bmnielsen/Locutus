@@ -154,14 +154,12 @@ void UnitData::updateUnit(BWAPI::Unit unit)
 void UnitData::removeUnit(BWAPI::Unit unit)
 {
 	if (!unit) { return; }
+    if (unitMap.find(unit) == unitMap.end()) return;
 
     // If the last position is valid, we have to update our grids
-    if (unitMap.find(unit) != unitMap.end())
-    {
-        UnitInfo & ui = unitMap[unit];
-        if (ui.lastPosition.isValid() && !ui.goneFromLastPosition)
-            InformationManager::Instance().getUnitGrid(unit->getPlayer()).unitDestroyed(unit->getType(), ui.lastPosition, ui.completed);
-    }
+    UnitInfo & ui = unitMap[unit];
+    if (ui.lastPosition.isValid() && !ui.goneFromLastPosition)
+        InformationManager::Instance().getUnitGrid(unit->getPlayer()).unitDestroyed(unit->getType(), ui.lastPosition, ui.completed);
 
 	mineralsLost += unit->getType().mineralPrice();
 	gasLost += unit->getType().gasPrice();

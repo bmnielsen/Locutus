@@ -106,7 +106,7 @@ Log::~Log()
     if (!stream)
     {
         stream = new std::ofstream();
-        stream->open(debug ? "bwapi-data/write/Locutus_log_debug.txt" : "bwapi-data/write/Locutus_log.txt", std::ofstream::app);
+        stream->open(debug ? "bwapi-data/write/Locutus_debuglog.txt" : "bwapi-data/write/Locutus_log.txt", std::ofstream::app);
     }
 
     (*stream) << os.str();

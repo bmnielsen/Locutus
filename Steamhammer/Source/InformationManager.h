@@ -103,7 +103,7 @@ public:
 	void					onUnitCreate(BWAPI::Unit unit)		{ updateUnit(unit); maybeAddBase(unit); }
 	void					onUnitComplete(BWAPI::Unit unit)    { updateUnit(unit); maybeAddStaticDefense(unit); }
 	void					onUnitMorph(BWAPI::Unit unit)       { updateUnit(unit); maybeAddBase(unit); }
-    void					onUnitRenegade(BWAPI::Unit unit)    { updateUnit(unit); }
+    void					onUnitRenegade(BWAPI::Unit unit);
     void					onUnitDestroy(BWAPI::Unit unit);
     void                    onNewEnemyUnit(BWAPI::Unit unit)    { detectEnemyWall(unit); }
     void                    onEnemyBuildingLanded(BWAPI::Unit unit);

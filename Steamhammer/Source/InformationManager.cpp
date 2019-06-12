@@ -1619,6 +1619,24 @@ void InformationManager::updateUnit(BWAPI::Unit unit)
 	}
 }
 
+void InformationManager::onUnitRenegade(BWAPI::Unit unit) 
+{ 
+	// If the current player is enemy, it used to be ours
+	if (unit->getPlayer() == _enemy) 
+	{
+		_unitData[_self].removeUnit(unit);
+        _myUnitGrid.unitDestroyed(unit->getType(), unit->getPosition(), unit->isCompleted());
+	}
+
+	// Otherwise it used to be the enemy's
+	else
+	{
+		_unitData[_enemy].removeUnit(unit);
+	}
+
+	onUnitCreate(unit);
+}
+
 void InformationManager::onUnitDestroy(BWAPI::Unit unit) 
 { 
 	if (unit->getPlayer() == _self || unit->getPlayer() == _enemy)

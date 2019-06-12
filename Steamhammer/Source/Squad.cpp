@@ -1067,6 +1067,8 @@ bool Squad::hasMicroManager(const MicroManager* microManager) const
 
 void Squad::updateBlockScouting()
 {
+	if (!bwebMap.mainChoke) return;
+	
     ChokeData & chokeData = *((ChokeData*)bwebMap.mainChoke->Ext());
 
     // Determine which set of block positions to use

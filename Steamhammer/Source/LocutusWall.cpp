@@ -1358,6 +1358,7 @@ namespace UAlbertaBot
 		Log().Debug() << "Creating wall; tight=" << tight;
 
         // Map-specific hard-coded walls
+		if (BWAPI::Broodwar->mapHash() == "8000dc6116e405ab878c14bb0f0cde8efa4d640c") return LocutusWall(); // Alchemist
         if (BWAPI::Broodwar->mapHash() == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") return destinationWall();
         if (BWAPI::Broodwar->mapHash() == "0a41f144c6134a2204f3d47d57cf2afcd8430841") return matchPointWall();
         if (BWAPI::Broodwar->mapHash() == "83320e505f35c65324e93510ce2eafbaa71c9aa1") return fortressWall();

@@ -95,11 +95,11 @@ void StrategyManager::onUnitDestroy(BWAPI::Unit unit)
     if (_proxying)
     {
         // If this building was at the proxy, break out of proxy mode, the enemy has found it
-        BWAPI::Position proxyLocation = BuildingPlacer::Instance().getProxyBlockLocation();
-        if (proxyLocation.isValid() && unit->getDistance(proxyLocation) <= 320)
+        if (unit->getType().isBuilding() && BuildingPlacer::Instance().isCloseToProxyBlock(unit))
         {
             _proxying = false;
             CombatCommander::Instance().setAggression(true);
+            ProductionManager::Instance().goOutOfBookAndClearQueue();
         }
 
         // Go aggressive if the lost unit is a pylon or a nexus
@@ -114,6 +114,10 @@ bool StrategyManager::isRushingOrProxyRushing() const
 {
     if (_rushing) return true;
     if (!_proxying) return false;
+
+    // On Plasma we are considered to be in the rush as long as the proxy is alive
+    // and we haven't switched to carriers
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67") return _openingGroup != "carriers";
 
     // While proxying, we consider ourselves in "rush mode" while we're building up our forces and
     // for a short time period after
@@ -314,9 +318,15 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     double archonRatio = 0.0;
     bool getTemplarArchives = false;
 
-    // On Plasma, transition to carriers on two bases or if our proxy gateways die
-    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" && (!_proxying || numNexusAll >= 2))
+    // On Plasma, transition to carriers when:
+    // - Our proxy gateways die
+    // - We are on two bases
+    // - We have an excess of minerals
+    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" && 
+        (!_proxying || numNexusAll >= 2 || self->minerals() > 500)) 
+    {
         _openingGroup = "carriers";
+    }
 
 	// Initial ratios
 	if (_openingGroup == "zealots")
@@ -385,7 +395,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             buildCorsairs = true;
 
         // Build ground units while we have an active proxy
-        if (_proxying && (numZealots + numDragoons) < 15)
+        if (_proxying && (numZealots + numDragoons) < 15 && numCarriers < 3)
         {
             buildGround = true;
             zealotRatio = 1.0; // Will be switched to goons below when the enemy gets air units, which is fine
@@ -471,11 +481,9 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         // Upgrade when appropriate:
         // - we have at least two bases
         // - we have a reasonable army size
-        // - we aren't on the defensive
         // - our gateways are busy or we have a large income or we are close to maxed
         upgradeGround = numNexusCompleted >= 2 && (numZealots + numDragoons) >= 10 &&
-            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.75 || WorkerManager::Instance().getNumMineralWorkers() > 50 || BWAPI::Broodwar->self()->supplyUsed() >= 300)
-            && !CombatCommander::Instance().onTheDefensive();
+            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.75 || WorkerManager::Instance().getNumMineralWorkers() > 50 || BWAPI::Broodwar->self()->supplyUsed() >= 300);
     }
 
     // If we're trying to do anything that requires gas, make sure we have an assimilator
@@ -529,7 +537,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
             // Get a second forge and a templar archives when we are on 3 or more bases
             // This will let us efficiently upgrade both weapons and armor to 3
-            if (numNexusCompleted >= 3)
+            if (numNexusCompleted >= 3 && !CombatCommander::Instance().onTheDefensive())
             {
                 getTemplarArchives = true;
 
@@ -1557,9 +1565,9 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		}
 
         // Set wall cannon count depending on the enemy plan
-        if (!CombatCommander::Instance().getAggression() &&
-            BuildingPlacer::Instance().getWall().exists() &&
-            (BWAPI::Broodwar->getFrameCount() > 4000 || UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0))
+        if (BuildingPlacer::Instance().getWall().exists() &&
+            (BWAPI::Broodwar->getFrameCount() > 4000 || UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0) &&
+            CombatCommander::Instance().onTheDefensive())
         {
             int cannons = 0;
             int frame = BWAPI::Broodwar->getFrameCount();
@@ -1580,7 +1588,11 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
             {
             case OpeningPlan::FastRush:
                 // Fast rushes need two cannons immediately and a third shortly afterwards
-                if (frame > 3000)
+				if (frame > 6000)
+					cannons = 5;
+				else if (frame > 4500)
+					cannons = 4;
+				else if (frame > 3000)
                     cannons = 3;
                 else
                     cannons = 2;
@@ -1588,9 +1600,11 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                 break;
 
             case OpeningPlan::HeavyRush:
-                // Heavy rushes ramp up to four cannons at a bit slower timing
-                if (frame > 5000)
-                    cannons = 4;
+                // Heavy rushes ramp up at a bit slower timing
+                if (frame > 6000)
+					cannons = 5;
+				else if (frame > 4000)
+					cannons = 4;
                 else if (frame > 4000)
                     cannons = 3;
                 else if (frame > 3000)
@@ -1617,11 +1631,17 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                 // Protoss logic
                 if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
                 {
-                    if (frame > 12000) cannons = 5;
-                    else if (frame > 10000) cannons = 4;
-                    else if (frame > 8000) cannons = 3;
-                    else if (frame > 6000) cannons = 2;
-                    else if (frame > 4000) cannons = 1;
+                    // We ramp up a bit faster if enemy units are hanging out by the wall
+                    BWAPI::Unitset enemies;
+                    MapGrid::Instance().getUnits(enemies, BuildingPlacer::Instance().getWall().gapCenter, 600, false, true);
+                    auto enemyCloseToWall = !enemies.empty();
+
+                    if (frame > 12000 || (frame > 10000 && enemyCloseToWall)) cannons = 5;
+                    else if (frame > 10000 || (frame > 8000 && enemyCloseToWall)) cannons = 4;
+                    else if (frame > 8000 || (frame > 6000 && enemyCloseToWall)) cannons = 3;
+                    else if (frame > 6000 || (frame > 5000 && enemyCloseToWall)) cannons = 2;
+                    else if (frame > 4000 || (frame > 3000 && OpponentModel::Instance().enemyCanFastRush() && plan != OpeningPlan::NotFastRush))
+						cannons = 1;
                 }
 
                 // We don't have scouting info
