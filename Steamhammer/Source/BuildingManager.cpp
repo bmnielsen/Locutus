@@ -540,9 +540,9 @@ void BuildingManager::releaseBuilderUnit(const Building & b)
 	}
 }
 
-int BuildingManager::getReservedMinerals() const
+int BuildingManager::getReservedMinerals(bool ignoreReservedWorkerScoutMinerals) const
 {
-    return _reservedMinerals + _reservedMineralsWorkerScout;
+    return _reservedMinerals + (ignoreReservedWorkerScoutMinerals ? 0 : _reservedMineralsWorkerScout);
 }
 
 int BuildingManager::getReservedGas() const
@@ -774,7 +774,7 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	// Short-circuit if the building already has a location
 	if (b.finalPosition != BWAPI::TilePositions::Invalid &&
 	    b.finalPosition != BWAPI::TilePositions::None &&
-	    b.finalPosition.x > 0)
+	    (b.finalPosition.x > 0 || b.finalPosition.y > 0))
 	    return b.finalPosition;
 
 	// gas steal

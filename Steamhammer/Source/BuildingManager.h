@@ -50,7 +50,7 @@ public:
     void                drawBuildingInformation(int x,int y);
     BWAPI::TilePosition getBuildingLocation(const Building & b);
 
-    int                 getReservedMinerals() const;
+    int                 getReservedMinerals(bool ignoreReservedWorkerScoutMinerals = false) const;
     int                 getReservedGas() const;
 
 	bool				getStalledForLackOfSpace() const { return _stalledForLackOfSpace; };

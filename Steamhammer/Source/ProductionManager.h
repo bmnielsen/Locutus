@@ -42,7 +42,7 @@ class ProductionManager
 	
 	void				executeCommand(MacroCommand command);
 	void				updateGoals();
-    bool                meetsReservedResources(MacroAct type);
+    bool                meetsReservedResources(const BuildOrderItem & item);
     void                create(BWAPI::Unit producer, const BuildOrderItem & item);
 	void				dropJammedItemsFromQueue();
 	bool				itemCanBeProduced(const MacroAct & act) const;
@@ -51,7 +51,7 @@ class ProductionManager
     bool                canMakeNow(BWAPI::Unit producer,MacroAct t);
     void                predictWorkerMovement(const Building & b);
 
-    int                 getFreeMinerals() const;
+    int                 getFreeMinerals(bool workerScoutBuilding = false) const;
     int                 getFreeGas() const;
 
 	void				doExtractorTrick();

@@ -1860,7 +1860,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // - we have a large mineral bank
     if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
         !isRushingOrProxyRushing() &&
-        safeToMacro &&
+        (safeToMacro || !CombatCommander::Instance().getAggression()) &&
         UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
         (BWAPI::Broodwar->self()->minerals() > 1500 ||
             BWAPI::Broodwar->self()->supplyUsed() > 350 || 

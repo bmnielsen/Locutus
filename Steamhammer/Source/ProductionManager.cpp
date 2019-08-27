@@ -361,7 +361,7 @@ void ProductionManager::manageBuildOrderQueue()
 		}
 
 		// Now consider resources
-		canMake = canMake && meetsReservedResources(currentItem.macroAct);
+		canMake = canMake && meetsReservedResources(currentItem);
 
 		// TODO A bug in getProducer() and/or canMakeNow() can cause addons to fail to build
 		//      if ordered immediately after the building finishes, causing production to break.
@@ -422,7 +422,7 @@ void ProductionManager::manageBuildOrderQueue()
 		if (!_outOfBook) productionJamFrameLimit *= 4;
 
 		// If we are blocked on resources, give some more leeway, we might just not have any money right now
-		else if (!meetsReservedResources(currentItem.macroAct)) productionJamFrameLimit *= 2;
+		else if (!meetsReservedResources(currentItem)) productionJamFrameLimit *= 2;
 
 		// Warn once if we are getting close
 		if (BWAPI::Broodwar->getFrameCount() == _lastProductionFrame + (productionJamFrameLimit / 2))
@@ -489,7 +489,7 @@ void ProductionManager::maybeReorderQueue()
 	}
 
     // Initialize our resource counters with what is left after the top item
-    int minerals = getFreeMinerals() - top.mineralPrice();
+    int minerals = getFreeMinerals(_queue.getHighestPriorityItem().isWorkerScoutBuilding) - top.mineralPrice();
     int gas = getFreeGas() - top.gasPrice();
     int supplyAvailable = BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() - top.supplyRequired();
 
@@ -866,7 +866,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	BWAPI::Position walkToPosition		= BWAPI::Position(x1 + (b.type.tileWidth()/2)*32, y1 + (b.type.tileHeight()/2)*32);
 
 	// compute how many resources we need to construct this building
-	int mineralsRequired				= std::max(0, b.type.mineralPrice() - getFreeMinerals());
+	int mineralsRequired				= std::max(0, b.type.mineralPrice() - getFreeMinerals(b.isWorkerScoutBuilding));
 	int gasRequired						= std::max(0, b.type.gasPrice() - getFreeGas());
 
 	// get a candidate worker to move to this location
@@ -899,9 +899,9 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	Log().Debug() << "Moving worker " << moveWorker->getID() << " to build " << b.type << " @ " << _predictedTilePosition;
 }
 
-int ProductionManager::getFreeMinerals() const
+int ProductionManager::getFreeMinerals(bool isWorkerScoutBuilding) const
 {
-	return BWAPI::Broodwar->self()->minerals() - BuildingManager::Instance().getReservedMinerals();
+	return BWAPI::Broodwar->self()->minerals() - BuildingManager::Instance().getReservedMinerals(isWorkerScoutBuilding);
 }
 
 int ProductionManager::getFreeGas() const
@@ -1025,9 +1025,10 @@ void ProductionManager::updateGoals()
 }
 
 // Can we afford it, taking into account reserved resources?
-bool ProductionManager::meetsReservedResources(MacroAct act)
+bool ProductionManager::meetsReservedResources(const BuildOrderItem & item)
 {
-	return (act.mineralPrice(false) <= getFreeMinerals()) && (act.gasPrice(false) <= getFreeGas());
+	return (item.macroAct.mineralPrice(false) <= getFreeMinerals(item.isWorkerScoutBuilding)) 
+		&& (item.macroAct.gasPrice(false) <= getFreeGas());
 }
 
 void ProductionManager::drawProductionInformation(int x, int y)
