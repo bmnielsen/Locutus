@@ -155,6 +155,10 @@ void CombatCommander::updateIdleSquad()
 
 void CombatCommander::updateKamikazeSquad()
 {
+    // Disable for drop builds
+    // We may add zealots to the kamikaze squad and we don't want to change their order
+    if (StrategyManager::Instance().dropIsPlanned()) return;
+
     // Always make sure the order is updated
     // For now we are just using the same order as the main squad
     Squad & kamikazeSquad = _squadData.getSquad("Kamikaze");
@@ -1118,8 +1122,29 @@ void CombatCommander::updateDropSquads()
 		else
 		{
 			// We're full. Change the order to Drop.
-			SquadOrder dropOrder = SquadOrder(SquadOrderTypes::Drop, getDropLocation(dropSquad), 300, "Go drop!");
+            auto dropLocation = getDropLocation(dropSquad);
+			SquadOrder dropOrder = SquadOrder(SquadOrderTypes::Drop, dropLocation, 300, "Go drop!");
 			dropSquad.setSquadOrder(dropOrder);
+
+            // Move zealots into the kamikaze squad
+            Squad & kamikazeSquad = _squadData.getSquad("Kamikaze");
+
+            std::vector<BWAPI::Unit> unitsToMove;
+            for (auto & unit : dropSquad.getUnits())
+                if (unit->getType() == BWAPI::UnitTypes::Protoss_Zealot &&
+                    _squadData.canAssignUnitToSquad(unit, kamikazeSquad))
+                {
+                    unitsToMove.push_back(unit);
+                }
+
+            if (!unitsToMove.empty())
+            {
+                for (auto & unit : unitsToMove)
+                    _squadData.assignUnitToSquad(unit, kamikazeSquad);
+
+                SquadOrder kamikazeOrder(SquadOrderTypes::KamikazeAttack, dropLocation, AttackRadius, "Kamikaze attack enemy base");
+                kamikazeSquad.setSquadOrder(kamikazeOrder);
+            }
 		}
 	}
 	else
@@ -2029,6 +2054,7 @@ bool CombatCommander::unitIsGoodToDrop(const BWAPI::Unit unit) const
 {
 	return
 		unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar ||
+		unit->getType() == BWAPI::UnitTypes::Protoss_Zealot ||
 		unit->getType() == BWAPI::UnitTypes::Terran_Vulture;
 }
 

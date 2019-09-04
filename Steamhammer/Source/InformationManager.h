@@ -64,7 +64,6 @@ class InformationManager
 
 	void					initializeTheBases();
 	void                    initializeRegionInformation();
-	BWTA::BaseLocation *	getNaturalBase(BWTA::BaseLocation * main);
 
 	int                     getIndex(BWAPI::Player player) const;
 
@@ -135,11 +134,13 @@ public:
 	BWAPI::Unit 			getBaseDepot(BWTA::BaseLocation * base);
 	BWTA::BaseLocation *	getMyNaturalLocation();
 	BWTA::BaseLocation *	getEnemyNaturalLocation();
+	BWTA::BaseLocation *	getNaturalBase(BWTA::BaseLocation * main);
     std::vector<BWTA::BaseLocation *> getBases(BWAPI::Player player);
     std::vector<BWTA::BaseLocation *> getMyBases() { return getBases(BWAPI::Broodwar->self()); }
     std::vector<BWTA::BaseLocation *> getEnemyBases() { return getBases(BWAPI::Broodwar->enemy()); }
     Base*					getBase(BWTA::BaseLocation * base) { return _theBases[base]; };
     Base*					baseAt(BWAPI::TilePosition baseTilePosition);
+    BWTA::BaseLocation *	baseAtBWTA(BWAPI::TilePosition baseTilePosition);
     int						getTotalNumBases() const;
 	int						getNumBases(BWAPI::Player player);
 	int						getNumFreeLandBases();

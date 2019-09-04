@@ -125,6 +125,8 @@ void InformationManager::initializeRegionInformation()
 // Prerequisite: Call initializeRegionInformation() first.
 BWTA::BaseLocation * InformationManager::getNaturalBase(BWTA::BaseLocation * main)
 {
+	if (!main) return nullptr;
+
 	// We'll go through the bases and pick the best one as the natural.
 	BWTA::BaseLocation * bestBase = nullptr;
 	double bestScore = 0.0;
@@ -1748,11 +1750,17 @@ const UnitData & InformationManager::getUnitData(BWAPI::Player player) const
 
 Base* InformationManager::baseAt(BWAPI::TilePosition baseTilePosition)
 {
+	auto base = baseAtBWTA(baseTilePosition);
+	return base ? _theBases[base] : nullptr;
+}
+
+BWTA::BaseLocation * InformationManager::baseAtBWTA(BWAPI::TilePosition baseTilePosition)
+{
 	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 	{
 		if (closeEnough(base->getTilePosition(), baseTilePosition))
 		{
-            return _theBases[base];
+			return base;
 		}
 	}
 
