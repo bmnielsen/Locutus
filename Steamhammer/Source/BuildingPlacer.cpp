@@ -289,6 +289,7 @@ void BuildingPlacer::reserveTiles(BWAPI::TilePosition position,int width,int hei
 
 			_reserveMap[x][y] = true;
 			bwebMap.getUsedTiles().insert(t);
+            bwebMap.usedTilesGrid[x][y] = true;
 		}
     }
 }
@@ -334,6 +335,7 @@ void BuildingPlacer::freeTiles(BWAPI::TilePosition position, int width, int heig
 			
 			_reserveMap[x][y] = false;
 			bwebMap.getUsedTiles().erase(t);
+            bwebMap.usedTilesGrid[x][y] = false;
 		}
     }
 }
