@@ -435,8 +435,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             zealotRatio = 0.0;
         }
 
-        // Mix in speedlots if the enemy has siege tanks
-        if (InformationManager::Instance().enemyHasSiegeTech())
+        // Mix in speedlots if the enemy has siege tanks and we have at least 6 dragoons
+        if (InformationManager::Instance().enemyHasSiegeTech() && numDragoons > 5)
         {
             getZealotSpeed = true;
 

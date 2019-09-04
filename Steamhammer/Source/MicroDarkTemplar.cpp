@@ -45,18 +45,27 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 	BWAPI::Unitset meleeUnitTargets;
 	for (const auto target : targets) 
 	{
-		if (target->isVisible() &&
+		if (!(target->isVisible() &&
 			target->isDetected() &&
 			!target->isFlying() &&
 			target->getPosition().isValid() &&
 			target->getType() != BWAPI::UnitTypes::Zerg_Larva && 
 			target->getType() != BWAPI::UnitTypes::Zerg_Egg &&
 			!target->isStasised() &&
-			!target->isUnderDisruptionWeb() && // melee unit can't attack under dweb
-            (attackSquad || BWTA::getRegion(target->getPosition()) == BWTA::getRegion(order.getPosition())))
-		{
-			meleeUnitTargets.insert(target);
-		}
+			!target->isUnderDisruptionWeb())) // melee unit can't attack under dweb
+        {
+            continue;
+        }
+        
+        // When not part of a normal attack squad, ignore targets outside the target region that aren't blocking a choke
+        if (!attackSquad && 
+            BWTA::getRegion(target->getPosition()) != BWTA::getRegion(order.getPosition()) &&
+            !unitNearNarrowChokepoint(target))
+        {
+            continue;
+        }
+
+        meleeUnitTargets.insert(target);
 	}
 
     bool explored = false;
