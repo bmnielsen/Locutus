@@ -64,6 +64,7 @@ public:
 	LocutusWall&		getWall() {	return _wall; }
     bool                isCloseToProxyBlock(BWAPI::Unit unit);
     BWAPI::Position     getProxyBlockLocation() const;
+    void                setCenterProxy() { _proxyBlock = _centerProxyBlock; }
 
     void                findChokeDefenseLocations();
 

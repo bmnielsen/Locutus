@@ -972,6 +972,10 @@ void ProductionManager::executeCommand(MacroCommand command)
 	{
         WorkerManager::Instance().reserveProxyBuilder();
 	}
+	else if (cmd == MacroCommandType::GoCenterProxy)
+	{
+		BuildingPlacer::Instance().setCenterProxy();
+	}
 	else if (cmd == MacroCommandType::PullWorkers)
 	{
 		CombatCommander::Instance().pullWorkers(command.getAmount());
