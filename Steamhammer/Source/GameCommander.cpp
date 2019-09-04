@@ -31,7 +31,8 @@ void GameCommander::update()
 #endif
 
 	// Decide whether to give up early. Implements config option SurrenderWhenHopeIsLost.
-	if (surrenderMonkey()/* || BWAPI::Broodwar->getFrameCount() == 30000*/)
+	// Disabled for tournament
+	if (false && surrenderMonkey()/* || BWAPI::Broodwar->getFrameCount() == 30000*/)
 	{
 		_surrenderTime = BWAPI::Broodwar->getFrameCount();
 		BWAPI::Broodwar->printf("gg");
