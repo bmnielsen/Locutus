@@ -398,6 +398,7 @@ void BuildingPlacer::initializeBWEB()
 
     findHiddenTechBlock();
     findProxyBlocks();
+    findChokeDefenseLocations();
 
     bwebMap.findBlocks();
 }
@@ -945,6 +946,30 @@ struct BlockData
 
 BWAPI::TilePosition BuildingPlacer::placeBuildingBWEB(BWAPI::UnitType type, BWAPI::TilePosition closeTo, MacroLocation macroLocation)
 {
+    if (macroLocation == MacroLocation::Choke && _chokeDefenseLocations.size() > 1)
+    {
+        if (type == BWAPI::UnitTypes::Protoss_Pylon) return _chokeDefenseLocations[0];
+
+        // Gather placements we have queued in the building manager
+        std::set<BWAPI::TilePosition> queuedCannonPlacements;
+        for (auto & b : BuildingManager::Instance().buildingsQueued())
+            if (b->type == BWAPI::UnitTypes::Protoss_Photon_Cannon && b->finalPosition.isValid())
+                queuedCannonPlacements.insert(b->finalPosition);
+
+        // Find the next available cannon placement
+        for (int i=1; i<_chokeDefenseLocations.size(); i++)
+        {
+            auto tile = _chokeDefenseLocations[i];
+            if (bwebMap.usedTiles.find(tile) == bwebMap.usedTiles.end() &&
+                queuedCannonPlacements.find(tile) == queuedCannonPlacements.end())
+            {
+                return tile;
+            }
+        }
+
+        // Fall through to place cannon normally
+    }
+
 	if (type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
 	{
 		const BWEB::Station* station = bwebMap.getClosestStation(closeTo);
@@ -1195,4 +1220,103 @@ BWAPI::Position BuildingPlacer::getProxyBlockLocation() const
     return 
         BWAPI::Position(bwebMap.Blocks()[_proxyBlock].Location()) +
         BWAPI::Position(bwebMap.Blocks()[_proxyBlock].width() * 16, bwebMap.Blocks()[_proxyBlock].height() * 16);
+}
+
+bool powersCannon(BWAPI::TilePosition pylon, BWAPI::TilePosition cannon)
+{
+    int offsetY = cannon.y - pylon.y;
+    int offsetX = cannon.x - pylon.x;
+
+    if (offsetY < -4 || offsetY > 4) return false;
+    if (offsetY == 4 && (offsetX < -3 || offsetX > 2)) return false;
+    if ((offsetY == -4 || offsetY == 3) && (offsetX < -6 || offsetX > 5)) return false;
+    if ((offsetY == -3 || offsetY == 2) && (offsetX < -7 || offsetX > 6)) return false;
+    return (offsetX >= -7 && offsetX <= 7);
+}
+
+void BuildingPlacer::findChokeDefenseLocations()
+{
+    if (!bwebMap.mainChoke) return;
+    if (!bwebMap.mainArea) return;
+
+    auto start = BWAPI::TilePosition(bwebMap.mainChoke->Center());
+    auto chokePos = BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(2,2);
+
+    // Reserve a path
+    std::set<BWAPI::TilePosition> reserved;
+    for (auto & tile : bwebMap.findPath(bwemMap, bwebMap, BWAPI::Broodwar->self()->getStartLocation(), start))
+    {
+        reserved.insert(tile);
+    }
+
+    BWAPI::TilePosition pylon = BWAPI::TilePositions::Invalid;
+    int best = INT_MAX;
+    for (int x=start.x-10; x<=start.x+10; x++)
+    {
+        for (int y=start.y-10; y<=start.y+10; y++)
+        {
+            BWAPI::TilePosition here(x,y);
+            if (bwebMap.overlapsAnything(here, 2, 2)) continue;
+            if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, here)) continue;
+            if (bwemMap.GetArea(here) == bwebMap.naturalArea) continue;
+            if (reserved.find(here) != reserved.end()) continue;
+            if (reserved.find(here + BWAPI::TilePosition(1,0)) != reserved.end()) continue;
+            if (reserved.find(here + BWAPI::TilePosition(1,1)) != reserved.end()) continue;
+            if (reserved.find(here + BWAPI::TilePosition(0,1)) != reserved.end()) continue;
+
+            int dist = chokePos.getApproxDistance(BWAPI::Position(here) + BWAPI::Position(32, 32));
+            if (dist < best)
+            {
+                best = dist;
+                pylon = here;
+            }
+        }
+    }
+
+    if (!pylon.isValid())
+    {
+        Log().Get() << "Choke defense: could not find pylon location";
+        return;
+    }
+
+    Log().Get() << "Choke defense: pylon @ " << pylon;
+    bwebMap.addOverlap(pylon, 2, 2);
+    _chokeDefenseLocations.push_back(pylon);
+
+    for (int i=0; i<4; i++)
+    {
+        BWAPI::TilePosition cannon = BWAPI::TilePositions::Invalid;
+        best = INT_MAX;
+        for (int x=pylon.x-7; x<=pylon.x+7; x++)
+        {
+            for (int y=pylon.y-4; y<=pylon.y+4; y++)
+            {
+                BWAPI::TilePosition here(x,y);
+                if (bwebMap.overlapsAnything(here, 2, 2)) continue;
+                if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, here)) continue;
+                if (bwemMap.GetArea(here) == bwebMap.naturalArea) continue;
+                if (!powersCannon(pylon, here)) continue;
+                if (reserved.find(here) != reserved.end()) continue;
+                if (reserved.find(here + BWAPI::TilePosition(1,0)) != reserved.end()) continue;
+                if (reserved.find(here + BWAPI::TilePosition(1,1)) != reserved.end()) continue;
+                if (reserved.find(here + BWAPI::TilePosition(0,1)) != reserved.end()) continue;
+
+                int dist = chokePos.getApproxDistance(BWAPI::Position(here) + BWAPI::Position(32, 32));
+                if (dist < best)
+                {
+                    best = dist;
+                    cannon = here;
+                }
+            }
+        }
+
+        if (!cannon.isValid())
+        {
+            return;
+        }
+
+        Log().Get() << "Choke defense: cannon @ " << cannon;
+        bwebMap.addOverlap(cannon, 2, 2);
+        _chokeDefenseLocations.push_back(cannon);
+    }
 }

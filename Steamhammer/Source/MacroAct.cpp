@@ -48,6 +48,10 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 	{
 		return MacroLocation::HiddenTech;
 	}
+	if (s == "choke")
+	{
+		return MacroLocation::Choke;
+	}
 
 	UAB_ASSERT(false, "config file - bad location '@ %s'", s.c_str());
 

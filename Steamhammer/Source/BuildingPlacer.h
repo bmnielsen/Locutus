@@ -27,6 +27,7 @@ class BuildingPlacer
     std::map<BWTA::BaseLocation*, int> _baseProxyBlocks; // Best proxy block for each base
     int                 _centerProxyBlock;      // Proxy block suitable for when we don't know the enemy base
     int                 _proxyBlock;            // Chosen proxy block
+    std::vector<BWAPI::TilePosition> _chokeDefenseLocations; // Pylon and three cannons that defend our main choke
 
 public:
 
@@ -63,6 +64,8 @@ public:
 	LocutusWall&		getWall() {	return _wall; }
     bool                isCloseToProxyBlock(BWAPI::Unit unit);
     BWAPI::Position     getProxyBlockLocation() const;
+
+    void                findChokeDefenseLocations();
 
 };
 }
