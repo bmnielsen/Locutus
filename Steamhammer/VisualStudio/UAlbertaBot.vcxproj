@@ -199,6 +199,7 @@
     <ClCompile Include="..\Source\UpgradeTracker.cpp" />
     <ClCompile Include="..\source\WorkerData.cpp" />
     <ClCompile Include="..\source\WorkerManager.cpp" />
+    <ClCompile Include="..\source\WorkerOrderTimer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\BWEB\src\Block.h" />

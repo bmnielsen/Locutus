@@ -13,6 +13,7 @@
 #include "OpponentModel.h"
 #include "ParseUtils.h"
 #include "UnitUtil.h"
+#include "WorkerOrderTimer.h"
 
 using namespace UAlbertaBot;
 
@@ -69,7 +70,9 @@ void UAlbertaBotModule::onStart()
         BWAPI::Broodwar->enableFlag(BWAPI::Flag::UserInput);
     }
 
-	Log().Get() << "I am Locutus of Borg, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName();
+    WorkerOrderTimer::initialize();
+
+	Log().Get() << "I am Locutus of Borg, you are " << InformationManager::Instance().getEnemyName() << ", we're in " << BWAPI::Broodwar->mapFileName() << " (" << BWAPI::Broodwar->mapHash() << ")";
 
 	StrategyManager::Instance().initializeOpening();    // may depend on config and/or opponent model
 
@@ -84,6 +87,8 @@ void UAlbertaBotModule::onEnd(bool isWinner)
     if (gameEnded) return;
 
     GameCommander::Instance().onEnd(isWinner);
+
+    WorkerOrderTimer::write();
 
     gameEnded = true;
 }

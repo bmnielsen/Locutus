@@ -4,6 +4,7 @@
 #include "ProductionManager.h"
 #include "CombatCommander.h"
 #include "UnitUtil.h"
+#include "WorkerOrderTimer.h"
 
 using namespace UAlbertaBot;
 
@@ -344,17 +345,77 @@ void WorkerManager::handleMineralLocking()
 {
 	for (const auto worker : workerData.getWorkers())
 	{
-		auto job = workerData.getWorkerJob(worker);
-
-		if (job == WorkerData::Minerals && (
-			worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
+		if (workerData.getWorkerJob(worker) != WorkerData::Minerals) continue;
+/*
+		if (worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
 			worker->getOrder() == BWAPI::Orders::WaitForMinerals ||
-            (worker->getOrder() == BWAPI::Orders::Move && InformationManager::Instance().getLocutusUnit(worker).distanceToMoveTarget() < 200)))
+            (worker->getOrder() == BWAPI::Orders::Move && InformationManager::Instance().getLocutusUnit(worker).distanceToMoveTarget() < 200))
 		{
 			BWAPI::Unit patch = workerData.getWorkerResource(worker);
 			if (patch && worker->getOrderTarget() != patch && patch->exists())
 				Micro::RightClick(worker, patch);
 		}
+
+		continue;
+*/
+		BWAPI::Unit patch = workerData.getWorkerResource(worker);
+		if (!patch || !patch->exists()) continue;
+
+		if (WorkerOrderTimer::optimizeMineralWorker(worker, patch)) continue;
+
+		// If the unit is currently mining, leave it alone
+		if (worker->getOrder() == BWAPI::Orders::MiningMinerals ||
+			worker->getOrder() == BWAPI::Orders::ResetCollision)
+		{
+			continue;
+		}
+
+		// If the unit is returning cargo, leave it alone
+		if (worker->getOrder() == BWAPI::Orders::ReturnMinerals) continue;
+
+		// Check if another worker is currently mining this patch
+		BWAPI::Unit otherWorker = nullptr;
+		for (const auto other : workerData.getWorkers())
+		{
+			if (other == worker) continue;
+			if (workerData.getWorkerResource(other) == patch)
+			{
+				otherWorker = other;
+				break;
+			}
+		}
+
+		// Resend the gather command when we expect the other worker to be finished mining in 9+LF frames
+		if (otherWorker && otherWorker->getOrder() == BWAPI::Orders::MiningMinerals &&
+			(otherWorker->getOrderTimer() + 7) == (10 + BWAPI::Broodwar->getLatencyFrames()))
+		{
+			// Exception: If we are not at the patch yet, and our last command was sent a long time ago,
+			// we probably want to wait and allow our order timer optimization to send the command instead.
+			int dist = worker->getDistance(patch);
+			if (dist > 20 && worker->getLastCommandFrame() < (BWAPI::Broodwar->getFrameCount()-20)) continue;
+
+			// Log().Debug() << worker->getID() << ": mp=" << patch->getID() << "; resent because other worker soon to finish";
+			Micro::RightClick(worker, patch);
+			continue;
+		}
+
+		// Mineral locking: if the unit is moving to or waiting for minerals, make sure it doesn't switch targets
+		if (worker->getOrder() == BWAPI::Orders::MoveToMinerals ||
+			worker->getOrder() == BWAPI::Orders::WaitForMinerals)
+		{
+			if (worker->getOrderTarget() && worker->getOrderTarget()->getResources() && worker->getOrderTarget() != patch
+				&& worker->getLastCommandFrame() < (BWAPI::Broodwar->getFrameCount() - BWAPI::Broodwar->getLatencyFrames()))
+			{
+				// Log().Debug() << worker->getID() << ": mp=" << patch->getID() << "; resent because switched target";
+				Micro::RightClick(worker, patch);
+			}
+
+			continue;
+		}
+
+		// Otherwise for all other orders click on the mineral patch
+		// Log().Debug() << worker->getID() << ": mp=" << patch->getID() << "; sent because fell through";
+		Micro::RightClick(worker, patch);
 	}
 }
 
