@@ -1331,12 +1331,13 @@ void CombatCommander::updateScoutDefenseSquad()
     // if the current squad has units in it then we can ignore this
     Squad & scoutDefenseSquad = _squadData.getSquad("ScoutDefense");
   
-    // get the region that our base is located in
+    // get our base regions
     BWTA::Region * myRegion = BWTA::getRegion(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition());
     if (!myRegion || !myRegion->getCenter().isValid())
     {
         return;
     }
+    BWTA::Region * natRegion = BWTA::getRegion(InformationManager::Instance().getMyNaturalLocation()->getTilePosition());
 
     // Chase the scout unless there is an enemy unit in the region that isn't a scout
     bool hasScout = false;
@@ -1345,7 +1346,8 @@ void CombatCommander::updateScoutDefenseSquad()
     {
         // Was the unit last seen in our main region?
         if (!ui.second.lastPosition.isValid()) continue;
-        if (BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition)) != myRegion) continue;
+        auto region = BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition));
+        if (region != myRegion && region != natRegion) continue;
 
         // Overlords are not considered after the early game
         if (ui.second.type == BWAPI::UnitTypes::Zerg_Overlord &&
