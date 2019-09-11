@@ -506,7 +506,7 @@ void InformationManager::updateBaseLocationInfo()
 		for (BWTA::BaseLocation * startLocation : BWTA::getStartLocations()) 
 		{
 			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()), startLocation == getMyMainBaseLocation(), startLocation == getMyMainBaseLocation()) ||
-                isEnemyBuildingNearby(startLocation->getPosition(), 1500, startLocation == getMyMainBaseLocation(), startLocation == getMyMainBaseLocation()))
+                isEnemyBuildingNearby(startLocation->getPosition(), 640, startLocation == getMyMainBaseLocation(), startLocation == getMyMainBaseLocation()))
 			{
 				updateOccupiedRegions(BWTA::getRegion(startLocation->getTilePosition()), _enemy);
 
