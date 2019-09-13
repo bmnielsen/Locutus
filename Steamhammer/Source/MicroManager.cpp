@@ -95,6 +95,47 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 			MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
 		}
 	}
+
+	// Special case: if we are defending and have cannons nearby, don't engage any targets that are outside cannon range
+	if (order.getType() == SquadOrderTypes::Defend ||
+		order.getType() == SquadOrderTypes::Hold)
+	{
+		std::vector<BWAPI::Unit> cannons;
+		for (auto unit : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (unit->getType() != BWAPI::UnitTypes::Protoss_Photon_Cannon) continue;
+			if (!unit->isCompleted()) continue;
+			if (unit->getDistance(order.getPosition()) > 160) continue;
+			cannons.push_back(unit);
+		}
+
+		if (!cannons.empty())
+		{
+			for (auto it = targets.begin(); it != targets.end(); )
+			{
+				auto & unit = *it;
+
+				int numCannonsInRange = 0;
+				for (auto cannon : cannons)
+				{
+					if (cannon->getDistance(unit) <= (7*32))
+					{
+						numCannonsInRange++;
+					}
+				}
+
+				if (numCannonsInRange == cannons.size() || numCannonsInRange > 1)
+				{
+					it++;
+				}
+				else
+				{
+					it = targets.erase(it);
+				}
+			}
+		}
+	}
+
 }
 
 // Determine if we should ignore the given target and look for something better closer to our order position

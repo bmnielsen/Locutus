@@ -968,11 +968,34 @@ void CombatCommander::updateAttackSquads()
             BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
             defendPosition = base->getPosition();
 
-            // Defend the main choke if we have one and our combat sim says it is safe to do so
-            if (bwebMap.mainChoke && groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) >= 0)
+            // Defend the main choke if we have one and our combat sim says it is safe to do so, or we have cannons there
+            if (bwebMap.mainChoke)
             {
-                defendPosition = BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(4, 4);
-                defendPositionIsNarrow = true;
+                bool cannonAtChoke = false;
+                BWAPI::Position pylonAtChoke = BWAPI::Positions::Invalid;
+                for (auto unit : BWAPI::Broodwar->self()->getUnits())
+                {
+                    if (!unit->isCompleted()) continue;
+                    if (unit->getDistance(BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(2,2)) > 160) continue;
+
+                    if (unit->getType() == BWAPI::UnitTypes::Protoss_Pylon)
+                    {
+                        pylonAtChoke = unit->getPosition();
+                    }
+
+                    if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+                    {
+                        cannonAtChoke = true;
+                    }
+                }
+
+                if (cannonAtChoke || groundSquad.runCombatSim(BWAPI::Position(bwebMap.mainChoke->Center())) >= 0)
+                {
+                    defendPosition = BWAPI::Position(bwebMap.mainChoke->Center()) + BWAPI::Position(4, 4);
+                    if (pylonAtChoke.isValid()) defendPosition = pylonAtChoke;
+                    defendPositionIsNarrow = true;
+                }
+
             }
         }
 
