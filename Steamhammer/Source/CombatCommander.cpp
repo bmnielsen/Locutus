@@ -939,9 +939,22 @@ void CombatCommander::updateAttackSquads()
         BWAPI::Position defendPosition;
         bool defendPositionIsNarrow = false;
 
-        // If we have a wall at the natural, defend it
         LocutusWall& wall = BuildingPlacer::Instance().getWall();
-        if (wall.exists())
+
+        // Check if there is a wall building queued
+        bool wallBuildingQueued = false;
+        for (auto & b : BuildingManager::Instance().buildingsQueued())
+        {
+            if (b->finalPosition.isValid() && wall.containsBuildingAt(b->finalPosition))
+            {
+                wallBuildingQueued = true;
+                break;
+            }
+        }
+
+        // If we have a wall at the natural, defend it, unless we have a wall building queued
+        // Our units don't know how to move away from reserved building locations
+        if (wall.exists() && !wallBuildingQueued)
         {
             defendPosition = wall.gapCenter;
             radius /= 4;
