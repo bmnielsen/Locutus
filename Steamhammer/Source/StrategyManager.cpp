@@ -1764,14 +1764,16 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Is a Terran enemy contained and we want to macro hard?
     bool macroHard = BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran && enemyContained && predictedProbes < 60 && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) < 4;
 
+    bool queuedNexus = queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) || 
+        BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) > 0;
+
     // Queue an expansion if:
     // - it is safe to do so
     // - we don't already have one queued
     // - we want more active mineral patches than we currently have OR we are gas blocked OR we have the enemy contained and want to macro hard
     // - we aren't currently in the middle of a rush
     if (safeToMacro &&
-        !queue.anyInQueue(BWAPI::UnitTypes::Protoss_Nexus) && 
-        BuildingManager::Instance().getNumUnstarted(BWAPI::UnitTypes::Protoss_Nexus) < 1 &&
+        !queuedNexus && 
         (mineralPatches < desiredMineralPatches || gasBlocked || macroHard) &&
         !isRushingOrProxyRushing())
     {
@@ -1783,6 +1785,29 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
                 queue.queueAsLowestPriority(BWAPI::UnitTypes::Protoss_Nexus);
             else
                 queue.queueAsLowestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Nexus, MacroLocation::MinOnly));
+        }
+    }
+
+    // Cancel a nexus if we recently ordered one but it is no longer safe to macro
+    if (!safeToMacro && queuedNexus)
+    {
+        // Queued as highest-priority item
+        if (!queue.isEmpty() &&
+            queue.getHighestPriorityItem().macroAct.isBuilding() &&
+            queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Nexus)
+        {
+            Log().Get() << "No longer safe; cancelling expansion";
+            ProductionManager::Instance().cancelHighestPriorityItem();
+        }
+
+        // Queued in the building manager
+        for (auto& building : BuildingManager::Instance().buildingsQueued())
+        {
+            if (building->type == BWAPI::UnitTypes::Protoss_Nexus)
+            {
+                Log().Get() << "No longer safe; cancelling expansion";
+                BuildingManager::Instance().cancelBuilding(*building);
+            }
         }
     }
 
