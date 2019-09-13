@@ -939,9 +939,11 @@ void CombatCommander::updateAttackSquads()
         BWAPI::Position defendPosition;
         bool defendPositionIsNarrow = false;
 
+        BWTA::BaseLocation * main = InformationManager::Instance().getMyMainBaseLocation();
         LocutusWall& wall = BuildingPlacer::Instance().getWall();
 
-        // Check if there is a wall building queued
+        // If there is a wall building queued, set the defend position to our main
+        // This is a hack to get our units to move out of the way
         bool wallBuildingQueued = false;
         for (auto & b : BuildingManager::Instance().buildingsQueued())
         {
@@ -951,10 +953,13 @@ void CombatCommander::updateAttackSquads()
                 break;
             }
         }
+        if (wallBuildingQueued)
+        {
+            defendPosition = main->getPosition();
+        }
 
-        // If we have a wall at the natural, defend it, unless we have a wall building queued
-        // Our units don't know how to move away from reserved building locations
-        if (wall.exists() && !wallBuildingQueued)
+        // If we have a wall at the natural, defend it
+        else if (wall.exists())
         {
             defendPosition = wall.gapCenter;
             radius /= 4;
@@ -978,8 +983,7 @@ void CombatCommander::updateAttackSquads()
         // Otherwise defend the main
         else
         {
-            BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
-            defendPosition = base->getPosition();
+            defendPosition = main->getPosition();
 
             // Defend the main choke if we have one and our combat sim says it is safe to do so, or we have cannons there
             if (bwebMap.mainChoke)
@@ -1035,18 +1039,17 @@ void CombatCommander::updateAttackSquads()
         {
             int bestDist = INT_MAX;
             BWAPI::Position bestPos = BWAPI::Positions::Invalid;
-            bool bestCompleted = false;
             for (auto unit : BWAPI::Broodwar->self()->getUnits())
             {
                 if (unit->getType() != BWAPI::UnitTypes::Protoss_Photon_Cannon) continue;
                 if (!unit->isPowered()) continue;
+                if (!unit->isCompleted() && unit->getRemainingBuildTime() > 96) continue;
 
                 int dist = unit->getDistance((InformationManager::Instance().getEnemyMainBaseLocation() ? InformationManager::Instance().getEnemyMainBaseLocation() : InformationManager::Instance().getMyMainBaseLocation())->getPosition());
-                if (dist < bestDist && (unit->isCompleted() || !bestCompleted))
+                if (dist < bestDist)
                 {
                     bestDist = dist;
                     bestPos = unit->getPosition();
-                    bestCompleted = unit->isCompleted();
                 }
             }
 
@@ -1552,10 +1555,13 @@ void CombatCommander::updateBaseDefenseSquads()
             // Add it
             enemyUnits.insert(unit);
 
-            // Add any units close to it
-            for (const auto closeUnit : BWAPI::Broodwar->enemy()->getUnits())
-                if (unit != closeUnit && unit->getDistance(closeUnit) < 400)
-                    enemyUnits.insert(closeUnit);
+            // If not on the defensive, add any units close to it
+            if (!_goAggressive)
+            {
+                for (const auto closeUnit : BWAPI::Broodwar->enemy()->getUnits())
+                    if (unit != closeUnit && unit->getDistance(closeUnit) < 400)
+                        enemyUnits.insert(closeUnit);
+            }
         }
 
 		// Now count and score the enemy units

@@ -1565,7 +1565,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		}
 
         // Set wall cannon count depending on the enemy plan
-        if (BuildingPlacer::Instance().getWall().exists() &&
+        if (!dropIsPlanned() && BuildingPlacer::Instance().getWall().exists() &&
             (BWAPI::Broodwar->getFrameCount() > 4000 || UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0) &&
             CombatCommander::Instance().onTheDefensive())
         {

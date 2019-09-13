@@ -2,6 +2,7 @@
 #include "MapTools.h"
 #include "UnitUtil.h"
 #include "PathFinding.h"
+#include "CombatCommander.h"
 
 using namespace UAlbertaBot;
 
@@ -223,6 +224,13 @@ void MicroTransports::maybeUnloadTroops()
 		(*_transportShip->getLoadedUnits().begin())->getType() == BWAPI::UnitTypes::Protoss_Zealot)
 	{
 		if (_transportShip->getDistance(_target) > 320) return;
+	}
+
+	// Hack: DTs do weird stuff if we drop them while we are defensive, so go aggressive if we're unloading DTs
+	if (!_transportShip->getLoadedUnits().empty() && 
+		(*_transportShip->getLoadedUnits().begin())->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
+	{
+		CombatCommander::Instance().setAggression(true);
 	}
 
 	_transportShip->unloadAll(positionShortly);
