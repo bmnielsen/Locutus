@@ -603,13 +603,14 @@ void MacroAct::produce(BWAPI::Unit producer)
 		// Every once in a while, pick a new base as the "main" base to build in.
 		if (getRace() != BWAPI::Races::Protoss || getUnitType() == BWAPI::UnitTypes::Protoss_Pylon)
 		{
-			InformationManager::Instance().maybeChooseNewMainBase();
+			// NOTE This has been removed.
+			// InformationManager::Instance().maybeChooseNewMainBase();
 		}
 
 		// By default, build in the main base.
 		// BuildingManager will override the location if it needs to.
 		// Otherwise it will find some spot near desiredLocation.
-		BWAPI::TilePosition desiredLocation = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
+		BWAPI::TilePosition desiredLocation = Bases::Instance().myMainBase()->getTilePosition();
 
 		if (getMacroLocation() == MacroLocation::Front)
 		{
@@ -633,7 +634,7 @@ void MacroAct::produce(BWAPI::Unit producer)
 			desiredLocation = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2);
 		}
 
-		BuildingManager::Instance().addBuildingTask(*this, desiredLocation, getMacroLocation() == MacroLocation::GasSteal);
+		BuildingManager::Instance().addBuildingTask(*this, desiredLocation, nullptr, getMacroLocation() == MacroLocation::GasSteal);
 	}
 	// if we're dealing with a non-building unit, or a morphed zerg building
 	else if (isUnit())

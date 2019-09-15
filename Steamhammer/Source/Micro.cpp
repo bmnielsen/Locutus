@@ -11,50 +11,186 @@ size_t TotalCommands = 0;  // not all commands are counted
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
-MicroInfo::MicroInfo()
-	: order(BWAPI::Orders::None)
+// Complain if there is an "obvious" problem.
+// So far, the only problem is issuing two orders during the same frame.
+void MicroState::check()
+{
+	// TODO this likely bug occurs often but has no known bad effects
+	//      save it to track down later
+	//UAB_ASSERT(orderFrame < BWAPI::Broodwar->getFrameCount(), ">1 order this frame");
+}
+
+// Execute the unit's order.
+void MicroState::execute(BWAPI::Unit u)
+{
+	if (order == BWAPI::Orders::Move)
+	{
+		if (u->getPosition() != targetPosition && u->move(targetPosition))
+		{
+			lastCheckFrame = executeFrame = BWAPI::Broodwar->getFrameCount();
+			needsMonitoring = true;
+		}
+	}
+	else
+	{
+		// It's an order we don't support, but pretend to execute it to save time later.
+		executeFrame = 0;
+		needsMonitoring = false;
+	}
+	// TODO other commands are not implemented yet
+}
+
+// Monitor the order: Check for and try to correct failure to execute.
+void MicroState::monitor(BWAPI::Unit u)
+{
+	if (order == BWAPI::Orders::Move)
+	{
+		if (u->getPosition() == targetPosition)
+		{
+			// We're there. All done.
+			needsMonitoring = false;
+		}
+		else if (u->isFlying())
+		{
+			// Flying units do not have problems.
+			needsMonitoring = false;
+		}
+		// Some ways to fail:
+		// 1. The command might not have been accepted despite the return value.
+		else if (u->getOrder() != BWAPI::Orders::Move ||
+			u->getLastCommand().getType() != BWAPI::UnitCommandTypes::Move ||
+			u->getLastCommand().getTargetPosition() != targetPosition)
+		{
+			/*
+			BWAPI::Broodwar->printf("move command missing for %d (%s %s %d,%d->%d,%d)", u->getID(),
+				u->getOrder().getName().c_str(),
+				u->getLastCommand().getType().getName().c_str(),
+				targetPosition.x, targetPosition.y,
+				u->getLastCommand().getTargetPosition().x, u->getLastCommand().getTargetPosition().y);
+			*/
+			u->move(targetPosition);
+			lastCheckFrame = BWAPI::Broodwar->getFrameCount();
+		}
+		// 2. The unit could be "stuck", moving randomly to escape overlapping with other units.
+		else if (u->isStuck())
+		{
+			// Wait for the trouble to pass.
+			lastCheckFrame = BWAPI::Broodwar->getFrameCount();
+			// NOTE It's said that spamming move can help. It's worth a try.
+		}
+		// 3. The unit could be frozen in place "for no reason".
+		// NOTE The velocity is calculated using pixels and is never near zero without being equal to zero.
+		else if (u->getPosition() == startPosition || u->getVelocityX() == 0.0 && u->getVelocityY() == 0.0)
+		{
+			// BWAPI::Broodwar->printf("moving unit %d froze velocity %g,%g", u->getID(), u->getVelocityX(), u->getVelocityY());
+			u->stop();
+			lastCheckFrame = BWAPI::Broodwar->getFrameCount();
+			// On the next retry, the order will not be Move and the order will be reissued.
+		}
+		// 4. The unit could be blocked and unable to make progress. UNIMPLEMENTED
+	}
+	else
+	{
+		// It's an order we don't support. Set the retry time to infinity to save effort.
+		needsMonitoring = false;
+	}
+	// TODO other commands are not implemented yet
+}
+
+// -- --
+
+// Create a blank MicroState. Values will be filled in later.
+MicroState::MicroState()
+	: orderFrame(-1)
+	, executeFrame(-1)
+	, needsMonitoring(false)
+	, lastCheckFrame(-1)
+	, order(BWAPI::Orders::None)
 	, targetUnit(nullptr)
 	, targetPosition(BWAPI::Positions::None)
-	, orderFrame(-1)
-	, executeFrame(-1)
+	, startPosition(BWAPI::Positions::None)
 {
 }
 
-void MicroInfo::setOrder(BWAPI::Order o)
+// No-argument order.
+void MicroState::setOrder(BWAPI::Unit u, BWAPI::Order o)
 {
+	check();
+
 	if (order != o)
 	{
 		order = o;
-		targetUnit = nullptr;
 		targetPosition = BWAPI::Positions::None;
+		targetUnit = nullptr;
 
 		orderFrame = BWAPI::Broodwar->getFrameCount();
 		executeFrame = -1;
+
+		startPosition = u->getPosition();
 	}
 }
 
-void MicroInfo::setOrder(BWAPI::Order o, BWAPI::Unit t)
+// Order that targets a unit.
+void MicroState::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Unit t)
 {
+	check();
+
 	if (order != o || targetUnit != t) {
 		order = o;
-		targetUnit = t;
 		targetPosition = BWAPI::Positions::None;
+		targetUnit = t;
 
 		orderFrame = BWAPI::Broodwar->getFrameCount();
 		executeFrame = -1;
+
+		startPosition = u->getPosition();
 	}
 }
 
-void MicroInfo::setOrder(BWAPI::Order o, BWAPI::Position p)
+// Order that targets a position.
+void MicroState::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Position p)
 {
+	check();
+
 	if (order != o || targetPosition != p)
 	{
 		order = o;
-		targetUnit = nullptr;
 		targetPosition = p;
+		targetUnit = nullptr;
 
 		orderFrame = BWAPI::Broodwar->getFrameCount();
 		executeFrame = -1;
+
+		startPosition = u->getPosition();
+	}
+}
+
+void MicroState::update(BWAPI::Unit u)
+{
+	if (executeFrame < 0)
+	{
+		// Not executed yet. Do that.
+		execute(u);
+	}
+	else if (needsMonitoring && BWAPI::Broodwar->getFrameCount() > lastCheckFrame + 2 * BWAPI::Broodwar->getLatencyFrames())
+	{
+		// Executed and should be working. Make sure it is.
+		monitor(u);
+	}
+}
+
+void MicroState::draw(BWAPI::Unit u) const
+{
+	int x = u->getRight() + 2;
+	int y = u->getTop();
+
+	if (order == BWAPI::Orders::Move)
+	{
+		BWAPI::Broodwar->drawTextMap(x, y, "move %d,%d", targetPosition.x, targetPosition.y);
+	}
+	else
+	{
+		BWAPI::Broodwar->drawTextMap(x, y, "%s", order.getName().c_str());
 	}
 }
 
@@ -70,31 +206,23 @@ void Micro::update()
 	for (auto it = orders.begin(); it != orders.end(); )
 	{
 		BWAPI::Unit u = (*it).first;
-		MicroInfo o = (*it).second;
+		MicroState & o = (*it).second;
 
 		if (u->exists())
 		{
-			if (o.executeFrame < 0)		// not executed yet
+			if (o.getOrder() == BWAPI::Orders::Move)
 			{
-				if (o.order == BWAPI::Orders::Move)
-				{
-					if (u->move(o.targetPosition))
-					{
-						o.executeFrame = BWAPI::Broodwar->getFrameCount();
-					}
-				}
+				int x = u->getRight() + 2;
+				int y = u->getTop() - 10;
 			}
 
-			/* debug
-			if (o.order == BWAPI::Orders::Move && u->getPosition().isValid() && o.targetPosition.isValid())
-			{
-				BWAPI::Color color = o.executeFrame < 0 ? BWAPI::Colors::White : BWAPI::Colors::Grey;
-				BWAPI::Broodwar->drawLineMap(u->getPosition(), o.targetPosition, color);
-				BWAPI::Broodwar->drawCircleMap(o.targetPosition, 2, color);
-			}
-			*/
+			o.update(u);
 
-			// TODO other commands are not implemented
+			// NOTE Execute orders before drawing the state.
+			if (Config::Debug::DrawMicroState)
+			{
+				o.draw(u);
+			}
 
 			++it;
 		}
@@ -120,8 +248,7 @@ BWAPI::Position Micro::GetKiteVector(BWAPI::Unit unit, BWAPI::Unit target) const
 	BWAPI::Position fleeVec(target->getPosition() - unit->getPosition());
 	double fleeAngle = atan2(fleeVec.y, fleeVec.x);
 	fleeVec = BWAPI::Position(static_cast<int>(64 * cos(fleeAngle)), static_cast<int>(64 * sin(fleeAngle)));
-	ClipToMap(fleeVec);
-	return fleeVec;
+	return fleeVec.makeValid();
 }
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -192,9 +319,36 @@ void Micro::Stop(BWAPI::Unit unit)
 		return;
 	}
 
-	orders[unit].setOrder(BWAPI::Orders::Stop);
+	orders[unit].setOrder(unit, BWAPI::Orders::Stop);
 
 	unit->stop();
+	TotalCommands++;
+}
+
+void Micro::HoldPosition(BWAPI::Unit unit)
+{
+	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self())
+	{
+		UAB_ASSERT(false, "bad arg");
+		return;
+	}
+
+	// if we have issued a command to this unit already this frame, ignore this one
+	if (unit->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() || unit->isAttackFrame())
+	{
+		return;
+	}
+
+	// If we already gave this command, don't repeat it.
+	BWAPI::UnitCommand currentCommand(unit->getLastCommand());
+	if (currentCommand.getType() == BWAPI::UnitCommandTypes::Hold_Position)
+	{
+		return;
+	}
+
+	orders[unit].setOrder(unit, BWAPI::Orders::HoldPosition);
+
+	unit->holdPosition();
 	TotalCommands++;
 }
 
@@ -216,18 +370,25 @@ void Micro::CatchAndAttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
 	}
 	else
 	{
-		if (attacker->getDistance(target) > 196)
+		if (attacker->getDistance(target) > 8 * 32)
 		{
-			// The target is far away, so a short-term prediction is not useful. Go straight for it.
-			// BWAPI::Broodwar->drawLineMap(attacker->getPosition(), target->getPosition(), BWAPI::Colors::Red);
-			Move(attacker, target->getPosition());
+			// The target is far away, so be lazy.
+			BWAPI::Position destination = PredictMovement(target, 12);
+			//BWAPI::Broodwar->drawLineMap(attacker->getPosition(), destination, BWAPI::Colors::Red);
+			MoveNear(attacker, destination);
+		}
+		else if (attacker->getDistance(target) > 4 * 32)
+		{
+			BWAPI::Position destination = PredictMovement(target, 8);
+			//BWAPI::Broodwar->drawLineMap(attacker->getPosition(), destination, BWAPI::Colors::Orange);
+			Move(attacker, destination);
 		}
 		else
 		{
-			// The target is moving away. Aim for its predicted position.
+			// The target is near. Aim for its predicted position.
 			// NOTE The caller should have already decided that we can catch the target.
 			int frames = UnitUtil::FramesToReachAttackRange(attacker, target);
-			BWAPI::Position destination = PredictMovement(target, std::min(frames, 12));
+			BWAPI::Position destination = PredictMovement(target, std::min(frames, 8));
 			//BWAPI::Broodwar->drawLineMap(target->getPosition(), destination, BWAPI::Colors::Blue);
 			//BWAPI::Broodwar->drawLineMap(attacker->getPosition(), destination, BWAPI::Colors::Yellow);
 			Move(attacker, destination);
@@ -262,7 +423,7 @@ void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
 		return;
     }
 	
-	orders[attacker].setOrder(BWAPI::Orders::AttackUnit, target);
+	orders[attacker].setOrder(attacker, BWAPI::Orders::AttackUnit, target);
 
 	// if nothing prevents it, attack the target
     attacker->attack(target);
@@ -299,7 +460,7 @@ void Micro::AttackMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosit
 		return;
 	}
 
-	orders[attacker].setOrder(BWAPI::Orders::AttackMove, targetPosition);
+	orders[attacker].setOrder(attacker, BWAPI::Orders::AttackMove, targetPosition);
 
 	// if nothing prevents it, attack the target
 	attacker->attack(targetPosition);
@@ -357,7 +518,19 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
         return;
     }
 
-	orders[attacker].setOrder(BWAPI::Orders::Move, targetPosition);
+	int x = attacker->getRight() + 2;
+	int y = attacker->getTop() + 20;
+
+	/*
+	auto it = orders.find(attacker);
+	if (it == orders.end())
+	{
+		orders.insert(std::pair<BWAPI::Unit, MicroState> (attacker, MicroState(attacker)));
+	}
+	orders.at(attacker).setOrder(BWAPI::Orders::Move, targetPosition);
+	*/
+
+	orders[attacker].setOrder(attacker, BWAPI::Orders::Move, targetPosition);
 
     TotalCommands++;
 
@@ -367,6 +540,32 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
         BWAPI::Broodwar->drawCircleMap(targetPosition, dotRadius, BWAPI::Colors::White, true);
         BWAPI::Broodwar->drawLineMap(attacker->getPosition(), targetPosition, BWAPI::Colors::White);
     }
+}
+
+// Like Move, but lazier. If the new target position is close to the previous one,
+// then don't be in a hurry to update the order.
+// Suitable for approaching a moving target that is distant, or slow, or needs little accuracy.
+// This reduces unnecessary orders. It's up to the caller to decide that they're unnecessary.
+// With fewer orders, units should be less likely to get stuck.
+void Micro::MoveNear(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
+{
+	auto it = orders.find(attacker);
+	if (it == orders.end())
+	{
+		// The unit doesn't have an existing order.
+		Move(attacker, targetPosition);
+	}
+
+	MicroState & state = it->second;
+
+	if (state.getOrder() != BWAPI::Orders::Move ||
+		state.getOrderFrame() - BWAPI::Broodwar->getFrameCount() >= 12 ||
+		state.getTargetPosition().getApproxDistance(targetPosition) > 2 * 32)
+	{
+		Move(attacker, targetPosition);
+	}
+
+	// Otherwise do nothing. It's close enough.
 }
 
 void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
@@ -403,7 +602,7 @@ void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
 	{
 		order = BWAPI::Orders::MoveToGas;
 	}
-	orders[unit].setOrder(order, target);
+	orders[unit].setOrder(unit, order, target);
 
     // if nothing prevents it, attack the target
     unit->rightClick(target);
@@ -434,7 +633,7 @@ void Micro::MineMinerals(BWAPI::Unit unit, BWAPI::Unit mineralPatch)
 		return;
 	}
 
-	orders[unit].setOrder(BWAPI::Orders::MoveToMinerals, mineralPatch);
+	orders[unit].setOrder(unit, BWAPI::Orders::MoveToMinerals, mineralPatch);
 
 	unit->rightClick(mineralPatch);
 	TotalCommands++;
@@ -466,7 +665,7 @@ void Micro::LaySpiderMine(BWAPI::Unit unit, BWAPI::Position pos)
         return;
     }
 
-	orders[unit].setOrder(BWAPI::Orders::PlaceMine, pos);
+	orders[unit].setOrder(unit, BWAPI::Orders::PlaceMine, pos);
 
     unit->canUseTechPosition(BWAPI::TechTypes::Spider_Mines, pos);
 }
@@ -495,7 +694,7 @@ void Micro::Repair(BWAPI::Unit unit, BWAPI::Unit target)
         return;
     }
 
-	orders[unit].setOrder(BWAPI::Orders::Repair, target);
+	orders[unit].setOrder(unit, BWAPI::Orders::Repair, target);
 
 	// Nothing prevents it, so attack the target.
     unit->repair(target);
@@ -537,7 +736,7 @@ void Micro::ReturnCargo(BWAPI::Unit worker)
 		return;
 	}
 
-	orders[worker].setOrder(worker->isCarryingMinerals() ? BWAPI::Orders::ReturnMinerals : BWAPI::Orders::ReturnGas);
+	orders[worker].setOrder(worker, worker->isCarryingMinerals() ? BWAPI::Orders::ReturnMinerals : BWAPI::Orders::ReturnGas);
 
 	// Nothing prevents it, so return cargo.
 	worker->returnCargo();
@@ -547,15 +746,16 @@ void Micro::ReturnCargo(BWAPI::Unit worker)
 // Order construction of a building.
 bool Micro::Build(BWAPI::Unit builder, BWAPI::UnitType building, const BWAPI::TilePosition & location)
 {
-	if (!builder || !building.isValid() || !location.isValid())
+	if (!builder || !builder->exists() || !builder->getPosition().isValid() || builder->isBurrowed() ||
+		!building.isBuilding() || !location.isValid())
 	{
 		UAB_ASSERT(false, "bad building");
 		return false;
 	}
 
 	// NOTE This order does not set the type or location.
-	//      The purpose is only to remind MicroInfo that the unit has this order.
-	orders[builder].setOrder(BWAPI::Orders::ConstructingBuilding);
+	//      The purpose is only to remind MicroState that the unit has this order.
+	orders[builder].setOrder(builder, BWAPI::Orders::ConstructingBuilding);
 
 	return builder->build(building, location);
 }
@@ -570,21 +770,21 @@ bool Micro::Make(BWAPI::Unit producer, BWAPI::UnitType type)
 	}
 
 	// NOTE We do not set the type.
-	//      The purpose is only to remind MicroInfo that the unit has this order.
+	//      The purpose is only to remind MicroState that the unit has this order.
 
 	if (type.isAddon())
 	{
-		orders[producer].setOrder(BWAPI::Orders::BuildAddon);
+		orders[producer].setOrder(producer, BWAPI::Orders::BuildAddon);
 		return producer->buildAddon(type);
 	}
 
 	if (type.getRace() == BWAPI::Races::Zerg)
 	{
-		orders[producer].setOrder(type.isBuilding() ? BWAPI::Orders::ZergBuildingMorph : BWAPI::Orders::ZergUnitMorph);
+		orders[producer].setOrder(producer, type.isBuilding() ? BWAPI::Orders::ZergBuildingMorph : BWAPI::Orders::ZergUnitMorph);
 		return producer->morph(type);
 	}
 
-	orders[producer].setOrder(BWAPI::Orders::Train);
+	orders[producer].setOrder(producer, BWAPI::Orders::Train);
 	return producer->train(type);
 }
 
@@ -598,7 +798,7 @@ bool Micro::Cancel(BWAPI::Unit unit)
 		return false;
 	}
 
-	orders[unit].setOrder(BWAPI::Orders::Stop);
+	orders[unit].setOrder(unit, BWAPI::Orders::Stop);
 
 	return unit->cancelConstruction();
 }
@@ -613,7 +813,7 @@ bool Micro::Burrow(BWAPI::Unit unit)
 	}
 
 	// The Orders are Burrowing and Burrowed. Also lurkers can do stuff while burrowed.
-	orders[unit].setOrder(BWAPI::Orders::Burrowing);
+	orders[unit].setOrder(unit, BWAPI::Orders::Burrowing);
 
 	return unit->burrow();
 }
@@ -627,7 +827,7 @@ bool Micro::Unburrow(BWAPI::Unit unit)
 		return false;
 	}
 
-	orders[unit].setOrder(BWAPI::Orders::Unburrowing);
+	orders[unit].setOrder(unit, BWAPI::Orders::Unburrowing);
 
 	return unit->unburrow();
 }
@@ -643,11 +843,11 @@ bool Micro::Load(BWAPI::Unit container, BWAPI::Unit content)
 
 	if (container->getType() == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		orders[container].setOrder(BWAPI::Orders::PickupBunker, content);
+		orders[container].setOrder(container, BWAPI::Orders::PickupBunker, content);
 	}
 	else
 	{
-		orders[container].setOrder(BWAPI::Orders::PickupTransport, content);
+		orders[container].setOrder(container, BWAPI::Orders::PickupTransport, content);
 	}
 
 	return container->load(content);
@@ -663,7 +863,7 @@ bool Micro::UnloadAt(BWAPI::Unit container, const BWAPI::Position & targetPositi
 		return false;
 	}
 
-	orders[container].setOrder(BWAPI::Orders::MoveUnload);
+	orders[container].setOrder(container, BWAPI::Orders::MoveUnload);
 
 	return container->unloadAll(targetPosition);
 }
@@ -677,7 +877,7 @@ bool Micro::UnloadAll(BWAPI::Unit container)
 		return false;
 	}
 
-	orders[container].setOrder(BWAPI::Orders::Unload);
+	orders[container].setOrder(container, BWAPI::Orders::Unload);
 
 	return container->unloadAll();
 }
@@ -692,7 +892,7 @@ bool Micro::Siege(BWAPI::Unit tank)
 	}
 
 	// The Orders are Burrowing and Burrowed. Also lurkers can do stuff while burrowed.
-	orders[tank].setOrder(BWAPI::Orders::Sieging);
+	orders[tank].setOrder(tank, BWAPI::Orders::Sieging);
 
 	return tank->siege();
 }
@@ -706,7 +906,7 @@ bool Micro::Unsiege(BWAPI::Unit tank)
 		return false;
 	}
 
-	orders[tank].setOrder(BWAPI::Orders::Unsieging);
+	orders[tank].setOrder(tank, BWAPI::Orders::Unsieging);
 
 	return tank->unsiege();
 }
@@ -785,15 +985,15 @@ bool Micro::Stim(BWAPI::Unit unit)
 	return unit->useTech(BWAPI::TechTypes::Stim_Packs);
 }
 
-// Merge the 2 given high templar into an archon.
-// TODO Check whether the 2 templar can reach each other: Is there a ground path between them?
+// Merge the given high templar into an archon, or dark templar into a dark archon.
+// Archon merger failures are handled in MicroHighTemplar.
 bool Micro::MergeArchon(BWAPI::Unit templar1, BWAPI::Unit templar2)
 {
 	if (!templar1 || !templar2 ||
 		templar1->getPlayer() != BWAPI::Broodwar->self() ||
 		templar2->getPlayer() != BWAPI::Broodwar->self() ||
-		templar1->getType() != BWAPI::UnitTypes::Protoss_High_Templar ||
-		templar2->getType() != BWAPI::UnitTypes::Protoss_High_Templar ||
+		templar1->getType() != BWAPI::UnitTypes::Protoss_High_Templar && templar1->getType() != BWAPI::UnitTypes::Protoss_Dark_Templar ||
+		templar2->getType() != templar1->getType() ||
 		templar1 == templar2)
 	{
 		UAB_ASSERT(false, "bad unit");
@@ -807,10 +1007,25 @@ bool Micro::MergeArchon(BWAPI::Unit templar1, BWAPI::Unit templar2)
 		return false;
 	}
 
-	orders[templar1].setOrder(BWAPI::Orders::ArchonWarp, templar2);
+	BWAPI::Order order = BWAPI::Orders::ArchonWarp;
+	BWAPI::TechType techType = BWAPI::TechTypes::Archon_Warp;
+	if (templar1->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar)
+	{
+		order = BWAPI::Orders::DarkArchonMeld;
+		techType = BWAPI::TechTypes::Dark_Archon_Meld;
+	}
+
+	orders[templar1].setOrder(templar1, order, templar2);
 
 	// useTech() checks any other conditions.
-	return templar1->useTech(BWAPI::TechTypes::Archon_Warp, templar2);
+	return templar1->useTech(techType, templar2);
+}
+
+// Move these larvas to the left with the larva trick.
+// NOTE The argument and other conditions are not checked.
+bool Micro::LarvaTrick(const BWAPI::Unitset & larvas)
+{
+	return larvas.stop();
 }
 
 // Use a tech on a target unit.
@@ -827,7 +1042,7 @@ bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, BWAPI::Unit target)
 	UAB_ASSERT(tech == BWAPI::TechTypes::Consume, "unsupported tech");
 
 	// The Orders are Burrowing and Burrowed. Also lurkers can do stuff while burrowed.
-	orders[unit].setOrder(BWAPI::Orders::CastConsume);
+	orders[unit].setOrder(unit, BWAPI::Orders::CastConsume);
 
 	return unit->useTech(BWAPI::TechTypes::Consume, target);
 }
@@ -845,11 +1060,11 @@ bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, const BWAPI::Positio
 
 	if (tech == BWAPI::TechTypes::Dark_Swarm)
 	{
-		orders[unit].setOrder(BWAPI::Orders::CastDarkSwarm);
+		orders[unit].setOrder(unit, BWAPI::Orders::CastDarkSwarm);
 	}
 	else if (BWAPI::TechTypes::Plague)
 	{
-		orders[unit].setOrder(BWAPI::Orders::CastPlague);
+		orders[unit].setOrder(unit, BWAPI::Orders::CastPlague);
 	}
 	else
 	{

@@ -1,6 +1,7 @@
 #include "MicroManager.h"
 #include "MicroMelee.h"
 
+#include "Bases.h"
 #include "InformationManager.h"
 #include "The.h"
 #include "UnitUtil.h"
@@ -83,7 +84,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
 				{
 					// Clustering overrides the retreat once the melee unit retreats far enough to be outside
 					// attack range. So it rarely goes far. The retreat location rarely matters much.
-					BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+					BWAPI::Position fleeTo(Bases::Instance().myMainBase()->getPosition());
 					the.micro.Move(meleeUnit, fleeTo);
 				}
             }

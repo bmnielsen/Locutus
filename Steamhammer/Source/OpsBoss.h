@@ -16,6 +16,7 @@ namespace UAlbertaBot
 		, Advance     // no enemy near, moving forward
 		, Attack      // enemy nearby, attacking
 		, Regroup     // regrouping (usually retreating)
+		, FallBack    // returning to base
 	};
 
 	class UnitCluster

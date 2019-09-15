@@ -58,6 +58,7 @@ public:
 	~GameCommander() {};
 
 	void update();
+	void onEnd(bool isWinner);
 
 	void handleUnitAssignments();
 	void setValidUnits();

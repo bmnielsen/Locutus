@@ -23,6 +23,8 @@ class CombatCommander
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
 
+	int				_carrierCount;					// how many carriers?
+
 	void            updateIdleSquad();
 	void            updateOverlordSquad();
 	void			updateScourgeSquad();
@@ -38,6 +40,7 @@ class CombatCommander
 
 	void			loadOrUnloadBunkers();
 	void			doComsatScan();
+	void			doLarvaTrick();
 
 	int				weighReconUnit(const BWAPI::Unit unit) const;
 	int				weighReconUnit(const BWAPI::UnitType type) const;
@@ -56,7 +59,6 @@ class CombatCommander
     BWAPI::Unit     findClosestWorkerToTarget(BWAPI::Unitset & unitsToAssign, BWAPI::Unit target);
 
 	void			chooseScourgeTarget(const Squad & squad);
-	BWAPI::Position getDefendLocation();
 	void			chooseReconTarget();
 	BWAPI::Position getReconLocation() const;
 	SquadOrder		getAttackOrder(const Squad * squad);
@@ -82,6 +84,7 @@ public:
 	CombatCommander();
 
 	void update(const BWAPI::Unitset & combatUnits);
+	void onEnd();
 
 	void setAggression(bool aggressive) { _goAggressive = aggressive;  }
 	bool getAggression() const { return _goAggressive; };

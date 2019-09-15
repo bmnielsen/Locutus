@@ -26,7 +26,7 @@ class The;
 class Squad
 {
 	The &				the;
-    std::string         _name;
+	std::string         _name;
 	BWAPI::Unitset      _units;
 	bool				_combatSquad;
 	int					_combatSimRadius;
@@ -38,13 +38,14 @@ class Squad
 	bool				_canAttackGround;
 	std::string         _regroupStatus;
 	bool				_attackAtMax;       // turns true when we are at max supply
-    int                 _lastRetreatSwitch;
-    bool                _lastRetreatSwitchVal;
-    size_t              _priority;
-	
+	int                 _lastRetreatSwitch;
+	bool                _lastRetreatSwitchVal;
+	size_t              _priority;
+
 	double				_lastScore;			// combat simulation result
 
 	SquadOrder          _order;
+	BWAPI::Unit			_vanguard;			// the unit closest to the order location, if any
 	MicroAirToAir		_microAirToAir;
 	MicroMelee			_microMelee;
 	MicroRanged			_microRanged;
@@ -65,18 +66,20 @@ class Squad
 
 	BWAPI::Unit		getRegroupUnit();
 	BWAPI::Unit		unitClosestToEnemy(const BWAPI::Unitset units) const;
-    
+
 	void			updateUnits();
 	void			addUnitsToMicroManagers();
 	void			setNearEnemyUnits();
 	void			setAllUnits();
-	
+
 	void			setClusterStatus(UnitCluster & cluster);
 	void			clusterCombat(const UnitCluster & cluster);
 	bool			noCombatUnits(const UnitCluster & cluster) const;
 	bool			notNearEnemy(const UnitCluster & cluster);
 	bool			joinUp(const UnitCluster & cluster);
-	void			moveCluster(const UnitCluster & cluster, const BWAPI::Position & destination);
+	void			moveCluster(const UnitCluster & cluster, const BWAPI::Position & destination, bool lazy = false);
+
+	bool			unreadyUnit(BWAPI::Unit u);
 
 	bool			unitNearEnemy(BWAPI::Unit unit);
 	bool			needsToRegroup(const UnitCluster & cluster);
@@ -93,24 +96,25 @@ public:
 
 	Squad();
 	Squad(const std::string & name, SquadOrder order, size_t priority);
-    ~Squad();
+	~Squad();
 
 	void                update();
 	void                addUnit(BWAPI::Unit u);
 	void                removeUnit(BWAPI::Unit u);
 	void				releaseWorkers();
-    bool                containsUnit(BWAPI::Unit u) const;
+	bool                containsUnit(BWAPI::Unit u) const;
 	bool                containsUnitType(BWAPI::UnitType t) const;
 	bool                isEmpty() const;
-    void                clear();
-    size_t              getPriority() const;
-    void                setPriority(const size_t & priority);
-    const std::string & getName() const;
-    
+	void                clear();
+	size_t              getPriority() const;
+	void                setPriority(const size_t & priority);
+	const std::string & getName() const;
+
 	int					mapPartition() const;
 	BWAPI::Position     calcCenter() const;
 
 	const BWAPI::Unitset &  getUnits() const;
+	BWAPI::Unit			getVanguard() const { return _vanguard; };		// may be null
 	void                setSquadOrder(const SquadOrder & so);
 	const SquadOrder &  getSquadOrder()	const;
 	const std::string   getRegroupStatus() const;

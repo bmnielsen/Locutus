@@ -5,8 +5,8 @@
 #include "The.h"
 #include "UnitUtil.h"
 
-namespace UAlbertaBot
-{
+using namespace UAlbertaBot;
+
 // These numbers are in tiles.
 const int BaseResourceRange = 22;   // max distance of one resource from another
 const int BasePositionRange = 15;   // max distance of the base location from the start point
@@ -17,14 +17,16 @@ const int DepotTileHeight = 3;
 const int MinTotalMinerals = 500;
 const int MinTotalGas = 500;
 
-// Empty constructor, except for remembering the instance.
-// Initialization happens in initialize() below.
+// Most initialization happens in initialize() below.
 Bases::Bases()
 	: the(The::Root())
 
 	// These are set to their final values in initialize().
 	, startingBase(nullptr)
+	, mainBase(nullptr)
+	, naturalBase(nullptr)
 	, islandStart(false)
+	, enemyStartingBase(nullptr)
 {
 }
 
@@ -233,6 +235,221 @@ bool Bases::closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition b)
 	return abs(a.x - b.x) <= 8 && abs(a.y - b.y) <= 8;
 }
 
+// If the opponent is zerg and it's early in the game, we may be able to infer the enemy
+// base's location by seeing the first overlord.
+// NOTE This doesn't quite extract all the information from an overlord sighting. In principle,
+//      we might be able to exclude a base location without being sure which remaining base is
+//      the enemy base. Steamhammer doesn't provide a way to exclude bases.
+bool Bases::inferEnemyBaseFromOverlord()
+{
+	const int now = BWAPI::Broodwar->getFrameCount();
+
+	if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg || now > 5 * 60 * 24)
+	{
+		return false;
+	}
+
+	for (const BWAPI::Unit unit : BWAPI::Broodwar->enemy()->getUnits())
+	{
+		if (unit->getType() != BWAPI::UnitTypes::Zerg_Overlord)
+		{
+			continue;
+		}
+
+		// What bases could the overlord be from? Can we narrow it down to 1 possibility?
+		Base * possibleEnemyBase = nullptr;
+		int countPossibleBases = 0;
+		for (Base * base : bases)
+		{
+			if (base->isExplored())
+			{
+				// We've already seen this base, and the enemy is not there.
+				continue;
+			}
+
+			// Assume the overlord came from this base.
+			// Where did the overlord start from? It starts offset from the hatchery in a specific way.
+			BWAPI::Position overlordStartPos;
+			overlordStartPos.x = base->getPosition().x + ((base->getPosition().x < 32 * BWAPI::Broodwar->mapWidth() / 2) ? +99 : -99);
+			overlordStartPos.y = base->getPosition().y + ((base->getPosition().y < 32 * BWAPI::Broodwar->mapHeight() / 2) ? +65 : -65);
+
+			// How far could it have traveled from there?
+			double maxDistance = double(now) * (BWAPI::UnitTypes::Zerg_Overlord).topSpeed();
+			if (maxDistance >= double(unit->getDistance(overlordStartPos)))
+			{
+				// It could have started from this base.
+				possibleEnemyBase = base;
+				++countPossibleBases;
+				if (countPossibleBases > 1)
+				{
+					return false;
+				}
+			}
+		}
+		if (countPossibleBases == 1)
+		{
+			// Success.
+			if (Config::Debug::DrawScoutInfo)
+			{
+				BWAPI::Broodwar->printf("Enemy base deduced by overlord sighting");
+			}
+
+			enemyStartingBase = possibleEnemyBase;
+			enemyStartingBase->setInferredEnemyBase();
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// If we don't know the enemy's starting base, check to see whether we have just found it.
+// This relies on a heuristic: If we see any enemy building in a starting base region,
+// we assume that that must be the true enemy starting base. 
+void Bases::updateEnemyStart()
+{
+	if (enemyStartingBase)
+	{
+		// The enemy is already found.
+		return;
+	}
+
+	// Call only shen enemyStartingBase is unknown (null).
+	if (inferEnemyBaseFromOverlord())
+	{
+		// We were able to deduce the enemy's location by seeing an overlord.
+		return;
+	}
+
+	size_t nExplored = 0;
+	Base * unexploredBase;
+
+	for (Base * start : startingBases)
+	{
+		// An enemy proxy is not a sign of the enemy base.
+		if (start != startingBase)
+		{
+			int startZone = the.zone.at(start->getTilePosition());
+			if (startZone > 0)
+			{
+				// This runs every frame, so it only needs to consider visible enemies.
+				for (BWAPI::Unit enemy : BWAPI::Broodwar->enemy()->getUnits())
+				{
+					if (enemy->getType().isBuilding() &&
+						startZone == the.zone.at(enemy->getTilePosition()) &&
+						!enemy->isLifted())
+					{
+						if (Config::Debug::DrawScoutInfo)
+						{
+							BWAPI::Broodwar->printf("Enemy base seen");
+						}
+
+						enemyStartingBase = start;
+						enemyStartingBase->setInferredEnemyBase();
+						return;
+					}
+				}
+			}
+		}
+		if (start->isExplored())
+		{
+			++nExplored;
+		}
+		else
+		{
+			unexploredBase = start;
+		}
+	}
+
+	// Only one base is unexplored, so the enemy must be there.
+	if (nExplored + 1 == startingBases.size())
+	{
+		if (Config::Debug::DrawScoutInfo)
+		{
+			BWAPI::Broodwar->printf("Enemy base found by elimination");
+		}
+
+		enemyStartingBase = unexploredBase;
+		enemyStartingBase->setInferredEnemyBase();
+	}
+}
+
+void Bases::updateBaseOwners()
+{
+	for (Base * base : bases)
+	{
+		if (base->isVisible())
+		{
+			// Find the units that overlap the rectangle.
+			BWAPI::Unitset units = BWAPI::Broodwar->getUnitsInRectangle(
+				BWAPI::Position(base->getTilePosition()),
+				BWAPI::Position(base->getTilePosition() + BWAPI::TilePosition(3, 2))
+				);
+			// Is one of the units a resource depot?
+			BWAPI::Unit depot = nullptr;
+			for (const auto unit : units)
+			{
+				if (unit->getType().isResourceDepot())
+				{
+					depot = unit;
+					break;
+				}
+			}
+			if (depot)
+			{
+				// The base is occupied.
+				base->setOwner(depot, depot->getPlayer());
+			}
+			else
+			{
+				// The base is empty.
+				base->setOwner(nullptr, BWAPI::Broodwar->neutral());
+			}
+		}
+		else
+		{
+			// The base is out of sight. It's definitely not our base.
+			if (base->getOwner() == BWAPI::Broodwar->self())
+			{
+				base->setOwner(nullptr, BWAPI::Broodwar->neutral());
+			}
+		}
+	}
+}
+
+// The starting base is the base we began at. Once set, it never changes.
+// The main base is initially the starting base. We change it if the main base is lost.
+void Bases::updateMainBase()
+{
+	if (mainBase->owner != BWAPI::Broodwar->self())
+	{
+		// Choose a base we own which is as far away from the old main as possible.
+		// Maybe that will be safer.
+		int newMainDist = 0;
+		Base * newMain = nullptr;
+
+		for (Base * base : bases)
+		{
+			if (base->owner == BWAPI::Broodwar->self())
+			{
+				int dist = base->getPosition().getApproxDistance(mainBase->getPosition());
+				if (dist > newMainDist)
+				{
+					newMainDist = dist;
+					newMain = base;
+				}
+			}
+		}
+
+		// If we didn't find a new main base, we're in deep trouble. We may as well keep the old one.
+		// By decree, we always have a main base, even if it is unoccupied. It simplifies the rest.
+		if (newMain)
+		{
+			mainBase = newMain;
+		}
+	}
+}
+
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 // Find the bases on the map at the beginning of the game.
@@ -273,6 +490,7 @@ void Bases::initialize()
 		if (pos == BWAPI::Broodwar->self()->getStartLocation())
 		{
 			startingBase = base;
+			mainBase = base;
 		}
 	}
 
@@ -359,13 +577,66 @@ void Bases::initialize()
 	setNaturalBase();
 }
 
+void Bases::update()
+{
+	updateEnemyStart();
+	updateBaseOwners();
+	updateMainBase();
+}
+
+// When a building is placed, we are told the desired and actual location of the building.
+// Buildings are usually placed in the main base, so this can give us a hint when the main base
+// is full and we need to choose a new one.
+void Bases::checkBuildingPosition(const BWAPI::TilePosition & desired, const BWAPI::TilePosition & actual)
+{
+	UAB_ASSERT(desired.isValid(), "bad location");
+
+	if (the.zone.at(desired) == the.zone.at(mainBase->getTilePosition()))
+	{
+		// We tried to place in the main base, so let's keep checking.
+		if (!actual.isValid() || the.zone.at(actual) != the.zone.at(desired))
+		{
+			// We failed to place it, or placed it outside the base's zone.
+
+			// 1. Count the failures associated with this base.
+			mainBase->placementFailed();
+			// BWAPI::Broodwar->printf("placement failed in main base %d (total %d)", mainBase->getID(), mainBase->getFailedPlacements());
+
+			// 2. Look for a new main base. Pick the one with the fewest failures.
+			int bestFails = mainBase->getFailedPlacements();
+			for (Base * base : bases)
+			{
+				// Protoss: The base must have a completed pylon.
+				// Zerg: The base must be completed, so it has some creep.
+				BWAPI::Unit pylon;
+				if (base->getOwner() == BWAPI::Broodwar->self() &&
+					(BWAPI::Broodwar->self()->getRace() != BWAPI::Races::Protoss || (pylon = base->getPylon()) && pylon->isCompleted()) &&
+					(BWAPI::Broodwar->self()->getRace() != BWAPI::Races::Zerg || base->getDepot() && base->getDepot()->isCompleted()))
+				{
+					int fails = base->getFailedPlacements();
+					if (fails < bestFails)
+					{
+						bestFails = fails;
+						mainBase = base;
+					}
+				}
+			}
+			// BWAPI::Broodwar->printf("  new main %d (total %d)", mainBase->getID(), mainBase->getFailedPlacements());
+		}
+	}
+}
+
 void Bases::drawBaseInfo() const
 {
 	//the.partitions.drawWalkable();
-
 	//the.partitions.drawPartition(
 	//	the.partitions.id(InformationManager::Instance().getMyMainBaseLocation()->getPosition()),
 	//	BWAPI::Colors::Teal);
+
+	//the.inset.draw();
+	//the.vWalkRoom.draw();
+	//the.tileRoom.draw();
+	//the.zone.draw();
 
 	if (!Config::Debug::DrawMapInfo)
 	{
@@ -375,9 +646,17 @@ void Bases::drawBaseInfo() const
 	for (const Base * base : bases)
 	{
 		base->drawBaseInfo();
+		if (base == frontBase())
+		{
+			BWAPI::Position center = base->getCenter();
+			BWAPI::Position defend = BWAPI::Position(frontPoint());
+			BWAPI::Broodwar->drawCircleMap(center, 32, BWAPI::Colors::Red);
+			BWAPI::Broodwar->drawCircleMap(defend, 32, BWAPI::Colors::Red);
+			BWAPI::Broodwar->drawLineMap(center, defend, BWAPI::Colors::Red);
+		}
 	}
 
-	for (const auto & small : smallMinerals)
+	for (const BWAPI::Unit small : smallMinerals)
 	{
 		BWAPI::Broodwar->drawCircleMap(small->getInitialPosition() + BWAPI::Position(0, 0), 32, BWAPI::Colors::Green);
 	}
@@ -469,6 +748,10 @@ Base * Bases::frontBase() const
 	{
 		return startingBase;
 	}
+	if (mainBase->getOwner() == BWAPI::Broodwar->self())
+	{
+		return mainBase;
+	}
 
     // Otherwise look for any base we own.
 	for (Base * base : bases)
@@ -497,20 +780,14 @@ BWAPI::TilePosition Bases::frontPoint() const
     // The main base: Choose a point toward the natural, if it exists.
 	if (front == startingBase && naturalBase)
 	{
-		BWAPI::Position here = startingBase->getPosition();
-		BWAPI::Position there = naturalBase->getPosition();
+		BWAPI::Position here = startingBase->getCenter();
+		BWAPI::Position there = naturalBase->getCenter();
 		BWAPI::Position offset = there - here;
 		return BWAPI::TilePosition(here + (offset * (6 * 32) / int(std::trunc(there.getDistance(here)))));
 	}
 
 	// Otherwise choose a point opposite the minerals (ignoring the gas).
-	BWAPI::Position center = front->getPosition();
-	BWAPI::Position offset = BWAPI::Positions::Origin;
-	for (BWAPI::Unit mineral : front->getMinerals())
-	{
-		offset += center - mineral->getPosition();
-	}
-	return BWAPI::TilePosition(center + (offset / front->getMinerals().size()));
+	return BWAPI::TilePosition(front->getFrontPoint());
 }
 
 // The given position is reachable by ground from our starting base.
@@ -673,9 +950,8 @@ void Bases::gasCounts(int & nRefineries, int & nFreeGeysers) const
 // Return whether the enemy has a building in our main or natural base.
 bool Bases::getEnemyProxy() const
 {
-	BWTA::Region * mainRegion = BWTA::getRegion(myStartingBase()->getTilePosition());
-	BWTA::Region * naturalRegion =
-		myNaturalBase() ? BWTA::getRegion(myNaturalBase()->getTilePosition()) : nullptr;
+	int mainZone = the.zone.at(myStartingBase()->getTilePosition());
+	int naturalZone = myNaturalBase() ? the.zone.at(myNaturalBase()->getTilePosition()) : 0;
 
 	for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
 	{
@@ -683,12 +959,22 @@ bool Bases::getEnemyProxy() const
 
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
-			BWTA::Region * region = BWTA::getRegion(ui.lastPosition);
-			if (region)
+			int zone = the.zone.at(ui.lastPosition);
+			if (zone > 0)
 			{
-				if (region == mainRegion || region == naturalRegion)
+				const int mainDist = ui.lastPosition.getApproxDistance(myStartingBase()->getCenter());
+				if (zone == mainZone && mainDist <= 24 * 32 || mainDist <= 13 * 32)
 				{
 					return true;
+				}
+
+				if (myNaturalBase())
+				{
+					const int natDist = ui.lastPosition.getApproxDistance(myNaturalBase()->getCenter());
+					if (zone == naturalZone && natDist <= 24 * 32 || natDist <= 13 * 32)
+					{
+						return true;
+					}
 				}
 			}
 		}
@@ -720,5 +1006,3 @@ Bases & Bases::Instance()
 	static Bases instance;
 	return instance;
 }
-
-};

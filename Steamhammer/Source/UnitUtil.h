@@ -13,8 +13,6 @@ namespace UnitUtil
 	bool IsMorphedUnitType(BWAPI::UnitType type);
 	bool IsCompletedResourceDepot(BWAPI::Unit unit);
 
-	bool NeedsPylonPower(BWAPI::UnitType type);
-
 	bool IsStaticDefense(BWAPI::UnitType type);
 	bool IsComingStaticDefense(BWAPI::UnitType type);
 
@@ -37,6 +35,7 @@ namespace UnitUtil
 	bool TypeCanAttackAir(BWAPI::UnitType attacker);
 	bool CanAttackGround(BWAPI::Unit attacker);
 	bool TypeCanAttackGround(BWAPI::UnitType attacker);
+	bool TypeCanAttack(BWAPI::UnitType type);
 	BWAPI::WeaponType GetGroundWeapon(BWAPI::Unit attacker);
 	BWAPI::WeaponType GetGroundWeapon(BWAPI::UnitType attacker);
 	BWAPI::WeaponType GetAirWeapon(BWAPI::Unit attacker);

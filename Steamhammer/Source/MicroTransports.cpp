@@ -153,7 +153,7 @@ void MicroTransports::maybeUnloadTroops()
 	// It's possible that we'll land on a cliff and the units will be stuck there.
 	const int transportHP = _transportShip->getHitPoints() + _transportShip->getShields();
 	
-	if ((transportHP < 50 || (_target.isValid() && _transportShip->getDistance(_target) < 300)) &&
+	if ((transportHP < 50 || _target.isValid() && _transportShip->getDistance(_target) < 300) &&
 		_transportShip->canUnloadAtPosition(_transportShip->getPosition()))
 	{
 		// get the unit's current command

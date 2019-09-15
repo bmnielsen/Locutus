@@ -5,10 +5,13 @@
 
 namespace UAlbertaBot
 {
-namespace BuildingStatus
+enum class BuildingStatus
 {
-    enum { Unassigned = 0, Assigned = 1, UnderConstruction = 2, Size = 3 };
-}
+	  Pending
+	, Unassigned
+	, Assigned
+	, UnderConstruction
+};
 
 class Building 
 {
@@ -20,7 +23,7 @@ public:
 	BWAPI::UnitType         type;
 	BWAPI::Unit             buildingUnit;      // building after construction starts
 	BWAPI::Unit             builderUnit;       // unit to create the building
-    size_t                  status;
+	BuildingStatus          status;
     bool                    isGasSteal;
 	bool                    buildCommandGiven;
 	bool                    underConstruction;
@@ -32,7 +35,7 @@ public:
 
 	Building() 
 		: macroLocation		(MacroLocation::Anywhere)
-		, desiredPosition	(0, 0)
+		, desiredPosition	(BWAPI::TilePositions::None)
         , finalPosition     (BWAPI::TilePositions::None)
         , type              (BWAPI::UnitTypes::Unknown)
         , buildingUnit      (nullptr)
@@ -69,6 +72,16 @@ public:
     {
 		// buildings are equal if their worker unit or building unit are equal
 		return (b.buildingUnit == buildingUnit) || (b.builderUnit == builderUnit);
+	}
+
+	// Return the center of the planned building, under the assumption that the finalPosition is valid.
+	// This is used for moving a worker toward the intended building location.
+	BWAPI::Position getCenter()
+	{
+		return
+			BWAPI::Position(
+				BWAPI::TilePosition(finalPosition.x + (type.tileWidth() / 2), finalPosition.y + (type.tileHeight() / 2))
+			);
 	}
 };
 

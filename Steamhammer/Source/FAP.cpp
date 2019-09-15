@@ -186,7 +186,8 @@ namespace UAlbertaBot {
 		}
 
 		// If we can reach the enemy this simulated frame, do it and continue.
-		if (closestEnemy != enemyUnits.end() && sqrt(closestDist) <= fu.speed && !(fu.x == closestEnemy->x && fu.y == closestEnemy->y)) {
+
+		if (closestEnemy != enemyUnits.end() && closestDist <= fu.speed * fu.speed && !(fu.x == closestEnemy->x && fu.y == closestEnemy->y)) {
 			fu.x = closestEnemy->x;
 			fu.y = closestEnemy->y;
 			closestDist = 0;
@@ -217,7 +218,7 @@ namespace UAlbertaBot {
 
 			didSomething = true;
 		}
-		else if (closestEnemy != enemyUnits.end() && sqrt(closestDist) > fu.speed) {
+		else if (closestEnemy != enemyUnits.end() && closestDist > fu.speed * fu.speed) {
 			int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
 
 			fu.x += (int)(dx*(fu.speed / sqrt(dx*dx + dy*dy)));
@@ -282,7 +283,7 @@ namespace UAlbertaBot {
 			}
 		}
 
-		if (closestEnemy != enemyUnits.end() && sqrt(closestDist) <= fu.speed) {
+		if (closestEnemy != enemyUnits.end() && closestDist <= fu.speed * fu.speed) {
 			if(closestEnemy->flying)
 				dealDamage(*closestEnemy, fu.airDamage, fu.airDamageType);
 			else 
@@ -298,7 +299,7 @@ namespace UAlbertaBot {
 			didSomething = true;
 			return true;
 		}
-		else if (closestEnemy != enemyUnits.end() && sqrt(closestDist) > fu.speed) {
+		else if (closestEnemy != enemyUnits.end() && closestDist > fu.speed * fu.speed) {
 			int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
 
 			fu.x += (int)(dx*(fu.speed / sqrt(dx*dx + dy*dy)));
@@ -513,6 +514,6 @@ namespace UAlbertaBot {
 			return 5;
 		}
 
-		return type.mineralPrice() + type.gasPrice();
+		return type.isTwoUnitsInOneEgg() ? (type.mineralPrice() + type.gasPrice()) / 2 : type.mineralPrice() + type.gasPrice();
 	}
 }

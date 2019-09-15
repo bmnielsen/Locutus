@@ -24,9 +24,8 @@ class ScoutManager
     bool                            _startedGasSteal;
 	bool							_queuedGasSteal;
 	bool							_gasStealOver;
-    int                             _currentRegionVertexIndex;
     int                             _previousScoutHP;
-	std::vector<BWAPI::Position>    _enemyRegionVertices;
+	BWAPI::Position					_nextDestination;
 
 	ScoutManager();
 
@@ -34,16 +33,13 @@ class ScoutManager
 
 	bool                            enemyWorkerInRadius();
     bool                            gasSteal();
-    int                             getClosestVertexIndex(BWAPI::Unit unit);
-    BWAPI::Position                 getFleePosition();
 	BWAPI::Unit						getAnyEnemyGeyser() const;
 	BWAPI::Unit						getTheEnemyGeyser() const;
 	BWAPI::Unit						enemyWorkerToHarass() const;
-    void                            followPerimeter();
 	void                            moveGroundScout();
+	void                            followGroundPath();
 	void                            moveAirScout();
 	void                            drawScoutInformation(int x, int y);
-    void                            calculateEnemyRegionVertices();
 
 	void                            releaseOverlordScout();
 

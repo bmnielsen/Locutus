@@ -1,5 +1,6 @@
 #include "GameRecord.h"
 
+#include "Bases.h"
 #include "GameCommander.h"
 #include "InformationManager.h"
 #include "Logger.h"
@@ -293,14 +294,14 @@ int GameRecord::snapDistance(const PlayerSnapshot & a, const PlayerSnapshot & b)
 // Figure out whether the enemy has seen our base yet.
 bool GameRecord::enemyScoutedUs() const
 {
-	BWTA::BaseLocation * base = InformationManager::Instance().getMyMainBaseLocation();
+	Base * base = Bases::Instance().myStartingBase();
 
 	for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
 	{
 		const UnitInfo & ui(kv.second);
 
 		// If a unit was last spotted close to us, assume we've been seen.
-		if (ui.lastPosition.getDistance(base->getPosition()) < 800)
+		if (ui.lastPosition.getDistance(base->getCenter()) < 800)
 		{
 			return true;
 		}

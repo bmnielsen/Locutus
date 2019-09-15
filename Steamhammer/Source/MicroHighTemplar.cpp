@@ -1,7 +1,7 @@
 #include "MicroManager.h"
 #include "MicroHighTemplar.h"
 
-#include "InformationManager.h"
+#include "Bases.h"
 #include "The.h"
 #include "UnitUtil.h"
 
@@ -27,16 +27,17 @@ void MicroHighTemplar::update()
 
 	// No base should be tight against an edge, so this position should always be reachable.
 	const BWAPI::Position gatherPoint =
-		InformationManager::Instance().getMyMainBaseLocation()->getPosition() - BWAPI::Position(32, 32);
+		Bases::Instance().myMainBase()->getPosition() - BWAPI::Position(32, 32);
 	UAB_ASSERT(gatherPoint.isValid(), "bad gather point");
 
 	BWAPI::Unitset mergeGroup;
 
 	for (const auto templar : getUnits())
 	{
-		int framesSinceCommand = BWAPI::Broodwar->getFrameCount() - templar->getLastCommandFrame();
+		const int framesSinceCommand = BWAPI::Broodwar->getFrameCount() - templar->getLastCommandFrame();
+		const bool longEnough = framesSinceCommand >= 12;
 
-		if (templar->getLastCommand().getType() == BWAPI::UnitCommandTypes::Use_Tech_Unit && framesSinceCommand < 10)
+		if (templar->getLastCommand().getType() == BWAPI::UnitCommandTypes::Use_Tech_Unit && !longEnough)
 		{
 			// Wait. There's latency before the command takes effect.
 		}
@@ -45,22 +46,30 @@ void MicroHighTemplar::update()
 			// The merge has been going on too long. It may be stuck. Stop and try again.
 			the.micro.Move(templar, gatherPoint);
 		}
+		else if (templar->getLastCommand().getType() == BWAPI::UnitCommandTypes::Use_Tech_Unit && !longEnough)
+		{
+			// Keep waiting.
+		}
 		else if (templar->getOrder() == BWAPI::Orders::PlayerGuard)
 		{
-			if (templar->getLastCommand().getType() == BWAPI::UnitCommandTypes::Use_Tech_Unit && framesSinceCommand > 10)
+			mergeGroup.insert(templar);
+		}
+		else if (templar->getOrder() != BWAPI::Orders::ArchonWarp)
+		{
+			if (templar->getDistance(gatherPoint) >= 3 * 32)
 			{
-				// Tried and failed to merge. Try moving first.
+				// Join up before trying to merge.
 				the.micro.Move(templar, gatherPoint);
 			}
 			else
 			{
-				mergeGroup.insert(templar);
+				the.micro.Stop(templar);
 			}
 		}
 	}
 
 	// We will merge 1 pair per call, the pair closest together.
-	int closestDist = 9999;
+	int closestDist = 999999;
 	BWAPI::Unit closest1 = nullptr;
 	BWAPI::Unit closest2 = nullptr;
 

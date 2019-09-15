@@ -97,27 +97,15 @@ std::string UnitTypeName(BWAPI::UnitType type)
 	return TrimRaceName(type.getName());
 }
 
-// Clip (x,y) to the bounds of the map.
-// The resulting position isValid().
-void ClipToMap(BWAPI::Position & pos)
+// Post a message to the game including the bot's name.
+void GameMessage(const char * message)
 {
-	if (pos.x < 0)
-	{
-		pos.x = 0;
-	}
-	else if (pos.x >= 32 * BWAPI::Broodwar->mapWidth())
-	{
-		pos.x = 32 * BWAPI::Broodwar->mapWidth() - 1;
-	}
-
-	if (pos.y < 0)
-	{
-		pos.y = 0;
-	}
-	else if (pos.y >= 32 * BWAPI::Broodwar->mapHeight())
-	{
-		pos.y = 32 * BWAPI::Broodwar->mapHeight() - 1;
-	}
+	BWAPI::Broodwar->sendText("%c%s: %c%s",
+		BWAPI::Broodwar->self()->getTextColor(), BWAPI::Broodwar->self()->getName().c_str(),
+		white, message);
+	BWAPI::Broodwar->printf("%c%s: %c%s",
+		BWAPI::Broodwar->self()->getTextColor(), BWAPI::Broodwar->self()->getName().c_str(),
+		white, message);
 }
 
 // Point b specifies a direction from point a.
@@ -179,8 +167,7 @@ BWAPI::Position PredictMovement(BWAPI::Unit unit, int frames)
 		unit->getPosition().x + int(frames * unit->getVelocityX()),
 		unit->getPosition().y + int(frames * unit->getVelocityY())
 	);
-	ClipToMap(pos);
-	return pos;
+	return pos.makeValid();
 }
 
 // Estimate whether the chaser can catch the runaway.
@@ -198,4 +185,20 @@ bool CanCatchUnit(BWAPI::Unit chaser, BWAPI::Unit runaway)
 	int ac = chaser->getDistance(predict);
 	int bc = runaway->getDistance(predict);
 	return double(ab + bc) / ac > 0.9;
+}
+
+// Ground height, folding the "doodad" levels into the regular levels.
+// 0 - low ground, low ground doodad
+// 2 - high ground, high ground doodad
+// 4 - very high ground, very high ground doodad
+// x and y mark a tile position.
+int GroundHeight(int x, int y)
+{
+	return BWAPI::Broodwar->getGroundHeight(x, y) & (~0x01);
+}
+
+// Ground height, folding the "doodad" levels into the regular levels.
+int GroundHeight(const BWAPI::TilePosition & tile)
+{
+	return BWAPI::Broodwar->getGroundHeight(tile) & (~0x01);
 }

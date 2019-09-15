@@ -22,10 +22,10 @@ void GameCommander::update()
 	handleUnitAssignments();
 
 	// Decide whether to give up early. Implements config option SurrenderWhenHopeIsLost.
-	if (surrenderMonkey())
+	if (!_surrenderTime && surrenderMonkey())
 	{
 		_surrenderTime = BWAPI::Broodwar->getFrameCount();
-		BWAPI::Broodwar->printf("gg");
+		GameMessage("gg");
 	}
 	if (_surrenderTime)
 	{
@@ -33,12 +33,14 @@ void GameCommander::update()
 		{
 			BWAPI::Broodwar->leaveGame();
 		}
+		_timerManager.stopTimer(TimerManager::Total);
 		return;
 	}
 
 	// -- Managers that gather inforation. --
 
 	_timerManager.startTimer(TimerManager::InformationManager);
+	Bases::Instance().update();
 	InformationManager::Instance().update();
 	_timerManager.stopTimer(TimerManager::InformationManager);
 
@@ -84,6 +86,16 @@ void GameCommander::update()
 	_timerManager.stopTimer(TimerManager::Total);
 
 	drawDebugInterface();
+}
+
+void GameCommander::onEnd(bool isWinner)
+{
+	OpponentModel::Instance().setWin(isWinner);
+	OpponentModel::Instance().write();
+
+	// Clean up any data structures that may otherwise not be unwound in the correct order.
+	// This fixes an end-of-game bug diagnosed by Bruce Nielsen.
+	_combatCommander.onEnd();
 }
 
 void GameCommander::drawDebugInterface()
@@ -396,6 +408,7 @@ void GameCommander::assignUnit(BWAPI::Unit unit, BWAPI::Unitset & set)
 }
 
 // Decide whether to give up early. See config option SurrenderWhenHopeIsLost.
+// This depends on _validUnits, so call it after handleUnitAssignments().
 bool GameCommander::surrenderMonkey()
 {
 	if (!Config::Strategy::SurrenderWhenHopeIsLost)

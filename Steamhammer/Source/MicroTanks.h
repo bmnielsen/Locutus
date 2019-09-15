@@ -6,6 +6,12 @@ namespace UAlbertaBot
 {
 class MicroTanks : public MicroManager
 {
+private:
+
+	int nThreats(const BWAPI::Unitset & targets) const;
+	bool anySiegeUnits(const BWAPI::Unitset & targets) const;
+	bool allMeleeAndSameHeight(const BWAPI::Unitset & targets, BWAPI::Unit tank) const;
+
 public:
 
 	MicroTanks();

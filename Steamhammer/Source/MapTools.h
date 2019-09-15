@@ -1,6 +1,5 @@
 #pragma once
 
-#include <BWTA.h>
 #include <vector>
 
 #include "Common.h"

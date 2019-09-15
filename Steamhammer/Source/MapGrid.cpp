@@ -35,13 +35,15 @@ MapGrid::MapGrid(int mapWidth, int mapHeight, int cellSize)
 // Item 1 ensures that, if early game scouting failed, we scout with force.
 // If byGround, only locations that are accessible by ground from the given location.
 // If not byGround, the location fromHere is not used.
-BWAPI::Position MapGrid::getLeastExplored(bool byGround, int partition) 
+// If zoneID is non-zero, require the position to be in the given zone.
+BWAPI::Position MapGrid::getLeastExplored(bool byGround, int partition, int zoneID) 
 {
 	// 1. Any starting location that has not been explored.
 	for (BWAPI::TilePosition tile : BWAPI::Broodwar->getStartLocations())
 	{
 		if (!BWAPI::Broodwar->isExplored(tile) &&
-			(!byGround || partition == the.partitions.id(tile)))
+			(!byGround || partition == the.partitions.id(tile)) &&
+			(!zoneID || the.zone.at(tile) == zoneID))
 		{
 			return BWAPI::Position(tile);
 		}
@@ -61,6 +63,12 @@ BWAPI::Position MapGrid::getLeastExplored(bool byGround, int partition)
 
 			// Skip places that we can't get to.
 			if (byGround && partition != the.partitions.id(cellCenter))
+			{
+				continue;
+			}
+
+			// If the zone is specified, skip places outside the zone.
+			if (zoneID && the.zone.at(cellCenter) != zoneID)
 			{
 				continue;
 			}

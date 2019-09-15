@@ -7,37 +7,40 @@ using namespace UAlbertaBot;
 // Create an empty, unitialized, unusable grid.
 // Necessary if a Grid subclass is created before BWAPI is initialized.
 Grid::Grid()
-	: initialized(false)
 {
 }
 
 // Create an initialized grid, given the size.
 Grid::Grid(int w, int h, int value)
-	: initialized(true)
-	, width(w)
+	: width(w)
 	, height(h)
 	, grid(w, std::vector<short>(h, value))
 {
 }
 
-int Grid::at(int tileX, int tileY) const
+int Grid::get(int x, int y) const
 {
-	return at(BWAPI::TilePosition(tileX, tileY));
+	UAB_ASSERT(grid.size() == width && width > 0 && x >= 0 && y >= 0 && x < width && y < height,
+		"bad at(%d,%d) limit(%d,%d) size %dx%d", x, y, width, height, grid.size(), grid[0].size());
+	return grid[x][y];
+}
+
+int Grid::at(int x, int y) const
+{
+	return get(x, y);
 }
 
 int Grid::at(const BWAPI::TilePosition & pos) const
 {
-	UAB_ASSERT(initialized && pos.isValid(), "bad tile %d,%d", pos.x, pos.y);
-	return grid[pos.x][pos.y];
+	return at(pos.x, pos.y);
+}
+
+int Grid::at(const BWAPI::WalkPosition & pos) const
+{
+	return at(BWAPI::TilePosition(pos));
 }
 
 int Grid::at(const BWAPI::Position & pos) const
 {
 	return at(BWAPI::TilePosition(pos));
-}
-
-int Grid::at(const BWAPI::Unit unit) const
-{
-	UAB_ASSERT(unit && unit->isVisible(), "bad unit");
-	return at(unit->getTilePosition());
 }

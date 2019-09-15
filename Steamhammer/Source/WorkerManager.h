@@ -24,7 +24,6 @@ class WorkerManager
 	void        handleIdleWorkers();
 	void		handleReturnCargoWorkers();
 	void        handleRepairWorkers();
-    void        handleMoveWorkers();
 	void		handleMineralWorkers();
 
 	BWAPI::Unit findEnemyTargetForWorker(BWAPI::Unit worker) const;
@@ -33,6 +32,9 @@ class WorkerManager
 
 	BWAPI::Unit getAnyClosestDepot(BWAPI::Unit worker);      // don't care whether it's full
 	BWAPI::Unit getClosestNonFullDepot(BWAPI::Unit worker);  // only if it can accept more mineral workers
+
+	BWAPI::Unit	getAnyWorker(BWAPI::Position pos, int range);
+	BWAPI::Unit	getUnencumberedWorker(BWAPI::Position pos, int range);
 
 	WorkerManager();
 
@@ -68,16 +70,14 @@ public:
     bool        isFree(BWAPI::Unit worker);
     bool        isBuilder(BWAPI::Unit worker);
 
-    BWAPI::Unit getBuilder(const Building & b,bool setJobAsBuilder = true);
-    BWAPI::Unit getMoveWorker(BWAPI::Position p);
+    BWAPI::Unit getBuilder(const Building & b);
+	void setBuildWorker(BWAPI::Unit worker, BWAPI::UnitType buildingType);
     BWAPI::Unit getGasWorker(BWAPI::Unit refinery);
     BWAPI::Unit getClosestMineralWorkerTo(BWAPI::Unit enemyUnit);
     BWAPI::Unit getWorkerScout();
 
-    void        setBuildingWorker(BWAPI::Unit worker,Building & b);
     void        setRepairWorker(BWAPI::Unit worker,BWAPI::Unit unitToRepair);
     void        stopRepairing(BWAPI::Unit worker);
-	void        setMoveWorker(BWAPI::Unit worker, int mineralsNeeded, int gasNeeded, BWAPI::Position & p);
     void        setCombatWorker(BWAPI::Unit worker);
 
     bool        willHaveResources(int mineralsRequired,int gasRequired,double distance);

@@ -29,12 +29,7 @@ void UAlbertaBotModule::onStart()
     // Initialize BOSS, the Build Order Search System
     BOSS::init();
 
-	// Call BWTA to read and analyze the current map.
-	// Very slow if the map has not been seen before, so that info is not cached.
-	BWTA::readMap();
-	BWTA::analyze();
-
-	// Our own map analysis.
+	// Map analysis.
 	Bases::Instance().initialize();
 
 	// Parse the bot's configuration file.
@@ -73,8 +68,7 @@ void UAlbertaBotModule::onStart()
 
 void UAlbertaBotModule::onEnd(bool isWinner)
 {
-	OpponentModel::Instance().setWin(isWinner);
-	OpponentModel::Instance().write();
+	GameCommander::Instance().onEnd(isWinner);
 }
 
 void UAlbertaBotModule::onFrame()

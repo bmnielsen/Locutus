@@ -66,11 +66,14 @@ void Squad::update()
 	// update all necessary unit information within this squad
 	updateUnits();
 
+	// The vanguard (squad unit farthest forward) will be updated below if appropriate.
+	_vanguard = nullptr;
+
 	if (_units.empty())
 	{
 		return;
 	}
-
+	
 	// This is for the Overlord squad.
 	// Overlords as combat squad detectors are managed by _microDetectors.
 	_microOverlords.update();
@@ -81,7 +84,8 @@ void Squad::update()
 		return;
 	}
 
-	_microHighTemplar.update();
+	// This is a non-empty combat squad, so it has a meaningful vanguard unit.
+	_vanguard = unitClosestToEnemy(_units);
 
 	if (_order.getType() == SquadOrderTypes::Load)
 	{
@@ -99,29 +103,43 @@ void Squad::update()
 	stimIfNeeded();
 
 	// Detectors.
-	BWAPI::Unit vanguard = unitClosestToEnemy(_units);
-	_microDetectors.setUnitClosestToEnemy(vanguard);
+	_microDetectors.setUnitClosestToEnemy(_vanguard);
 	_microDetectors.setSquadSize(_units.size());
 	_microDetectors.go();
 
-	// Don't cluster detectors or transports.
-	BWAPI::Unitset unitsToCluster = _units;
+	// High templar stay home until they merge to archons, all that's supported so far.
+	_microHighTemplar.update();
+
+	// Finish choosing the units.
+	BWAPI::Unitset unitsToCluster;
 	for (BWAPI::Unit unit : _units)
 	{
-		if (unit->getType().isDetector() || unit->getType().spaceProvided() > 0)
+		if (unit->getType().isDetector() ||
+			unit->getType().spaceProvided() > 0 ||
+			unit->getType() == BWAPI::UnitTypes::Protoss_High_Templar)
 		{
-			unitsToCluster.erase(unit);
+			// Don't cluster detectors, transports, or high templar.
+			// They are handled separately above.
+		}
+		else if (unreadyUnit(unit))
+		{
+			// Unit needs prep. E.g., a carrier wants a minimum number of interceptors before it moves out.
+			// unreadyUnit() itself does the prep.
+		}
+		else
+		{
+			unitsToCluster.insert(unit);
 		}
 	}
-	the.ops.cluster(unitsToCluster, _clusters);
 
+	the.ops.cluster(unitsToCluster, _clusters);
 	for (UnitCluster & cluster : _clusters)
 	{
 		setClusterStatus(cluster);
 	}
 
-	// It gets slow in late game when there are many clusters, so cut down the update frequency.
-	const int nPhases = std::max(1, std::min(5, int(_clusters.size() / 6)));
+	// It can get slow in late game when there are many clusters, so cut down the update frequency.
+	const int nPhases = std::max(1, std::min(4, int(_clusters.size() / 8)));
 	int phase = BWAPI::Broodwar->getFrameCount() % nPhases;
 	for (const UnitCluster & cluster : _clusters)
 	{
@@ -147,7 +165,7 @@ void Squad::setClusterStatus(UnitCluster & cluster)
 		else
 		{
 			// Can't join another cluster. Move back to base.
-			cluster.status = ClusterStatus::Regroup;
+			cluster.status = ClusterStatus::FallBack;
 			moveCluster(cluster, finalRegroupPosition());
 			_regroupStatus = red + std::string("Fall back");
 		}
@@ -184,9 +202,22 @@ void Squad::setClusterStatus(UnitCluster & cluster)
 }
 
 // Take cluster combat actions. These can depend on the status of other clusters.
+// This handles cluster status of Attack and Regroup. Others are handled by setClusterStatus().
 void Squad::clusterCombat(const UnitCluster & cluster)
 {
-	if (cluster.status == ClusterStatus::Regroup)
+	if (cluster.status == ClusterStatus::Attack)
+	{
+		// No need to regroup. Execute micro.
+		_microAirToAir.execute(cluster);
+		_microMelee.execute(cluster);
+		//_microMutas.execute(cluster);
+		_microRanged.execute(cluster);
+		_microScourge.execute(cluster);
+		_microTanks.execute(cluster);
+
+		_microLurkers.execute(cluster);
+	}
+	else if (cluster.status == ClusterStatus::Regroup)
 	{
 		// Regroup, aka retreat. Only fighting units care about regrouping.
 		BWAPI::Position regroupPosition = calcRegroupPosition(cluster);
@@ -203,27 +234,24 @@ void Squad::clusterCombat(const UnitCluster & cluster)
 		_microScourge.regroup(regroupPosition, cluster);
 		_microTanks.regroup(regroupPosition, cluster);
 	}
-	else if (cluster.status == ClusterStatus::Attack)
+	else
 	{
-		// No need to regroup. Execute micro.
-		_microAirToAir.execute(cluster);
-		_microMelee.execute(cluster);
-		//_microMutas.execute(cluster);
-		_microRanged.execute(cluster);
-		_microScourge.execute(cluster);
-		_microTanks.execute(cluster);
+		// It's not a combat status.
+		return;
 	}
+
+	// The rest is for any combat status.
 
 	// Lurkers never regroup, always execute their order.
 	// NOTE It is because regrouping works poorly. It retreats and unburrows them too often.
 	_microLurkers.execute(cluster);
 
-	// The remaining non-combat micro managers try to keep units near the front line.
+	// Medics and defilers try to get near the front line.
 	static int defilerPhase = 0;
 	defilerPhase = (defilerPhase + 1) % 8;
 	if (defilerPhase == 3)
 	{
-		BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);
+		BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);  // cluster vanguard (not squad vanguard)
 
 		// Defilers.
 		_microDefilers.updateMovement(cluster, vanguard);
@@ -299,7 +327,7 @@ bool Squad::joinUp(const UnitCluster & cluster)
 
 	if (bestCluster)
 	{
-		moveCluster(cluster, bestCluster->center);
+		moveCluster(cluster, bestCluster->center, true);
 		return true;
 	}
 
@@ -307,15 +335,45 @@ bool Squad::joinUp(const UnitCluster & cluster)
 }
 
 // Move toward the given position.
-void Squad::moveCluster(const UnitCluster & cluster, const BWAPI::Position & destination)
+// Parameter lazy defaults to false. If true, use MoveNear() which reduces APM and accuracy.
+void Squad::moveCluster(const UnitCluster & cluster, const BWAPI::Position & destination, bool lazy)
 {
 	for (BWAPI::Unit unit : cluster.units)
 	{
 		if (!UnitUtil::MobilizeUnit(unit))
 		{
-			the.micro.Move(unit, destination);
+			if (lazy)
+			{
+				the.micro.MoveNear(unit, destination);
+			}
+			else
+			{
+				the.micro.Move(unit, destination);
+			}
 		}
 	}
+}
+
+// If the unit needs to do some preparatory work before it can be put into a cluster,
+// do a step of the prep work and return true.
+bool Squad::unreadyUnit(BWAPI::Unit u)
+{
+	if (u->getType() == BWAPI::UnitTypes::Protoss_Reaver)
+	{
+		if (u->canTrain(BWAPI::UnitTypes::Protoss_Scarab) && !u->isTraining())
+		{
+			return the.micro.Make(u, BWAPI::UnitTypes::Protoss_Scarab);
+		}
+	}
+	else if (u->getType() == BWAPI::UnitTypes::Protoss_Carrier)
+	{
+		if (u->canTrain(BWAPI::UnitTypes::Protoss_Interceptor) && !u->isTraining())
+		{
+			return the.micro.Make(u, BWAPI::UnitTypes::Protoss_Interceptor);
+		}
+	}
+
+	return false;
 }
 
 bool Squad::isEmpty() const
@@ -342,8 +400,8 @@ void Squad::updateUnits()
 
 // Clean up the _units vector.
 // Also notice and remember a few facts about the members of the squad.
-// Note: Some units may be loaded in a bunker or transport and cannot accept orders.
-//       Check unit->isLoaded() before issuing orders.
+// NOTE Some units may be loaded in a bunker or transport and cannot accept orders.
+//      Check unit->isLoaded() before issuing orders.
 void Squad::setAllUnits()
 {
 	_hasAir = false;
@@ -504,7 +562,7 @@ void Squad::addUnitsToMicroManagers()
 			{
 				transportUnits.insert(unit);
 			}
-			// NOTE This excludes spellcasters.
+			// NOTE This excludes spellcasters (except arbiters, which have a regular weapon too).
 			else if ((unit->getType().groundWeapon().maxRange() > 32) ||
 				unit->getType() == BWAPI::UnitTypes::Protoss_Reaver ||
 				unit->getType() == BWAPI::UnitTypes::Protoss_Carrier)
@@ -546,7 +604,7 @@ void Squad::addUnitsToMicroManagers()
 // Calculates whether to regroup, aka retreat. Does combat sim if necessary.
 bool Squad::needsToRegroup(const UnitCluster & cluster)
 {
-	// Only specified orders are allowed to regroup.
+	// Our order may not allow us to regroup.
 	if (!_order.isRegroupableOrder())
 	{
 		_regroupStatus = yellow + std::string("Never retreat!");
@@ -573,7 +631,7 @@ bool Squad::needsToRegroup(const UnitCluster & cluster)
 		}
 	}
 
-	BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);
+	BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);  // cluster vanguard (not squad vanguard)
 
 	if (!vanguard)
 	{
@@ -637,7 +695,7 @@ bool Squad::needsToRegroup(const UnitCluster & cluster)
 BWAPI::Position Squad::calcRegroupPosition(const UnitCluster & cluster) const
 {
 	// 1. Retreat toward static defense, if any is near.
-	BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);
+	BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);  // cluster vanguard (not squad vanguard)
 
 	if (vanguard)
 	{
@@ -726,8 +784,8 @@ BWAPI::Position Squad::calcRegroupPosition(const UnitCluster & cluster) const
 // Return the rearmost position we should retreat to, which puts our "back to the wall".
 BWAPI::Position Squad::finalRegroupPosition() const
 {
-	// Retreat to the starting base (guaranteed not null, even if the buildings were destroyed).
-	Base * base = Bases::Instance().myStartingBase();
+	// Retreat to the main base, unless we change our mind below.
+	Base * base = Bases::Instance().myMainBase();
 
 	// If the natural has been taken, retreat there instead.
 	Base * natural = Bases::Instance().myNaturalBase();
@@ -735,7 +793,14 @@ BWAPI::Position Squad::finalRegroupPosition() const
 	{
 		base = natural;
 	}
-	return BWTA::getRegion(base->getTilePosition())->getCenter();
+
+	// If neither, retreat to the starting base (never null, even if the buildings were destroyed).
+	if (!base)
+	{
+		base = Bases::Instance().myMainBase();
+	}
+
+	return base->getPosition();
 }
 
 bool Squad::containsUnit(BWAPI::Unit u) const
@@ -1138,8 +1203,7 @@ void Squad::drawCombatSimInfo() const
 {
 	if (!_units.empty() && _order.isRegroupableOrder())
 	{
-		BWAPI::Unit vanguard = unitClosestToEnemy(_units);
-		BWAPI::Position spot = vanguard ? vanguard->getPosition() : _order.getPosition();
+		BWAPI::Position spot = _vanguard ? _vanguard->getPosition() : _order.getPosition();
 
 		BWAPI::Broodwar->drawTextMap(spot + BWAPI::Position(-16, 16), "%c%c %c%s",
 			yellow, _order.getCharCode(), white, _name.c_str());

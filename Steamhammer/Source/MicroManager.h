@@ -24,7 +24,6 @@ protected:
 	bool                unitNearChokepoint(BWAPI::Unit unit) const;
 
 	bool				dodgeMine(BWAPI::Unit u) const;
-	bool				buildScarabOrInterceptor(BWAPI::Unit u) const;
 	void				useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery);
 
 	void                drawOrderText();

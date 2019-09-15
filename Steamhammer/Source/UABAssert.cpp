@@ -21,7 +21,7 @@ namespace Assert
         return buf;
     }
 
-    void ReportFailure(const char * condition, const char * file, int line, const char * msg, ...)
+    void ReportFailure(const char * file, int line, const char * msg, ...)
     {
         char messageBuffer[1024] = "";
         if (msg != nullptr)
@@ -35,7 +35,6 @@ namespace Assert
 
         std::stringstream ss;
         ss                                              << std::endl;
-        ss << "!Assert:   " << condition                << std::endl;
         ss << "File:      " << file                     << std::endl;
         ss << "Message:   " << messageBuffer            << std::endl;
         ss << "Line:      " << line                     << std::endl;

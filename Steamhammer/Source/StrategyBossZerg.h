@@ -51,6 +51,10 @@ class StrategyBossZerg
 	int _economyTotal;
 	int _extraDronesWanted;
 
+	// Reactions to extra drones in the opening.
+	int _extraOpeningExtractors;
+	int _extraOpeningHatcheries;
+
 	// The most recent build order created by freshProductionPlan().
 	// Empty while we're in the opening book.
 	BuildOrder _latestBuildOrder;
@@ -133,6 +137,7 @@ class StrategyBossZerg
 	void updateArmySizes();
 	bool enoughArmy() const;
 	bool enoughGroundArmy() const;
+	bool enemySeemsToBeDead(const PlayerSnapshot & snap) const;
 
 	int numInEgg(BWAPI::UnitType) const;
 	bool isBeingBuilt(const BWAPI::UnitType unitType) const;

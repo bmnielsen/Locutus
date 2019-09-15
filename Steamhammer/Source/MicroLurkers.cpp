@@ -19,8 +19,8 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 	}
 
 	// Potential targets.
-	BWAPI::Unitset LurkerTargets;
-	std::copy_if(targets.begin(), targets.end(), std::inserter(LurkerTargets, LurkerTargets.end()),
+	BWAPI::Unitset lurkerTargets;
+	std::copy_if(targets.begin(), targets.end(), std::inserter(lurkerTargets, lurkerTargets.end()),
 		[](BWAPI::Unit u){
 			return
 				u->isVisible() &&
@@ -31,7 +31,7 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 	for (const auto lurker : lurkers)
 	{
 		const bool inOrderRange = lurker->getDistance(order.getPosition()) <= 3 * 32;
-		BWAPI::Unit target = getTarget(lurker, LurkerTargets);
+		BWAPI::Unit target = getTarget(lurker, lurkerTargets);
 
 		if (target)
 		{
@@ -129,7 +129,9 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 
 			// No target assigned.
 			// Move toward the order position and burrow there.
-			if (inOrderRange) {
+			// NOTE This happens even if the order is to go to a floating building. It's kinda funny.
+			if (inOrderRange)
+			{
 				if (lurker->canBurrow())
 				{
 					the.micro.Burrow(lurker);

@@ -10,8 +10,12 @@ BuildOrderQueue::BuildOrderQueue()
 
 void BuildOrderQueue::clearAll() 
 {
-	queue.clear();
-	modified = true;
+	if (!isEmpty())
+	{
+		// BWAPI::Broodwar->printf("clear queue (modifying queue)");
+		queue.clear();
+		modified = true;
+	}
 }
 
 // A special purpose queue modification.
@@ -34,14 +38,15 @@ void BuildOrderQueue::dropStaticDefenses()
 
 void BuildOrderQueue::queueAsHighestPriority(MacroAct m, bool gasSteal)
 {
+	// BWAPI::Broodwar->printf("queued %s (modifying queue)", m.getName().c_str());
 	queue.push_back(BuildOrderItem(m, gasSteal));
 	modified = true;
 }
 
 void BuildOrderQueue::queueAsLowestPriority(MacroAct m) 
 {
+	// Does not "modify" the queue for purposes of the production manager.
 	queue.push_front(BuildOrderItem(m));
-	modified = true;
 }
 
 // Does nothing if the queue is empty.
@@ -57,6 +62,7 @@ void BuildOrderQueue::removeHighestPriorityItem()
 
 void BuildOrderQueue::doneWithHighestPriorityItem()
 {
+	// Does not "modify" the queue for purposes of the production manager.
 	queue.pop_back();
 }
 

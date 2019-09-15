@@ -1,7 +1,7 @@
 #include "MicroManager.h"
 #include "MicroMutas.h"
 
-#include "InformationManager.h"
+#include "Bases.h"
 #include "The.h"
 #include "UnitUtil.h"
 
@@ -68,7 +68,7 @@ BWAPI::Position MicroMutas::getFleePosition(BWAPI::Unit muta, const BWAPI::Posit
 
 	if (bestTarget)
 	{
-		BWAPI::Broodwar->printf("irradiated target -> %d,%d", bestTarget->getPosition().x, bestTarget->getPosition().y);
+		//BWAPI::Broodwar->printf("irradiated target -> %d,%d", bestTarget->getPosition().x, bestTarget->getPosition().y);
 
 		return bestTarget->getPosition();
 	}
@@ -93,7 +93,7 @@ BWAPI::Position MicroMutas::getFleePosition(BWAPI::Unit muta, const BWAPI::Posit
 		destination.y = center.y + 2 * irradiateRange;
 	}
 
-	BWAPI::Broodwar->printf("irradiated dest -> %d,%d", destination.x, destination.y);
+	//BWAPI::Broodwar->printf("irradiated dest -> %d,%d", destination.x, destination.y);
 
 	return destination;
 }
@@ -377,7 +377,7 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 	}
 
 	// if the target is building something near our base something is fishy
-	BWAPI::Position ourBasePosition = BWAPI::Position(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+	BWAPI::Position ourBasePosition = BWAPI::Position(Bases::Instance().myMainBase()->getPosition());
 	if (target->getDistance(ourBasePosition) < 1000) {
 		if (target->getType().isWorker() && (target->isConstructing() || target->isRepairing()))
 		{

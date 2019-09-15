@@ -77,7 +77,6 @@ void MicroDetectors::go()
 		if (unitClosestToEnemy && unitClosestToEnemy->getPosition().isValid())
 		{
 			destination = unitClosestToEnemy->getPosition();
-			// ClipToMap(destination);
 			the.micro.Move(detectorUnit, destination);
 		}
 	}

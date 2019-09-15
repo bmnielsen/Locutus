@@ -1,6 +1,6 @@
 #include "MicroRanged.h"
 
-#include "InformationManager.h"
+#include "Bases.h"
 #include "The.h"
 #include "UnitUtil.h"
 
@@ -67,12 +67,6 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 	
 	for (const auto rangedUnit : rangedUnits)
 	{
-		if (buildScarabOrInterceptor(rangedUnit))
-		{
-			// If we started one, no further action this frame.
-			continue;
-		}
-
 		if (rangedUnit->isBurrowed())
 		{
 			// For now, it would burrow only if irradiated. Leave it.
@@ -115,7 +109,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 		// NOTE Regrouping can cause the carriers to move away from home.
 		if (stayHomeUntilReady(rangedUnit))
 		{
-			BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+			BWAPI::Position fleeTo(Bases::Instance().myMainBase()->getPosition());
 			the.micro.AttackMove(rangedUnit, fleeTo);
 			continue;
 		}
@@ -330,7 +324,7 @@ int MicroRanged::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	}
 
 	// if the target is building something near our base something is fishy
-    BWAPI::Position ourBasePosition = BWAPI::Position(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+    BWAPI::Position ourBasePosition = BWAPI::Position(Bases::Instance().myMainBase()->getPosition());
 	if (target->getDistance(ourBasePosition) < 1000) {
 		if (target->getType().isWorker() && (target->isConstructing() || target->isRepairing()))
 		{

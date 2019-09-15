@@ -189,11 +189,9 @@ void CombatSimulation::setCombatUnits
 		drawWhichEnemies(ourCenter + BWAPI::Position(-20, 28));
 	}
 
-	// Work around poor play in mutalisks versus spore colony: For each spore in the fight,
-	// we compensate by dropping a given number of our mutalisks.
-	// TODO fix the bug and remove the workaround
+	// Work around poor play in mutalisks versus static defense:
+	// We compensate by dropping a given number of our mutalisks.
 	// Compensation only applies when visibleOnly is false.
-	const int mutaCompensationStep = 3;
 	int compensatoryMutalisks = 0;
 
 	// Add enemy units.
@@ -244,11 +242,20 @@ void CombatSimulation::setCombatUnits
 				includeEnemy(_whichEnemies, ui.type))
 			{
 				fap.addIfCombatUnitPlayer2(ui);
-				if (ui.type == BWAPI::UnitTypes::Zerg_Spore_Colony)
+
+				if (ui.type == BWAPI::UnitTypes::Terran_Missile_Turret)
 				{
-					compensatoryMutalisks += mutaCompensationStep;
-					// BWAPI::Broodwar->printf("muta comp -> %d", compensatoryMutalisks);
+					compensatoryMutalisks += 2;
 				}
+				else if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+				{
+					compensatoryMutalisks += 1;
+				}
+				else if (ui.type == BWAPI::UnitTypes::Zerg_Spore_Colony)
+				{
+					compensatoryMutalisks += 3;
+				}
+
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
 					BWAPI::Broodwar->drawCircleMap(ui.lastPosition, 3, BWAPI::Colors::Red, true);
@@ -313,7 +320,7 @@ double CombatSimulation::simulateCombat(bool meatgrinder)
 	if (meatgrinder)
 	{
 		// We only need to do a limited amount of damage to "win".
-		BWAPI::Broodwar->printf("  meatgrinder result = ", 3 * yourLosses - myLosses);
+		// BWAPI::Broodwar->printf("  meatgrinder result = ", 3 * yourLosses - myLosses);
 
 		// Call it a victory if we took down at least this fraction of the enemy army.
 		return double(3 * yourLosses - myLosses);

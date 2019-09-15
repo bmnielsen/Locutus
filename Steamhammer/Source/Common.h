@@ -87,9 +87,13 @@ const char orange  = '\x11';
 const char gray    = '\x1E';   // dim
 const char cyan    = '\x1F';
 
-void ClipToMap(BWAPI::Position & pos);
+void GameMessage(const char * message);
+
 BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance);
 double ApproachSpeed(const BWAPI::Position & pos, BWAPI::Unit u);
 BWAPI::Position CenterOfUnitset(const BWAPI::Unitset units);
 BWAPI::Position PredictMovement(BWAPI::Unit unit, int frames);
 bool CanCatchUnit(BWAPI::Unit chaser, BWAPI::Unit runaway);
+
+int GroundHeight(int x, int y);  // TilePosition
+int GroundHeight(const BWAPI::TilePosition & tile);

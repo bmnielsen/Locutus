@@ -35,7 +35,9 @@ namespace UAlbertaBot
 		std::vector<Base *> bases;
 		std::vector<Base *> startingBases;			// starting locations
 		Base * startingBase;                        // always set, not always owned by us
+		Base * mainBase;							// always set, owned by us iff we own any base
 		Base * naturalBase;                         // not always set - some maps have no natural
+		Base * enemyStartingBase;					// set when and if we find out
 		std::vector<BWAPI::Unit> smallMinerals;		// patches too small to be worth mining
 
 		bool islandStart;
@@ -63,16 +65,27 @@ namespace UAlbertaBot
 
 		bool closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition b);
 
+		bool inferEnemyBaseFromOverlord();
+		void updateEnemyStart();
+		void updateBaseOwners();
+		void updateMainBase();
+
 	public:
 		void initialize();
+		void update();
+		void checkBuildingPosition(const BWAPI::TilePosition & desired, const BWAPI::TilePosition & actual);
+
 		void drawBaseInfo() const;
 		void drawBaseOwnership(int x, int y) const;
 
-		Base * myStartingBase() const { return startingBase; };
-		Base * myNaturalBase() const { return naturalBase; };
-		Base * frontBase() const;
+		Base * myStartingBase() const { return startingBase; };		// always set
+		Base * myMainBase() const { return mainBase; }				// always set
+		Base * myNaturalBase() const { return naturalBase; };		// may be null
+		Base * frontBase() const;									// may be null
 		BWAPI::TilePosition frontPoint() const;
 		bool isIslandStart() const { return islandStart; };
+
+		Base * enemyStart() const { return enemyStartingBase; }		// may be null at first
 
 		bool connectedToStart(const BWAPI::Position & pos) const;
 		bool connectedToStart(const BWAPI::TilePosition & tile) const;

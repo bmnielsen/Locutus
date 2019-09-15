@@ -34,17 +34,6 @@ bool UnitUtil::IsCompletedResourceDepot(BWAPI::Unit unit)
 		(unit->isCompleted() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive);
 }
 
-// A protoss building that requires pylon power.
-bool UnitUtil::NeedsPylonPower(BWAPI::UnitType type)
-{
-	return
-		type.getRace() == BWAPI::Races::Protoss &&
-		type.isBuilding() &&
-		type != BWAPI::UnitTypes::Protoss_Pylon &&
-		type != BWAPI::UnitTypes::Protoss_Assimilator &&
-		type != BWAPI::UnitTypes::Protoss_Nexus;
-}
-
 bool UnitUtil::IsStaticDefense(BWAPI::UnitType type)
 {
 	return
@@ -119,9 +108,7 @@ bool UnitUtil::IsCombatSimUnit(BWAPI::UnitType type)
 	}
 
 	return
-		TypeCanAttackAir(type) ||
-		TypeCanAttackGround(type) ||
-		type == BWAPI::UnitTypes::Terran_Medic;
+		TypeCanAttack(type) || type == BWAPI::UnitTypes::Terran_Medic;
 }
 
 // Used for our units in deciding whether the include them in a squad.
@@ -214,6 +201,11 @@ bool UnitUtil::TypeCanAttackGround(BWAPI::UnitType attacker)
 		attacker == BWAPI::UnitTypes::Terran_Bunker ||
 		attacker == BWAPI::UnitTypes::Protoss_Carrier ||
 		attacker == BWAPI::UnitTypes::Protoss_Reaver;
+}
+
+bool UnitUtil::TypeCanAttack(BWAPI::UnitType type)
+{
+	return TypeCanAttackGround(type) || TypeCanAttackAir(type);
 }
 
 // Damage per frame.

@@ -29,6 +29,7 @@ class ProductionManager
 	int					_lastProductionFrame;            // for detecting jams
     BWAPI::TilePosition _predictedTilePosition;
     BWAPI::Unit         _assignedWorkerForThisBuilding;
+	BWAPI::UnitType		_typeOfUpcomingBuilding;
     bool                _haveLocationForThisBuilding;
 	int					_delayBuildingPredictionUntilFrame;
 	bool				_outOfBook;                      // production queue is beyond the opening book
@@ -50,7 +51,7 @@ class ProductionManager
 	void                manageBuildOrderQueue();
 	void				maybeReorderQueue();
     bool                canMakeNow(BWAPI::Unit producer,MacroAct t);
-    void                predictWorkerMovement(const Building & b);
+    void                predictWorkerMovement(Building & b);
 
     int                 getFreeMinerals() const;
     int                 getFreeGas() const;

@@ -12,6 +12,7 @@ ProductionManager::ProductionManager()
 	: the(The::Root())
 	, _lastProductionFrame(0)
 	, _assignedWorkerForThisBuilding     (nullptr)
+	, _typeOfUpcomingBuilding			 (BWAPI::UnitTypes::None)
 	, _haveLocationForThisBuilding       (false)
 	, _delayBuildingPredictionUntilFrame (0)
 	, _outOfBook                         (false)
@@ -185,8 +186,9 @@ void ProductionManager::manageBuildOrderQueue()
 	}
 
 	// If we were planning to build and assigned a worker, but the queue was then
-	// changed behind our back, release the worker and continue.
-	if (_queue.isModified() && _assignedWorkerForThisBuilding)
+	// changed behind our back. Release the worker and continue.
+	if (_queue.isModified() && _assignedWorkerForThisBuilding &&
+		(_queue.isEmpty() || !_queue.getHighestPriorityItem().macroAct.isBuilding() || !_queue.getHighestPriorityItem().macroAct.getUnitType() != _typeOfUpcomingBuilding))
 	{
 		WorkerManager::Instance().finishedWithWorker(_assignedWorkerForThisBuilding);
 		_assignedWorkerForThisBuilding = nullptr;
@@ -237,19 +239,15 @@ void ProductionManager::manageBuildOrderQueue()
 		bool canMake = producer && canMakeNow(producer, currentItem.macroAct);
 
 		// if the next item in the list is a building and we can't yet make it
-        if (currentItem.macroAct.isBuilding() &&
-			!canMake &&
-			currentItem.macroAct.whatBuilds().isWorker() &&			// not a zerg lair, etc.
+		if (!canMake &&
+			nextIsBuilding() &&
 			BWAPI::Broodwar->getFrameCount() >= _delayBuildingPredictionUntilFrame &&
 			!BuildingManager::Instance().typeIsStalled(currentItem.macroAct.getUnitType()))
 		{
 			// construct a temporary building object
-			Building b(currentItem.macroAct.getUnitType(), InformationManager::Instance().getMyMainBaseLocation()->getTilePosition());
+			Building b(currentItem.macroAct.getUnitType(), Bases::Instance().myMainBase()->getTilePosition());
 			b.macroLocation = currentItem.macroAct.getMacroLocation();
             b.isGasSteal = currentItem.isGasSteal;
-
-			// set the producer as the closest worker, but do not set its job yet
-			producer = WorkerManager::Instance().getBuilder(b, false);
 
 			// predict the worker movement to that building location
 			// NOTE If the worker is set moving, this sets flag _movingToThisBuildingLocation = true
@@ -264,6 +262,7 @@ void ProductionManager::manageBuildOrderQueue()
 			// create it
 			create(producer, currentItem);
 			_assignedWorkerForThisBuilding = nullptr;
+			_typeOfUpcomingBuilding = BWAPI::UnitTypes::None;
 			_haveLocationForThisBuilding = false;
 			_delayBuildingPredictionUntilFrame = 0;
 
@@ -412,7 +411,7 @@ BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closest
 	if (act.isWorker())
 	{
 		return getFarthestUnitFromPosition(candidateProducers,
-			InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+			Bases::Instance().myMainBase()->getPosition());
 	}
 	else
 	{
@@ -515,16 +514,10 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 	else if (act.isBuilding()                                    // implies act.isUnit()
 		&& !UnitUtil::IsMorphedBuildingType(act.getUnitType()))  // not morphed from another zerg building
 	{
-		// Every once in a while, pick a new base as the "main" base to build in.
-		if (act.getRace() != BWAPI::Races::Protoss || act.getUnitType() == BWAPI::UnitTypes::Protoss_Pylon)
-		{
-			InformationManager::Instance().maybeChooseNewMainBase();
-		}
-
 		// By default, build in the main base.
 		// BuildingManager will override the location if it needs to.
 		// Otherwise it will find some spot near desiredLocation.
-		BWAPI::TilePosition desiredLocation = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
+		BWAPI::TilePosition desiredLocation = Bases::Instance().myMainBase()->getTilePosition();
 
 		if (act.getMacroLocation() == MacroLocation::Front)
 		{
@@ -545,10 +538,11 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 		else if (act.getMacroLocation() == MacroLocation::Center)
 		{
 			// Near the center of the map.
+			// NOTE This does not work reliably because of unbuildable tiles.
 			desiredLocation = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth()/2, BWAPI::Broodwar->mapHeight()/2);
 		}
 		
-		BuildingManager::Instance().addBuildingTask(act, desiredLocation, item.isGasSteal);
+		BuildingManager::Instance().addBuildingTask(act, desiredLocation, _assignedWorkerForThisBuilding, item.isGasSteal);
 	}
 	// if we're dealing with a non-building unit, or a morphed zerg building
 	else if (act.isUnit() || act.isTech() || act.isUpgrade())
@@ -594,19 +588,25 @@ bool ProductionManager::canMakeNow(BWAPI::Unit producer, MacroAct t)
 }
 
 // When the next item in the _queue is a building, this checks to see if we should move to
-// its location in preparation for construction. If so, it orders the move.
-// This function is here as it needs to access prodction manager's reserved resources info.
-void ProductionManager::predictWorkerMovement(const Building & b)
+// its location in preparation for construction. If so, it takes ownership of the worker
+// and orders the move.
+// This function is here as it needs to access production manager's reserved resources info.
+// TODO A better plan is to move the work to BuildingManager: Have ProductionManager create
+//      a preliminary building and let all other steps be done in one place, and tied to
+//      a specific building instance.
+void ProductionManager::predictWorkerMovement(Building & b)
 {
     if (b.isGasSteal)
     {
         return;
     }
 
+	_typeOfUpcomingBuilding = b.type;
+
 	// get a possible building location for the building
 	if (!_haveLocationForThisBuilding)
 	{
-		_predictedTilePosition = BuildingManager::Instance().getBuildingLocation(b);
+		_predictedTilePosition = b.finalPosition = BuildingManager::Instance().getBuildingLocation(b);
 	}
 
 	if (_predictedTilePosition.isValid())
@@ -634,32 +634,50 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 		BWAPI::Broodwar->drawBoxMap(x1, y1, x2, y2, BWAPI::Colors::Blue, false);
     }
 
-	// where we want the worker to walk to
-	BWAPI::Position walkToPosition		= BWAPI::Position(x1 + (b.type.tileWidth()/2)*32, y1 + (b.type.tileHeight()/2)*32);
-
-	// compute how many resources we need to construct this building
-	int mineralsRequired				= std::max(0, b.type.mineralPrice() - getFreeMinerals());
-	int gasRequired						= std::max(0, b.type.gasPrice() - getFreeGas());
-
-	// get a candidate worker to move to this location
-	BWAPI::Unit moveWorker				= WorkerManager::Instance().getMoveWorker(walkToPosition);
-
-	// Conditions under which to move the worker: 
-	//		- there's a valid worker to move
-	//		- we haven't yet assigned a worker to move to this location
-	//		- the build position is valid
-	//		- we will have the required resources by the time the worker gets there
-	if (moveWorker &&
-		!_assignedWorkerForThisBuilding &&
-		_haveLocationForThisBuilding &&
-		(_predictedTilePosition != BWAPI::TilePositions::None) &&
-		WorkerManager::Instance().willHaveResources(mineralsRequired, gasRequired, moveWorker->getDistance(walkToPosition)) )
+	// If we assigned a worker and it's not available any more, forget the assignment.
+	if (_assignedWorkerForThisBuilding)
 	{
-		// we have assigned a worker
-		_assignedWorkerForThisBuilding = moveWorker;
+		if (!_assignedWorkerForThisBuilding->exists() ||								// it's dead
+			_assignedWorkerForThisBuilding->getPlayer() != BWAPI::Broodwar->self() ||	// it was mind controlled
+			_assignedWorkerForThisBuilding->isStasised())
+		{
+			// BWAPI::Broodwar->printf("missing assigned worker cleared");
+			_assignedWorkerForThisBuilding = nullptr;
+		}
+	}
 
-		// tell the worker manager to move this worker
-		WorkerManager::Instance().setMoveWorker(moveWorker, mineralsRequired, gasRequired, walkToPosition);
+	// Conditions under which to assign the worker: 
+	//		- the build position is valid (verified above)
+	//		- we haven't yet assigned a worker to move to this location
+	//		- there's a valid worker to move
+	//		- we expect to have the required resources by the time the worker gets there
+	if (!_assignedWorkerForThisBuilding)
+	{
+		// get a candidate worker to move to this location
+		BWAPI::Unit builder = WorkerManager::Instance().getBuilder(b);
+
+		// Where we want position the worker.
+		BWAPI::Position walkToPosition = BWAPI::Position(x1 + (b.type.tileWidth() / 2) * 32, y1 + (b.type.tileHeight() / 2) * 32);
+
+		// compute how many resources we need to construct this building
+		int mineralsRequired = std::max(0, b.type.mineralPrice() - getFreeMinerals());
+		int gasRequired = std::max(0, b.type.gasPrice() - getFreeGas());
+
+		if (builder &&
+			WorkerManager::Instance().willHaveResources(mineralsRequired, gasRequired, builder->getDistance(walkToPosition)))
+		{
+			// We have assigned a worker.
+			_assignedWorkerForThisBuilding = builder;
+			WorkerManager::Instance().setBuildWorker(builder, b.type);
+
+			// BWAPI::Broodwar->printf("prod man assigns worker %d to %s", builder->getID(), UnitTypeName(b.type).c_str());
+
+			// Forget about any queue modification that happened. We're beyond it.
+			_queue.resetModified();
+
+			// Move the worker.
+			the.micro.Move(builder, walkToPosition);
+		}
 	}
 }
 
@@ -700,6 +718,8 @@ void ProductionManager::executeCommand(MacroCommand command)
 	else if (cmd == MacroCommandType::GasUntil)
 	{
 		WorkerManager::Instance().setCollectGas(true);
+		// NOTE This normally works correctly, but can be wrong if we turn gas on and off too quickly.
+		//      It's wrong if e.g. we collect 100, then ask to collect 100 more before the first 100 is spent.
 		_targetGasAmount = BWAPI::Broodwar->self()->gatheredGas()
 			- BWAPI::Broodwar->self()->gas()
 			+ command.getAmount();
@@ -914,7 +934,7 @@ void ProductionManager::doExtractorTrick()
 			if (BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Zerg_Larva) > 0)
 			{
 				BWAPI::TilePosition loc = BWAPI::TilePosition(0, 0);     // this gets ignored
-				Building & b = BuildingManager::Instance().addTrackedBuildingTask(MacroAct(BWAPI::UnitTypes::Zerg_Extractor), loc, false);
+				Building & b = BuildingManager::Instance().addTrackedBuildingTask(MacroAct(BWAPI::UnitTypes::Zerg_Extractor), loc, nullptr, false);
 				_extractorTrickState = ExtractorTrick::ExtractorOrdered;
 				_extractorTrickBuilding = &b;    // points into building manager's queue of buildings
 			}
@@ -935,7 +955,7 @@ void ProductionManager::doExtractorTrick()
 			{
 				// We can build a unit now: The extractor started, or another unit died somewhere.
 				// Well, there is one more condition: We need a larva.
-				BWAPI::Unit larva = getClosestLarvaToPosition(BWAPI::Position(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition()));
+				BWAPI::Unit larva = getClosestLarvaToPosition(Bases::Instance().myMainBase()->getPosition());
 				if (larva && _extractorTrickUnitType != BWAPI::UnitTypes::None)
 				{
 					if (_extractorTrickUnitType == BWAPI::UnitTypes::Zerg_Zergling &&
@@ -976,7 +996,7 @@ void ProductionManager::doExtractorTrick()
 		// We did the extractor trick when we didn't need to, whether because the opening was
 		// miswritten or because units were lost before we got here.
 		// This special state lets us construct the unit we want anyway, bypassing the extractor.
-		BWAPI::Unit larva = getClosestLarvaToPosition(BWAPI::Position(InformationManager::Instance().getMyMainBaseLocation()->getTilePosition()));
+		BWAPI::Unit larva = getClosestLarvaToPosition(Bases::Instance().myMainBase()->getPosition());
 		if (larva &&
 			getFreeMinerals() >= _extractorTrickUnitType.mineralPrice() &&
 			getFreeGas() >= _extractorTrickUnitType.gasPrice())
@@ -1013,7 +1033,8 @@ bool ProductionManager::nextIsBuilding() const
 
 	const MacroAct & next = _queue.getHighestPriorityItem().macroAct;
 
-	return next.isBuilding() &&
+	return
+		next.isBuilding() &&
 		!next.getUnitType().isAddon() &&
 		!UnitUtil::IsMorphedBuildingType(next.getUnitType());
 }

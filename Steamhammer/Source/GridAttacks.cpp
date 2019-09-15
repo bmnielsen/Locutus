@@ -23,12 +23,11 @@ void Gridattacks::computeAir(const std::map<BWAPI::Unit, UnitInfo> & unitsInfo)
 			BWAPI::TilePosition bottomRightTile(bottomRight);
 
 			// NOTE To save work, we assume the attack pattern is a square.
-			int airDamage = UnitUtil::GetWeapon(ui.type, BWAPI::UnitTypes::Terran_Wraith).damageAmount();
 			for (int x = topLeftTile.x; x <= bottomRightTile.y; ++x)
 			{
 				for (int y = topLeftTile.y; y <= bottomRightTile.y; ++y)
 				{
-					grid[x][y] += airDamage;
+					grid[x][y] += 1;
 				}
 			}
 		}
@@ -50,29 +49,30 @@ void Gridattacks::computeGround(const std::map<BWAPI::Unit, UnitInfo> & unitsInf
 			BWAPI::TilePosition bottomRightTile(bottomRight);
 
 			// NOTE To save work, we assume the attack pattern is a square.
-			int groundDamage = UnitUtil::GetWeapon(ui.type, BWAPI::UnitTypes::Terran_Marine).damageAmount();
 			for (int x = topLeftTile.x; x <= bottomRightTile.y; ++x)
 			{
 				for (int y = topLeftTile.y; y <= bottomRightTile.y; ++y)
 				{
-					grid[x][y] += groundDamage;
+					grid[x][y] += 1;
 				}
 			}
 		}
 	}
 }
 
-Gridattacks::Gridattacks()
+Gridattacks::Gridattacks(bool air)
 	: Grid()
+	, versusAir(air)
 {
 }
 
-// Initialize with attacks by the given player, against either air or ground units.
-Gridattacks::Gridattacks(BWAPI::Player player, bool air)
-	: Grid(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight(), 0)
+// Initialize with attacks by the enemy, against either air or ground units.
+void Gridattacks::update()
 {
-	const std::map<BWAPI::Unit, UnitInfo> & unitsInfo = InformationManager::Instance().getUnitData(player).getUnits();
-	if (air)
+	// TODO erase to 0
+
+	const std::map<BWAPI::Unit, UnitInfo> & unitsInfo = InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits();
+	if (versusAir)
 	{
 		computeAir(unitsInfo);
 	}

@@ -19,19 +19,16 @@ MapTools::MapTools()
 	// Figure out which tiles are walkable and buildable.
 	setBWAPIMapData();
 
+	// NOTE When written, this check did not work! Base placement did not recognize island bases as bases at all.
 	_hasIslandBases = false;
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
+	for (Base * base : Bases::Instance().getBases())
 	{
-		if (base->isIsland())
+		if (!Bases::Instance().connectedToStart(base->getTilePosition()))
 		{
 			_hasIslandBases = true;
 			break;
 		}
 	}
-
-	// TODO testing
-	//BWAPI::TilePosition homePosition = BWAPI::Broodwar->self()->getStartLocation();
-	//BWAPI::Broodwar->printf("start position %d,%d", homePosition.x, homePosition.y);
 }
 
 // Read the map data from BWAPI and remember which 32x32 build tiles are walkable.
@@ -266,7 +263,7 @@ Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 	
 	BWAPI::TilePosition homeTile = Bases::Instance().myStartingBase()->getTilePosition();
 	BWAPI::Position myBasePosition(homeTile);
-	BWTA::BaseLocation * enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();  // may be null
+	Base * enemyBase = Bases::Instance().enemyStart();  // may be null or no longer enemy-owned
 
     for (Base * base : Bases::Instance().getBases())
     {

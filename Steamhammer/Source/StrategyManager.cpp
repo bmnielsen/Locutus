@@ -132,7 +132,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	// the goal to return
 	MetaPairVector goal;
 
-	// These counts include uncompleted units.
+	// These counts include uncompleted units (except for numNexusCompleted).
 	int numPylons = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Pylon);
 	int numNexusCompleted = BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
 	int numNexusAll = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
@@ -149,6 +149,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	bool hasStargate = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0;
 
 	int maxProbes = WorkerManager::Instance().getMaxWorkers();
+
+	PlayerSnapshot enemies(BWAPI::Broodwar->enemy());
 
 	BWAPI::Player self = BWAPI::Broodwar->self();
 
@@ -185,7 +187,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		// If we have templar archives, make
 		// 1. a small fixed number of dark templar to force a reaction, and
 		// 2. an even number of high templar to merge into archons (so the high templar disappear quickly).
-		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) != 0)
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0)
 		{
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, std::max(3, numDarkTemplar)));
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_High_Templar, 2));
@@ -203,11 +205,10 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		}
 
 		// If we have templar archives, make a small fixed number of DTs to force a reaction.
-		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) != 0)
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0)
 		{
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, std::max(3, numDarkTemplar)));
 		}
-
 	}
 	else if (_openingGroup == "dark templar")
 	{
@@ -235,20 +236,32 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	}
 
 	// If we're doing a corsair thing and it's still working, slowly add more.
-	if (_enemyRace == BWAPI::Races::Zerg &&
-		hasStargate &&
-		numCorsairs < 6 &&
-		self->deadUnitCount(BWAPI::UnitTypes::Protoss_Corsair) == 0)
+	if (_enemyRace == BWAPI::Races::Zerg)
 	{
-		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
+		if (hasStargate)
+		{
+			if (numCorsairs < 6 && self->deadUnitCount(BWAPI::UnitTypes::Protoss_Corsair) == 0 ||
+				numCorsairs < 9 && enemies.getCount(BWAPI::UnitTypes::Zerg_Mutalisk > numCorsairs))
+			{
+				goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
+			}
+		}
+		else
+		{
+			// No stargate. Make one if it's useful.
+			if (enemies.getCount(BWAPI::UnitTypes::Zerg_Mutalisk) > 3)
+			{
+				goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+			}
+		}
 	}
 
 	// Maybe get some static defense against air attack.
 	const int enemyAirToGround =
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Wraith, BWAPI::Broodwar->enemy()) / 8 +
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Battlecruiser, BWAPI::Broodwar->enemy()) / 3 +
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Scout, BWAPI::Broodwar->enemy()) / 5 +
-		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Zerg_Mutalisk, BWAPI::Broodwar->enemy()) / 6;
+		enemies.getCount(BWAPI::UnitTypes::Terran_Wraith) / 8 +
+		enemies.getCount(BWAPI::UnitTypes::Terran_Battlecruiser) / 3 +
+		enemies.getCount(BWAPI::UnitTypes::Protoss_Scout) / 5 +
+		enemies.getCount(BWAPI::UnitTypes::Zerg_Mutalisk) / 6;
 	if (enemyAirToGround > 0)
 	{
 		goal.push_back(std::pair<MacroAct, int>(BWAPI::UnitTypes::Protoss_Photon_Cannon, enemyAirToGround));
@@ -592,6 +605,10 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			}
 			// 3. Never do it again.
 			_openingStaticDefenseDropped = true;
+			if (Config::Debug::DrawQueueFixInfo)
+			{
+				BWAPI::Broodwar->printf("queue: any static defense dropped as unnecessary");
+			}
 		}
 	}
 
@@ -624,9 +641,9 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		// detect if there's a supply block once per second
 		if ((BWAPI::Broodwar->getFrameCount() % 24 == 1) && detectSupplyBlock(queue) && anyWorkers)
 		{
-			if (Config::Debug::DrawBuildOrderSearchInfo)
+			if (Config::Debug::DrawQueueFixInfo)
 			{
-				BWAPI::Broodwar->printf("Supply block, building supply!");
+				BWAPI::Broodwar->printf("queue: building supply");
 			}
 
 			queue.queueAsHighestPriority(MacroAct(BWAPI::Broodwar->self()->getRace().getSupplyProvider()));
@@ -715,8 +732,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		// If the opponent is rushing, make some defense.
 		if (likelyEnemyPlan == OpeningPlan::Proxy ||
 			likelyEnemyPlan == OpeningPlan::WorkerRush ||
-			likelyEnemyPlan == OpeningPlan::FastRush ||
-			enemyPlan == OpeningPlan::HeavyRush)           // we can react later to this
+			likelyEnemyPlan == OpeningPlan::FastRush)
+			// enemyPlan == OpeningPlan::HeavyRush)           // we can react later to this
 		{
 			// If we are terran and have marines, make a bunker.
 			if (_selfRace == BWAPI::Races::Terran)

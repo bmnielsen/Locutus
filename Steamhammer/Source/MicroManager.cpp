@@ -60,31 +60,29 @@ void MicroManager::execute(const UnitCluster & cluster)
 	else
 	{
 		// An order to fight enemies.
-		// Units ordered to Hold a position care about enemies near the position.
-		// Units ordereed to Attack care about enemies which are in sight (the goal may be distant).
-		// Units ordered to Defend care about both.
+		// Units with different orders choose different targets.
 
-		if (order.getType() == SquadOrderTypes::Hold || order.getType() == SquadOrderTypes::Defend)
+		if (order.getType() == SquadOrderTypes::Hold ||
+			order.getType() == SquadOrderTypes::Drop)
 		{
 			// Units near the order position.
 			MapGrid::Instance().getUnits(targets, order.getPosition(), order.getRadius(), false, true);
 		}
-		else if (order.getType() == SquadOrderTypes::Attack || order.getType() == SquadOrderTypes::Defend)
+		else if (order.getType() == SquadOrderTypes::OmniAttack)
 		{
-			// Units in sight of our cluster.
+			// All visible enemy units.
+			// This is for when units are the goal, not a location.
+			targets = BWAPI::Broodwar->enemy()->getUnits();
+		}
+		else
+		{
+			// For other orders: Units in sight of our cluster.
 			// Don't be distracted by distant units; move toward the goal.
 			for (const auto unit : cluster.units)
 			{
 				// NOTE Ignores possible sight range upgrades. It's fine.
 				MapGrid::Instance().getUnits(targets, unit->getPosition(), unit->getType().sightRange(), false, true);
 			}
-		}
-		else if (order.getType() == SquadOrderTypes::OmniAttack)
-		{
-			// All visible enemy units.
-			// This is for when units are the goal, not a location.
-
-			targets = BWAPI::Broodwar->enemy()->getUnits();
 		}
 
 		executeMicro(targets, cluster);
@@ -160,15 +158,10 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition, const UnitCl
 	for (const auto unit : units)
 	{
 		// 0. A ground unit next to an undetected dark templar should try to flee the DT.
-		// 1. A broodling should never retreat, but attack as long as it lives.
+		// 1. A broodling should never retreat, but attack as long as it lives (not long).
 		// 2. If none of its kind has died yet, a dark templar or lurker should not retreat.
 		// 3. A ground unit next to an enemy sieged tank should not move away.
-		// TODO 4. A unit in stay-home mode should stay home, not "regroup" away from home.
 		if (the.micro.fleeDT(unit))
-		{
-			// We're done for this frame.
-		}
-		else if (buildScarabOrInterceptor(unit))
 		{
 			// We're done for this frame.
 		}
@@ -230,7 +223,16 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition, const UnitCl
 		else
 		{
 			// We have retreated to a good position.
-			the.micro.AttackMove(unit, unit->getPosition());
+			// A ranged unit holds position, a melee unit attack-moves to its own position.
+			BWAPI::WeaponType weapon = UnitUtil::GetGroundWeapon(unit) || UnitUtil::GetAirWeapon(unit);
+			if (weapon && weapon.maxRange() >= 32)
+			{
+				the.micro.HoldPosition(unit);
+			}
+			else
+			{
+				the.micro.AttackMove(unit, unit->getPosition());
+			}
 		}
 	}
 }
@@ -279,15 +281,9 @@ bool MicroManager::checkPositionWalkable(BWAPI::Position pos)
 
 bool MicroManager::unitNearChokepoint(BWAPI::Unit unit) const
 {
-	for (BWTA::Chokepoint * choke : BWTA::getChokepoints())
-	{
-		if (unit->getDistance(choke->getCenter()) < 80)
-		{
-			return true;
-		}
-	}
+	UAB_ASSERT(unit, "bad unit");
 
-	return false;
+	return the.tileRoom.at(unit->getTilePosition()) <= 12;
 }
 
 // Dodge any incoming spider mine.
@@ -360,29 +356,6 @@ bool MicroManager::dodgeMine(BWAPI::Unit u) const
 		BWAPI::Broodwar->printf("move to %d,%d away from mine", destination.x, destination.y);
 		the.micro.Move(u, destination);
 		return true;
-	}
-
-	return false;
-}
-
-// Return true if we started to build a new scarab or interceptor.
-bool MicroManager::buildScarabOrInterceptor(BWAPI::Unit u) const
-{
-	if (u->getType() == BWAPI::UnitTypes::Protoss_Reaver)
-	{
-		if (u->canTrain(BWAPI::UnitTypes::Protoss_Scarab))
-		{
-			return the.micro.Make(u, BWAPI::UnitTypes::Protoss_Scarab);
-			// return u->train(BWAPI::UnitTypes::Protoss_Scarab);
-		}
-	}
-	else if (u->getType() == BWAPI::UnitTypes::Protoss_Carrier)
-	{
-		if (u->canTrain(BWAPI::UnitTypes::Protoss_Interceptor))
-		{
-			return the.micro.Make(u, BWAPI::UnitTypes::Protoss_Interceptor);
-			// return u->train(BWAPI::UnitTypes::Protoss_Interceptor);
-		}
 	}
 
 	return false;

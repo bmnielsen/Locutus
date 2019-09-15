@@ -20,7 +20,7 @@
         { \
             if (!(cond)) \
             { \
-                UAlbertaBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
+                UAlbertaBot::Assert::ReportFailure(__FILE__, __LINE__, (msg), ##__VA_ARGS__); \
                 UAB_BREAK \
             } \
         } while(0)
@@ -30,11 +30,11 @@
         { \
             if (!(cond)) \
             { \
-                UAlbertaBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
+                UAlbertaBot::Assert::ReportFailure(__FILE__, __LINE__, (msg), ##__VA_ARGS__); \
             } \
         } while(0)
 #else
-    #define UAB_ASSERT(cond, msg, ...) 
+    #define UAB_ASSERT(msg, ...) 
 #endif
 
 namespace UAlbertaBot
@@ -47,6 +47,6 @@ namespace UAlbertaBot
 
         const std::string currentDateTime();
 
-        void ReportFailure(const char * condition, const char * file, int line, const char * msg, ...);
+        void ReportFailure(const char * file, int line, const char * msg, ...);
     }
 }

@@ -12,11 +12,15 @@ namespace UAlbertaBot
 {
 class Gridattacks : public Grid
 {
+	const bool versusAir;
+
 	void computeAir(const std::map<BWAPI::Unit, UnitInfo> & unitsInfo);
 	void computeGround(const std::map<BWAPI::Unit, UnitInfo> & unitsInfo);
 
 public:
-	Gridattacks();
-	Gridattacks(BWAPI::Player player, bool air);
+
+	Gridattacks(bool air);
+
+	void update();
 };
 }

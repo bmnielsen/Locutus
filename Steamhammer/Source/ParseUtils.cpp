@@ -126,6 +126,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		JSONTools::ReadBool("DrawStrategyBossInfo", debug, Config::Debug::DrawStrategyBossInfo);
 		JSONTools::ReadBool("DrawUnitTargetInfo", debug, Config::Debug::DrawUnitTargetInfo);
 		JSONTools::ReadBool("DrawUnitOrders", debug, Config::Debug::DrawUnitOrders);
+		JSONTools::ReadBool("DrawMicroState", debug, Config::Debug::DrawMicroState);
 		JSONTools::ReadBool("DrawReservedBuildingTiles", debug, Config::Debug::DrawReservedBuildingTiles);
         JSONTools::ReadBool("DrawBOSSStateInfo", debug, Config::Debug::DrawBOSSStateInfo); 
     }
@@ -427,12 +428,13 @@ void ParseUtils::ParseTextCommand(const std::string & commandString)
 		else if (variableName == "drawscoutinfo") { Config::Debug::DrawScoutInfo = GetBoolFromString(val); }
 		else if (variableName == "drawqueuefixinfo") { Config::Debug::DrawQueueFixInfo = GetBoolFromString(val); }
 		else if (variableName == "drawenemyunitinfo") { Config::Debug::DrawEnemyUnitInfo = GetBoolFromString(val); }
-		else if (variableName == "drawhiddenenemies") { Config::Debug::DrawEnemyUnitInfo = GetBoolFromString(val); }
+		else if (variableName == "drawhiddenenemies") { Config::Debug::DrawHiddenEnemies = GetBoolFromString(val); }
 		else if (variableName == "drawmoduletimers") { Config::Debug::DrawModuleTimers = GetBoolFromString(val); }
         else if (variableName == "drawresourceinfo") { Config::Debug::DrawResourceInfo = GetBoolFromString(val); }
         else if (variableName == "drawcombatsiminfo") { Config::Debug::DrawCombatSimulationInfo = GetBoolFromString(val); }
         else if (variableName == "drawunittargetinfo") { Config::Debug::DrawUnitTargetInfo = GetBoolFromString(val); }
 		else if (variableName == "drawunitorders") { Config::Debug::DrawUnitOrders = GetBoolFromString(val); }
+		else if (variableName == "drawmicrostate") { Config::Debug::DrawMicroState = GetBoolFromString(val); }
 		else if (variableName == "drawmapinfo") { Config::Debug::DrawMapInfo = GetBoolFromString(val); }
         else if (variableName == "drawmapgrid") { Config::Debug::DrawMapGrid = GetBoolFromString(val); }
 		else if (variableName == "drawmapdistances") { Config::Debug::DrawMapDistances = GetBoolFromString(val); }

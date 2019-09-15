@@ -1,5 +1,7 @@
 #include "InformationManager.h"
 
+#include "The.h"
+
 #include "Bases.h"
 #include "MapTools.h"
 #include "ProductionManager.h"
@@ -9,7 +11,9 @@
 using namespace UAlbertaBot;
 
 InformationManager::InformationManager()
-    : _self(BWAPI::Broodwar->self())
+	: the(The::Root())
+
+    , _self(BWAPI::Broodwar->self())
     , _enemy(BWAPI::Broodwar->enemy())
 	
 	, _weHaveCombatUnits(false)
@@ -25,179 +29,14 @@ InformationManager::InformationManager()
 	, _enemyHasMobileDetection(_enemy->getRace() == BWAPI::Races::Zerg)
 	, _enemyHasSiegeMode(false)
 {
-	initializeTheBases();
 	initializeRegionInformation();
 }
 
-// This fills in _theBases with neutral bases. An event will place our resourceDepot.
-void InformationManager::initializeTheBases()
-{
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
-	{
-		Base * knownBase = Bases::Instance().getBaseAtTilePosition(base->getTilePosition());
-		if (knownBase)
-		{
-			_theBases[base] = knownBase;
-		}
-		else
-		{
-			_theBases[base] = new Base(base->getTilePosition());
-		}
-	}
-}
-
-// Set up _mainBaseLocations and _occupiedLocations.
+// Set up _occupiedLocations.
 void InformationManager::initializeRegionInformation()
 {
-	_mainBaseLocations[_self] = BWTA::getStartLocation(_self);
-	_mainBaseLocations[_enemy] = BWTA::getStartLocation(_enemy);
-
 	// push that region into our occupied vector
-	updateOccupiedRegions(BWTA::getRegion(_mainBaseLocations[_self]->getTilePosition()), _self);
-}
-
-// A base is inferred to exist at the given position, without having been seen.
-// Only enemy bases can be inferred; we see our own.
-// Adjust its value to match. It is not reserved.
-void InformationManager::baseInferred(BWTA::BaseLocation * base)
-{
-	if (_theBases[base]->owner != _self)
-	{
-		_theBases[base]->setOwner(nullptr, _enemy);
-	}
-}
-
-// The given resource depot has been created or discovered.
-// Adjust its value to match. It is not reserved.
-// This accounts for the theoretical case that it might be neutral.
-void InformationManager::baseFound(BWAPI::Unit depot)
-{
-	UAB_ASSERT(depot && depot->getType().isResourceDepot(), "bad args");
-
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
-	{
-		if (closeEnough(base->getTilePosition(), depot->getTilePosition()))
-		{
-			baseFound(base, depot);
-			return;
-		}
-	}
-}
-
-// Set a base where the base and depot are both known.
-// The depot must be at or near the base location; this is not checked.
-void InformationManager::baseFound(BWTA::BaseLocation * base, BWAPI::Unit depot)
-{
-	UAB_ASSERT(base && depot && depot->getType().isResourceDepot(), "bad args");
-
-	_theBases[base]->setOwner(depot, depot->getPlayer());
-}
-
-// Something that may be a base was just destroyed.
-// If it is, update the value to match.
-// If the lost base was our main, choose a new one if possible.
-void InformationManager::baseLost(BWAPI::TilePosition basePosition)
-{
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
-	{
-		if (closeEnough(base->getTilePosition(), basePosition))
-		{
-			baseLost(base);
-			return;
-		}
-	}
-}
-
-// A base was lost and is now unowned.
-// If the lost base was our main, choose a new one if possible.
-void InformationManager::baseLost(BWTA::BaseLocation * base)
-{
-	UAB_ASSERT(base, "bad args");
-
-	_theBases[base]->setOwner(nullptr, BWAPI::Broodwar->neutral());
-	if (base == getMyMainBaseLocation())
-	{
-		chooseNewMainBase();        // our main was lost, choose a new one
-	}
-}
-
-// Our main base has been destroyed. Choose a new one if possible.
-// Otherwise we'll keep trying to build in the old one, where the enemy may still be.
-void InformationManager::chooseNewMainBase()
-{
-	BWTA::BaseLocation * oldMain = getMyMainBaseLocation();
-
-	// Choose a base we own which is as far away from the old main as possible.
-	// Maybe that will be safer.
-	double newMainDist = 0.0;
-	BWTA::BaseLocation * newMain = nullptr;
-
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
-	{
-		if (_theBases[base]->owner == _self)
-		{
-			double dist = base->getAirDistance(oldMain);
-			if (dist > newMainDist)
-			{
-				newMainDist = dist;
-				newMain = base;
-			}
-		}
-	}
-
-	// If we didn't find a new main base, we're in deep trouble. We may as well keep the old one.
-	// By decree, we always have a main base, even if it is unoccupied. It simplifies the rest.
-	if (newMain)
-	{
-		_mainBaseLocations[_self] = newMain;
-	}
-}
-
-// With some probability, randomly choose a base as the new "main" base.
-void InformationManager::maybeChooseNewMainBase()
-{
-	// 1. If out of book, decide randomly whether to choose a new base.
-	if (ProductionManager::Instance().isOutOfBook() && Random::Instance().index(2) == 0)
-	{
-		// 2. List my bases.
-		std::vector<BWTA::BaseLocation *> myBases;
-		for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
-		{
-			if (_theBases[base]->owner == _self &&
-				_theBases[base]->resourceDepot &&
-				_theBases[base]->resourceDepot->isCompleted())
-			{
-				 myBases.push_back(base);
-			}
-		}
-
-		// 3. Choose one, if there is a choice.
-		if (myBases.size() > 1)
-		{
-			_mainBaseLocations[_self] = myBases.at(Random::Instance().index(myBases.size()));
-		}
-	}
-}
-
-// The given unit was just created or morphed.
-// If it is a resource depot for our new base, record it.
-// NOTE: It is a base only if it's in the right position according to BWTA.
-// A resource depot will not be recorded if it is offset by too much.
-// NOTE: This records the initial depot at the start of the game.
-// There's no need to take special action to record the starting base.
-void InformationManager::maybeAddBase(BWAPI::Unit unit)
-{
-	if (unit->getType().isResourceDepot())
-	{
-		baseFound(unit);
-	}
-}
-
-// The two possible base positions are close enough together
-// that we can say they are "the same place" as a base.
-bool InformationManager::closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition b)
-{
-	return abs(a.x - b.x) <= 2 && abs(a.y - b.y) <= 2;
+	updateOccupiedRegions(the.zone.ptr(Bases::Instance().myStartingBase()->getTilePosition()), _self);
 }
 
 void InformationManager::update()
@@ -205,7 +44,6 @@ void InformationManager::update()
 	updateUnitInfo();
 	updateGoneFromLastPosition();
 	updateBaseLocationInfo();
-	updateTheBases();
 	updateTheirTargets();
 }
 
@@ -255,71 +93,6 @@ void InformationManager::updateBaseLocationInfo()
 	_occupiedRegions[_self].clear();
 	_occupiedRegions[_enemy].clear();
 	
-	// In the early game, look for enemy overlords as evidence of the enemy base.
-	enemyBaseLocationFromOverlordSighting();
-
-	// if we haven't found the enemy main base location yet
-	if (!_mainBaseLocations[_enemy]) 
-	{
-		// how many start locations have we explored
-		size_t exploredStartLocations = 0;
-		bool baseFound = false;
-
-		// an unexplored base location holder
-		BWTA::BaseLocation * unexplored = nullptr;
-
-		for (BWTA::BaseLocation * startLocation : BWTA::getStartLocations()) 
-		{
-			if (isEnemyBuildingInRegion(BWTA::getRegion(startLocation->getTilePosition()))) 
-			{
-				updateOccupiedRegions(BWTA::getRegion(startLocation->getTilePosition()), _enemy);
-
-				// On a competition map, our base and the enemy base will never be in the same region.
-				// If we find an enemy building in our region, it's a proxy.
-				if (startLocation != BWTA::getStartLocation(_self))
-				{
-					if (Config::Debug::DrawScoutInfo)
-					{
-						BWAPI::Broodwar->printf("Enemy base seen");
-					}
-
-					baseFound = true;
-					_mainBaseLocations[_enemy] = startLocation;
-					baseInferred(startLocation);
-				}
-			}
-
-			if (enemyStartLocationExplored(startLocation)) 
-			{
-				// Count the explored bases.
-				++exploredStartLocations;
-			} 
-			else 
-			{
-				// Remember the unexplored base. It may be the only one.
-				unexplored = startLocation;
-			}
-		}
-
-		// if we've explored every start location except one, it's the enemy
-		if (!baseFound && exploredStartLocations + 1 == BWTA::getStartLocations().size())
-		{
-            if (Config::Debug::DrawScoutInfo)
-            {
-                BWAPI::Broodwar->printf("Enemy base found by elimination");
-            }
-			
-			_mainBaseLocations[_enemy] = unexplored;
-			baseInferred(unexplored);
-			updateOccupiedRegions(BWTA::getRegion(unexplored->getTilePosition()), _enemy);
-		}
-	// otherwise we do know it, so push it back
-	}
-	else 
-	{
-		updateOccupiedRegions(BWTA::getRegion(_mainBaseLocations[_enemy]->getTilePosition()), _enemy);
-	}
-
 	// The enemy occupies a region if it has a building there.
 	for (const auto & kv : _unitData[_enemy].getUnits())
 	{
@@ -327,149 +100,27 @@ void InformationManager::updateBaseLocationInfo()
 
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
-			updateOccupiedRegions(BWTA::getRegion(ui.lastPosition), _enemy);
+			updateOccupiedRegions(the.zone.ptr(BWAPI::TilePosition(ui.lastPosition)), _enemy);
 		}
 	}
 
 	// We occupy a region if we have a building there.
-	for (const auto & kv : _unitData[_self].getUnits())
+	for (const BWAPI::Unit unit : _self->getUnits())
 	{
-		const UnitInfo & ui(kv.second);
-
-		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
+		if (unit->getType().isBuilding() && unit->getPosition().isValid())
 		{
-			updateOccupiedRegions(BWTA::getRegion(BWAPI::TilePosition(ui.lastPosition)), _self);
+			updateOccupiedRegions(the.zone.ptr(unit->getTilePosition()), _self);
 		}
 	}
 }
 
-// If the opponent is zerg and it's early in the game, we may be able to infer the enemy
-// base's location by seeing the first overlord.
-// NOTE This doesn't quite extract all the information from an overlord sighting. In principle,
-//      we might be able to exclude a base location without being sure which remaining base is
-//      the enemy base. Steamhammer doesn't provide a way to exclude bases.
-void InformationManager::enemyBaseLocationFromOverlordSighting()
-{
-	// If we already know the base location, there's no need to try to infer it.
-	if (_mainBaseLocations[_enemy])
-	{
-		return;
-	}
-	
-	const int now = BWAPI::Broodwar->getFrameCount();
-
-	if (_enemy->getRace() != BWAPI::Races::Zerg || now > 5 * 60 * 24)
-	{
-		return;
-	}
-
-	for (const auto unit : _enemy->getUnits())
-	{
-		if (unit->getType() != BWAPI::UnitTypes::Zerg_Overlord)
-		{
-			continue;
-		}
-
-		// What bases could the overlord be from? Can we narrow it down to 1 possibility?
-		BWTA::BaseLocation * possibleEnemyBase = nullptr;
-		int countPossibleBases = 0;
-		for (BWTA::BaseLocation * base : BWTA::getStartLocations())
-		{
-			if (enemyStartLocationExplored(base))
-			{
-				// We've already seen this base, and the enemy is not there.
-				continue;
-			}
-
-			// Assume the overlord came from this base.
-			// Where did the overlord start from? It starts offset from the hatchery in a specific way.
-			BWAPI::Position overlordStartPos;
-			overlordStartPos.x = base->getPosition().x + ((base->getPosition().x < 32 * BWAPI::Broodwar->mapWidth() / 2) ? +99 : -99);
-			overlordStartPos.y = base->getPosition().y + ((base->getPosition().y < 32 * BWAPI::Broodwar->mapHeight() / 2) ? +65 : -65);
-
-			// How far could it have traveled from there?
-			double maxDistance = double(now) * (BWAPI::UnitTypes::Zerg_Overlord).topSpeed();
-			if (maxDistance >= double(unit->getDistance(overlordStartPos)))
-			{
-				// It could have started from this base.
-				possibleEnemyBase = base;
-				++countPossibleBases;
-			}
-		}
-		if (countPossibleBases == 1)
-		{
-			// Success.
-			_mainBaseLocations[_enemy] = possibleEnemyBase;
-			baseInferred(possibleEnemyBase);
-			updateOccupiedRegions(BWTA::getRegion(possibleEnemyBase->getTilePosition()), _enemy);
-			return;
-		}
-	}
-}
-
-// We're scouting in the early game. Have we seen whether the enemy base is here?
-// To turn the scout around as early as possible if the base is empty, we check
-// each corner of the resource depot spot.
-// TODO If the enemy is zerg, we can be a little quicker by looking for creep.
-// TODO If we see a mineral patch that has been mined, that should be a base.
-bool InformationManager::enemyStartLocationExplored(BWTA::BaseLocation * base) const
-{
-	BWAPI::TilePosition tile = base->getTilePosition();
-	return
-		BWAPI::Broodwar->isExplored(tile) ||
-		BWAPI::Broodwar->isExplored(tile + BWAPI::TilePosition(3, 2)) ||
-		BWAPI::Broodwar->isExplored(tile + BWAPI::TilePosition(0, 2)) ||
-		BWAPI::Broodwar->isExplored(tile + BWAPI::TilePosition(3, 0));
-}
-
-// _theBases is not always correctly updated by the event-driven methods.
-// Look for conflicting information and make corrections.
-void InformationManager::updateTheBases()
-{
-	for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
-	{
-		// If we can see the tile where the resource depot would be.
-		if (BWAPI::Broodwar->isVisible(base->getTilePosition()))
-		{
-			BWAPI::Unitset units = BWAPI::Broodwar->getUnitsOnTile(base->getTilePosition());
-			BWAPI::Unit depot = nullptr;
-			for (const auto unit : units)
-			{
-				if (unit->getType().isResourceDepot())
-				{
-					depot = unit;
-					break;
-				}
-			}
-			if (depot)
-			{
-				// The base is occupied.
-				baseFound(base, depot);
-			}
-			else
-			{
-				// The base is empty.
-				baseLost(base);
-			}
-		}
-		else
-		{
-			// We don't see anything. It's definitely not our base.
-			if (_theBases[base]->owner == _self)
-			{
-				baseLost(base->getTilePosition());
-			}
-		}
-	}
-}
-
-void InformationManager::updateOccupiedRegions(BWTA::Region * region, BWAPI::Player player) 
+void InformationManager::updateOccupiedRegions(const Zone * zone, BWAPI::Player player) 
 {
 	// if the region is valid (flying buildings may be in nullptr regions)
-	if (region)
+	if (zone)
 	{
 		// add it to the list of occupied regions
-		_occupiedRegions[player].insert(region);
+		_occupiedRegions[player].insert(zone);
 	}
 }
 
@@ -551,10 +202,10 @@ void InformationManager::updateTheirTargets()
 	}
 }
 
-bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region) 
+bool InformationManager::isEnemyBuildingInRegion(const Zone * zone) 
 {
-	// invalid regions aren't considered the same, but they will both be null
-	if (!region)
+	// Invalid zones aren't considered the same.
+	if (!zone)
 	{
 		return false;
 	}
@@ -564,7 +215,7 @@ bool InformationManager::isEnemyBuildingInRegion(BWTA::Region * region)
 		const UnitInfo & ui(kv.second);
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
-			if (BWTA::getRegion(BWAPI::TilePosition(ui.lastPosition)) == region) 
+			if (zone->id() == the.zone.at(ui.lastPosition)) 
 			{
 				return true;
 			}
@@ -579,27 +230,9 @@ const UIMap & InformationManager::getUnitInfo(BWAPI::Player player) const
 	return getUnitData(player).getUnits();
 }
 
-std::set<BWTA::Region *> & InformationManager::getOccupiedRegions(BWAPI::Player player)
+std::set<const Zone *> & InformationManager::getOccupiedRegions(BWAPI::Player player)
 {
 	return _occupiedRegions[player];
-}
-
-BWTA::BaseLocation * InformationManager::getMainBaseLocation(BWAPI::Player player)
-{
-	return _mainBaseLocations[player];
-}
-
-// Guaranteed non-null. If we have no bases left, it is our start location.
-BWTA::BaseLocation * InformationManager::getMyMainBaseLocation()
-{
-	UAB_ASSERT(_mainBaseLocations[_self], "no base location");
-	return _mainBaseLocations[_self];
-}
-
-// Null until the enemy base is located.
-BWTA::BaseLocation * InformationManager::getEnemyMainBaseLocation()
-{
-	return _mainBaseLocations[_enemy];
 }
 
 int InformationManager::getAir2GroundSupply(BWAPI::Player player) const
@@ -849,12 +482,6 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
 	{
 		_unitData[unit->getPlayer()].removeUnit(unit);
 
-		// If it may be a base, remove that base.
-		if (unit->getType().isResourceDepot())
-		{
-			baseLost(unit->getTilePosition());
-		}
-
 		// If it is our static defense, remove it.
 		if (unit->getPlayer() == _self && UnitUtil::IsStaticDefense(unit->getType()))
 		{
@@ -915,35 +542,6 @@ void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitsOut, BWAPI:
 int InformationManager::getNumUnits(BWAPI::UnitType t, BWAPI::Player player) const
 {
 	return getUnitData(player).getNumUnits(t);
-}
-
-bool InformationManager::isBaseReserved(Base * base)
-{
-	return base->isReserved();
-}
-
-void InformationManager::reserveBase(Base * base)
-{
-	base->reserve();
-}
-
-void InformationManager::unreserveBase(Base * base)
-{
-	base->unreserve();
-}
-
-void InformationManager::unreserveBase(BWAPI::TilePosition baseTilePosition)
-{
-	for (Base * base : Bases::Instance().getBases())
-	{
-		if (closeEnough(base->getTilePosition(), baseTilePosition))
-		{
-			base->unreserve();
-			return;
-		}
-	}
-
-	UAB_ASSERT(false, "trying to unreserve a non-base @ %d,%d", baseTilePosition.x, baseTilePosition.y);
 }
 
 // We have complated combat units (excluding workers).
