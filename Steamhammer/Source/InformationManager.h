@@ -13,8 +13,6 @@ class InformationManager
 	BWAPI::Player	_self;
 	BWAPI::Player	_enemy;
 
-	bool			_enemyProxy;
-
 	bool			_weHaveCombatUnits;
 	bool			_enemyHasCombatUnits;
 	bool			_enemyHasStaticAntiAir;
@@ -59,6 +57,7 @@ class InformationManager
 	void                    updateUnitInfo();
 	void                    updateBaseLocationInfo();
 	void					enemyBaseLocationFromOverlordSighting();
+	bool					enemyStartLocationExplored(BWTA::BaseLocation * base) const;
 	void					updateTheBases();
 	void                    updateOccupiedRegions(BWTA::Region * region, BWAPI::Player player);
 	void					updateGoneFromLastPosition();
@@ -80,7 +79,7 @@ public:
 	bool					isEnemyBuildingInRegion(BWTA::Region * region);
 	int						getNumUnits(BWAPI::UnitType type, BWAPI::Player player) const;
 
-	void                    getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI::Position p, BWAPI::Player player, int radius);
+	void                    getNearbyForce(std::vector<UnitInfo> & unitsOut, BWAPI::Position p, BWAPI::Player player, int radius);
 
 	const UIMap &           getUnitInfo(BWAPI::Player player) const;
 
@@ -89,8 +88,6 @@ public:
 	BWTA::BaseLocation *    getMainBaseLocation(BWAPI::Player player);
 	BWTA::BaseLocation *	getMyMainBaseLocation();
 	BWTA::BaseLocation *	getEnemyMainBaseLocation();
-
-	bool					getEnemyProxy() { return _enemyProxy; };
 
 	void					maybeChooseNewMainBase();
 

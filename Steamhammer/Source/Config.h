@@ -65,7 +65,8 @@ namespace Config
 		extern bool DrawQueueFixInfo;
 		extern bool DrawScoutInfo;
 		extern bool DrawEnemyUnitInfo;
-        extern bool DrawModuleTimers;
+		extern bool DrawHiddenEnemies;
+		extern bool DrawModuleTimers;
 		extern bool DrawResourceInfo;
 		extern bool DrawCombatSimulationInfo;
 		extern bool DrawUnitTargetInfo;

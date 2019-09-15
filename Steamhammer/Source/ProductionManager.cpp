@@ -3,12 +3,14 @@
 #include "Bases.h"
 #include "GameCommander.h"
 #include "StrategyBossZerg.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 using namespace UAlbertaBot;
 
 ProductionManager::ProductionManager()
-	: _lastProductionFrame				 (0)
+	: the(The::Root())
+	, _lastProductionFrame(0)
 	, _assignedWorkerForThisBuilding     (nullptr)
 	, _haveLocationForThisBuilding       (false)
 	, _delayBuildingPredictionUntilFrame (0)
@@ -507,7 +509,7 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 	// If it's a terran add-on.
 	if (act.isAddon())
 	{
-		producer->buildAddon(act.getUnitType());
+		the.micro.Make(producer, act.getUnitType());
 	}
 	// If it's a building other than an add-on.
 	else if (act.isBuilding()                                    // implies act.isUnit()
@@ -549,27 +551,9 @@ void ProductionManager::create(BWAPI::Unit producer, const BuildOrderItem & item
 		BuildingManager::Instance().addBuildingTask(act, desiredLocation, item.isGasSteal);
 	}
 	// if we're dealing with a non-building unit, or a morphed zerg building
-	else if (act.isUnit())
+	else if (act.isUnit() || act.isTech() || act.isUpgrade())
 	{
-		if (act.getUnitType().getRace() == BWAPI::Races::Zerg)
-		{
-			// if the race is zerg, morph the unit
-			producer->morph(act.getUnitType());
-		}
-		else
-		{
-			// if not, train the unit
-			producer->train(act.getUnitType());
-		}
-	}
-	// if we're dealing with a tech research
-	else if (act.isTech())
-	{
-		producer->research(act.getTechType());
-	}
-	else if (act.isUpgrade())
-	{
-		producer->upgrade(act.getUpgradeType());
+		act.produce(producer);
 	}
 	else
 	{
@@ -625,13 +609,14 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 		_predictedTilePosition = BuildingManager::Instance().getBuildingLocation(b);
 	}
 
-	if (_predictedTilePosition != BWAPI::TilePositions::None)
+	if (_predictedTilePosition.isValid())
 	{
 		_haveLocationForThisBuilding = true;
 	}
 	else
 	{
-		// BWAPI::Broodwar->printf("can't place building %s", b.type.getName().c_str());
+		// BWAPI::Broodwar->printf("can't place building %s", UnitTypeName(b.type).c_str());
+
 		// If we can't place the building now, we probably can't place it next frame either.
 		// Delay for a while before trying again. We could overstep the time limit.
 		_delayBuildingPredictionUntilFrame = 12 + BWAPI::Broodwar->getFrameCount();
@@ -961,7 +946,7 @@ void ProductionManager::doExtractorTrick()
 					}
 					else
 					{
-						larva->morph(_extractorTrickUnitType);
+						the.micro.Make(larva, _extractorTrickUnitType);
 					}
 					_extractorTrickState = ExtractorTrick::UnitOrdered;
 				}
@@ -996,7 +981,7 @@ void ProductionManager::doExtractorTrick()
 			getFreeMinerals() >= _extractorTrickUnitType.mineralPrice() &&
 			getFreeGas() >= _extractorTrickUnitType.gasPrice())
 		{
-			larva->morph(_extractorTrickUnitType);
+			the.micro.Make(larva, _extractorTrickUnitType);
 			_extractorTrickState = ExtractorTrick::None;
 		}
 	}

@@ -3,6 +3,7 @@
 #include "Bases.h"
 #include "BuildingManager.h"
 #include "ProductionManager.h"
+#include "The.h"
 #include "UnitUtil.h"
 
 #include <regex>
@@ -54,7 +55,7 @@ MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 }
 
 MacroAct::MacroAct () 
-    : _type(MacroActs::Default) 
+	: _type(MacroActs::Default)
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 {
@@ -63,7 +64,7 @@ MacroAct::MacroAct ()
 // Create a MacroAct from its name, like "drone" or "hatchery @ minonly".
 // String comparison here is case-insensitive.
 MacroAct::MacroAct(const std::string & name)
-    : _type(MacroActs::Default) 
+	: _type(MacroActs::Default)
     , _race(BWAPI::Races::None)
 	, _macroLocation(MacroLocation::Anywhere)
 {
@@ -169,7 +170,7 @@ MacroAct::MacroAct(const std::string & name)
 }
 
 MacroAct::MacroAct (BWAPI::UnitType t) 
-    : _unitType(t)
+	: _unitType(t)
     , _type(MacroActs::Unit) 
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
@@ -185,7 +186,7 @@ MacroAct::MacroAct(BWAPI::UnitType t, MacroLocation loc)
 }
 
 MacroAct::MacroAct(BWAPI::TechType t)
-    : _techType(t)
+	: _techType(t)
     , _type(MacroActs::Tech) 
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
@@ -193,7 +194,7 @@ MacroAct::MacroAct(BWAPI::TechType t)
 }
 
 MacroAct::MacroAct (BWAPI::UpgradeType t) 
-    : _upgradeType(t)
+	: _upgradeType(t)
     , _type(MacroActs::Upgrade) 
     , _race(t.getRace())
 	, _macroLocation(MacroLocation::Anywhere)
@@ -593,7 +594,7 @@ void MacroAct::produce(BWAPI::Unit producer)
 	// If it's a terran add-on.
 	if (isAddon())
 	{
-		producer->buildAddon(getUnitType());
+		The::Root().micro.Make(producer, getUnitType());
 	}
 	// If it's a building other than a morphed zerg building.
 	else if (isBuilding()                                   // implies act.isUnit()
@@ -637,16 +638,7 @@ void MacroAct::produce(BWAPI::Unit producer)
 	// if we're dealing with a non-building unit, or a morphed zerg building
 	else if (isUnit())
 	{
-		if (getUnitType().getRace() == BWAPI::Races::Zerg)
-		{
-			// if the race is zerg, morph the unit
-			producer->morph(getUnitType());
-		}
-		else
-		{
-			// if not, train the unit
-			producer->train(getUnitType());
-		}
+		The::Root().micro.Make(producer, getUnitType());
 	}
 	// if we're dealing with a tech research
 	else if (isTech())

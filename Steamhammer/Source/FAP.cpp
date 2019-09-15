@@ -7,7 +7,8 @@ UAlbertaBot::FastAPproximation fap;
 // Newer versions exist.
 // https://github.com/N00byEdge/Neohuman/blob/master/FAP.cpp
 
-// This version is also updated to understand dark swarm, in an approximate way. 
+// This version is also updated to understand dark swarm, in an approximate way.
+// There are a few bug fixes and other improvements.
 
 // NOTE FAP does not use UnitInfo.goneFromLastPosition. The flag is always set false
 // on a UnitInfo value which is passed in (CombatSimulation makes sure of it).
@@ -23,8 +24,9 @@ namespace UAlbertaBot {
 	}
 
 	void FastAPproximation::addIfCombatUnitPlayer1(FAPUnit fu) {
-		if (fu.groundDamage || fu.airDamage || fu.unitType == BWAPI::UnitTypes::Terran_Medic)
+		if (fu.groundDamage || fu.airDamage || fu.unitType == BWAPI::UnitTypes::Terran_Medic) {
 			addUnitPlayer1(fu);
+		}
 	}
 
 	void FastAPproximation::addUnitPlayer2(FAPUnit fu) {
@@ -32,8 +34,9 @@ namespace UAlbertaBot {
 	}
 
 	void FastAPproximation::addIfCombatUnitPlayer2(FAPUnit fu) {
-		if (fu.groundDamage || fu.airDamage || fu.unitType == BWAPI::UnitTypes::Terran_Medic)
+		if (fu.groundDamage || fu.airDamage || fu.unitType == BWAPI::UnitTypes::Terran_Medic) {
 			addUnitPlayer2(fu);
+		}
 	}
 
 	void FastAPproximation::simulate(int nFrames) {
@@ -159,11 +162,13 @@ namespace UAlbertaBot {
 				fu.unitType == BWAPI::UnitTypes::Zerg_Lurker
 			);
 
+		// Find the closest enemy unit which is not too close to hit with our weapon.
+		// A sieged tank has a minimum range; all other weapons have min range 0 (so we only check ground weapons).
 		for (auto enemyIt = enemyUnits.begin(); enemyIt != enemyUnits.end(); ++ enemyIt) {
 			if (enemyIt->flying) {
 				if (fu.airDamage) {
 					int d = distButNotReally(fu, *enemyIt);
-					if ((closestEnemy == enemyUnits.end() || d < closestDist) && d >= fu.airMinRange) {
+					if (closestEnemy == enemyUnits.end() || d < closestDist) {
 						closestDist = d;
 						closestEnemy = enemyIt;
 					}
@@ -180,6 +185,7 @@ namespace UAlbertaBot {
 			}
 		}
 
+		// If we can reach the enemy this simulated frame, do it and continue.
 		if (closestEnemy != enemyUnits.end() && sqrt(closestDist) <= fu.speed && !(fu.x == closestEnemy->x && fu.y == closestEnemy->y)) {
 			fu.x = closestEnemy->x;
 			fu.y = closestEnemy->y;
@@ -188,9 +194,12 @@ namespace UAlbertaBot {
 			didSomething = true;
 		}
 
-		if (closestEnemy != enemyUnits.end() && closestDist <= (closestEnemy->flying ? fu.groundMaxRange : fu.airMinRange)) {
-			if (closestEnemy->flying)
-				dealDamage(*closestEnemy, fu.airDamage, fu.airDamageType), fu.attackCooldownRemaining = fu.airCooldown;
+		// Shoot at the enemy if in range, otherwise move toward the enemy.
+		if (closestEnemy != enemyUnits.end() && closestDist <= (closestEnemy->flying ? fu.airMaxRange : fu.groundMaxRange)) {
+			if (closestEnemy->flying) {
+				dealDamage(*closestEnemy, fu.airDamage, fu.airDamageType);
+				fu.attackCooldownRemaining = fu.airCooldown;
+			}
 			else {
 				dealDamage(*closestEnemy, fu.groundDamage, fu.groundDamageType);
 				fu.attackCooldownRemaining = fu.groundCooldown;
@@ -207,16 +216,14 @@ namespace UAlbertaBot {
 			}
 
 			didSomething = true;
-			return;
 		}
-		else if(closestEnemy != enemyUnits.end() && sqrt(closestDist) > fu.speed) {
+		else if (closestEnemy != enemyUnits.end() && sqrt(closestDist) > fu.speed) {
 			int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
 
 			fu.x += (int)(dx*(fu.speed / sqrt(dx*dx + dy*dy)));
 			fu.y += (int)(dy*(fu.speed / sqrt(dx*dx + dy*dy)));
 				
 			didSomething = true;
-			return;
 		}
 	}
 
@@ -258,7 +265,7 @@ namespace UAlbertaBot {
 			if (enemyIt->flying) {
 				if (fu.airDamage) {
 					int d = distButNotReally(fu, *enemyIt);
-					if ((closestEnemy == enemyUnits.end() || d < closestDist) && d >= fu.airMinRange) {
+					if (closestEnemy == enemyUnits.end() || d < closestDist) {
 						closestDist = d;
 						closestEnemy = enemyIt;
 					}
@@ -386,10 +393,9 @@ namespace UAlbertaBot {
 
 		speed(ui.player->topSpeed(ui.type)),
 
-		health(ui.lastHealth),
+		health(ui.estimateHP()),
 		maxHealth(ui.type.maxHitPoints()),
-
-		shields(ui.lastShields),
+		shields(ui.estimateShields()),
 		shieldArmor(ui.player->getUpgradeLevel(BWAPI::UpgradeTypes::Protoss_Plasma_Shields)),
 		maxShields(ui.type.maxShields()),
 		armor(ui.player->armor(ui.type)),
@@ -405,13 +411,11 @@ namespace UAlbertaBot {
 		airDamage(ui.player->damage(ui.type.airWeapon())),
 		airCooldown(ui.type.airWeapon().damageFactor() && ui.type.maxAirHits() ? ui.type.airWeapon().damageCooldown() / (ui.type.airWeapon().damageFactor() * ui.type.maxAirHits()) : 0),
 		airMaxRange(ui.player->weaponMaxRange(ui.type.airWeapon())),
-		airMinRange(ui.type.airWeapon().minRange()),
 		airDamageType(ui.type.airWeapon().damageType()),
 
 		unitType(ui.type),
 		isOrganic(ui.type.isOrganic()),
-		// score(ui.type.destroyScore()),						// original value
-		score(ui.type.mineralPrice() + ui.type.gasPrice()),		// try this instead
+		score(unitScore(ui.type)),
 		player(ui.player)
 	{
 		static int nextId = 0;
@@ -446,14 +450,14 @@ namespace UAlbertaBot {
 			airCooldown /= 2;
 		}
 
-		if (ui.unit && ui.unit->isVisible() && !ui.unit->isFlying()) {
-			elevation = BWAPI::Broodwar->getGroundHeight(ui.unit->getTilePosition());
+		// Ground height for ground units.
+		if (ui.unit && !ui.unit->isFlying()) {
+			elevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(x,y));
 		}
 
 		groundMaxRange *= groundMaxRange;
 		groundMinRange *= groundMinRange;
 		airMaxRange *= airMaxRange;
-		airMinRange *= airMinRange;
 
 		groundDamage *= 2;
 		airDamage *= 2;
@@ -473,7 +477,7 @@ namespace UAlbertaBot {
 		shields = other.shields, maxShields = other.maxShields;
 		speed = other.speed, armor = other.armor, flying = other.flying, underSwarm = other.underSwarm, unitSize = other.unitSize;
 		groundDamage = other.groundDamage, groundCooldown = other.groundCooldown, groundMaxRange = other.groundMaxRange, groundMinRange = other.groundMinRange, groundDamageType = other.groundDamageType;
-		airDamage = other.airDamage, airCooldown = other.airCooldown, airMaxRange = other.airMaxRange, airMinRange = other.airMinRange, airDamageType = other.airDamageType;
+		airDamage = other.airDamage, airCooldown = other.airCooldown, airMaxRange = other.airMaxRange, airDamageType = other.airDamageType;
 		score = other.score;
 		attackCooldownRemaining = other.attackCooldownRemaining;
 		unitType = other.unitType; isOrganic = other.isOrganic;
@@ -488,4 +492,27 @@ namespace UAlbertaBot {
 		return id < other.id;
 	}
 
+	// Some types get special case scores.
+	int FastAPproximation::FAPUnit::unitScore(BWAPI::UnitType type) const {
+		if (type == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine) {
+			return 20;
+		}
+		if (type == BWAPI::UnitTypes::Protoss_Archon) {
+			return 2 * (50 + 150);
+		}
+		if (type == BWAPI::UnitTypes::Protoss_Dark_Archon) {
+			return 2 * (125 + 100);
+		}
+		if (type == BWAPI::UnitTypes::Zerg_Sunken_Colony ||
+			type == BWAPI::UnitTypes::Zerg_Spore_Colony)
+		{
+			return 50 + 75 + 50;
+		}
+		if (type == BWAPI::UnitTypes::Zerg_Broodling)
+		{
+			return 5;
+		}
+
+		return type.mineralPrice() + type.gasPrice();
+	}
 }

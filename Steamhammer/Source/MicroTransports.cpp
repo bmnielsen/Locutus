@@ -140,7 +140,7 @@ void MicroTransports::loadTroops()
 	{
 		if (unit != _transportShip && !unit->isLoaded())
 		{
-			_transportShip->load(unit);
+			the.micro.Load(_transportShip, unit);
 			return;
 		}
 	}
@@ -165,7 +165,7 @@ void MicroTransports::maybeUnloadTroops()
 			return;
 		}
 
-		_transportShip->unloadAll(_transportShip->getPosition());
+		the.micro.UnloadAt(_transportShip, _transportShip->getPosition());
 	}	
 }
 

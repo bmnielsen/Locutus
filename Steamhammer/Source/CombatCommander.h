@@ -23,8 +23,6 @@ class CombatCommander
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
 
-	bool            wantSquadDetectors() const;
-
 	void            updateIdleSquad();
 	void            updateOverlordSquad();
 	void			updateScourgeSquad();
@@ -34,6 +32,9 @@ class CombatCommander
 	void            updateBaseDefenseSquads();
 	void            updateScoutDefenseSquad();
 	void            updateDropSquads();
+
+	bool            wantSquadDetectors() const;
+	void			maybeAssignDetector(Squad & squad, bool wantDetector);
 
 	void			loadOrUnloadBunkers();
 	void			doComsatScan();

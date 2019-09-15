@@ -12,7 +12,7 @@ namespace UAlbertaBot
 
 	enum class ClusterStatus
 	{
-		None        // enemy cluster or not updated yet
+		None          // enemy cluster or not updated yet
 		, Advance     // no enemy near, moving forward
 		, Attack      // enemy nearby, attacking
 		, Regroup     // regrouping (usually retreating)

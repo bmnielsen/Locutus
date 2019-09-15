@@ -9,14 +9,22 @@ namespace UAlbertaBot
 {
 enum class CombatSimEnemies
 	{ AllEnemies
-	, AntigroundEnemies		// ignore air enemies that can't shoot down
+	, ZerglingEnemies		// ground enemies + air enemies that can shoot down
+	, GuardianEnemies		// ground enemies + air enemies that can shoot air
+	, DevourerEnemies		// air enemies + ground enemies that can shoot up
 	, ScourgeEnemies		// count only ground enemies that can shoot up
 	};
 
 class CombatSimulation
 {
 private:
+	CombatSimEnemies _whichEnemies;
+
+	CombatSimEnemies analyzeForEnemies(const BWAPI::Unitset units) const;
+	void drawWhichEnemies(const BWAPI::Position center) const;
 	bool includeEnemy(CombatSimEnemies which, BWAPI::UnitType type) const;
+
+	BWAPI::Position getClosestEnemyCombatUnit(const BWAPI::Position & center) const;
 
 public:
 	CombatSimulation();
@@ -26,7 +34,6 @@ public:
 		, const BWAPI::Position & center
 		, int radius
 		, bool visibleOnly
-		, CombatSimEnemies which
 		);
 
 	double simulateCombat(bool meatgrinder);

@@ -167,7 +167,6 @@ void CombatCommander::updateOverlordSquad()
 	}
 }
 
-// TODO stub
 void CombatCommander::chooseScourgeTarget(const Squad & sourgeSquad)
 {
 	BWAPI::Position center = sourgeSquad.calcCenter();
@@ -218,27 +217,6 @@ void CombatCommander::updateScourgeSquad()
 
 	Squad & scourgeSquad = _squadData.getSquad("Scourge");
 
-	bool hasDetector = scourgeSquad.hasDetector();
-
-	// We want an overlord to come along if the enemy has arbiters or cloaked wraiths,
-	// but only if we have overlord speed.
-	bool wantDetector =
-		BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Pneumatized_Carapace) > 0 &&
-		InformationManager::Instance().enemyHasAirCloakTech();
-
-	if (hasDetector && !wantDetector)
-	{
-		for (BWAPI::Unit unit : scourgeSquad.getUnits())
-		{
-			if (unit->getType().isDetector())
-			{
-				scourgeSquad.removeUnit(unit);
-				break;
-			}
-		}
-		hasDetector = false;
-	}
-
 	for (const auto unit : _combatUnits)
 	{
 		if (unit->getType() == BWAPI::UnitTypes::Zerg_Scourge && _squadData.canAssignUnitToSquad(unit, scourgeSquad))
@@ -246,6 +224,13 @@ void CombatCommander::updateScourgeSquad()
 			_squadData.assignUnitToSquad(unit, scourgeSquad);
 		}
 	}
+
+	// We want an overlord to come along if the enemy has arbiters or cloaked wraiths,
+	// but only if we have overlord speed.
+	bool wantDetector =
+		BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Pneumatized_Carapace) > 0 &&
+		InformationManager::Instance().enemyHasAirCloakTech();
+	maybeAssignDetector(scourgeSquad, wantDetector);
 
 	// Issue the order.
 	chooseScourgeTarget(scourgeSquad);
@@ -299,32 +284,6 @@ void CombatCommander::updateWatchSquads()
 		}
 		Squad & watchSquad = _squadData.getSquad(squadName.str());
 
-		// Add or remove the squad's detector.
-		bool hasDetector = watchSquad.hasDetector();
-
-		if (hasDetector && !wantDetector)
-		{
-			for (BWAPI::Unit unit : watchSquad.getUnits())
-			{
-				if (unit->getType().isDetector())
-				{
-					watchSquad.removeUnit(unit);
-					break;
-				}
-			}
-		}
-		else if (!hasDetector && wantDetector)
-		{
-			for (BWAPI::Unit unit : _combatUnits)
-			{
-				if (unit->getType().isDetector() && _squadData.canAssignUnitToSquad(unit, watchSquad))
-				{
-					_squadData.assignUnitToSquad(unit, watchSquad);
-					break;
-				}
-			}
-		}
-
 		// Add or remove the squad's watcher unit, or sentry.
 		bool hasWatcher = watchSquad.containsUnitType(BWAPI::UnitTypes::Zerg_Zergling);
 
@@ -351,6 +310,8 @@ void CombatCommander::updateWatchSquads()
 				}
 			}
 		}
+
+		maybeAssignDetector(watchSquad, wantDetector);
 
 		// Drop the squad if it is no longer needed. Don't clutter the squad display.
 		if (watchSquad.isEmpty())
@@ -642,11 +603,8 @@ void CombatCommander::updateAttackSquads()
     Squad & groundSquad = _squadData.getSquad("Ground");
 	Squad & flyingSquad = _squadData.getSquad("Flying");
 
-	// If safe, add exactly 1 detector to the ground and flying squads.
-	bool groundDetector = groundSquad.hasDetector();
 	bool groundSquadExists = groundSquad.hasCombatUnits();
 
-	bool flyingDetector = flyingSquad.hasDetector();
 	bool flyingSquadExists = false;
 	for (const auto unit : flyingSquad.getUnits())
 	{
@@ -657,60 +615,9 @@ void CombatCommander::updateAttackSquads()
 		}
 	}
 
-	// No opverlord if it is both in danger and unnecessary to counter cloaked enemies.
-	bool wantDetector = wantSquadDetectors();
-    
-    // Drop detectors that are no longer wanted.
-    // The detectors become squadless and will be reassigned on the next cycle.
-	if (!wantDetector)
-	{
-		if (groundDetector)
-		{
-			for (const auto unit : groundSquad.getUnits())
-			{
-				if (unit->getType().isDetector())
-				{
-					groundSquad.removeUnit(unit);
-					break;
-				}
-			}
-			groundDetector = false;
-		}
-		if (flyingDetector)
-		{
-			for (const auto unit : flyingSquad.getUnits())
-			{
-				if (unit->getType().isDetector())
-				{
-					flyingSquad.removeUnit(unit);
-					break;
-				}
-			}
-			flyingDetector = false;
-		}
-	}
-
     for (const auto unit : _combatUnits)
 	{
-		if (unit->getType().isDetector())
-		{
-			// Each squad gets at most 1 detector. Priority to the ground squad which can't see uphill otherwise.
-			if (wantDetector)
-			{
-				if (groundSquadExists && !groundDetector && _squadData.canAssignUnitToSquad(unit, groundSquad))
-				{
-					groundDetector = true;
-					_squadData.assignUnitToSquad(unit, groundSquad);
-				}
-				else if (flyingSquadExists && !flyingDetector && _squadData.canAssignUnitToSquad(unit, groundSquad))
-				{
-					flyingDetector = true;
-					_squadData.assignUnitToSquad(unit, flyingSquad);
-				}
-			}
-		}
-
-		else if (isFlyingSquadUnit(unit->getType()))
+		if (isFlyingSquadUnit(unit->getType()))
 		{
 			if (_squadData.canAssignUnitToSquad(unit, flyingSquad))
 			{
@@ -756,6 +663,11 @@ void CombatCommander::updateAttackSquads()
 		}
 	}
 
+	// Add or remove detectors.
+	bool wantDetector = wantSquadDetectors();
+	maybeAssignDetector(groundSquad, wantDetector);
+	maybeAssignDetector(flyingSquad, wantDetector);
+
 	SquadOrder groundAttackOrder(getAttackOrder(&groundSquad));
 	groundSquad.setSquadOrder(groundAttackOrder);
 
@@ -789,6 +701,7 @@ bool CombatCommander::isOptionalFlyingSquadUnit(const BWAPI::UnitType type) cons
 bool CombatCommander::isGroundSquadUnit(const BWAPI::UnitType type) const
 {
 	return
+		!type.isDetector() &&
 		!type.isWorker();
 }
 
@@ -967,13 +880,12 @@ void CombatCommander::updateBaseDefenseSquads()
 
 		// Don't defend inside the enemy region.
 		// It will end badly when we are stealing gas or otherwise proxying.
-		// Also, if we don't occupy this region, don't defend it.
 		if (base->getOwner() != BWAPI::Broodwar->self())
 		{
 			// Clear any defense squad.
 			if (_squadData.squadExists(squadName.str()))
 			{
-				_squadData.getSquad(squadName.str()).clear();
+				_squadData.removeSquad(squadName.str());
 			}
 			continue;
 		}
@@ -992,43 +904,84 @@ void CombatCommander::updateBaseDefenseSquads()
 
 		// Find any enemy units that are bothering us.
 		// Also note how far away the closest one is.
-		BWAPI::Unitset enemyUnitsInRegion;
 		bool firstWorkerSkipped = false;
 		int closestEnemyDistance = 99999;
 		BWAPI::Unit closestEnemy = nullptr;
+		int nEnemyWorkers = 0;
+		int nEnemyGround = 0;
+		int nEnemyAir = 0;
 		bool enemyHitsGround = false;
+		bool enemyHitsAir = false;
+		bool enemyHasCloak = false;
 
 		for (BWAPI::Unit unit : BWAPI::Broodwar->enemy()->getUnits())
 		{
-			// Ignore the first enemy worker--assume it is a scout.
-			// This is because we can't reliably catch it early.
-			// TODO drop this when we are able to catch it
-			if (unit->getType().isWorker() && !firstWorkerSkipped)
-			{
-				firstWorkerSkipped = true;
-				continue;
-			}
-
 			const int dist = unit->getDistance(base->getPosition());
 			if (dist < defenseRadius ||
 				dist < defenseRadius + 300 && BWTA::getRegion(unit->getTilePosition()) == region)
 			{
-				enemyUnitsInRegion.insert(unit);
 				if (dist < closestEnemyDistance)
 				{
 					closestEnemyDistance = dist;
 					closestEnemy = unit;
 				}
+				if (unit->getType().isWorker())
+				{
+					++nEnemyWorkers;
+				}
+				else if (unit->isFlying())
+				{
+					if (unit->getType() == BWAPI::UnitTypes::Terran_Battlecruiser ||
+						unit->getType() == BWAPI::UnitTypes::Protoss_Arbiter)
+					{
+						// NOTE Carriers don't need extra, they show interceptors.
+						nEnemyAir += 3;
+					}
+					else
+					{
+						++nEnemyAir;
+					}
+				}
+				else
+				{
+					// Workers don't count as ground units here.
+					if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
+						unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
+						unit->getType() == BWAPI::UnitTypes::Protoss_Archon ||
+						unit->getType() == BWAPI::UnitTypes::Protoss_Reaver ||
+						unit->getType() == BWAPI::UnitTypes::Zerg_Lurker)
+					{
+						nEnemyGround += 2;
+					}
+					else
+					{
+						++nEnemyGround;
+					}
+				}
 				if (UnitUtil::CanAttackGround(unit))
 				{
 					enemyHitsGround = true;
 				}
+				if (UnitUtil::CanAttackAir(unit))
+				{
+					enemyHitsAir = true;
+				}
+				if (unit->isBurrowed() ||
+					unit->isCloaked() ||
+					unit->getType().hasPermanentCloak() ||
+					unit->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
+					unit->getType() == BWAPI::UnitTypes::Protoss_Arbiter ||
+					unit->getType() == BWAPI::UnitTypes::Zerg_Lurker ||
+					unit->getType() == BWAPI::UnitTypes::Zerg_Lurker_Egg)
+				{
+					enemyHasCloak = true;
+				}
 			}
 		}
 
-		if (enemyUnitsInRegion.empty())
+		if (!closestEnemy)
 		{
-			// Drop the defense squad if we have one.
+			// No enemies. Drop the defense squad if we have one.
 			if (_squadData.squadExists(squadName.str()))
 			{
 				_squadData.removeSquad(squadName.str());
@@ -1036,36 +989,32 @@ void CombatCommander::updateBaseDefenseSquads()
 			continue;
 		}
 
-		UAB_ASSERT(closestEnemy, "no enemy");
-
 		// We need a defense squad. If there isn't one, create it.
 		// Its goal is not the base location itself, but the enemy closest to it, to ensure
 		// that defenders will get close enough to the enemy to act.
 		SquadOrder defendRegion(SquadOrderTypes::Defend, closestEnemy->getPosition(), defenseRadius, "Defend base");
-		if (!_squadData.squadExists(squadName.str()))
+		if (_squadData.squadExists(squadName.str()))
 		{
-			_squadData.createSquad(squadName.str(), defendRegion, BaseDefensePriority);
+			_squadData.getSquad(squadName.str()).setSquadOrder(defendRegion);
 		}
 		else
 		{
-			_squadData.getSquad(squadName.str()).setSquadOrder(defendRegion);
+			_squadData.createSquad(squadName.str(), defendRegion, BaseDefensePriority);
 		}
 		Squad & defenseSquad = _squadData.getSquad(squadName.str());
 
 		// Next, figure out how many units we need to assign.
 
-		int numEnemyFlyingInRegion = std::count_if(enemyUnitsInRegion.begin(), enemyUnitsInRegion.end(), [](BWAPI::Unit u) { return u->isFlying(); });
-		int numEnemyGroundInRegion = enemyUnitsInRegion.size() - numEnemyFlyingInRegion;
-		bool enemyHasAntiAir = std::any_of(enemyUnitsInRegion.begin(), enemyUnitsInRegion.end(), UnitUtil::CanAttackAir);
-
 		// A simpleminded way of figuring out how much defense we need.
 		const int numDefendersPerEnemyUnit = 2;
 
-	    int flyingDefendersNeeded = numDefendersPerEnemyUnit * numEnemyFlyingInRegion;
-	    int groundDefendersNeeded = numDefendersPerEnemyUnit * numEnemyGroundInRegion;
+	    int flyingDefendersNeeded = numDefendersPerEnemyUnit * nEnemyAir;
+	    int groundDefendersNeeded = nEnemyWorkers + numDefendersPerEnemyUnit * nEnemyGround;
 
-		// Count static defense as air defenders.
+		// Count static defense as defenders.
 		// Ignore bunkers; they're more complicated.
+		// Cannons are double-counted as air and ground, which can be a mistake.
+		bool sunkenDefender = false;
 		for (const auto unit : BWAPI::Broodwar->self()->getUnits())
 		{
 			if ((unit->getType() == BWAPI::UnitTypes::Terran_Missile_Turret ||
@@ -1076,14 +1025,6 @@ void CombatCommander::updateBaseDefenseSquads()
 			{
 				flyingDefendersNeeded -= 3;
 			}
-		}
-		flyingDefendersNeeded = numEnemyFlyingInRegion ? std::max(flyingDefendersNeeded, 2) : 0;
-
-		// Count static defense as ground defenders.
-		// Ignore bunkers; they're more complicated.
-		// Cannons are double-counted as air and ground, which can be a mistake.
-		bool sunkenDefender = false;
-		for (const auto unit : BWAPI::Broodwar->self()->getUnits()) {
 			if ((unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon ||
 				unit->getType() == BWAPI::UnitTypes::Zerg_Sunken_Colony) &&
 				unit->isCompleted() && unit->isPowered() &&
@@ -1093,8 +1034,24 @@ void CombatCommander::updateBaseDefenseSquads()
 				groundDefendersNeeded -= 4;
 			}
 		}
-		groundDefendersNeeded = numEnemyGroundInRegion ? std::max(groundDefendersNeeded, 2) : 0;
 
+		// Don't let the number of defenders go negative.
+		flyingDefendersNeeded = nEnemyAir ? std::max(flyingDefendersNeeded, 2) : 0;
+		if (nEnemyGround)
+		{
+			groundDefendersNeeded = std::max(groundDefendersNeeded, 2);
+		}
+		else if (nEnemyWorkers)
+		{
+			// Workers only, no other attackers.
+			groundDefendersNeeded = std::max(groundDefendersNeeded, 1 + nEnemyWorkers / 2);
+		}
+		else
+		{
+			groundDefendersNeeded = 0;
+		}
+
+		// Drop unneeded defenders.
 		if (groundDefendersNeeded == 0 && flyingDefendersNeeded == 0)
 		{
 			defenseSquad.clear();
@@ -1151,7 +1108,13 @@ void CombatCommander::updateBaseDefenseSquads()
 		}
 
 		// Now find the actual units to assign.
-		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, enemyHasAntiAir);
+		updateDefenseSquadUnits(defenseSquad, flyingDefendersNeeded, groundDefendersNeeded, pullWorkers, enemyHitsAir);
+
+		// Assign a detector if appropriate.
+		const bool wantDetector =
+			!enemyHitsAir ||
+			enemyHasCloak && defenseSquad.getUnits().size() >= flyingDefendersNeeded + groundDefendersNeeded;
+		maybeAssignDetector(defenseSquad, wantDetector);
 
 		// And, finally, estimate roughly whether the workers may be in danger.
 		// If they are not at immediate risk, they should keep mining and we should even be willing to transfer in more.
@@ -1166,34 +1129,6 @@ void CombatCommander::updateBaseDefenseSquads()
 
 void CombatCommander::updateDefenseSquadUnits(Squad & defenseSquad, const size_t & flyingDefendersNeeded, const size_t & groundDefendersNeeded, bool pullWorkers, bool enemyHasAntiAir)
 {
-	bool hasDetector = defenseSquad.hasDetector();
-	bool wantDetector = wantSquadDetectors();
-
-	if (hasDetector && !wantDetector)
-	{
-		for (BWAPI::Unit unit : defenseSquad.getUnits())
-		{
-			if (unit->getType().isDetector())
-			{
-				defenseSquad.removeUnit(unit);
-				break;
-			}
-		}
-		hasDetector = false;
-	}
-	else if (!hasDetector && wantDetector)
-	{
-		for (BWAPI::Unit unit : _combatUnits)
-		{
-			if (unit->getType().isDetector() && _squadData.canAssignUnitToSquad(unit, defenseSquad))
-			{
-				_squadData.assignUnitToSquad(unit, defenseSquad);
-				hasDetector = true;
-				break;
-			}
-		}
-	}
-
 	const BWAPI::Unitset & squadUnits = defenseSquad.getUnits();
 
 	// Count what is already in the squad, being careful not to double-count a unit as air and ground defender.
@@ -1353,19 +1288,19 @@ void CombatCommander::loadOrUnloadBunkers()
 						12 * 32);
 					if (marine)
 					{
-						bunker->load(marine);
+						the.micro.Load(bunker, marine);
 					}
 				}
 			}
 			else
 			{
-				bunker->unloadAll();
+				the.micro.UnloadAll(bunker);
 			}
 		}
 	}
 }
 
-// Should squads have detectors assigned?
+// Should squads have detectors assigned? Does not apply to all squads.
 // Yes if the enemy has cloaked units. Also yes if the enemy is protoss and has observers
 // and we have cloaked units--we want to shoot down those observers.
 // Otherwise no if the detectors are in danger of dying.
@@ -1386,9 +1321,46 @@ bool CombatCommander::wantSquadDetectors() const
 	}
 
 	return
-		BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Protoss ||      // observers should be safe
+		BWAPI::Broodwar->self()->getRace() == BWAPI::Races::Protoss ||      // observers should be safe-ish
 		!InformationManager::Instance().enemyHasAntiAir() ||
 		InformationManager::Instance().enemyCloakedUnitsSeen();
+}
+
+// Add or remove a given squad's detector, subject to availability.
+// Because this checks the content of the squad, it should be called
+// after any other units are added or removed.
+void CombatCommander::maybeAssignDetector(Squad & squad, bool wantDetector)
+{
+	if (squad.hasDetector())
+	{
+		// If the detector is the only thing left in the squad, we don't want to keep it.
+		if (!wantDetector || squad.getUnits().size() == 1)
+		{
+			for (BWAPI::Unit unit : squad.getUnits())
+			{
+				if (unit->getType().isDetector())
+				{
+					squad.removeUnit(unit);
+					return;
+				}
+			}
+		}
+	}
+	else
+	{
+		// Don't add a detector to an empty squad.
+		if (wantDetector && !squad.getUnits().empty())
+		{
+			for (BWAPI::Unit unit : _combatUnits)
+			{
+				if (unit->getType().isDetector() && _squadData.canAssignUnitToSquad(unit, squad))
+				{
+					_squadData.assignUnitToSquad(unit, squad);
+					return;
+				}
+			}
+		}
+	}
 }
 
 // Scan enemy cloaked units.
@@ -1455,7 +1427,7 @@ void CombatCommander::cancelDyingItems()
 			}
 			else if (unit->canCancelConstruction())
 			{
-				unit->cancelConstruction();
+				the.micro.Cancel(unit);
 			}
 		}
 	}
@@ -1677,7 +1649,8 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 			if (ui.type.isBuilding() &&
 				ui.lastPosition.isValid() &&
 				!ui.goneFromLastPosition &&
-				(!hasGround || (!ui.type.isRefinery() && squadPartition == the.partitions.id(ui.lastPosition))))
+				(ui.type.isRefinery() || squadPartition == the.partitions.id(ui.lastPosition)))
+				// (!hasGround || (!ui.type.isRefinery() && squadPartition == the.partitions.id(ui.lastPosition))))
 			{
 				if (ui.unit->exists() && ui.unit->isLifted())
 				{

@@ -1,5 +1,8 @@
 #include "UnitUtil.h"
 
+#include "The.h"
+#include "UnitData.h"
+
 using namespace UAlbertaBot;
 
 // Building morphed from another, not constructed.
@@ -64,10 +67,26 @@ bool UnitUtil::IsComingStaticDefense(BWAPI::UnitType type)
 		type == BWAPI::UnitTypes::Protoss_Shield_Battery;
 }
 
+// This is an enemy combat unit for purposes of combat simulation.
+// If it's our unit, it's better to call IsCombatSimUnit() directly with the BWAPI::Unit.
+bool UnitUtil::IsCombatSimUnit(const UnitInfo & ui)
+{
+	UAB_ASSERT(ui.unit, "no unit");
+	return ui.unit->exists()
+		? UnitUtil::IsCombatSimUnit(ui.unit)
+		: UnitUtil::IsCombatSimUnit(ui.type);
+}
+
 // This is a combat unit for purposes of combat simulation.
+// The combat simulation does not support spells other than medic healing and stim,
+// with some understanding of dark swarm, and it does not understand detectors.
+// The combat sim treats carriers as the attack unit, not their interceptors (bftjoe).
 bool UnitUtil::IsCombatSimUnit(BWAPI::Unit unit)
 {
-	if (!unit->isCompleted() || !unit->isPowered() || unit->getHitPoints() == 0)
+	if (!unit->isCompleted() ||
+		!unit->isPowered() ||
+		unit->isMaelstrommed() ||
+		unit->isUnderDisruptionWeb())
 	{
 		return false;
 	}
@@ -85,10 +104,8 @@ bool UnitUtil::IsCombatSimUnit(BWAPI::Unit unit)
 }
 
 // This type is a combat unit type for purposes of combat simulation.
+// Call this for units which are out of sight. If it's in sight, see the above routine.
 // Treat workers as non-combat units (overridden above for some workers).
-// The combat simulation does not support spells other than medic healing and stim,
-// and it does not understand detectors.
-// The combat sim treats carriers as the attack unit, not their interceptors (bftjoe).
 bool UnitUtil::IsCombatSimUnit(BWAPI::UnitType type)
 {
 	if (type.isWorker())
@@ -138,46 +155,17 @@ bool UnitUtil::IsCombatUnit(BWAPI::Unit unit)
 }
 
 // Check whether a unit variable points to a unit we control.
-// This is called only on units that we believe are ours.
+// This is called only on units that we believe are ours (we may be wrong if it was mind controlled).
 bool UnitUtil::IsValidUnit(BWAPI::Unit unit)
 {
-	if (!unit)
-	{
-		return false;
-	}
-	if (!unit->exists())
-	{
-		return false;
-	}
-	if (!(unit->isCompleted() || IsMorphedBuildingType(unit->getType())))
-	{
-		return false;
-	}
-	if (unit->getHitPoints() <= 0)
-	{
-		return false;
-	}
-	if (unit->getType() == BWAPI::UnitTypes::Unknown)
-	{
-		return false;
-	}
-	if (!(unit->getPosition().isValid() || unit->isLoaded()))
-	{
-		return false;
-	}
-	if (unit->getPlayer() != BWAPI::Broodwar->self())
-	{
-		return false;
-	}
-	return true;
-
-	return unit
-		&& unit->exists()
-		&& (unit->isCompleted() || IsMorphedBuildingType(unit->getType()))
-		&& unit->getHitPoints() > 0
-		&& unit->getType() != BWAPI::UnitTypes::Unknown
-		&& (unit->getPosition().isValid() || unit->isLoaded())     // position is invalid if loaded in transport or bunker
-		&& unit->getPlayer() == BWAPI::Broodwar->self();           // catches mind controlled units
+	return
+		unit &&
+		unit->exists() &&
+		(unit->isCompleted() || IsMorphedBuildingType(unit->getType())) &&
+		(unit->getPosition().isValid() || unit->isLoaded()) &&	// position is invalid if loaded in transport or bunker
+		unit->getHitPoints() > 0 &&
+		unit->getType() != BWAPI::UnitTypes::Unknown &&
+		unit->getPlayer() == BWAPI::Broodwar->self();			// catches mind controlled units
 }
 
 bool UnitUtil::CanAttack(BWAPI::Unit attacker, BWAPI::Unit target)
@@ -612,7 +600,7 @@ bool UnitUtil::MobilizeUnit(BWAPI::Unit unit)
 		!unit->isIrradiated() &&
 		(double(unit->getHitPoints()) / double(unit->getType().maxHitPoints()) > 0.25))  // very weak units stay burrowed
 	{
-		return unit->unburrow();
+		return The::Root().micro.Unburrow(unit);
 	}
 	return false;
 }
@@ -629,7 +617,7 @@ bool UnitUtil::ImmobilizeUnit(BWAPI::Unit unit)
 	if (unit->canBurrow() &&
 		(unit->getType() == BWAPI::UnitTypes::Zerg_Lurker || unit->isIrradiated()))
 	{
-		return unit->burrow();
+		return The::Root().micro.Burrow(unit);
 	}
 	return false;
 }

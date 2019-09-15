@@ -88,8 +88,6 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 			continue;
 		}
 
-		// BWAPI::Broodwar->printf("Assigning Worker To: %s", b.type.getName().c_str());
-
 		if (b.buildersSent > 0 &&
 			b.type == BWAPI::UnitTypes::Zerg_Hatchery &&
 			b.macroLocation != MacroLocation::Macro &&
@@ -101,9 +99,19 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 			b.macroLocation = MacroLocation::Macro;
 		}
 		
+		// Look for a worker to build for us.
+		setBuilderUnit(b);
+		if (!b.builderUnit || !b.builderUnit->exists())
+		{
+			continue;
+		}
+
+		// We want the worker before the location, so that we can avoid counting the worker
+		// as an obstacle for the location it is already in--ProductionManager sends the worker early.
+		// Otherwise we may have to re-place the building elsewhere, causing unnecessary movement.
 		BWAPI::TilePosition testLocation = getBuildingLocation(b);
 		if (!testLocation.isValid())
-        {
+		{
 			// The building could not be placed (or was placed incorrectly due to a bug, which should not happen).
 			// Recognize the case where protoss building placement is stalled for lack of space.
 			// In principle, terran or zerg could run out of space, but it doesn't happen in practice.
@@ -111,24 +119,19 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 			{
 				_stalledForLackOfSpace = true;
 			}
-			continue;
-        }
-
-		b.finalPosition = testLocation;
-
-		setBuilderUnit(b);       // tries to set b.builderUnit
-		if (!b.builderUnit || !b.builderUnit->exists())
-		{
+			releaseBuilderUnit(b);
 			continue;
 		}
+		b.finalPosition = testLocation;
 
 		++b.buildersSent;    // count workers ever assigned to build it
 
-        // reserve this building's space
+		//BWAPI::Broodwar->printf("assign builder %d to %s", b.builderUnit->getID(), UnitTypeName(b.type).c_str());
+
+		// reserve this building's space
         BuildingPlacer::Instance().reserveTiles(b.finalPosition,b.type.tileWidth(),b.type.tileHeight());
 
         b.status = BuildingStatus::Assigned;
-		// BWAPI::Broodwar->printf("assigned and placed building %s", b.type.getName().c_str());
 	}
 }
 
@@ -151,7 +154,7 @@ void BuildingManager::constructAssignedBuildings()
 			//      For other zerg buildings, the drone changes into the building.
 			releaseBuilderUnit(b);
 
-			// BWAPI::Broodwar->printf("b.builderUnit gone, b.type = %s", b.type.getName().c_str());
+			//BWAPI::Broodwar->printf("b.builderUnit gone, b.type = %s", UnitTypeName(b.type).c_str());
 
 			b.builderUnit = nullptr;
 			b.buildCommandGiven = false;
@@ -169,23 +172,45 @@ void BuildingManager::constructAssignedBuildings()
             // it must be the case that something was in the way
 			else if (b.buildCommandGiven)
             {
-                // tell worker manager the unit we had is not needed now, since we might not be able
-                // to get a valid location soon enough
-				releaseBuilderUnit(b);
-				b.builderUnit = nullptr;
+				// Give it a little time to happen.
+				// This mainly prevents over-frequent retrying.
+				if (BWAPI::Broodwar->getFrameCount() > b.placeBuildingDeadline)
+				{
+					//BWAPI::Broodwar->printf("release and redo builder %d for %s", b.builderUnit->getID(), UnitTypeName(b.type).c_str());
 
-                b.buildCommandGiven = false;
-                b.status = BuildingStatus::Unassigned;
+					// tell worker manager the unit we had is not needed now, since we might not be able
+					// to get a valid location soon enough
+					releaseBuilderUnit(b);
+					b.builderUnit = nullptr;
 
-				// Unreserve the building location. The building will mark its own location.
-				BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
+					b.buildCommandGiven = false;
+					b.status = BuildingStatus::Unassigned;
+
+					// This is a normal event that may happen repeatedly before the building starts.
+					// Don't count it as a failure.
+					--b.buildersSent;
+
+					// Unreserve the building location. The building will mark its own location.
+					BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
+				}
 			}
             else
             {
 				// Issue the build order and record whether it succeeded.
 				// If the builderUnit is zerg, it changes to !exists() when it builds.
-				b.buildCommandGiven = b.builderUnit->build(b.type, b.finalPosition);
-           }
+				// b.buildCommandGiven = b.builderUnit->build(b.type, b.finalPosition);
+				b.buildCommandGiven = the.micro.Build(b.builderUnit, b.type, b.finalPosition);
+
+				if (b.buildCommandGiven)
+				{
+					b.placeBuildingDeadline =
+						BWAPI::Broodwar->getFrameCount() + 2 * BWAPI::Broodwar->getLatencyFrames();
+				}
+				else
+				{
+					//BWAPI::Broodwar->printf("failed to start cnstruction of %s, error %d", UnitTypeName(b.type).c_str(), BWAPI::Broodwar->getLastError());
+				}
+			}
         }
     }
 }
@@ -362,7 +387,6 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 {
 	UAB_ASSERT(act.isBuilding(), "trying to build a non-building");
 
-	// TODO debugging
 	if (isGasSteal)
 	{
 		// BWAPI::Broodwar->printf("gas steal into building manager");
@@ -617,7 +641,7 @@ void BuildingManager::cancelBuilding(Building & b)
 	{
 		if (b.buildingUnit && b.buildingUnit->exists() && !b.buildingUnit->isCompleted())
 		{
-			b.buildingUnit->cancelConstruction();
+			the.micro.Cancel(b.buildingUnit);
 			BuildingPlacer::Instance().freeTiles(b.finalPosition, b.type.tileWidth(), b.type.tileHeight());
 		}
 		toRemove.push_back(b);
@@ -766,7 +790,7 @@ void BuildingManager::undoBuildings(const std::vector< std::reference_wrapper<Bu
 			b.buildingUnit->exists() &&
 			b.buildingUnit->canCancelConstruction())
 		{
-			b.buildingUnit->cancelConstruction();
+			the.micro.Cancel(b.buildingUnit);
 		}
 	}
 

@@ -4,24 +4,117 @@
 
 using namespace UAlbertaBot;
 
-CombatSimulation::CombatSimulation()
+CombatSimEnemies CombatSimulation::analyzeForEnemies(const BWAPI::Unitset units) const
 {
+	bool nonscourge = false;
+	bool hasGround = false;
+	bool hasAir = false;
+	bool hitsGround = false;
+	bool hitsAir = false;
+
+	for (BWAPI::Unit unit : units)
+	{
+		if (unit->getType() != BWAPI::UnitTypes::Zerg_Scourge)
+		{
+			nonscourge = true;
+		}
+		if (unit->isFlying())
+		{
+			hasAir = true;
+		}
+		else
+		{
+			hasGround = true;
+		}
+		if (UnitUtil::GetGroundWeapon(unit->getType()) != BWAPI::WeaponTypes::None)
+		{
+			hitsGround = true;
+		}
+		if (UnitUtil::GetAirWeapon(unit->getType()) != BWAPI::WeaponTypes::None)
+		{
+			hitsAir = true;
+		}
+		if (hasGround && hasAir || hitsGround && hitsAir)
+		{
+			return CombatSimEnemies::AllEnemies;
+		}
+	}
+
+	if (!nonscourge)
+	{
+		return CombatSimEnemies::ScourgeEnemies;
+	}
+
+	if (hasGround && !hitsAir)
+	{
+		return CombatSimEnemies::ZerglingEnemies;
+	}
+	if (hasAir && !hitsAir)
+	{
+		return CombatSimEnemies::GuardianEnemies;
+	}
+	if (hasAir && !hitsGround)
+	{
+		return CombatSimEnemies::DevourerEnemies;
+	}
+	return CombatSimEnemies::AllEnemies;
+}
+
+void CombatSimulation::drawWhichEnemies(const BWAPI::Position center) const
+{
+	std::string whichEnemies = "All Enemies";
+	if (_whichEnemies == CombatSimEnemies::ZerglingEnemies) {
+		whichEnemies = "Zergling Enemies";
+	}
+	else if (_whichEnemies == CombatSimEnemies::GuardianEnemies)
+	{
+		whichEnemies = "Guardian Enemies";
+	}
+	else if (_whichEnemies == CombatSimEnemies::DevourerEnemies)
+	{
+		whichEnemies = "Devourer Enemies";
+	}
+	else if (_whichEnemies == CombatSimEnemies::ScourgeEnemies)
+	{
+		whichEnemies = "Scourge Enemies";
+	}
+	BWAPI::Broodwar->drawTextMap(center + BWAPI::Position(0, 8), "%c %s", white, whichEnemies.c_str());
+
 }
 
 bool CombatSimulation::includeEnemy(CombatSimEnemies which, BWAPI::UnitType type) const
 {
-	if (which == CombatSimEnemies::AntigroundEnemies)
+	if (which == CombatSimEnemies::ZerglingEnemies)
 	{
 		// Ground enemies plus air enemies that can shoot down.
+		// For combat sim with zergling-alikes: Ground units that cannot shoot air.
 		return
 			!type.isFlyer() ||
 			UnitUtil::GetGroundWeapon(type) != BWAPI::WeaponTypes::None;
 	}
 
+	if (which == CombatSimEnemies::GuardianEnemies)
+	{
+		// Ground enemies plus air enemies that can shoot air.
+		// For combat sim with guardians: Air units that can only shoot ground.
+		return
+			!type.isFlyer() ||
+			UnitUtil::GetAirWeapon(type) != BWAPI::WeaponTypes::None;
+	}
+
+	if (which == CombatSimEnemies::DevourerEnemies)
+	{
+		// Air enemies plus ground enemies that can shoot air.
+		// For combat sim with devourer-alikes: Air units that can only shoot air.
+		return
+			type.isFlyer() ||
+			UnitUtil::GetAirWeapon(type) != BWAPI::WeaponTypes::None;
+	}
+
 	if (which == CombatSimEnemies::ScourgeEnemies)
 	{
 		// Only ground enemies that can shoot up.
-		// The scourge will take on air enemies no matter what.
+		// For scourge only. The scourge will take on air enemies no matter what.
 		return
 			!type.isFlyer() &&
 			UnitUtil::GetAirWeapon(type) != BWAPI::WeaponTypes::None;
@@ -31,28 +124,76 @@ bool CombatSimulation::includeEnemy(CombatSimEnemies which, BWAPI::UnitType type
 	return true;
 }
 
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+CombatSimulation::CombatSimulation()
+	: _whichEnemies(CombatSimEnemies::AllEnemies)
+{
+}
+
+// Return the position of the closest enemy combat unit.
+// What counts as a "combat unit" is nearly the same as in the combat sim code below.
+BWAPI::Position CombatSimulation::getClosestEnemyCombatUnit(const BWAPI::Position & center) const
+{
+	BWAPI::Position closestEnemyPosition = BWAPI::Positions::Invalid;
+	int closestDistance = 13 * 32;		// nothing farther than this
+
+	for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		const int dist = center.getApproxDistance(ui.lastPosition);
+		if (dist < closestDistance &&
+			!ui.goneFromLastPosition &&
+			ui.completed &&
+			UnitUtil::IsCombatSimUnit(ui) &&
+			includeEnemy(_whichEnemies, ui.type))
+		{
+			closestEnemyPosition = ui.lastPosition;
+			closestDistance = dist;
+		}
+	}
+
+	return closestEnemyPosition;
+}
+
 // Set up the combat sim state based on the given friendly units and the enemy units within a given circle.
+// The circle center is the enemy combat unit closest to ourCenter, and the radius is passed in.
 void CombatSimulation::setCombatUnits
 	( const BWAPI::Unitset & myUnits
-	, const BWAPI::Position & center
+	, const BWAPI::Position & ourCenter
 	, int radius
 	, bool visibleOnly
-	, CombatSimEnemies which
 	)
 {
+	_whichEnemies = analyzeForEnemies(myUnits);
+
 	fap.clearState();
+
+	// Center the circle of interest on the nearest enemy unit, not on one of our own units.
+	// That reduces indecision: Enemy actions, not our own, induce us to move.
+	BWAPI::Position center = getClosestEnemyCombatUnit(ourCenter);
+	if (!center.isValid())
+	{
+		// Do no combat sim, leave the state empty. It's fairly common.
+		// The score will be 0, which counts as a win.
+		// BWAPI::Broodwar->printf("no enemy near");
+		return;
+	}
 
 	if (Config::Debug::DrawCombatSimulationInfo)
 	{
-		BWAPI::Broodwar->drawCircleMap(center.x, center.y, 6, BWAPI::Colors::Red, true);
-		BWAPI::Broodwar->drawCircleMap(center.x, center.y, radius, BWAPI::Colors::Red);
+		BWAPI::Broodwar->drawCircleMap(center, 6, BWAPI::Colors::Red, true);
+		BWAPI::Broodwar->drawCircleMap(center, radius, BWAPI::Colors::Red);
+
+		drawWhichEnemies(ourCenter + BWAPI::Position(-20, 28));
 	}
 
-	// Work around a bug in mutalisks versus spore colony: It believes that any 2 mutalisks
-	// can beat a spore. 6 is a better estimate. So for each spore in the fight, we compensate
-	// by dropping 5 mutalisks.
+	// Work around poor play in mutalisks versus spore colony: For each spore in the fight,
+	// we compensate by dropping a given number of our mutalisks.
 	// TODO fix the bug and remove the workaround
 	// Compensation only applies when visibleOnly is false.
+	const int mutaCompensationStep = 3;
 	int compensatoryMutalisks = 0;
 
 	// Add enemy units.
@@ -63,7 +204,8 @@ void CombatSimulation::setCombatUnits
 		MapGrid::Instance().getUnits(enemyCombatUnits, center, radius, false, true);
 		for (const auto unit : enemyCombatUnits)
 		{
-			if (unit->getHitPoints() > 0 && UnitUtil::IsCombatSimUnit(unit) && includeEnemy(which, unit->getType()))
+			if (UnitUtil::IsCombatSimUnit(unit) &&
+				includeEnemy(_whichEnemies, unit->getType()))
 			{
 				fap.addIfCombatUnitPlayer2(unit);
 				if (Config::Debug::DrawCombatSimulationInfo)
@@ -79,7 +221,7 @@ void CombatSimulation::setCombatUnits
 		InformationManager::Instance().getNearbyForce(enemyStaticDefense, center, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyStaticDefense)
 		{
-			if (ui.type.isBuilding() && !ui.unit->isVisible() && includeEnemy(which, ui.type))
+			if (ui.type.isBuilding() && !ui.unit->isVisible() && includeEnemy(_whichEnemies, ui.type))
 			{
 				fap.addIfCombatUnitPlayer2(ui);
 				if (Config::Debug::DrawCombatSimulationInfo)
@@ -98,15 +240,14 @@ void CombatSimulation::setCombatUnits
 		for (const UnitInfo & ui : enemyCombatUnits)
 		{
 			// The check is careful about seen units and assumes that unseen units are completed and powered.
-			if (ui.lastHealth > 0 &&
-				(ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
-				(ui.unit->exists() ? UnitUtil::IsCombatSimUnit(ui.unit) : UnitUtil::IsCombatSimUnit(ui.type)) &&
-				includeEnemy(which, ui.type))
+			if ((ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
+				includeEnemy(_whichEnemies, ui.type))
 			{
 				fap.addIfCombatUnitPlayer2(ui);
 				if (ui.type == BWAPI::UnitTypes::Zerg_Spore_Colony)
 				{
-					compensatoryMutalisks += 5;
+					compensatoryMutalisks += mutaCompensationStep;
+					// BWAPI::Broodwar->printf("muta comp -> %d", compensatoryMutalisks);
 				}
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
@@ -137,27 +278,6 @@ void CombatSimulation::setCombatUnits
 			}
 		}
 	}
-
-	/* Add our units by location.
-	BWAPI::Unitset ourCombatUnits;
-	MapGrid::Instance().getUnits(ourCombatUnits, center, radius, true, false);
-	for (const auto unit : ourCombatUnits)
-	{
-		if (UnitUtil::IsCombatSimUnit(unit))
-		{
-			if (compensatoryMutalisks > 0 && unit->getType() == BWAPI::UnitTypes::Zerg_Mutalisk)
-			{
-				--compensatoryMutalisks;
-				continue;
-			}
-			fap.addIfCombatUnitPlayer1(unit);
-			if (Config::Debug::DrawCombatSimulationInfo)
-			{
-				BWAPI::Broodwar->drawCircleMap(unit->getPosition(), 3, BWAPI::Colors::Green, true);
-			}
-		}
-	}
-	*/
 }
 
 // Simulate combat and return the result as a score. Score >= 0 means you win.
@@ -181,10 +301,9 @@ double CombatSimulation::simulateCombat(bool meatgrinder)
 	//	startScores.second, endScores.second, yourLosses,
 	//	(myLosses == 0) ? yourLosses : endScores.first - endScores.second);
 
-	// If we came out ahead, call it a win regardless.
-	// if (yourLosses > myLosses)
-	// The most conservative case: If we lost nothing, it's a win (since a draw counts as a win).
-	if (myLosses == 0)
+	// If we lost nothing despite sending units in, it's a win (a draw counts as a win).
+	// This is the most cautious possible loss comparison.
+	if (myLosses == 0 && startScores.first > 0)
 	{
 		return double(yourLosses);
 	}
@@ -194,7 +313,7 @@ double CombatSimulation::simulateCombat(bool meatgrinder)
 	if (meatgrinder)
 	{
 		// We only need to do a limited amount of damage to "win".
-		BWAPI::Broodwar->printf("  meangrinder result = ", 3 * yourLosses - myLosses);
+		BWAPI::Broodwar->printf("  meatgrinder result = ", 3 * yourLosses - myLosses);
 
 		// Call it a victory if we took down at least this fraction of the enemy army.
 		return double(3 * yourLosses - myLosses);
@@ -204,6 +323,7 @@ double CombatSimulation::simulateCombat(bool meatgrinder)
 	// return double(yourLosses - myLosses);
 
 	// Original scoring: Winner is whoever has more stuff left.
+	// NOTE This tested best for Steamhammer.
 	return double(endScores.first - endScores.second);
 
 	/*

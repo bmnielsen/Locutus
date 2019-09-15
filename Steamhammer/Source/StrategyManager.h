@@ -34,9 +34,13 @@ struct Strategy
     }
 };
 
+class The;
+
 class StrategyManager 
 {
 	StrategyManager();
+
+	The & the;
 
 	BWAPI::Race					    _selfRace;
 	BWAPI::Race					    _enemyRace;

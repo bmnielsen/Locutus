@@ -159,11 +159,16 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition, const UnitCl
 
 	for (const auto unit : units)
 	{
+		// 0. A ground unit next to an undetected dark templar should try to flee the DT.
 		// 1. A broodling should never retreat, but attack as long as it lives.
 		// 2. If none of its kind has died yet, a dark templar or lurker should not retreat.
 		// 3. A ground unit next to an enemy sieged tank should not move away.
 		// TODO 4. A unit in stay-home mode should stay home, not "regroup" away from home.
-		if (buildScarabOrInterceptor(unit))
+		if (the.micro.fleeDT(unit))
+		{
+			// We're done for this frame.
+		}
+		else if (buildScarabOrInterceptor(unit))
 		{
 			// We're done for this frame.
 		}
@@ -173,7 +178,10 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition, const UnitCl
 			(BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran &&
 			!unit->isFlying() &&
 			 BWAPI::Broodwar->getClosestUnit(unit->getPosition(),
-				BWAPI::Filter::IsEnemy && BWAPI::Filter::GetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode,
+				BWAPI::Filter::IsEnemy &&
+					(BWAPI::Filter::GetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
+					BWAPI::Filter::CurrentOrder == BWAPI::Orders::Sieging ||
+					BWAPI::Filter::CurrentOrder == BWAPI::Orders::Unsieging),
 				64)))
 		{
 			the.micro.AttackMove(unit, unit->getPosition());
@@ -364,14 +372,16 @@ bool MicroManager::buildScarabOrInterceptor(BWAPI::Unit u) const
 	{
 		if (u->canTrain(BWAPI::UnitTypes::Protoss_Scarab))
 		{
-			return u->train(BWAPI::UnitTypes::Protoss_Scarab);
+			return the.micro.Make(u, BWAPI::UnitTypes::Protoss_Scarab);
+			// return u->train(BWAPI::UnitTypes::Protoss_Scarab);
 		}
 	}
 	else if (u->getType() == BWAPI::UnitTypes::Protoss_Carrier)
 	{
 		if (u->canTrain(BWAPI::UnitTypes::Protoss_Interceptor))
 		{
-			return u->train(BWAPI::UnitTypes::Protoss_Interceptor);
+			return the.micro.Make(u, BWAPI::UnitTypes::Protoss_Interceptor);
+			// return u->train(BWAPI::UnitTypes::Protoss_Interceptor);
 		}
 	}
 

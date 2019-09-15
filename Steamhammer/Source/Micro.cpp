@@ -7,44 +7,55 @@
 
 using namespace UAlbertaBot;
 
-size_t TotalCommands = 0;
+size_t TotalCommands = 0;  // not all commands are counted
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 MicroInfo::MicroInfo()
-	: unit(nullptr)
-	, order(BWAPI::Orders::None)
-	, orderFrame(-1)
+	: order(BWAPI::Orders::None)
 	, targetUnit(nullptr)
 	, targetPosition(BWAPI::Positions::None)
+	, orderFrame(-1)
+	, executeFrame(-1)
 {
 }
 
-void MicroInfo::setOrder(BWAPI::Unit u, BWAPI::Order o)
+void MicroInfo::setOrder(BWAPI::Order o)
 {
-	unit = u;
-	order = o;
-	orderFrame = BWAPI::Broodwar->getFrameCount();
-	targetUnit = nullptr;
-	targetPosition = BWAPI::Positions::None;
+	if (order != o)
+	{
+		order = o;
+		targetUnit = nullptr;
+		targetPosition = BWAPI::Positions::None;
+
+		orderFrame = BWAPI::Broodwar->getFrameCount();
+		executeFrame = -1;
+	}
 }
 
-void MicroInfo::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Unit t)
+void MicroInfo::setOrder(BWAPI::Order o, BWAPI::Unit t)
 {
-	unit = u;
-	order = o;
-	orderFrame = BWAPI::Broodwar->getFrameCount();
-	targetUnit = u;
-	targetPosition = BWAPI::Positions::None;
+	if (order != o || targetUnit != t) {
+		order = o;
+		targetUnit = t;
+		targetPosition = BWAPI::Positions::None;
+
+		orderFrame = BWAPI::Broodwar->getFrameCount();
+		executeFrame = -1;
+	}
 }
 
-void MicroInfo::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Position p)
+void MicroInfo::setOrder(BWAPI::Order o, BWAPI::Position p)
 {
-	unit = u;
-	order = o;
-	orderFrame = BWAPI::Broodwar->getFrameCount();
-	targetUnit = nullptr;
-	targetPosition = p;
+	if (order != o || targetPosition != p)
+	{
+		order = o;
+		targetUnit = nullptr;
+		targetPosition = p;
+
+		orderFrame = BWAPI::Broodwar->getFrameCount();
+		executeFrame = -1;
+	}
 }
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -59,10 +70,31 @@ void Micro::update()
 	for (auto it = orders.begin(); it != orders.end(); )
 	{
 		BWAPI::Unit u = (*it).first;
+		MicroInfo o = (*it).second;
 
 		if (u->exists())
 		{
-			// TODO the work is not implemented.
+			if (o.executeFrame < 0)		// not executed yet
+			{
+				if (o.order == BWAPI::Orders::Move)
+				{
+					if (u->move(o.targetPosition))
+					{
+						o.executeFrame = BWAPI::Broodwar->getFrameCount();
+					}
+				}
+			}
+
+			/* debug
+			if (o.order == BWAPI::Orders::Move && u->getPosition().isValid() && o.targetPosition.isValid())
+			{
+				BWAPI::Color color = o.executeFrame < 0 ? BWAPI::Colors::White : BWAPI::Colors::Grey;
+				BWAPI::Broodwar->drawLineMap(u->getPosition(), o.targetPosition, color);
+				BWAPI::Broodwar->drawCircleMap(o.targetPosition, 2, color);
+			}
+			*/
+
+			// TODO other commands are not implemented
 
 			++it;
 		}
@@ -77,9 +109,10 @@ void Micro::update()
 bool Micro::AlwaysKite(BWAPI::UnitType type) const
 {
 	return
-		type == BWAPI::UnitTypes::Zerg_Mutalisk ||
 		type == BWAPI::UnitTypes::Terran_Vulture ||
-		type == BWAPI::UnitTypes::Terran_Wraith;
+		type == BWAPI::UnitTypes::Terran_Wraith ||
+		type == BWAPI::UnitTypes::Zerg_Mutalisk ||
+		type == BWAPI::UnitTypes::Zerg_Guardian;
 }
 
 BWAPI::Position Micro::GetKiteVector(BWAPI::Unit unit, BWAPI::Unit target) const
@@ -96,6 +129,46 @@ BWAPI::Position Micro::GetKiteVector(BWAPI::Unit unit, BWAPI::Unit target) const
 Micro::Micro()
 	: the(The::Root())
 {
+}
+
+// If our ground unit is next to an undetected dark templar, run it away and return true.
+// Otherwise return false.
+bool Micro::fleeDT(BWAPI::Unit unit)
+{
+	if (!unit || !unit->exists() || unit->getPlayer() != BWAPI::Broodwar->self() || !unit->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad arg");
+		return false;
+	}
+
+	if (!unit->isFlying() && unit->canMove())
+	{
+		BWAPI::Unit dt = BWAPI::Broodwar->getClosestUnit(
+			unit->getPosition(),
+			BWAPI::Filter::GetType == BWAPI::UnitTypes::Protoss_Dark_Templar &&
+			BWAPI::Filter::IsEnemy &&
+			!BWAPI::Filter::IsDetected,
+			64);
+		if (dt)
+		{
+			BWAPI::Position fleePosition = DistanceAndDirection(unit->getPosition(), dt->getPosition(), -96);
+			if (fleePosition.isValid())
+			{
+				/*
+				BWAPI::Broodwar->printf("%s flees dt dist=%d, fleedist=%d",
+					UnitTypeName(unit->getType()).c_str(),
+					unit->getDistance(dt),
+					unit->getDistance(fleePosition));
+				BWAPI::Broodwar->drawLineMap(unit->getPosition(), fleePosition, BWAPI::Colors::Yellow);
+				BWAPI::Broodwar->drawCircleMap(dt->getPosition(), 6, BWAPI::Colors::Yellow);
+				*/
+				Move(unit, fleePosition);
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 void Micro::Stop(BWAPI::Unit unit)
@@ -119,7 +192,7 @@ void Micro::Stop(BWAPI::Unit unit)
 		return;
 	}
 
-	orders[unit].setOrder(unit, BWAPI::Orders::Stop);
+	orders[unit].setOrder(BWAPI::Orders::Stop);
 
 	unit->stop();
 	TotalCommands++;
@@ -189,7 +262,7 @@ void Micro::AttackUnit(BWAPI::Unit attacker, BWAPI::Unit target)
 		return;
     }
 	
-	orders[attacker].setOrder(attacker, BWAPI::Orders::AttackUnit, target);
+	orders[attacker].setOrder(BWAPI::Orders::AttackUnit, target);
 
 	// if nothing prevents it, attack the target
     attacker->attack(target);
@@ -226,7 +299,7 @@ void Micro::AttackMove(BWAPI::Unit attacker, const BWAPI::Position & targetPosit
 		return;
 	}
 
-	orders[attacker].setOrder(attacker, BWAPI::Orders::AttackMove, targetPosition);
+	orders[attacker].setOrder(BWAPI::Orders::AttackMove, targetPosition);
 
 	// if nothing prevents it, attack the target
 	attacker->attack(targetPosition);
@@ -271,11 +344,11 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 
     // if we have issued a command to this unit already this frame, ignore this one
     if (attacker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() ||
-		(attacker->isAttackFrame() && !Micro::AlwaysKite(attacker->getType())))
+		attacker->isAttackFrame() && !Micro::AlwaysKite(attacker->getType()))
 	{
         return;
     }
-
+	
     BWAPI::UnitCommand currentCommand(attacker->getLastCommand());
 
     // if we've already told this unit to move to this position, ignore this command
@@ -284,10 +357,8 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
         return;
     }
 
-	orders[attacker].setOrder(attacker, BWAPI::Orders::Move, targetPosition);
+	orders[attacker].setOrder(BWAPI::Orders::Move, targetPosition);
 
-	// if nothing prevents it, move the target position
-	attacker->move(targetPosition);
     TotalCommands++;
 
     if (Config::Debug::DrawUnitTargetInfo) 
@@ -332,7 +403,7 @@ void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
 	{
 		order = BWAPI::Orders::MoveToGas;
 	}
-	orders[unit].setOrder(unit, order, target);
+	orders[unit].setOrder(order, target);
 
     // if nothing prevents it, attack the target
     unit->rightClick(target);
@@ -363,7 +434,7 @@ void Micro::MineMinerals(BWAPI::Unit unit, BWAPI::Unit mineralPatch)
 		return;
 	}
 
-	orders[unit].setOrder(unit, BWAPI::Orders::MoveToMinerals, mineralPatch);
+	orders[unit].setOrder(BWAPI::Orders::MoveToMinerals, mineralPatch);
 
 	unit->rightClick(mineralPatch);
 	TotalCommands++;
@@ -395,7 +466,7 @@ void Micro::LaySpiderMine(BWAPI::Unit unit, BWAPI::Position pos)
         return;
     }
 
-	orders[unit].setOrder(unit, BWAPI::Orders::PlaceMine, pos);
+	orders[unit].setOrder(BWAPI::Orders::PlaceMine, pos);
 
     unit->canUseTechPosition(BWAPI::TechTypes::Spider_Mines, pos);
 }
@@ -424,7 +495,7 @@ void Micro::Repair(BWAPI::Unit unit, BWAPI::Unit target)
         return;
     }
 
-	orders[unit].setOrder(unit, BWAPI::Orders::Repair, target);
+	orders[unit].setOrder(BWAPI::Orders::Repair, target);
 
 	// Nothing prevents it, so attack the target.
     unit->repair(target);
@@ -436,6 +507,208 @@ void Micro::Repair(BWAPI::Unit unit, BWAPI::Unit target)
         BWAPI::Broodwar->drawCircleMap(target->getPosition(), dotRadius, BWAPI::Colors::Cyan, true);
         BWAPI::Broodwar->drawLineMap(unit->getPosition(), target->getPosition(), BWAPI::Colors::Cyan);
     }
+}
+
+void Micro::ReturnCargo(BWAPI::Unit worker)
+{
+	if (!worker || !worker->exists() || worker->getPlayer() != BWAPI::Broodwar->self() ||
+		!worker->getType().isWorker())
+	{
+		UAB_ASSERT(false, "bad arg");
+		return;
+	}
+
+	// If the worker has no cargo, ignore this command.
+	if (!worker->isCarryingMinerals() && !worker->isCarryingGas())
+	{
+		return;
+	}
+
+	// if we have issued a command to this unit already this frame, ignore this one
+	if (worker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() || worker->isAttackFrame())
+	{
+		return;
+	}
+
+	// If we've already issued this command, don't issue it again.
+	BWAPI::UnitCommand currentCommand(worker->getLastCommand());
+	if (currentCommand.getType() == BWAPI::UnitCommandTypes::Return_Cargo)
+	{
+		return;
+	}
+
+	orders[worker].setOrder(worker->isCarryingMinerals() ? BWAPI::Orders::ReturnMinerals : BWAPI::Orders::ReturnGas);
+
+	// Nothing prevents it, so return cargo.
+	worker->returnCargo();
+	TotalCommands++;
+}
+
+// Order construction of a building.
+bool Micro::Build(BWAPI::Unit builder, BWAPI::UnitType building, const BWAPI::TilePosition & location)
+{
+	if (!builder || !building.isValid() || !location.isValid())
+	{
+		UAB_ASSERT(false, "bad building");
+		return false;
+	}
+
+	// NOTE This order does not set the type or location.
+	//      The purpose is only to remind MicroInfo that the unit has this order.
+	orders[builder].setOrder(BWAPI::Orders::ConstructingBuilding);
+
+	return builder->build(building, location);
+}
+
+// Order production of a unit. Includes terran addon and zerg morphed building or unit.
+bool Micro::Make(BWAPI::Unit producer, BWAPI::UnitType type)
+{
+	if (!producer || !producer->exists() || !producer->getPosition().isValid() || producer->getType().getRace() != type.getRace())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	// NOTE We do not set the type.
+	//      The purpose is only to remind MicroInfo that the unit has this order.
+
+	if (type.isAddon())
+	{
+		orders[producer].setOrder(BWAPI::Orders::BuildAddon);
+		return producer->buildAddon(type);
+	}
+
+	if (type.getRace() == BWAPI::Races::Zerg)
+	{
+		orders[producer].setOrder(type.isBuilding() ? BWAPI::Orders::ZergBuildingMorph : BWAPI::Orders::ZergUnitMorph);
+		return producer->morph(type);
+	}
+
+	orders[producer].setOrder(BWAPI::Orders::Train);
+	return producer->train(type);
+}
+
+// Cancel a building under construction.
+// TODO also planned to cancel other stuff
+bool Micro::Cancel(BWAPI::Unit unit)
+{
+	if (!unit || !unit->exists() || !unit->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	orders[unit].setOrder(BWAPI::Orders::Stop);
+
+	return unit->cancelConstruction();
+}
+
+// Burrow a zerg unit.
+bool Micro::Burrow(BWAPI::Unit unit)
+{
+	if (!unit || !unit->exists() || !unit->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	// The Orders are Burrowing and Burrowed. Also lurkers can do stuff while burrowed.
+	orders[unit].setOrder(BWAPI::Orders::Burrowing);
+
+	return unit->burrow();
+}
+
+// Unburrow a zerg unit.
+bool Micro::Unburrow(BWAPI::Unit unit)
+{
+	if (!unit || !unit->exists() || !unit->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	orders[unit].setOrder(BWAPI::Orders::Unburrowing);
+
+	return unit->unburrow();
+}
+
+// Load a unit into a bunker or transport.
+bool Micro::Load(BWAPI::Unit container, BWAPI::Unit content)
+{
+	if (!container || !container->exists() || !content || !content->exists() || !content->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	if (container->getType() == BWAPI::UnitTypes::Terran_Bunker)
+	{
+		orders[container].setOrder(BWAPI::Orders::PickupBunker, content);
+	}
+	else
+	{
+		orders[container].setOrder(BWAPI::Orders::PickupTransport, content);
+	}
+
+	return container->load(content);
+}
+
+// Move to the given position and unload all units from a transport.
+bool Micro::UnloadAt(BWAPI::Unit container, const BWAPI::Position & targetPosition)
+{
+	if (!container || !container->exists() || !container->getPosition().isValid() ||
+		!targetPosition.isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	orders[container].setOrder(BWAPI::Orders::MoveUnload);
+
+	return container->unloadAll(targetPosition);
+}
+
+// Unload all units from a bunker or transport.
+bool Micro::UnloadAll(BWAPI::Unit container)
+{
+	if (!container || !container->exists() || !container->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	orders[container].setOrder(BWAPI::Orders::Unload);
+
+	return container->unloadAll();
+}
+
+// Siege a tank.
+bool Micro::Siege(BWAPI::Unit tank)
+{
+	if (!tank || !tank->exists() || !tank->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	// The Orders are Burrowing and Burrowed. Also lurkers can do stuff while burrowed.
+	orders[tank].setOrder(BWAPI::Orders::Sieging);
+
+	return tank->siege();
+}
+
+// Unsiege a tank.
+bool Micro::Unsiege(BWAPI::Unit tank)
+{
+	if (!tank || !tank->exists() || !tank->getPosition().isValid())
+	{
+		UAB_ASSERT(false, "bad unit");
+		return false;
+	}
+
+	orders[tank].setOrder(BWAPI::Orders::Unsieging);
+
+	return tank->unsiege();
 }
 
 // Perform a comsat scan at the given position if possible and necessary.
@@ -534,45 +807,56 @@ bool Micro::MergeArchon(BWAPI::Unit templar1, BWAPI::Unit templar2)
 		return false;
 	}
 
-	orders[templar1].setOrder(templar1, BWAPI::Orders::ArchonWarp, templar2);
+	orders[templar1].setOrder(BWAPI::Orders::ArchonWarp, templar2);
 
 	// useTech() checks any other conditions.
 	return templar1->useTech(BWAPI::TechTypes::Archon_Warp, templar2);
 }
 
-void Micro::ReturnCargo(BWAPI::Unit worker)
+// Use a tech on a target unit.
+// So far, we only support defiler tech.
+bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, BWAPI::Unit target)
 {
-	if (!worker || !worker->exists() || worker->getPlayer() != BWAPI::Broodwar->self() ||
-		!worker->getType().isWorker())
+	if (!unit || !unit->exists() || !unit->getPosition().isValid() || unit->getPlayer() != BWAPI::Broodwar->self() ||
+		!target || !target->exists() || !target->getPosition().isValid())
 	{
-		UAB_ASSERT(false, "bad arg");
-		return;
+		UAB_ASSERT(false, "bad unit");
+		return false;
 	}
 
-	// If the worker has no cargo, ignore this command.
-	if (!worker->isCarryingMinerals() && !worker->isCarryingGas())
+	UAB_ASSERT(tech == BWAPI::TechTypes::Consume, "unsupported tech");
+
+	// The Orders are Burrowing and Burrowed. Also lurkers can do stuff while burrowed.
+	orders[unit].setOrder(BWAPI::Orders::CastConsume);
+
+	return unit->useTech(BWAPI::TechTypes::Consume, target);
+}
+
+// Use a tech on a target position.
+// So far, we only support defiler tech.
+bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, const BWAPI::Position & target)
+{
+	if (!unit || !unit->exists() || !unit->getPosition().isValid() || unit->getPlayer() != BWAPI::Broodwar->self() ||
+		!target.isValid())
 	{
-		return;
+		UAB_ASSERT(false, "bad unit");
+		return false;
 	}
 
-	// if we have issued a command to this unit already this frame, ignore this one
-	if (worker->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount() || worker->isAttackFrame())
+	if (tech == BWAPI::TechTypes::Dark_Swarm)
 	{
-		return;
+		orders[unit].setOrder(BWAPI::Orders::CastDarkSwarm);
+	}
+	else if (BWAPI::TechTypes::Plague)
+	{
+		orders[unit].setOrder(BWAPI::Orders::CastPlague);
+	}
+	else
+	{
+		UAB_ASSERT(false, "unsupported tech");
 	}
 
-	// If we've already issued this command, don't issue it again.
-	BWAPI::UnitCommand currentCommand(worker->getLastCommand());
-	if (currentCommand.getType() == BWAPI::UnitCommandTypes::Return_Cargo)
-	{
-		return;
-	}
-
-	orders[worker].setOrder(worker, worker->isCarryingMinerals() ? BWAPI::Orders::ReturnMinerals : BWAPI::Orders::ReturnGas);
-
-	// Nothing prevents it, so return cargo.
-	worker->returnCargo();
-	TotalCommands++;
+	return unit->useTech(tech, target);
 }
 
 void Micro::KiteTarget(BWAPI::Unit rangedUnit, BWAPI::Unit target)

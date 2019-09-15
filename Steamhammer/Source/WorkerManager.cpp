@@ -26,6 +26,7 @@ void WorkerManager::update()
 	// NOTE Combat workers are placed in a combat squad and get their orders there.
 	//      We ignore them here.
 	updateWorkerStatus();
+
 	handleGasWorkers();
 	handleIdleWorkers();
 	handleReturnCargoWorkers();

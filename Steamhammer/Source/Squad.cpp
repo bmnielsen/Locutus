@@ -193,7 +193,7 @@ void Squad::clusterCombat(const UnitCluster & cluster)
 
 		if (Config::Debug::DrawClusters)
 		{
-			BWAPI::Broodwar->drawLineMap(cluster.center, regroupPosition, BWAPI::Colors::Purple);
+			// BWAPI::Broodwar->drawLineMap(cluster.center, regroupPosition, BWAPI::Colors::Purple);
 		}
 
 		_microAirToAir.regroup(regroupPosition, cluster);
@@ -226,23 +226,19 @@ void Squad::clusterCombat(const UnitCluster & cluster)
 		BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);
 
 		// Defilers.
-		_microDefilers.updateMovement(cluster.center, vanguard);
+		_microDefilers.updateMovement(cluster, vanguard);
 
 		// Medics.
-		BWAPI::Position medicGoal = vanguard && vanguard->getPosition().isValid() ? vanguard->getPosition() : cluster.center;
+		BWAPI::Position medicGoal = vanguard ? vanguard->getPosition() : cluster.center;
 		_microMedics.update(cluster, medicGoal);
 	}
 	else if (defilerPhase == 5)
 	{
-		BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);
-
-		_microDefilers.updateSwarm();
+		_microDefilers.updateSwarm(cluster);
 	}
 	else if (defilerPhase == 7)
 	{
-		BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);
-
-		_microDefilers.updatePlague();
+		_microDefilers.updatePlague(cluster);
 	}
 }
 
@@ -577,17 +573,17 @@ bool Squad::needsToRegroup(const UnitCluster & cluster)
 		}
 	}
 
-	BWAPI::Unit unitClosest = unitClosestToEnemy(cluster.units);
+	BWAPI::Unit vanguard = unitClosestToEnemy(cluster.units);
 
-	if (!unitClosest)
+	if (!vanguard)
 	{
-		_regroupStatus = yellow + std::string("No closest unit");
+		_regroupStatus = yellow + std::string("No vanguard");
 		return false;
 	}
 
 	// Is there static defense nearby that we should take into account?
 	// unitClosest is known to be set thanks to the test immediately above.
-	BWAPI::Unit nearest = nearbyStaticDefense(unitClosest->getPosition());
+	BWAPI::Unit nearest = nearbyStaticDefense(vanguard->getPosition());
 	const BWAPI::Position final = finalRegroupPosition();
 	if (nearest)
 	{
@@ -600,8 +596,8 @@ bool Squad::needsToRegroup(const UnitCluster & cluster)
 
 		// If there is static defense to retreat to, try to get behind it.
 		// Assume that the static defense is between the final regroup position and the enemy.
-		if (unitClosest->getDistance(nearest) < 196 &&
-			unitClosest->getDistance(final) < nearest->getDistance(final))
+		if (vanguard->getDistance(nearest) < 196 &&
+			vanguard->getDistance(final) < nearest->getDistance(final))
 		{
 			_regroupStatus = green + std::string("Behind static defense");
 			return false;
@@ -610,57 +606,22 @@ bool Squad::needsToRegroup(const UnitCluster & cluster)
 	else
 	{
 		// There is no static defense to retreat to.
-		if (unitClosest->getDistance(final) < 224)
+		if (vanguard->getDistance(final) < 224)
 		{
 			_regroupStatus = green + std::string("Back to the wall");
 			return false;
 		}
 	}
 
-	// TODO disabled while the refactor is going on - rework this if needed
-	// If we most recently retreated, don't attack again until retreatDuration frames have passed.
-	const int retreatDuration = 2 * 24;
-	//bool retreat = _lastRetreatSwitchVal && (BWAPI::Broodwar->getFrameCount() - _lastRetreatSwitch < retreatDuration);
-	bool retreat = false;
-	// bool retreat = Random::Instance().flag(0.98);
+	// -- --
+	// All other checks are done. Finally do the expensive combat simulation.
+	CombatSimulation sim;
 
-	if (!retreat)
-	{
-		// All other checks are done. Finally do the expensive combat simulation.
-		CombatSimulation sim;
+	sim.setCombatUnits(cluster.units, vanguard->getPosition(), _combatSimRadius, _fightVisibleOnly);
+	_lastScore = sim.simulateCombat(_meatgrinder);
 
-		// Center the circle of interest on the nearest enemy unit, not on one of our own units.
-		// That reduces indecision: Enemy actions, not our own, induce us to move.
-		BWAPI::Unit closestEnemy =
-			BWAPI::Broodwar->getClosestUnit(unitClosest->getPosition(), BWAPI::Filter::IsEnemy, 384);
-		BWAPI::Position combatSimCenter = closestEnemy ? closestEnemy->getPosition() : unitClosest->getPosition();
-		//sim.setCombatUnits(cluster.units, combatSimCenter, _combatSimRadius, _fightVisibleOnly);
+	bool retreat = _lastScore < 0.0;
 
-		// Certain unit types can or should exclude certain enemies from the sim.
-		CombatSimEnemies enemies = CombatSimEnemies::AllEnemies;
-		if (_microRanged.getUnits().empty() &&
-			(!_microMelee.getUnits().empty() || !_microLurkers.getUnits().empty() || !_microTanks.getUnits().empty()))
-		{
-			// Our units can't shoot up. Ignore air enemies that can't shoot down.
-			enemies = CombatSimEnemies::AntigroundEnemies;
-		}
-		else if (!_microScourge.getUnits().empty())
-		{
-			// NOTE This relies on scourge being separated, not mixed with any other unit type!
-			enemies = CombatSimEnemies::ScourgeEnemies;
-		}
-
-		sim.setCombatUnits(cluster.units, unitClosest->getPosition(), _combatSimRadius, _fightVisibleOnly, enemies);
-		_lastScore = sim.simulateCombat(_meatgrinder);
-
-		//double limit = _lastRetreatSwitchVal ? 0.8 : 1.1;
-		// retreat = _lastScore < limit;
-
-		retreat = _lastScore < 0.0;
-		_lastRetreatSwitch = BWAPI::Broodwar->getFrameCount();
-		_lastRetreatSwitchVal = retreat;
-	}
-	
 	if (retreat)
 	{
 		_regroupStatus = red + std::string("Retreat");
@@ -685,10 +646,10 @@ BWAPI::Position Squad::calcRegroupPosition(const UnitCluster & cluster) const
 		{
 			// TODO this should be better but has a bug that can cause retreat toward the enemy
 			// It's better to retreat to behind the static defense.
-			// BWAPI::Position behind =
-			//	DistanceAndDirection(nearest->getPosition(), cluster.center, -96);
-			// return behind;
+			BWAPI::Position behind = DistanceAndDirection(nearest->getPosition(), cluster.center, -128);
+			return behind;
 
+			// TODO old way, tested but weak
 			return nearest->getPosition();
 		}
 	}
@@ -902,13 +863,14 @@ BWAPI::Position Squad::calcCenter() const
 BWAPI::Unit Squad::unitClosestToEnemy(const BWAPI::Unitset units) const
 {
 	BWAPI::Unit closest = nullptr;
-	int closestDist = 100000;
+	int closestDist = 999999;
 
 	UAB_ASSERT(_order.getPosition().isValid(), "bad order position");
 
 	for (const auto unit : units)
 	{
 		// Non-combat units should be ignored for this calculation.
+		// If the cluster contains only these units, we'll return null.
 		if (unit->getType().isDetector() ||
 			!unit->getPosition().isValid() ||       // includes units loaded into bunkers or transports
 			unit->getType() == BWAPI::UnitTypes::Terran_Medic ||
@@ -1041,7 +1003,7 @@ void Squad::loadTransport()
 				break;
 			}
 
-			if (transport->load(unit))
+			if (the.micro.Load(transport, unit))
 			{
 				break;
 			}
@@ -1171,6 +1133,7 @@ void Squad::drawCluster(const UnitCluster & cluster) const
 	}
 }
 
+// NOTE This doesn't make much sense after breaking the squad into clusters.
 void Squad::drawCombatSimInfo() const
 {
 	if (!_units.empty() && _order.isRegroupableOrder())

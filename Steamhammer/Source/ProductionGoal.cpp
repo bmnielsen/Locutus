@@ -1,6 +1,7 @@
 #include "ProductionGoal.h"
 
 #include "BuildingManager.h"
+#include "The.h"
 
 using namespace UAlbertaBot;
 
@@ -23,7 +24,8 @@ bool ProductionGoal::failure() const
 }
 
 ProductionGoal::ProductionGoal(const MacroAct & macroAct)
-	: parent(nullptr)
+	: the(The::Root())
+	, parent(nullptr)
 	, attempted(false)
 	, act(macroAct)
 {
@@ -57,7 +59,7 @@ void ProductionGoal::update()
 	{
 		// BWAPI::Broodwar->printf("attempt goal %s", act.getName().c_str());
 		attempted = true;
-		parent->buildAddon(act.getUnitType());
+		the.micro.Make(parent, act.getUnitType());
 	}
 }
 

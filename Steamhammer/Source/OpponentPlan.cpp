@@ -100,7 +100,7 @@ bool OpponentPlan::recognizeFactoryTech()
 void OpponentPlan::recognize()
 {
 	// Don't recognize island plans.
-	// The regular plans or reactions do not make sense for island maps.
+	// The regular plans and reactions do not make sense for island maps.
 	if (Bases::Instance().isIslandStart())
 	{
 		return;
@@ -109,7 +109,7 @@ void OpponentPlan::recognize()
 	// Recognize fast plans first, slow plans below.
 
 	// Recognize in-base proxy buildings. Info manager does it for us.
-	if (InformationManager::Instance().getEnemyProxy())
+	if (Bases::Instance().getEnemyProxy())
 	{
 		_openingPlan = OpeningPlan::Proxy;
 		_planIsFixed = true;

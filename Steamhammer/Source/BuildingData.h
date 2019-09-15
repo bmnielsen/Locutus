@@ -27,6 +27,7 @@ public:
 	bool					blocked;			// unused TODO for a clearable obstacle (spider mine, self-interference)
 
 	int						startFrame;			// when this building record was first created
+	int						placeBuildingDeadline;	// frame after build() when the order should be PlaceBuilding
 	int						buildersSent;		// count workers lost in construction
 
 	Building() 
@@ -38,6 +39,7 @@ public:
         , builderUnit       (nullptr)
         , status            (BuildingStatus::Unassigned)
         , buildCommandGiven (false)
+		, placeBuildingDeadline(0)
         , underConstruction (false) 
 		, blocked			(false)
 		, isGasSteal		(false)
@@ -55,7 +57,8 @@ public:
         , builderUnit       (nullptr)
         , status            (BuildingStatus::Unassigned)
         , buildCommandGiven (false)
-        , underConstruction (false) 
+		, placeBuildingDeadline(0)
+		, underConstruction	(false)
 		, blocked			(false)
 		, isGasSteal		(false)
 		, startFrame		(BWAPI::Broodwar->getFrameCount())

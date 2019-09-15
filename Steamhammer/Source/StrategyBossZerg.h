@@ -56,9 +56,10 @@ class StrategyBossZerg
 	BuildOrder _latestBuildOrder;
 
 	// Recognize problems.
-	bool _emergencyGroundDefense;
+	bool _emergencyGroundDefense;	// a dangerous enemy army is approaching
 	int _emergencyStartFrame;
-	bool _wantAirArmor;		// to keep overlords alive vs. corsairs, valkyries
+	bool _emergencyNow;				// we are under immediate attack
+	bool _wantAirArmor;				// to keep overlords alive vs. corsairs, valkyries
 
 	int _existingSupply;
 	int _pendingSupply;
@@ -119,6 +120,7 @@ class StrategyBossZerg
 	int maxDrones;        // maximum reasonable number given nMineralPatches and nGas
 
 	int myArmySize;
+	int enemyGroundArmySize;
 	int enemyAntigroundArmySize;
 	int defilerScore;
 
@@ -130,6 +132,7 @@ class StrategyBossZerg
 	void updateGameState();
 	void updateArmySizes();
 	bool enoughArmy() const;
+	bool enoughGroundArmy() const;
 
 	int numInEgg(BWAPI::UnitType) const;
 	bool isBeingBuilt(const BWAPI::UnitType unitType) const;

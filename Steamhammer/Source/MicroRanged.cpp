@@ -80,6 +80,12 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 			continue;
 		}
 
+		if (the.micro.fleeDT(rangedUnit))
+		{
+			// We fled from an undetected dark templar.
+			continue;
+		}
+
 		// Special case for irradiated zerg units.
 		if (rangedUnit->isIrradiated() && rangedUnit->getType().getRace() == BWAPI::Races::Zerg)
 		{
@@ -97,7 +103,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 			}
 			else if (rangedUnit->canBurrow())
 			{
-				rangedUnit->burrow();
+				the.micro.Burrow(rangedUnit);
 				continue;
 			}
 		}

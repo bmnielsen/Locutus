@@ -54,12 +54,18 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
 		{
 			if (meleeUnit->canBurrow())
 			{
-				meleeUnit->burrow();
+				the.micro.Burrow(meleeUnit);
 				continue;
 			}
 			// Otherwise ignore it. Ultralisks should probably just keep going.
 		}
 		
+		// Try to avoid being hit by an undetected enemy dark templar.
+		if (the.micro.fleeDT(meleeUnit))
+		{
+			continue;
+		}
+
 		if (order.isCombatOrder())
         {
 			// run away if we meet the retreat criterion
@@ -86,16 +92,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
 				BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets);
 				if (target)
 				{
-					// CatchAndAttackUnit() does not work well in big melee battles.
-					// We still use it for worker targets, to catch the enemy scout.
-					if (true || target->getType().isWorker())	// TODO DISABLED - always use catch and attack
-					{
-						the.micro.CatchAndAttackUnit(meleeUnit, target);
-					}
-					else
-					{
-						the.micro.AttackUnit(meleeUnit, target);
-					}
+					the.micro.CatchAndAttackUnit(meleeUnit, target);
 				}
 				else if (meleeUnit->getDistance(order.getPosition()) > 96)
 				{

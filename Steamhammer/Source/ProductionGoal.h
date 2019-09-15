@@ -3,8 +3,12 @@
 
 namespace UAlbertaBot
 {
+	class The;
+
 	class ProductionGoal
 	{
+		The & the;
+
 		BWAPI::Unit parent;		// for terran addons and zerg morphed buildings
 		bool attempted;
 

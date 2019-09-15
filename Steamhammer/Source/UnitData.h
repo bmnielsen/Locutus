@@ -11,19 +11,20 @@ struct UnitInfo
 
     int             unitID;
 	int				updateFrame;
-    int             lastHealth;
+    int             lastHP;
     int             lastShields;
     BWAPI::Player   player;
     BWAPI::Unit     unit;
     BWAPI::Position lastPosition;
 	bool			goneFromLastPosition;    // last position was seen, and it wasn't there
+	bool			burrowed;                // believed to be burrowed (or burrowing) at this position
     BWAPI::UnitType type;
     bool            completed;
 
     UnitInfo()
         : unitID(0)
 		, updateFrame(0)
-		, lastHealth(0)
+		, lastHP(0)
 		, lastShields(0)
 		, player(nullptr)
         , unit(nullptr)
@@ -37,7 +38,7 @@ struct UnitInfo
 	UnitInfo(BWAPI::Unit unit)
 		: unitID(unit->getID())
 		, updateFrame(BWAPI::Broodwar->getFrameCount())
-		, lastHealth(unit->getHitPoints())
+		, lastHP(unit->getHitPoints())
 		, lastShields(unit->getShields())
 		, player(unit->getPlayer())
 		, unit(unit)
@@ -63,6 +64,8 @@ struct UnitInfo
         return unitID < rhs.unitID;
     }
 
+	int estimateHP() const;
+	int estimateShields() const;
 	int estimateHealth() const;
 };
 

@@ -28,7 +28,7 @@ Bases::Bases()
 {
 }
 
-// Figure out whether we are starting on an island.
+// Figure out whether we are starting on an island (or semi-island).
 bool Bases::checkIslandMap() const
 {
 	UAB_ASSERT(startingBase, "our base is unknown");
@@ -668,6 +668,33 @@ void Bases::gasCounts(int & nRefineries, int & nFreeGeysers) const
 
 	nRefineries = refineries;
 	nFreeGeysers = geysers;
+}
+
+// Return whether the enemy has a building in our main or natural base.
+bool Bases::getEnemyProxy() const
+{
+	BWTA::Region * mainRegion = BWTA::getRegion(myStartingBase()->getTilePosition());
+	BWTA::Region * naturalRegion =
+		myNaturalBase() ? BWTA::getRegion(myNaturalBase()->getTilePosition()) : nullptr;
+
+	for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+	{
+		const UnitInfo & ui(kv.second);
+
+		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
+		{
+			BWTA::Region * region = BWTA::getRegion(ui.lastPosition);
+			if (region)
+			{
+				if (region == mainRegion || region == naturalRegion)
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 // A neutral building has been destroyed.

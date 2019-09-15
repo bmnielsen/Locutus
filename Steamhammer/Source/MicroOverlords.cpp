@@ -139,7 +139,6 @@ void MicroOverlords::update()
 			}
 			//BWAPI::Broodwar->printf("run spares to spores");
 		}
-
-        // Otherwise don't worry (for now) about where unassigned overlords are.
+		// Otherwise don't worry (for now) about where unassigned overlords are.
 	}
 }

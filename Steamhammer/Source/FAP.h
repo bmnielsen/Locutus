@@ -38,7 +38,6 @@ namespace UAlbertaBot {
 			mutable int airDamage = 0;
 			mutable int airCooldown = 0;
 			mutable int airMaxRange = 0;
-			mutable int airMinRange = 0;
 			mutable BWAPI::DamageType airDamageType;
 
 			mutable BWAPI::UnitType unitType;
@@ -57,6 +56,8 @@ namespace UAlbertaBot {
 #endif
 
 			bool operator< (const FAPUnit &other) const;
+
+			int unitScore(BWAPI::UnitType type) const;
 		};
 
 		public:

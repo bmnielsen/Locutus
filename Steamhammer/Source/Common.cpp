@@ -125,11 +125,13 @@ void ClipToMap(BWAPI::Position & pos)
 // The distance can be negative.
 BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance)
 {
-	double offset = a.getDistance(b);
-	BWAPI::Position direction = (b - a) / offset;
-	BWAPI::Position destination = direction * distance;
-	ClipToMap(destination);
-	return destination;
+	if (a == b)
+	{
+		return a;
+	}
+
+	v2 difference(b - a);
+	return a + (difference.normalize() * double(distance));
 }
 
 // Return the speed (pixels per frame) at which unit u is approaching the position.

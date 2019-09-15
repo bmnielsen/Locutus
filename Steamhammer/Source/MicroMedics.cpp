@@ -17,6 +17,10 @@ void MicroMedics::executeMicro(const BWAPI::Unitset & targets, const UnitCluster
 void MicroMedics::update(const UnitCluster & cluster, const BWAPI::Position & goal)
 {
 	const BWAPI::Unitset & medics = Intersection(getUnits(), cluster.units);
+	if (medics.empty())
+	{
+		return;
+	}
     
 	// create a set of all medic targets
 	BWAPI::Unitset medicTargets;

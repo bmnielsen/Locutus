@@ -66,10 +66,14 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets, const UnitCluster 
 						shouldSiege = false;
 					}
 
-					// Also don't siege for single enemy units with low hitpoints.
-					else if (tankTargets.size() == 1 && target->getHitPoints() + target->getShields() <= 60)
+					// Also don't siege for single enemy units with low hitpoints,
+					// or for single melee units (or units that can't attack us).
+					else if (tankTargets.size() == 1)
 					{
-						shouldSiege = false;
+						if (target->getHitPoints() + target->getShields() <= 60 || UnitUtil::GetAttackRange(target, tank))
+						{
+							shouldSiege = false;
+						}
 					}
 				}
 
@@ -84,11 +88,11 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets, const UnitCluster 
 					!shouldUnsiege &&
 					tank->canSiege())
                 {
-                    tank->siege();
-                }
+					the.micro.Siege(tank);
+				}
 				else if (tank->canUnsiege() && (!target || shouldUnsiege))
                 {
-                    tank->unsiege();
+					the.micro.Unsiege(tank);
                 }
 
 				if (target)

@@ -11,7 +11,6 @@ using namespace UAlbertaBot;
 InformationManager::InformationManager()
     : _self(BWAPI::Broodwar->self())
     , _enemy(BWAPI::Broodwar->enemy())
-	, _enemyProxy(false)
 	
 	, _weHaveCombatUnits(false)
 	, _enemyHasCombatUnits(false)
@@ -204,9 +203,9 @@ bool InformationManager::closeEnough(BWAPI::TilePosition a, BWAPI::TilePosition 
 void InformationManager::update()
 {
 	updateUnitInfo();
+	updateGoneFromLastPosition();
 	updateBaseLocationInfo();
 	updateTheBases();
-	updateGoneFromLastPosition();
 	updateTheirTargets();
 }
 
@@ -277,11 +276,7 @@ void InformationManager::updateBaseLocationInfo()
 
 				// On a competition map, our base and the enemy base will never be in the same region.
 				// If we find an enemy building in our region, it's a proxy.
-				if (startLocation == BWTA::getStartLocation(_self))
-				{
-					_enemyProxy = true;
-				}
-				else
+				if (startLocation != BWTA::getStartLocation(_self))
 				{
 					if (Config::Debug::DrawScoutInfo)
 					{
@@ -294,9 +289,7 @@ void InformationManager::updateBaseLocationInfo()
 				}
 			}
 
-			// TODO If the enemy is zerg, we can be a little quicker by looking for creep.
-			// TODO If we see a mineral patch that has been mined, that should be a base.
-			if (BWAPI::Broodwar->isExplored(startLocation->getTilePosition())) 
+			if (enemyStartLocationExplored(startLocation)) 
 			{
 				// Count the explored bases.
 				++exploredStartLocations;
@@ -334,7 +327,7 @@ void InformationManager::updateBaseLocationInfo()
 
 		if (ui.type.isBuilding() && !ui.goneFromLastPosition)
 		{
-			updateOccupiedRegions(BWTA::getRegion(BWAPI::TilePosition(ui.lastPosition)), _enemy);
+			updateOccupiedRegions(BWTA::getRegion(ui.lastPosition), _enemy);
 		}
 	}
 
@@ -382,7 +375,7 @@ void InformationManager::enemyBaseLocationFromOverlordSighting()
 		int countPossibleBases = 0;
 		for (BWTA::BaseLocation * base : BWTA::getStartLocations())
 		{
-			if (BWAPI::Broodwar->isExplored(base->getTilePosition()))
+			if (enemyStartLocationExplored(base))
 			{
 				// We've already seen this base, and the enemy is not there.
 				continue;
@@ -412,6 +405,21 @@ void InformationManager::enemyBaseLocationFromOverlordSighting()
 			return;
 		}
 	}
+}
+
+// We're scouting in the early game. Have we seen whether the enemy base is here?
+// To turn the scout around as early as possible if the base is empty, we check
+// each corner of the resource depot spot.
+// TODO If the enemy is zerg, we can be a little quicker by looking for creep.
+// TODO If we see a mineral patch that has been mined, that should be a base.
+bool InformationManager::enemyStartLocationExplored(BWTA::BaseLocation * base) const
+{
+	BWAPI::TilePosition tile = base->getTilePosition();
+	return
+		BWAPI::Broodwar->isExplored(tile) ||
+		BWAPI::Broodwar->isExplored(tile + BWAPI::TilePosition(3, 2)) ||
+		BWAPI::Broodwar->isExplored(tile + BWAPI::TilePosition(0, 2)) ||
+		BWAPI::Broodwar->isExplored(tile + BWAPI::TilePosition(3, 0));
 }
 
 // _theBases is not always correctly updated by the event-driven methods.
@@ -466,17 +474,62 @@ void InformationManager::updateOccupiedRegions(BWTA::Region * region, BWAPI::Pla
 }
 
 // If we can see the last known location of a remembered unit and the unit is not there,
-// set the unit's goneFromLastPosition flag.
+// set the unit's goneFromLastPosition flag (unless it is burrowed or burrowing).
 void InformationManager::updateGoneFromLastPosition()
 {
-	// We don't need to check often.
+	// We don't need to check every frame.
 	// 1. The game supposedly only resets visible tiles when frame % 100 == 99.
 	// 2. If the unit has only been gone from its location for a short time, it probably
-	//    didn't go far (it might have been recalled or gone through a nydus).
-	// So we check less than once per second.
-	if (BWAPI::Broodwar->getFrameCount() % 32 == 5)
+	//    didn't go far (though it might have been recalled or gone through a nydus).
+	// On the other hand, burrowed units can disappear from view more quickly.
+	// 3. Detection is updated immediately, so we might overlook having detected
+	//    a burrowed unit if we don't update often enough.
+	// 4. We also might miss a unit in the process of burrowing.
+	// All in all, we should check fairly often.
+	if (BWAPI::Broodwar->getFrameCount() % 6 == 5)
 	{
 		_unitData[_enemy].updateGoneFromLastPosition();
+	}
+
+	if (Config::Debug::DrawHiddenEnemies)
+	{
+		for (const auto & kv : _unitData[_enemy].getUnits())
+		{
+			const UnitInfo & ui(kv.second);
+
+			// Units that are out of sight range.
+			if (ui.unit && !ui.unit->isVisible())
+			{
+				if (ui.goneFromLastPosition)
+				{
+					// Draw a small X.
+					BWAPI::Broodwar->drawLineMap(
+						ui.lastPosition + BWAPI::Position(-2, -2),
+						ui.lastPosition + BWAPI::Position(2, 2),
+						BWAPI::Colors::Red);
+					BWAPI::Broodwar->drawLineMap(
+						ui.lastPosition + BWAPI::Position(2, -2),
+						ui.lastPosition + BWAPI::Position(-2, 2),
+						BWAPI::Colors::Red);
+				}
+				else
+				{
+					// Draw a small circle.
+					BWAPI::Color color = ui.burrowed ? BWAPI::Colors::Yellow : BWAPI::Colors::Green;
+					BWAPI::Broodwar->drawCircleMap(ui.lastPosition, 4, color);
+				}
+			}
+
+			// Units that are in sight range but undetected.
+			if (ui.unit && ui.unit->isVisible() && !ui.unit->isDetected())
+			{
+				// Draw a larger circle.
+				BWAPI::Broodwar->drawCircleMap(ui.lastPosition, 8, BWAPI::Colors::Purple);
+
+				BWAPI::Broodwar->drawTextMap(ui.lastPosition + BWAPI::Position(10, 6),
+					"%c%s", white, UnitTypeName(ui.type).c_str());
+			}
+		}
 	}
 }
 
@@ -581,7 +634,7 @@ void InformationManager::drawExtendedInterface()
         const UnitInfo & ui(kv.second);
 
 		BWAPI::UnitType type(ui.type);
-        int hitPoints = ui.lastHealth;
+        int hitPoints = ui.lastHP;
         int shields = ui.lastShields;
 
         const BWAPI::Position & pos = ui.lastPosition;
@@ -817,8 +870,8 @@ void InformationManager::onUnitDestroy(BWAPI::Unit unit)
 
 // Only returns units expected to be completed.
 // A building is considered completed if it was last seen uncompleted and is now out of sight.
-// NOTE It could be more accurate if ui.comleted were ui.completionTime or something similar.
-void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI::Position p, BWAPI::Player player, int radius) 
+// NOTE It could be more accurate if ui.completed were ui.completionTime or something similar.
+void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitsOut, BWAPI::Position p, BWAPI::Player player, int radius) 
 {
 	for (const auto & kv : getUnitData(player).getUnits())
 	{
@@ -826,7 +879,7 @@ void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI:
 
 		// if it's a combat unit we care about
 		// and it's finished! 
-		if (UnitUtil::IsCombatSimUnit(ui.type) && !ui.goneFromLastPosition &&
+		if (UnitUtil::IsCombatSimUnit(ui) && !ui.goneFromLastPosition &&
 			(ui.completed || ui.type.isBuilding() && !ui.unit->isVisible()))
 		{
 			if (ui.type == BWAPI::UnitTypes::Terran_Medic)
@@ -834,7 +887,7 @@ void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI:
 				// Spellcasters that the combat simulator is able to simulate.
 				if (ui.lastPosition.getDistance(p) <= (radius + 64))
 				{
-					unitInfo.push_back(ui);
+					unitsOut.push_back(ui);
 				}
 			}
 			else
@@ -847,14 +900,14 @@ void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitInfo, BWAPI:
 				// Include it if it can attack into the radius we care about (with fudge factor).
 				if (range && ui.lastPosition.getDistance(p) <= (radius + range + 32))
 				{
-					unitInfo.push_back(ui);
+					unitsOut.push_back(ui);
 				}
 			}
 		}
 		// NOTE FAP does not support detectors.
 		// else if (ui.type.isDetector() && ui.lastPosition.getDistance(p) <= (radius + 250))
         // {
-		//	unitInfo.push_back(ui);
+		//	unitsOut.push_back(ui);
         // }
 	}
 }

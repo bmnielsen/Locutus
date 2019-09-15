@@ -78,9 +78,9 @@ namespace UAlbertaBot
 		bool connectedToStart(const BWAPI::TilePosition & tile) const;
 
 		Base * getBaseAtTilePosition(BWAPI::TilePosition pos);
-		const std::vector<Base *> & getBases() { return bases; };
-		const std::vector<Base *> & getStartingBases() { return startingBases; };
-		const std::vector<BWAPI::Unit> & getSmallMinerals() { return smallMinerals; };
+		const std::vector<Base *> & getBases() const { return bases; };
+		const std::vector<Base *> & getStartingBases() const { return startingBases; };
+		const std::vector<BWAPI::Unit> & getSmallMinerals() const { return smallMinerals; };
 
 		int baseCount(BWAPI::Player player) const;
 		int completedBaseCount(BWAPI::Player player) const;
@@ -88,6 +88,8 @@ namespace UAlbertaBot
 		int mineralPatchCount() const;
 		int geyserCount() const;
 		void gasCounts(int & nRefineries, int & nFreeGeysers) const;
+
+		bool getEnemyProxy() const;
 
 		void clearNeutral(BWAPI::Unit unit);
 

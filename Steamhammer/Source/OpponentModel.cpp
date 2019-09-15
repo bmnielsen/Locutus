@@ -659,7 +659,7 @@ void OpponentModel::predictEnemy(int lookaheadFrames, PlayerSnapshot & snap) con
 	}
 }
 
-// The inferred enemy opening plan.
+// The recognized enemy opening plan.
 OpeningPlan OpponentModel::getEnemyPlan() const
 {
 	return _planRecognizer.getPlan();

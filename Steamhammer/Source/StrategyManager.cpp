@@ -9,7 +9,8 @@
 using namespace UAlbertaBot;
 
 StrategyManager::StrategyManager() 
-	: _selfRace(BWAPI::Broodwar->self()->getRace())
+	: the(The::Root())
+	, _selfRace(BWAPI::Broodwar->self()->getRace())
 	, _enemyRace(BWAPI::Broodwar->enemy()->getRace())
     , _emptyBuildOrder(BWAPI::Broodwar->self()->getRace())
 	, _openingGroup("")
@@ -586,7 +587,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 			{
 				if (UnitUtil::IsComingStaticDefense(unit->getType()) && unit->canCancelConstruction())
 				{
-					unit->cancelConstruction();
+					the.micro.Cancel(unit);
 				}
 			}
 			// 3. Never do it again.

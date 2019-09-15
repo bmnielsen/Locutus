@@ -5,6 +5,8 @@
 
 namespace UAlbertaBot
 {
+struct UnitInfo;
+
 namespace UnitUtil
 {      
 	bool IsMorphedBuildingType(BWAPI::UnitType type);
@@ -16,6 +18,7 @@ namespace UnitUtil
 	bool IsStaticDefense(BWAPI::UnitType type);
 	bool IsComingStaticDefense(BWAPI::UnitType type);
 
+	bool IsCombatSimUnit(const UnitInfo & ui);
 	bool IsCombatSimUnit(BWAPI::Unit unit);
 	bool IsCombatSimUnit(BWAPI::UnitType type);
 	bool IsCombatUnit(BWAPI::UnitType type);

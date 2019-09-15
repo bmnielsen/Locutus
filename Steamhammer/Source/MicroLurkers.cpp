@@ -70,7 +70,7 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 				// Burrow or stay burrowed.
 				if (lurker->canBurrow())
 				{
-					lurker->burrow();
+					the.micro.Burrow(lurker);
 				}
 				else if (lurker->isBurrowed())
 				{
@@ -89,7 +89,7 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 					// Unburrow only at set intervals. Reduces the burrow-unburrow frenzy.
 					if (BWAPI::Broodwar->getFrameCount() % 24 == 0)
 					{
-						lurker->unburrow();
+						the.micro.Unburrow(lurker);
 					}
 				}
 				else if (lurker->isBurrowed())
@@ -132,14 +132,14 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 			if (inOrderRange) {
 				if (lurker->canBurrow())
 				{
-					lurker->burrow();
+					the.micro.Burrow(lurker);
 				}
 			}
 			else
 			{
 				if (lurker->canUnburrow())
 				{
-					lurker->unburrow();
+					the.micro.Unburrow(lurker);
 				}
 				else
 				{

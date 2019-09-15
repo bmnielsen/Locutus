@@ -1,4 +1,6 @@
 #include "MicroDefilers.h"
+
+#include "Bases.h"
 #include "The.h"
 #include "UnitUtil.h"
 
@@ -7,6 +9,34 @@ using namespace UAlbertaBot;
 // NOTE
 // The computations to decide whether and where to swarm and plague are expensive.
 // Don't have too many defilers at the same time, or you'll time out.
+
+// The defilers in this cluster.
+// This will rarely return more than one defiler.
+BWAPI::Unitset MicroDefilers::getDefilers(const UnitCluster & cluster) const
+{
+	BWAPI::Unitset defilers;
+
+	for (BWAPI::Unit unit : getUnits())
+	{
+		if (unit->getType() == BWAPI::UnitTypes::Zerg_Defiler &&
+			cluster.units.contains(unit))
+		{
+			defilers.insert(unit);
+		}
+	}
+
+	return defilers;
+}
+
+// The defiler is probably about to die. It should cast immediately if it is ever going to.
+bool MicroDefilers::aboutToDie(const BWAPI::Unit defiler) const
+{
+	return
+		defiler->getHitPoints() < 30 ||
+		defiler->isIrradiated() ||
+		defiler->isUnderStorm() ||
+		defiler->isPlagued();
+}
 
 // We need to consume and have it researched. Look around for food.
 // For now, we consume zerglings.
@@ -23,7 +53,7 @@ bool MicroDefilers::maybeConsume(BWAPI::Unit defiler, BWAPI::Unitset & food)
 			defiler->canUseTechUnit(BWAPI::TechTypes::Consume, zergling))
 		{
 			// BWAPI::Broodwar->printf("consume!");
-			defiler->useTech(BWAPI::TechTypes::Consume, zergling);
+			(void) the.micro.UseTech(defiler, BWAPI::TechTypes::Consume, zergling);
 			food.erase(zergling);
 			return true;
 		}
@@ -46,7 +76,7 @@ bool MicroDefilers::swarmOrPlague(BWAPI::Unit defiler, BWAPI::TechType techType,
 	else if (defiler->canUseTech(techType, target))
 	{
 		// BWAPI::Broodwar->printf(techType == BWAPI::TechTypes::Dark_Swarm ? "SWARM!" : "PLAGUE!");
-		return defiler->useTech(techType, target);
+		return the.micro.UseTech(defiler, techType, target);
 	}
 
 	return false;
@@ -121,14 +151,16 @@ int MicroDefilers::swarmScore(BWAPI::Unit u) const
 
 // Score units, pick the ones with higher scores and try to swarm there.
 // Swarm has a range of 9 and covers a 6x6 area (according to Liquipedia) or 5x5 (according to BWAPI).
-bool MicroDefilers::maybeSwarm(BWAPI::Unit defiler, bool aboutToDie)
+bool MicroDefilers::maybeSwarm(BWAPI::Unit defiler)
 {
 	// Plague has range 9 and affects a 6x6 box. We look a little beyond that range for targets.
 	const int limit = 14;
 
+	const bool dying = aboutToDie(defiler);
+
 	// Usually, swarm only if there is an enemy building to cover.
 	// If the defiler is about to die, swarm may still be worth it even if it covers nothing.
-	if (!aboutToDie &&
+	if (!dying &&
 		BWAPI::Broodwar->getUnitsInRadius(defiler->getPosition(), limit * 32, BWAPI::Filter::IsEnemy && BWAPI::Filter::IsBuilding).empty())
 	{
 		return false;
@@ -178,13 +210,13 @@ bool MicroDefilers::maybeSwarm(BWAPI::Unit defiler, bool aboutToDie)
 		}
 	}
 
-	if (bestScore > 0)
+	if (bestScore > 0.0)
 	{
 		// BWAPI::Broodwar->printf("swarm score %d at %d,%d", bestScore, bestPlace.x, bestPlace.y);
 	}
 
 	// NOTE If bestScore is 0, then bestPlace is the defiler's location (set above).
-	if (bestScore > 20 || aboutToDie)
+	if (bestScore > 20 || dying)
 	{
 		return swarmOrPlague(defiler, BWAPI::TechTypes::Dark_Swarm, bestPlace);
 	}
@@ -235,7 +267,7 @@ double MicroDefilers::plagueScore(BWAPI::Unit u) const
 }
 
 // We can plague. Look around to see if we should, and if so, do it.
-bool MicroDefilers::maybePlague(BWAPI::Unit defiler, bool aboutToDie)
+bool MicroDefilers::maybePlague(BWAPI::Unit defiler)
 {
 	// Plague has range 9 and affects a 4x4 box. We look a little beyond that range for targets.
 	const int limit = 12;
@@ -243,7 +275,9 @@ bool MicroDefilers::maybePlague(BWAPI::Unit defiler, bool aboutToDie)
 	// Unless the defiler is in trouble, don't bother to plague a small number of enemy units.
 	BWAPI::Unitset targets = BWAPI::Broodwar->getUnitsInRadius(defiler->getPosition(), limit * 32, BWAPI::Filter::IsEnemy);
 
-	if (targets.size() < 6 || aboutToDie && targets.empty())
+	const bool dying = aboutToDie(defiler);
+
+	if (targets.empty() || !dying && targets.size() < 5)
 	{
 		// So little enemy stuff that it's unlikely to be worth it. Bail.
 		return false;
@@ -285,7 +319,7 @@ bool MicroDefilers::maybePlague(BWAPI::Unit defiler, bool aboutToDie)
 		// BWAPI::Broodwar->printf("plague score %g at %d,%d", bestScore, bestPlace.x, bestPlace.y);
 	}
 
-	if (bestScore > 200.0 || aboutToDie && bestScore > 0.0)
+	if (bestScore > 200.0 || dying && bestScore > 0.0)
 	{
 		return swarmOrPlague(defiler, BWAPI::TechTypes::Plague, bestPlace);
 	}
@@ -303,9 +337,16 @@ void MicroDefilers::executeMicro(const BWAPI::Unitset & targets, const UnitClust
 }
 
 // Consume for energy if possible and necessary; otherwise move.
-void MicroDefilers::updateMovement(const BWAPI::Position & center, BWAPI::Unit vanguard)
+void MicroDefilers::updateMovement(const UnitCluster & cluster, BWAPI::Unit vanguard)
 {
+	BWAPI::Unitset defilers = getDefilers(cluster);
+	if (defilers.empty())
+	{
+		return;
+	}
+
 	// Collect the food.
+	// The food may be far away, not in the current cluster.
 	BWAPI::Unitset food;
 	for (BWAPI::Unit unit : getUnits())
 	{
@@ -315,39 +356,22 @@ void MicroDefilers::updateMovement(const BWAPI::Position & center, BWAPI::Unit v
 		}
 	}
 
-	// Figure out where all units should move to.
-	BWAPI::Position destination = BWAPI::Positions::Invalid;
-	if (vanguard && vanguard->getPosition().isValid())
-	{
-		destination = vanguard->getPosition();
-	}
-	else if (center.isValid())
-	{
-		destination = center;
-	}
-
 	// Control the defilers.
-	for (BWAPI::Unit defiler : getUnits())
+	for (BWAPI::Unit defiler : defilers)
 	{
-		if (defiler->getType() != BWAPI::UnitTypes::Zerg_Defiler)
-		{
-			// Not a defiler, only food.
-			continue;
-		}
-
 		bool canMove = true;
 		if (defiler->isBurrowed())
 		{
 			canMove = false;
 			if (!defiler->isIrradiated() && defiler->canUnburrow())
 			{
-				defiler->unburrow();
+				the.micro.Unburrow(defiler);
 			}
 		}
 		else if (defiler->isIrradiated() && defiler->getEnergy() < 90 && defiler->canBurrow())
 		{
 			canMove = false;
-			defiler->burrow();
+			the.micro.Burrow(defiler);
 		}
 
 		if (canMove && defiler->getEnergy() < 150 &&
@@ -357,19 +381,34 @@ void MicroDefilers::updateMovement(const BWAPI::Position & center, BWAPI::Unit v
 			canMove = !maybeConsume(defiler, food);
 		}
 
-		if (canMove && destination.isValid())
+		if (canMove)
 		{
-			the.micro.Move(defiler, destination);
+			BWAPI::Position destination;
+
+			// Figure out where the defiler should move to.
+			if (vanguard && defiler->getEnergy() >= 100)
+			{
+				destination = vanguard->getPosition();
+			}
+			else
+			{
+				destination = cluster.center;
+			}
+
+			if (destination.isValid())
+			{
+				the.micro.Move(defiler, destination);
+			}
 		}
 	}
 
-	// Control the surviving food--move it to the destination.
+	// Control the surviving food--move it to the defiler's position.
 	for (BWAPI::Unit zergling : food)
 	{
 		// Find the nearest defiler with low energy and move toward it.
 		BWAPI::Unit bestDefiler = nullptr;
-		int bestDist = 99999;
-		for (BWAPI::Unit defiler : getUnits())
+		int bestDist = 999999;
+		for (BWAPI::Unit defiler : defilers)
 		{
 			if (defiler->getType() == BWAPI::UnitTypes::Zerg_Defiler &&
 				defiler->getEnergy() < 150)
@@ -391,52 +430,42 @@ void MicroDefilers::updateMovement(const BWAPI::Position & center, BWAPI::Unit v
 }
 
 // Cast dark swarm if possible and useful.
-void MicroDefilers::updateSwarm()
+void MicroDefilers::updateSwarm(const UnitCluster & cluster)
 {
-	for (BWAPI::Unit defiler : getUnits())
+	BWAPI::Unitset defilers = getDefilers(cluster);
+	if (defilers.empty())
 	{
-		if (defiler->getType() != BWAPI::UnitTypes::Zerg_Defiler ||
-			defiler->isBurrowed())
-		{
-			continue;
-		}
+		return;
+	}
 
-		const bool aboutToDie =
-			defiler->getHitPoints() < 30 ||
-			defiler->isIrradiated() ||
-			defiler->isUnderStorm() ||
-			defiler->isPlagued();
-
-		if (defiler->getEnergy() >= 100 &&
+	for (BWAPI::Unit defiler : defilers)
+	{
+		if (!defiler->isBurrowed() &&
+			defiler->getEnergy() >= 100 &&
 			defiler->canUseTech(BWAPI::TechTypes::Dark_Swarm, defiler->getPosition()))
 		{
-			(void) maybeSwarm(defiler, aboutToDie);
+			(void) maybeSwarm(defiler);
 		}
 	}
 }
 
 // Cast plague if possible and useful.
-void MicroDefilers::updatePlague()
+void MicroDefilers::updatePlague(const UnitCluster & cluster)
 {
-	for (BWAPI::Unit defiler : getUnits())
+	BWAPI::Unitset defilers = getDefilers(cluster);
+	if (defilers.empty())
 	{
-		if (defiler->getType() != BWAPI::UnitTypes::Zerg_Defiler ||
-			defiler->isBurrowed())
-		{
-			continue;
-		}
+		return;
+	}
 
-		const bool aboutToDie =
-			defiler->getHitPoints() < 30 ||
-			defiler->isIrradiated() ||
-			defiler->isUnderStorm() ||
-			defiler->isPlagued();
-
-		if (defiler->getEnergy() >= 150 &&
+	for (BWAPI::Unit defiler : defilers)
+	{
+		if (!defiler->isBurrowed() &&
+			defiler->getEnergy() >= 150 &&
 			BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Plague) &&
 			defiler->canUseTech(BWAPI::TechTypes::Plague, defiler->getPosition()))
 		{
-			(void) maybePlague(defiler, aboutToDie);
+			(void) maybePlague(defiler);
 		}
 	}
 }

@@ -15,10 +15,14 @@ namespace UAlbertaBot
 {
 enum class ExtractorTrick { None, Start, ExtractorOrdered, UnitOrdered, MakeUnitBypass };
 
+class The;
+
 class ProductionManager
 {
     ProductionManager();
     
+	The & the;
+
     BuildOrderQueue						_queue;
 	std::forward_list<ProductionGoal>	_goals;
 

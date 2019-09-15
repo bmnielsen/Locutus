@@ -3,25 +3,59 @@
 
 using namespace UAlbertaBot;
 
-// Estimate the HP + shields of this unit, which may not have been seen for some time.
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+// These routines estimate HP and/or shields of the unit, which may not have been seen for some time.
 // Account for shield regeneration and zerg regeneration, but not terran healing or repair or burning.
 // Regeneration rates are calculated from info at http://www.starcraftai.com/wiki/Regeneration
-int UnitInfo::estimateHealth() const
-{
-	const int interval = BWAPI::Broodwar->getFrameCount() - updateFrame;
+// If the unit is visible and not detected, then its "last known" HP and shields are both 0,
+// so assume that the unit is at full strength.
 
-	if (type.getRace() == BWAPI::Races::Protoss)
+int UnitInfo::estimateHP() const
+{
+	if (unit && unit->isVisible())
 	{
-		return lastHealth + std::min(type.maxShields(), int(lastShields + 0.0273 * interval));
+		if (!unit->isDetected())
+		{
+			return type.maxHitPoints();
+		}
+		return lastHP;		// the most common case
 	}
 
 	if (type.getRace() == BWAPI::Races::Zerg)
 	{
-		return std::min(type.maxHitPoints(), lastHealth + int(0.0156 * interval));
+		const int interval = BWAPI::Broodwar->getFrameCount() - updateFrame;
+		return std::min(type.maxHitPoints(), lastHP + int(0.0156 * interval));
 	}
 
-	// Terran or something neutral.
-	return lastHealth;
+	// Terran, protoss, neutral.
+	return lastHP;
+}
+
+int UnitInfo::estimateShields() const
+{
+	if (unit && unit->isVisible())
+	{
+		if (!unit->isDetected())
+		{
+			return type.maxShields();
+		}
+		return lastShields;		// the most common case
+	}
+
+	if (type.getRace() == BWAPI::Races::Protoss)
+	{
+		const int interval = BWAPI::Broodwar->getFrameCount() - updateFrame;
+		return std::min(type.maxShields(), int(lastShields + 0.0273 * interval));
+	}
+
+	// Terran, zerg, neutral.
+	return lastShields;
+}
+
+int UnitInfo::estimateHealth() const
+{
+	return estimateHP() + estimateShields();
 }
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -42,6 +76,7 @@ UnitData::UnitData()
 
 // An enemy unit which is not visible, but whose lastPosition can be seen, is known
 // not to be at its lastPosition. Flag it.
+// A complication: A burrowed unit may still be at its last position. Try to keep track.
 // Called from InformationManager with the enemy UnitData.
 void UnitData::updateGoneFromLastPosition()
 {
@@ -51,11 +86,30 @@ void UnitData::updateGoneFromLastPosition()
 
 		if (!ui.goneFromLastPosition &&
 			ui.lastPosition.isValid() &&   // should be always true
-			ui.unit &&                     // should be always true
-			!ui.unit->isVisible() &&
-			BWAPI::Broodwar->isVisible(BWAPI::TilePosition(ui.lastPosition)))
+			ui.unit)                       // should be always true
 		{
-			ui.goneFromLastPosition = true;
+			if (ui.unit->isVisible())
+			{
+				// It may be burrowed and detected. Or it may be still burrowing.
+				ui.burrowed = ui.unit->isBurrowed() || ui.unit->getOrder() == BWAPI::Orders::Burrowing;
+			}
+			else
+			{
+				// The unit is not visible.
+				if (ui.type == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
+				{
+					// Burrowed spider mines are tricky. If the mine is detected, isBurrowed() is true.
+					// But we can't tell when the spider mine is burrowing or upburrowing; its order
+					// is always BWAPI::Orders::VultureMine. So we assume that a mine which goes out
+					// of vision has burrowed and is undetected. It can be wrong.
+					ui.burrowed = true;
+					ui.goneFromLastPosition = false;
+				}
+				else if (BWAPI::Broodwar->isVisible(BWAPI::TilePosition(ui.lastPosition)) && !ui.burrowed)
+				{
+					ui.goneFromLastPosition = true;
+				}
+			}
 		}
 	}
 }
@@ -69,18 +123,19 @@ void UnitData::updateUnit(BWAPI::Unit unit)
 		++numUnits[unit->getType().getID()];
 		unitMap[unit] = UnitInfo();
     }
-    
-	UnitInfo & ui   = unitMap[unit];
-    ui.unit         = unit;
-	ui.updateFrame	= BWAPI::Broodwar->getFrameCount();
-    ui.player       = unit->getPlayer();
-	ui.lastPosition = unit->getPosition();
-	ui.goneFromLastPosition = false;
-	ui.lastHealth   = unit->getHitPoints();
-    ui.lastShields  = unit->getShields();
-	ui.unitID       = unit->getID();
-	ui.type         = unit->getType();
-    ui.completed    = unit->isCompleted();
+
+	UnitInfo & ui			= unitMap[unit];
+    ui.unit					= unit;
+	ui.updateFrame			= BWAPI::Broodwar->getFrameCount();
+    ui.player				= unit->getPlayer();
+	ui.lastPosition			= unit->getPosition();
+	ui.goneFromLastPosition	= false;
+	ui.burrowed				= unit->isBurrowed() || unit->getOrder() == BWAPI::Orders::Burrowing;
+	ui.lastHP				= unit->getHitPoints();
+    ui.lastShields			= unit->getShields();
+	ui.unitID				= unit->getID();
+	ui.type					= unit->getType();
+    ui.completed			= unit->isCompleted();
 }
 
 void UnitData::removeUnit(BWAPI::Unit unit)
@@ -109,7 +164,7 @@ void UnitData::removeBadUnits()
 		}
 		else
 		{
-			iter++;
+			++iter;
 		}
 	}
 }
@@ -129,11 +184,11 @@ const bool UnitData::badUnitInfo(const UnitInfo & ui) const
 
 	// If the unit is a building and we can currently see its position and it is not there.
 	// NOTE A terran building could have lifted off and moved away.
-	if (ui.type.isBuilding() && BWAPI::Broodwar->isVisible(ui.lastPosition.x/32, ui.lastPosition.y/32) && !ui.unit->isVisible())
+	if (ui.type.isBuilding() && BWAPI::Broodwar->isVisible(BWAPI::TilePosition(ui.lastPosition)) && !ui.unit->isVisible())
 	{
 		return true;
 	}
-
+	
 	return false;
 }
 
