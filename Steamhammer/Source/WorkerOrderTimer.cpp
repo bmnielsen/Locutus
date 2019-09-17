@@ -126,9 +126,6 @@ namespace WorkerOrderTimer
 
     void write()
     {
-        // Disabled for tournament
-        return;
-
         std::ofstream file;
         file.open(resourceOptimalOrderPositionsFilename("write"), std::ofstream::trunc);
 

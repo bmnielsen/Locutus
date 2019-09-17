@@ -1491,9 +1491,9 @@ void CombatCommander::updateBaseDefenseSquads()
     for (auto & base : InformationManager::Instance().getMyBases())
         regionsWithBases.insert(base->getRegion());
 
-    // If we have a wall in our natural, or the enemy has proxied buildings there, consider it to have a base as well
+    // If we have a wall in our natural, consider it to have a base as well
     LocutusWall& wall = BuildingPlacer::Instance().getWall();
-    if (naturalRegion && (wall.exists() || buildingRush(naturalRegion)))
+    if (naturalRegion && wall.exists())
         regionsWithBases.insert(naturalRegion);
 
 	// for each of our occupied regions
