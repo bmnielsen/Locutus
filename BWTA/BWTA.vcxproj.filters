@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="src\BaseLocationImpl.cpp" />
+    <ClCompile Include="src\BWTA.cpp" />
+    <ClCompile Include="src\BWTA_Result.cpp" />
+    <ClCompile Include="src\ChokepointImpl.cpp" />
+    <ClCompile Include="src\load_data.cpp" />
+    <ClCompile Include="src\MapData.cpp" />
+    <ClCompile Include="src\Polygon.cpp" />
+    <ClCompile Include="src\RegionImpl.cpp" />
+    <ClCompile Include="src\terrain_analysis.cpp" />
+    <ClCompile Include="src\VertexData.cpp" />
+    <ClCompile Include="src\DistanceTransform.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\BaseLocationImpl.h" />
+    <ClInclude Include="src\BWTA_Result.h" />
+    <ClInclude Include="src\ChokepointImpl.h" />
+    <ClInclude Include="src\Color.h" />
+    <ClInclude Include="src\Globals.h" />
+    <ClInclude Include="src\MapData.h" />
+    <ClInclude Include="src\RegionImpl.h" />
+    <ClInclude Include="src\terrain_analysis.h" />
+    <ClInclude Include="src\VertexData.h" />
+    <ClInclude Include="interface\BWTA\BaseLocation.h" />
+    <ClInclude Include="interface\BWTA.h" />
+    <ClInclude Include="interface\BWTA\Chokepoint.h" />
+    <ClInclude Include="interface\BWTA\Polygon.h" />
+    <ClInclude Include="interface\BWTA\RectangleArray.h" />
+    <ClInclude Include="interface\BWTA\Region.h" />
+    <ClInclude Include="src\BalanceMetrics.h" />
+    <ClInclude Include="src\DistanceTransform.h" />
+    <ClInclude Include="Heap.h" />
+  </ItemGroup>
+</Project>

@@ -59,7 +59,7 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
         
         // When not part of a normal attack squad, ignore targets outside the target region that aren't blocking a choke
         if (!attackSquad && 
-            BWTA::getRegion(target->getPosition()) != BWTA::getRegion(order.getPosition()) &&
+            BWTA::getRegion(target->getTilePosition()) != BWTA::getRegion(BWAPI::TilePosition(order.getPosition())) &&
             !unitNearNarrowChokepoint(target))
         {
             continue;
@@ -87,7 +87,7 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
 
         // If we are on the attack, are detected and can be attacked here, try to flee from detection
         if (!attackSquad && attackOrder() && isVulnerable(meleeUnit->getPosition(), enemyUnitGrid)
-            && BWTA::getRegion(meleeUnit->getPosition()) == BWTA::getRegion(order.getPosition()))
+            && BWTA::getRegion(meleeUnit->getTilePosition()) == BWTA::getRegion(BWAPI::TilePosition(order.getPosition())))
         {
             BWAPI::WalkPosition start = BWAPI::WalkPosition(meleeUnit->getPosition());
             BWAPI::WalkPosition fleeTo = BWAPI::WalkPositions::Invalid;
@@ -140,7 +140,7 @@ void MicroDarkTemplar::executeMicro(const BWAPI::Unitset & targets)
         for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
             if (ui.second.type.isBuilding() && !ui.second.isFlying && !ui.second.type.isAddon() &&
                 ui.second.lastPosition.isValid() && !ui.second.goneFromLastPosition &&
-                BWTA::getRegion(ui.second.lastPosition) == BWTA::getRegion(order.getPosition()))
+                BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition)) == BWTA::getRegion(BWAPI::TilePosition(order.getPosition())))
             {
                 debug << "moving towards " << ui.second.type << " @ " << BWAPI::TilePosition(ui.second.lastPosition);
                 InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(ui.second.lastPosition);

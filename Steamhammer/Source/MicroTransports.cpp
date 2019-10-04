@@ -175,15 +175,15 @@ bool inTargetRegion(BWAPI::Position target, BWAPI::Position pos)
 {
     if (!target.isValid()) return false;
 
-    auto targetRegion = BWTA::getRegion(target);
-    if (BWTA::getRegion(pos) != targetRegion) return false;
+    auto targetRegion = BWTA::getRegion(BWAPI::TilePosition(target));
+    if (BWTA::getRegion(BWAPI::TilePosition(pos)) != targetRegion) return false;
     
     auto points = { BWAPI::Position(64, 0), BWAPI::Position(-64, 0),BWAPI::Position(0, 64),BWAPI::Position(0, -64) };
     for (auto point : points)
     {
         BWAPI::Position test = pos + point;
         if (!test.isValid()) continue;
-        if (BWTA::getRegion(test) != targetRegion) return false;
+        if (BWTA::getRegion(BWAPI::TilePosition(test)) != targetRegion) return false;
     }
 
     return true;

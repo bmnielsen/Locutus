@@ -581,7 +581,7 @@ void InformationManager::updateBaseLocationInfo()
     BWTA::Region * naturalRegion = nullptr;
     if (naturalLocation)
     {
-        naturalRegion = BWTA::getRegion(naturalLocation->getPosition());
+        naturalRegion = BWTA::getRegion(naturalLocation->getTilePosition());
     }
 	for (const auto & kv : _unitData[_self].getUnits())
 	{

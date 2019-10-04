@@ -420,7 +420,7 @@ void CombatCommander::updateHarassSquads()
             auto & squad = _squadData.getSquad(squadName.str());
             for (auto unit : squad.getUnits())
             {
-                if (BWTA::getRegion(unit->getPosition()) == base->getRegion())
+                if (BWTA::getRegion(unit->getTilePosition()) == base->getRegion())
                 {
                     active = true;
                     break;
@@ -449,7 +449,7 @@ void CombatCommander::updateHarassSquads()
                 for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
                     if (ui.second.type.isBuilding() && ui.second.type.isDetector() && ui.second.completed &&
                         ui.second.lastPosition.isValid() && !ui.second.goneFromLastPosition &&
-                        BWTA::getRegion(ui.second.lastPosition) == base->getRegion())
+                        BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition)) == base->getRegion())
                     {
                         harassBase = false;
                         break;
@@ -463,7 +463,7 @@ void CombatCommander::updateHarassSquads()
             for (auto & ui : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
                 if (ui.second.type.isBuilding() && !ui.second.isFlying && !ui.second.type.isAddon() &&
                     ui.second.lastPosition.isValid() && !ui.second.goneFromLastPosition &&
-                    BWTA::getRegion(ui.second.lastPosition) == base->getRegion())
+                    BWTA::getRegion(BWAPI::TilePosition(ui.second.lastPosition)) == base->getRegion())
                 {
                     Log().Debug() << "Continuing harass because of enemy " << ui.second.type << " @ " << BWAPI::TilePosition(ui.second.lastPosition);
                     harassBase = true;
@@ -1469,21 +1469,21 @@ void CombatCommander::updateBaseDefenseSquads()
     BWTA::Region * enemyRegion = nullptr;
     if (enemyBaseLocation)
     {
-        enemyRegion = BWTA::getRegion(enemyBaseLocation->getPosition());
+        enemyRegion = BWTA::getRegion(enemyBaseLocation->getTilePosition());
     }
 
 	BWTA::BaseLocation * mainBaseLocation = InformationManager::Instance().getMyMainBaseLocation();
 	BWTA::Region * mainRegion = nullptr;
 	if (mainBaseLocation)
 	{
-		mainRegion = BWTA::getRegion(mainBaseLocation->getPosition());
+		mainRegion = BWTA::getRegion(mainBaseLocation->getTilePosition());
 	}
 
 	BWTA::BaseLocation * naturalLocation = InformationManager::Instance().getMyNaturalLocation();
 	BWTA::Region * naturalRegion = nullptr;
 	if (naturalLocation)
 	{
-        naturalRegion = BWTA::getRegion(naturalLocation->getPosition());
+        naturalRegion = BWTA::getRegion(naturalLocation->getTilePosition());
 	}
 
     // Gather the regions we have bases in
@@ -2604,7 +2604,7 @@ bool CombatCommander::buildingRush(BWTA::Region * region) const
 
     for (const auto unit : BWAPI::Broodwar->enemy()->getUnits())
     {
-        if (unit->getType().isBuilding() && (!unit->getType().requiresPsi() || unit->isPowered()) && BWTA::getRegion(unit->getPosition()) == region)
+        if (unit->getType().isBuilding() && (!unit->getType().requiresPsi() || unit->isPowered()) && BWTA::getRegion(unit->getTilePosition()) == region)
         {
             return true;
         }

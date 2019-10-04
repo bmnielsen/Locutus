@@ -33,10 +33,14 @@ void UAlbertaBotModule::onStart()
     // Initialize BOSS, the Build Order Search System
     BOSS::init();
 
-	// Call BWTA to read and analyze the current map.
-	// Very slow if the map has not been seen before, so that info is not cached.
-	BWTA::readMap();
-	BWTA::analyze();
+	// Call BWTA to read the current map.
+	// Fails if we don't have the cache data.
+	if (!BWTA::analyze())
+	{
+		UAB_ASSERT(false, "BWTA map analysis failed");
+		gameEnded = true;
+		return;
+	}
 
 	// BWEM map init
 	bwemMap.Initialize(BWAPI::BroodwarPtr);

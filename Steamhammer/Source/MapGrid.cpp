@@ -77,7 +77,7 @@ BWAPI::Position MapGrid::getLeastExplored(bool byGround)
 
 BWAPI::Position MapGrid::getLeastExploredInRegion(BWAPI::Position target, int* lastExplored) 
 {
-    auto region = BWTA::getRegion(target);
+    auto region = BWTA::getRegion(BWAPI::TilePosition(target));
 
 	int minSeen = INT_MAX;
     int minSeenDist = 0;
@@ -89,7 +89,7 @@ BWAPI::Position MapGrid::getLeastExploredInRegion(BWAPI::Position target, int* l
 		{
 			// get the center of this cell
 			BWAPI::Position cellCenter = getCellCenter(r,c);
-            if (BWTA::getRegion(cellCenter) != region) continue;
+            if (BWTA::getRegion(BWAPI::TilePosition(cellCenter)) != region) continue;
 
 			int dist = target.getApproxDistance(getCellByIndex(r, c).center);
             int lastVisited = getCellByIndex(r, c).timeLastVisited;

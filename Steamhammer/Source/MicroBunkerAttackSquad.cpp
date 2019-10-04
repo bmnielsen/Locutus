@@ -284,7 +284,7 @@ BWAPI::Position computeRunByPosition(BWAPI::Position unitPosition, BWAPI::Positi
 
     // If the bunker is a long way from the order position, or in a different region, just use the order position
     // TODO: Could set a waypoint to minimize the amount of time spent in range of the bunker
-    if (d > 500 || BWTA::getRegion(p0) != BWTA::getRegion(p1)) return orderPosition;
+    if (d > 500 || BWTA::getRegion(BWAPI::TilePosition(p0)) != BWTA::getRegion(BWAPI::TilePosition(p1))) return orderPosition;
 
     // Find the points of intersection between a circle around the bunker and a circle around the order position
     // Source: http://paulbourke.net/geometry/circlesphere/tvoght.c

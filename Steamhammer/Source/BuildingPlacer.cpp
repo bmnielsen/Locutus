@@ -724,7 +724,7 @@ void BuildingPlacer::findProxyBlocks()
                 debug << "base@" << base->getTilePosition() << ": ";
 
                 // Don't build horror gates
-                if (BWTA::getRegion(blockCenter) == base->getRegion())
+                if (BWTA::getRegion(BWAPI::TilePosition(blockCenter)) == base->getRegion())
                 {
                     debug << "In base region. ";
                     inStartLocationRegion = true;
@@ -822,7 +822,7 @@ void BuildingPlacer::findProxyBlocks()
                 debug << "base@" << base->getTilePosition() << ": ";
 
                 // Don't build horror gates
-                if (BWTA::getRegion(blockCenter) == base->getRegion())
+                if (BWTA::getRegion(BWAPI::TilePosition(blockCenter)) == base->getRegion())
                 {
                     debug << "In base region. ";
                     inStartLocationRegion = true;
