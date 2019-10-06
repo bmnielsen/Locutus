@@ -16,53 +16,20 @@ struct UnitInfo
     BWAPI::Player   player;
     BWAPI::Unit     unit;
     BWAPI::Position lastPosition;
-	bool			goneFromLastPosition;    // last position was seen, and it wasn't there
-	bool			burrowed;                // believed to be burrowed (or burrowing) at this position
+	bool			goneFromLastPosition;   // last position was seen, and it wasn't there
+	bool			burrowed;               // believed to be burrowed (or burrowing) at this position
     BWAPI::UnitType type;
-    bool            completed;
+	int				completeBy;				// past frame known or future frame predicted
+	bool            completed;
 
-    UnitInfo()
-        : unitID(0)
-		, updateFrame(0)
-		, lastHP(0)
-		, lastShields(0)
-		, player(nullptr)
-        , unit(nullptr)
-        , lastPosition(BWAPI::Positions::None)
-		, goneFromLastPosition(false)
-        , type(BWAPI::UnitTypes::None)
-        , completed(false)
-	{
-    }
+	UnitInfo();
+	UnitInfo(BWAPI::Unit unit);
 
-	UnitInfo(BWAPI::Unit unit)
-		: unitID(unit->getID())
-		, updateFrame(BWAPI::Broodwar->getFrameCount())
-		, lastHP(unit->getHitPoints())
-		, lastShields(unit->getShields())
-		, player(unit->getPlayer())
-		, unit(unit)
-		, lastPosition(unit->getPosition())
-		, goneFromLastPosition(false)
-		, type(unit->getType())
-		, completed(unit->isCompleted())
-	{
-	}
+	const int predictCompletion(BWAPI::Unit building) const;
 
-    const bool operator == (BWAPI::Unit unit) const
-    {
-        return unitID == unit->getID();
-    }
-
-    const bool operator == (const UnitInfo & rhs) const
-    {
-        return unitID == rhs.unitID;
-    }
-
-    const bool operator < (const UnitInfo & rhs) const
-    {
-        return unitID < rhs.unitID;
-    }
+	const bool operator == (BWAPI::Unit unit) const;
+    const bool operator == (const UnitInfo & rhs) const;
+	const bool operator < (const UnitInfo & rhs) const;
 
 	int estimateHP() const;
 	int estimateShields() const;

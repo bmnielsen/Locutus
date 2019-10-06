@@ -8,14 +8,13 @@ class MicroDefilers : public MicroManager
 {
 	// NOTE
 	// This micro manager controls all defilers plus any units assigned as defiler food.
+    // That means its set of units can include both defilers and zerglings.
 
 	BWAPI::Unitset getDefilers(const UnitCluster & cluster) const;
 
 	bool aboutToDie(const BWAPI::Unit defiler) const;
 
 	bool maybeConsume(BWAPI::Unit defiler, BWAPI::Unitset & food);
-
-	bool swarmOrPlague(BWAPI::Unit defiler, BWAPI::TechType techType, BWAPI::Position target) const;
 
 	int swarmScore(BWAPI::Unit u) const;
 	bool maybeSwarm(BWAPI::Unit defiler);

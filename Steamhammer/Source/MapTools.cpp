@@ -116,12 +116,10 @@ void MapTools::setBWAPIMapData()
 				{
 					for (int dy = -3; dy <= 3; dy++)
 					{
-						if (!BWAPI::TilePosition(x + dx, y + dy).isValid())
+						if (BWAPI::TilePosition(x + dx, y + dy).isValid())
 						{
-							continue;
-						}
-
-						_depotBuildable[x + dx][y + dy] = false;
+                            _depotBuildable[x + dx][y + dy] = false;
+                        }
 					}
 				}
 			}
@@ -317,6 +315,12 @@ Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
             continue;
         }
 
+		// Don't take a base if the building location is known to be in range of enemy static defense.
+		if (the.groundAttacks.inRange(player->getRace().getCenter(), tile))
+		{
+			continue;
+		}
+
 		double score = 0.0;
 
 		// NOTE Ground distances are computed at tile resolution, which is coarser than the walking
@@ -384,7 +388,7 @@ Base * MapTools::nextExpansion(bool hidden, bool wantMinerals, bool wantGas)
 			score += 0.02 * base->getInitialGas();
 		}
 
-		/* TODO our map analysis does not provide regions (yet)
+		/* TODO on a flat map, all mains may be in the same zone
 		// Big penalty for enemy buildings in the same region.
 		if (InformationManager::Instance().isEnemyBuildingInRegion(base->getRegion()))
 		{

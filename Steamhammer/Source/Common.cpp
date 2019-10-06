@@ -97,6 +97,11 @@ std::string UnitTypeName(BWAPI::UnitType type)
 	return TrimRaceName(type.getName());
 }
 
+std::string UnitTypeName(BWAPI::Unit unit)
+{
+    return UnitTypeName(unit->getType());
+}
+
 // Post a message to the game including the bot's name.
 void GameMessage(const char * message)
 {
@@ -110,8 +115,9 @@ void GameMessage(const char * message)
 
 // Point b specifies a direction from point a.
 // Return a position at the given distance and direction from a.
+// The result may be off the map.
 // The distance can be negative.
-BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance)
+BWAPI::Position RawDistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance)
 {
 	if (a == b)
 	{
@@ -120,6 +126,14 @@ BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Pos
 
 	v2 difference(b - a);
 	return a + (difference.normalize() * double(distance));
+}
+
+// Point b specifies a direction from point a.
+// Return a position at the given distance and direction from a, clipped to the map boundaries.
+// The distance can be negative.
+BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance)
+{
+    return RawDistanceAndDirection(a, b, distance).makeValid();
 }
 
 // Return the speed (pixels per frame) at which unit u is approaching the position.
@@ -133,6 +147,45 @@ double ApproachSpeed(const BWAPI::Position & pos, BWAPI::Unit u)
 	v2 direction = v2(BWAPI::Position(u->getPosition() - pos)).normalize();
 	v2 velocity = v2(u->getVelocityX(), u->getVelocityY());
 	return velocity.dot(direction);
+}
+
+BWAPI::Unit NearestOf(const BWAPI::Position & pos, const BWAPI::Unitset & set)
+{
+    int bestDistance = 999999;
+    BWAPI::Unit bestUnit = nullptr;
+
+    for (BWAPI::Unit unit : set)
+    {
+        int dist = unit->getDistance(pos);
+        if (dist < bestDistance)
+        {
+            bestDistance = dist;
+            bestUnit = unit;
+        }
+    }
+
+    return bestUnit;
+}
+
+BWAPI::Unit NearestOf(const BWAPI::Position & pos, const BWAPI::Unitset & set, BWAPI::UnitType type)
+{
+    int bestDistance = 999999;
+    BWAPI::Unit bestUnit = nullptr;
+
+    for (BWAPI::Unit unit : set)
+    {
+        if (unit->getType() == type)
+        {
+            int dist = unit->getDistance(pos);
+            if (dist < bestDistance)
+            {
+                bestDistance = dist;
+                bestUnit = unit;
+            }
+        }
+    }
+
+    return bestUnit;
 }
 
 // Find the geometric center of a set of visible units.

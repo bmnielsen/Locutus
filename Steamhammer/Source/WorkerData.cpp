@@ -450,16 +450,13 @@ BWAPI::UnitType	WorkerData::getWorkerBuildingType(BWAPI::Unit unit)
 	return BWAPI::UnitTypes::None;
 }
 
-int WorkerData::getNumAssignedWorkers(BWAPI::Unit unit)
+int WorkerData::getNumAssignedWorkers(BWAPI::Unit unit) const
 {
 	if (!unit) { return 0; }
 
-	std::map<BWAPI::Unit, int>::iterator it;
-	
-	// if the worker is mining, set the iterator to the mineral map
 	if (unit->getType().isResourceDepot())
 	{
-		it = depotWorkerCount.find(unit);
+		auto it = depotWorkerCount.find(unit);
 
 		// if there is an entry, return it
 		if (it != depotWorkerCount.end())
@@ -469,21 +466,17 @@ int WorkerData::getNumAssignedWorkers(BWAPI::Unit unit)
 	}
 	else if (unit->getType().isRefinery())
 	{
-		it = refineryWorkerCount.find(unit);
+		auto it = refineryWorkerCount.find(unit);
 
 		// if there is an entry, return it
 		if (it != refineryWorkerCount.end())
 		{
 			return it->second;
 		}
-		// otherwise, we are only calling this on completed refineries, so set it
-		else
-		{
-			refineryWorkerCount[unit] = 0;
-		}
 	}
 
-	// when all else fails, return 0
+	// Oops, it's something else.
+	// This may be an error, but we'll ignore that and just return 0.
 	return 0;
 }
 

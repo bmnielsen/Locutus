@@ -8,6 +8,11 @@ namespace UAlbertaBot
 
 	class MicroLurkers : public MicroManager
 	{
+	private:
+
+		BWAPI::Unit getNearestTarget(BWAPI::Unit lurker, const BWAPI::Unitset & targets) const;
+		BWAPI::Unit getFarthestTarget(BWAPI::Unit lurker, const BWAPI::Unitset & targets) const;
+
 	public:
 
 		MicroLurkers();

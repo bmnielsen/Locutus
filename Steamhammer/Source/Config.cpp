@@ -12,7 +12,7 @@ namespace Config
     {
         bool ConfigFileFound                = false;
         bool ConfigFileParsed               = false;
-        std::string ConfigFileLocation      = "bwapi-data/AI/Steamhammer_2.3.json";
+        std::string ConfigFileLocation      = "bwapi-data/AI/Steamhammer_2.3.5.json";
     }
 
 	namespace IO
@@ -20,7 +20,8 @@ namespace Config
 		std::string ErrorLogFilename		= "Steamhammer_ErrorLog.txt";
 		bool LogAssertToErrorFile			= false;
 
-		std::string ReadDir					= "bwapi-data/read/";
+        std::string StaticDir               = "bwapi-data/AI/";
+        std::string ReadDir                 = "bwapi-data/read/";
 		std::string WriteDir				= "bwapi-data/write/";
 		int MaxGameRecords					= 0;
 		bool ReadOpponentModel				= false;

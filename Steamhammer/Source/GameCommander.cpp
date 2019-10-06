@@ -45,6 +45,7 @@ void GameCommander::update()
 	_timerManager.stopTimer(TimerManager::InformationManager);
 
 	_timerManager.startTimer(TimerManager::MapGrid);
+	the.update();
 	MapGrid::Instance().update();
 	_timerManager.stopTimer(TimerManager::MapGrid);
 
@@ -284,6 +285,16 @@ void GameCommander::setValidUnits()
 		if (UnitUtil::IsValidUnit(unit))
 		{	
 			_validUnits.insert(unit);
+
+            /*
+            // TODO testing
+            static bool firstTime = false;
+            if (!firstTime && unit->getType() == BWAPI::UnitTypes::Zerg_Mutalisk)
+            {
+                BWAPI::Broodwar->printf("mutalisk timing %d", BWAPI::Broodwar->getFrameCount());
+                firstTime = true;
+            }
+            */
 		}
 	}
 }

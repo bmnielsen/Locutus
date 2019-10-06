@@ -26,6 +26,11 @@ class WorkerManager
 	void        handleRepairWorkers();
 	void		handleMineralWorkers();
 
+    // A worker within this distance of a target location is considered to be
+    // "in the same base" as the target. Used by worker selection routines to avoid
+    // transferring workers between bases.
+    static const int thisBaseRange = 10 * 32;
+
 	BWAPI::Unit findEnemyTargetForWorker(BWAPI::Unit worker) const;
 	BWAPI::Unit findEscapeMinerals(BWAPI::Unit worker) const;
 	bool		defendSelf(BWAPI::Unit worker, BWAPI::Unit resource);
@@ -58,6 +63,8 @@ public:
 	int			getNumCombatWorkers() const;
 	int         getNumIdleWorkers() const;
 	int			getMaxWorkers() const;
+
+	int			getNumWorkers(BWAPI::Unit jobUnit) const;
 
     void        setScoutWorker(BWAPI::Unit worker);
 

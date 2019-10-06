@@ -14,14 +14,14 @@ void MicroMedics::executeMicro(const BWAPI::Unitset & targets, const UnitCluster
 {
 }
 
-void MicroMedics::update(const UnitCluster & cluster, const BWAPI::Position & goal)
+void MicroMedics::update(const UnitCluster & cluster, BWAPI::Unit vanguard)
 {
 	const BWAPI::Unitset & medics = Intersection(getUnits(), cluster.units);
 	if (medics.empty())
 	{
 		return;
 	}
-    
+
 	// create a set of all medic targets
 	BWAPI::Unitset medicTargets;
     for (const auto unit : BWAPI::Broodwar->self()->getUnits())
@@ -64,17 +64,18 @@ void MicroMedics::update(const UnitCluster & cluster, const BWAPI::Position & go
 
             availableMedics.erase(closestMedic);
         }
-        // otherwise we didn't find a medic which means they're all in use so break
         else
         {
+			// We didn't find a medic, so they're all in use. Stop looping.
             break;
         }
     }
 
     // remaining medics should head toward the goal position
-    for (const auto medic : availableMedics)
+	BWAPI::Position medicGoal = vanguard ? vanguard->getPosition() : cluster.center;
+	for (const auto medic : availableMedics)
     {
-        the.micro.AttackMove(medic, goal);
+		the.micro.AttackMove(medic, medicGoal);		// the same as heal-move
     }
 }
 

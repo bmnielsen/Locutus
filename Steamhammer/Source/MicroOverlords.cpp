@@ -6,12 +6,12 @@
 
 using namespace UAlbertaBot;
 
-// Behaviors:
+// Basic behaviors:
 // If overlord hunters are expected, seek spore colonies.
 // Otherwise, 1 overlord to each base.
 
 // The nearest spore colony, if any.
-BWAPI::Unit MicroOverlords::nearestSpore(BWAPI::Unit overlord)
+BWAPI::Unit MicroOverlords::nearestSpore(BWAPI::Unit overlord) const
 {
 	BWAPI::Unit best = nullptr;
 	int bestDistance = 99999;
@@ -30,6 +30,26 @@ BWAPI::Unit MicroOverlords::nearestSpore(BWAPI::Unit overlord)
 	}
 
 	return best;
+}
+
+void MicroOverlords::goToSpore(BWAPI::Unit overlord) const
+{
+	BWAPI::Unit spore = nearestSpore(overlord);
+	if (spore)
+	{
+		if (overlord->isMoving() && overlord->getDistance(spore) <= 16)
+		{
+			the.micro.Stop(overlord);
+		}
+		else
+		{
+			the.micro.Move(overlord, spore->getPosition());
+		}
+	}
+	else
+	{
+		UAB_ASSERT(false, "no spore");
+	}
 }
 
 // We fear cloaked units.
@@ -112,11 +132,8 @@ void MicroOverlords::update()
         // In this case, we don't care about base assignments.
 		for (BWAPI::Unit overlord : getUnits())
 		{
-			BWAPI::Unit spore = nearestSpore(overlord);
-			UAB_ASSERT(spore, "no spore after all");
-			the.micro.Move(overlord, spore->getPosition());
+			goToSpore(overlord);
 		}
-		//BWAPI::Broodwar->printf("run to spores");
 	}
 	else
 	{
@@ -133,11 +150,8 @@ void MicroOverlords::update()
             // Move remaining overlords to spores.
 			for (BWAPI::Unit overlord : unassignedOverlords)
 			{
-				BWAPI::Unit spore = nearestSpore(overlord);
-				UAB_ASSERT(spore, "no spore after all");
-				the.micro.Move(overlord, spore->getPosition());
+				goToSpore(overlord);
 			}
-			//BWAPI::Broodwar->printf("run spares to spores");
 		}
 		// Otherwise don't worry (for now) about where unassigned overlords are.
 	}

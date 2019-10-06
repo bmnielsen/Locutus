@@ -43,7 +43,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 			u->isDetected() &&
 			u->getType() != BWAPI::UnitTypes::Zerg_Larva &&
 			u->getType() != BWAPI::UnitTypes::Zerg_Egg &&
-			!u->isStasised();
+			!u->isInvincible();
 	});
 
 	// Figure out if the enemy is ready to attack ground or air.
@@ -51,9 +51,9 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 	bool enemyHasAntiAir = false;
 	for (BWAPI::Unit target : rangedUnitTargets)
 	{
-		if (UnitUtil::AttackOrder(target))
+        // If the enemy unit is retreating or whatever, it won't attack.
+        if (UnitUtil::AttackOrder(target))
 		{
-			// If the enemy unit is retreating or whatever, it won't attack.
 			if (UnitUtil::CanAttackGround(target))
 			{
 				enemyHasAntiGround = true;
@@ -65,12 +65,19 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 		}
 	}
 	
-	for (const auto rangedUnit : rangedUnits)
+    // Are any enemies in range to shoot at the ranged units?
+    bool underThreat = false;
+    if (order.isCombatOrder())
+    {
+        underThreat = anyUnderThreat(rangedUnits);
+    }
+
+    for (const auto rangedUnit : rangedUnits)
 	{
 		if (rangedUnit->isBurrowed())
 		{
 			// For now, it would burrow only if irradiated. Leave it.
-			// Lurkers are controlled by a different class.
+			// Lurkers are controlled elsewhere.
 			continue;
 		}
 
@@ -81,7 +88,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 		}
 
 		// Special case for irradiated zerg units.
-		if (rangedUnit->isIrradiated() && rangedUnit->getType().getRace() == BWAPI::Races::Zerg)
+		if (rangedUnit->isIrradiated() && rangedUnit->getType().isOrganic())
 		{
 			if (rangedUnit->isFlying())
 			{
@@ -117,7 +124,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 		if (order.isCombatOrder())
         {
 			// If a target is found,
-			BWAPI::Unit target = getTarget(rangedUnit, rangedUnitTargets);
+			BWAPI::Unit target = getTarget(rangedUnit, rangedUnitTargets, underThreat);
 			if (target)
 			{
 				if (Config::Debug::DrawUnitTargetInfo)
@@ -140,7 +147,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 				// No target found. If we're not near the order position, go there.
 				if (rangedUnit->getDistance(order.getPosition()) > 100)
 				{
-					the.micro.AttackMove(rangedUnit, order.getPosition());
+					the.micro.Move(rangedUnit, order.getPosition());
 				}
 			}
 		}
@@ -148,11 +155,11 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI:
 }
 
 // This can return null if no target is worth attacking.
-BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset & targets)
+// underThreat is true if any of the melee units is under immediate threat of attack.
+BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset & targets, bool underThreat)
 {
 	int bestScore = -999999;
 	BWAPI::Unit bestTarget = nullptr;
-	int bestPriority = -1;   // TODO debug only
 
 	for (const auto target : targets)
 	{
@@ -192,7 +199,16 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 			score += 2 * 32;
 		}
 
-		const bool isThreat = UnitUtil::CanAttack(target, rangedUnit);   // may include workers as threats
+        if (!underThreat)
+        {
+            // We're not under threat. Prefer to attack stuff outside enemy static defense range.
+            if (rangedUnit->isFlying() ? !the.airAttacks.inRange(target) : !the.groundAttacks.inRange(target))
+            {
+                score += 4 * 32;
+            }
+        }
+
+        const bool isThreat = UnitUtil::CanAttack(target, rangedUnit);   // may include workers as threats
 		const bool canShootBack = isThreat && range <= 32 + UnitUtil::GetAttackRange(target, rangedUnit);
 
 		if (isThreat)
@@ -282,8 +298,6 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		{
 			bestScore = score;
 			bestTarget = target;
-
-			bestPriority = priority;
 		}
 	}
 

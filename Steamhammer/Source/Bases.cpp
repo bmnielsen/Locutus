@@ -585,8 +585,8 @@ void Bases::update()
 }
 
 // When a building is placed, we are told the desired and actual location of the building.
-// Buildings are usually placed in the main base, so this can give us a hint when the main base
-// is full and we need to choose a new one.
+// Buildings are usually placed in the "main" base, so this can give us a hint when the main base
+// is full and we need to choose a new main base.
 void Bases::checkBuildingPosition(const BWAPI::TilePosition & desired, const BWAPI::TilePosition & actual)
 {
 	UAB_ASSERT(desired.isValid(), "bad location");

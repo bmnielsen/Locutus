@@ -15,7 +15,7 @@ public:
 	void assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::Unitset & targets);
 
 	int getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit unit) const;
-	BWAPI::Unit getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets);
+	BWAPI::Unit getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets, bool underThreat);
 	bool meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets);
 };
 }

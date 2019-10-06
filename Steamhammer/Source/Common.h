@@ -74,6 +74,7 @@ std::string TrimRaceName(const std::string & s);
 char RaceChar(BWAPI::Race race);
 std::string NiceMacroActName(const std::string & s);
 std::string UnitTypeName(BWAPI::UnitType type);
+std::string UnitTypeName(BWAPI::Unit unit);
 
 // Short color codes for drawing text on the screen.
 // The dim colors can be hard to read, but are useful occasionally.
@@ -89,9 +90,12 @@ const char cyan    = '\x1F';
 
 void GameMessage(const char * message);
 
+BWAPI::Position RawDistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance);
 BWAPI::Position DistanceAndDirection(const BWAPI::Position & a, const BWAPI::Position & b, int distance);
 double ApproachSpeed(const BWAPI::Position & pos, BWAPI::Unit u);
 BWAPI::Position CenterOfUnitset(const BWAPI::Unitset units);
+BWAPI::Unit NearestOf(const BWAPI::Position & pos, const BWAPI::Unitset & set);
+BWAPI::Unit NearestOf(const BWAPI::Position & pos, const BWAPI::Unitset & set, BWAPI::UnitType type);
 BWAPI::Position PredictMovement(BWAPI::Unit unit, int frames);
 bool CanCatchUnit(BWAPI::Unit chaser, BWAPI::Unit runaway);
 

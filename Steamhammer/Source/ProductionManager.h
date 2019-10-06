@@ -38,6 +38,7 @@ class ProductionManager
 	BWAPI::UnitType		_extractorTrickUnitType;         // drone or zergling
 	Building *			_extractorTrickBuilding;         // set depending on the extractor trick state
     
+	BWAPI::Unit			getBestLarva(const MacroAct & act, const std::vector<BWAPI::Unit> & units) const;
 	BWAPI::Unit         getClosestUnitToPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position closestTo) const;
 	BWAPI::Unit         getFarthestUnitFromPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position farthest) const;
 	BWAPI::Unit         getClosestLarvaToPosition(BWAPI::Position closestTo) const;

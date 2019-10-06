@@ -1,6 +1,8 @@
 #include "Common.h"
 #include "Base.h"
 
+#include "WorkerManager.h"
+
 using namespace UAlbertaBot;
 
 // NOTE This depends on tilePosition, so the startingBase flag must be declared after tilePosition.
@@ -135,6 +137,29 @@ int Base::getInitialGas() const
 		total += gas->getInitialResources();
 	}
 	return total;
+}
+
+// How many workers to saturate the base?
+// Two per mineral patch plus three per geyser.
+// NOTE This doesn't account for mineral patches mining out, decreasing the maximum.
+int Base::getMaxWorkers() const
+{
+	return 2 * minerals.size() + 3 * geysers.size();
+}
+
+// Two per mineral patch plus three per geyser.
+int Base::getNumWorkers() const
+{
+	// The number of assigned mineral workers.
+	int nWorkers = WorkerManager::Instance().getNumWorkers(resourceDepot);
+
+	// Add the assigned gas workers.
+	for (BWAPI::Unit geyser : geysers)
+	{
+		nWorkers += WorkerManager::Instance().getNumWorkers(geyser);
+	}
+
+	return nWorkers;
 }
 
 // The mean offset of the base's mineral patches from the center of the resource depot.

@@ -166,6 +166,8 @@
     <ClCompile Include="..\Source\GridTileRoom.cpp" />
     <ClCompile Include="..\Source\GridInset.cpp" />
     <ClCompile Include="..\Source\GridZone.cpp" />
+    <ClCompile Include="..\Source\MicroQueens.cpp" />
+    <ClCompile Include="..\Source\BOSimulator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
@@ -300,5 +302,7 @@
     <ClInclude Include="..\Source\GridTileRoom.h" />
     <ClInclude Include="..\Source\GridInset.h" />
     <ClInclude Include="..\Source\GridZone.h" />
+    <ClInclude Include="..\Source\MicroQueens.h" />
+    <ClInclude Include="..\Source\BOSimulator.h" />
   </ItemGroup>
 </Project>

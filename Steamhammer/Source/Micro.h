@@ -6,6 +6,7 @@
 namespace UAlbertaBot
 {
 class The;
+class GridDistances;
 
 class MicroState
 {
@@ -14,15 +15,24 @@ private:
 	BWAPI::Unit targetUnit;				// nullptr if none
 	BWAPI::Position targetPosition;		// None if none
 
+    GridDistances * distanceToPosition; // sometimes filled in
+
 	int orderFrame;						// when the order was given
 	int executeFrame;					// -1 if not executed yet
 	bool needsMonitoring;				// if true, monitor the result
 	int lastCheckFrame;					// execute frame or latest monitored frame
+    int lastActionFrame;                // time of issuing last order to BWAPI, persists across setOrder()
 
-	void check();						// complain if the order looks bad
+    static const int framesBetweenActions = 3;
+    static const int distanceStep = 8;  // travel long distances in steps of this size, in tiles
+
+    // Debugging test: Complain if something looks bad.
+	void check(BWAPI::Unit u, BWAPI::Order o) const;
 
 	void execute(BWAPI::Unit u);		// carry out the order
 	void monitor(BWAPI::Unit u);		// check for and try to correct failures
+
+    BWAPI::Position getNextMovePosition(BWAPI::Unit u);
 
 public:
 	BWAPI::Position startPosition;
@@ -60,6 +70,8 @@ public:
 
 	// Call this at the end of the frame to execute any orders stored in the orders map.
 	void update();
+
+	bool alreadyCommanded(BWAPI::Unit unit) const;
 
 	bool fleeDT(BWAPI::Unit unit);
 

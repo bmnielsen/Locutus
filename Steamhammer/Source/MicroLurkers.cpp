@@ -6,6 +6,62 @@
 
 using namespace UAlbertaBot;
 
+// Prefer the nearest target, as most units do.
+BWAPI::Unit MicroLurkers::getNearestTarget(BWAPI::Unit lurker, const BWAPI::Unitset & targets) const
+{
+	int highPriority = 0;
+	int closestDist = 99999;
+	BWAPI::Unit bestTarget = nullptr;
+
+	for (BWAPI::Unit target : targets)
+	{
+		int distance = lurker->getDistance(target);
+		int priority = getAttackPriority(target);
+
+		// BWAPI::Broodwar->drawTextMap(target->getPosition() + BWAPI::Position(20, -10), "%c%d", yellow, priority);
+
+		if (priority > highPriority || priority == highPriority && distance < closestDist)
+		{
+			closestDist = distance;
+			highPriority = priority;
+			bestTarget = target;
+		}
+	}
+
+	return bestTarget;
+}
+
+// Prefer the farthest target with the highest priority.
+// The caller promises that all targets are in range, so all targets can be attacked.
+// Choosing a distant target gives better odds of accidentally also hitting nearer targets,
+// since nearby targets subtend a larger angle from the point of view of the lurker.
+// It's a way to slightly improve lurker targeting without doing a full analysis.
+BWAPI::Unit MicroLurkers::getFarthestTarget(BWAPI::Unit lurker, const BWAPI::Unitset & targets) const
+{
+	int highPriority = 0;
+	int farthestDist = -1;
+	BWAPI::Unit bestTarget = nullptr;
+
+	for (BWAPI::Unit target : targets)
+	{
+		int distance = lurker->getDistance(target);
+		int priority = getAttackPriority(target);
+
+		// BWAPI::Broodwar->drawTextMap(target->getPosition() + BWAPI::Position(20, -10), "%c%d", yellow, priority);
+
+		if (priority > highPriority || priority == highPriority && distance > farthestDist)
+		{
+			farthestDist = distance;
+			highPriority = priority;
+			bestTarget = target;
+		}
+	}
+
+	return bestTarget;
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
 MicroLurkers::MicroLurkers()
 {
 }
@@ -28,7 +84,7 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 				u->getPosition().isValid();
 		});
 	
-	for (const auto lurker : lurkers)
+	for (BWAPI::Unit lurker : lurkers)
 	{
 		const bool inOrderRange = lurker->getDistance(order.getPosition()) <= 3 * 32;
 		BWAPI::Unit target = getTarget(lurker, lurkerTargets);
@@ -123,7 +179,8 @@ void MicroLurkers::executeMicro(const BWAPI::Unitset & targets, const UnitCluste
 		}
 		else
 		{
-			if (Config::Debug::DrawUnitTargetInfo) {
+			if (Config::Debug::DrawUnitTargetInfo)
+			{
 				BWAPI::Broodwar->drawLineMap(lurker->getPosition(), order.getPosition(), BWAPI::Colors::White);
 			}
 
@@ -164,7 +221,7 @@ BWAPI::Unit MicroLurkers::getTarget(BWAPI::Unit lurker, const BWAPI::Unitset & t
 	const int lurkerRange = BWAPI::UnitTypes::Zerg_Lurker.groundWeapon().maxRange();
 
 	BWAPI::Unitset targetsInRange;
-	for (const auto target : targets)
+	for (BWAPI::Unit target : targets)
 	{
 		if (lurker->getDistance(target) <= lurkerRange)
 		{
@@ -172,29 +229,14 @@ BWAPI::Unit MicroLurkers::getTarget(BWAPI::Unit lurker, const BWAPI::Unitset & t
 		}
 	}
 
-	// If any targets are in lurker range, then always return one of the targets in range.
-	const BWAPI::Unitset & newTargets = targetsInRange.empty() ? targets : targetsInRange;
-
-	int highPriority = 0;
-	int closestDist = 99999;
-	BWAPI::Unit bestTarget = nullptr;
-
-	for (const auto target : newTargets)
+	if (lurker->isBurrowed() && !targetsInRange.empty())
 	{
-		int distance = lurker->getDistance(target);
-		int priority = getAttackPriority(target);
-
-		// BWAPI::Broodwar->drawTextMap(target->getPosition() + BWAPI::Position(20, -10), "%c%d", yellow, priority);
-
-		if ((priority > highPriority) || (priority == highPriority && distance < closestDist))
-		{
-			closestDist = distance;
-			highPriority = priority;
-			bestTarget = target;
-		}
+		return getFarthestTarget(lurker, targetsInRange);
 	}
 
-	return bestTarget;
+	// If any targets are in lurker range, then always return one of the targets in range.
+	const BWAPI::Unitset & newTargets = targetsInRange.empty() ? targets : targetsInRange;
+	return getNearestTarget(lurker, newTargets);
 }
 
 //  Only ground units are passed in as potential targets.

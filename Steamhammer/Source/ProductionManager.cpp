@@ -68,6 +68,13 @@ void ProductionManager::update()
 			BWAPI::Broodwar->drawTextScreen(150, 10, "Nothing left to build, replanning.");
 		}
 
+		if (!_outOfBook)
+		{
+			//BWAPI::Broodwar->printf("build finished %d, minerals and gas %d %d",
+			//	BWAPI::Broodwar->getFrameCount(), BWAPI::Broodwar->self()->minerals(), BWAPI::Broodwar->self()->gas()
+			//	);
+		}
+
 		goOutOfBookAndClearQueue();
 		StrategyManager::Instance().freshProductionPlan();
 	}
@@ -273,7 +280,7 @@ void ProductionManager::manageBuildOrderQueue()
 			// don't actually loop around in here
 			// TODO because we don't keep track of resources used,
 			//      we wait until the next frame to build the next thing.
-			//      Can cause delays in late game!
+			//      Can cause delays, especially in late game!
 			break;
 		}
 
@@ -405,6 +412,19 @@ BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closest
 
 	act.getCandidateProducers(candidateProducers);
 
+	if (candidateProducers.empty())
+	{
+		return nullptr;
+	}
+
+	// If we're producing from a larva and we don't care where, seek an appropriate one.
+	if (act.isUnit() &&
+		act.getUnitType().whatBuilds().first == BWAPI::UnitTypes::Zerg_Larva &&
+		closestTo == BWAPI::Positions::None)
+	{
+		return getBestLarva(act, candidateProducers);
+	}
+
 	// Trick: If we're producing a worker, choose the producer (command center, nexus,
 	// or larva) which is farthest from the main base. That way expansions are preferentially
 	// populated with less need to transfer workers.
@@ -413,46 +433,118 @@ BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closest
 		return getFarthestUnitFromPosition(candidateProducers,
 			Bases::Instance().myMainBase()->getPosition());
 	}
-	else
+
+	return getClosestUnitToPosition(candidateProducers, closestTo);
+}
+
+// We're producing a zerg unit from a larva.
+// The list of units (candidate producers) is guaranteed not empty.
+BWAPI::Unit ProductionManager::getBestLarva(const MacroAct & act, const std::vector<BWAPI::Unit> & units) const
+{
+	// 1. If it's a worker, seek the least saturated base.
+	// For equally saturated bases, take the one with the highest larva count.
+	// Count only the base's resource depot, not any possible macro hatcheries there.
+	if (act.getUnitType().isWorker())
 	{
-		return getClosestUnitToPosition(candidateProducers, closestTo);
+		Base * bestBase = nullptr;
+		int maxShortfall = -1;
+		size_t maxLarvas = 0;
+		for (Base * base : Bases::Instance().getBases())
+		{
+			if (base->getOwner() == BWAPI::Broodwar->self() && UnitUtil::IsCompletedResourceDepot(base->getDepot()))
+			{
+				auto larvaSet = base->getDepot()->getLarva();
+				if (!larvaSet.empty())
+				{
+					int shortfall = std::max(0, base->getMaxWorkers() - base->getNumWorkers());
+					if (shortfall > maxShortfall || shortfall == maxShortfall && larvaSet.size() > maxLarvas)
+					{
+						bestBase = base;
+						maxShortfall = shortfall;
+						maxLarvas = larvaSet.size();
+					}
+				}
+			}
+		}
+
+		if (bestBase)
+		{
+			return *bestBase->getDepot()->getLarva().begin();
+		}
 	}
+
+    // 2. Otherwise, pick a hatchery that has the most larvas.
+	// This reduces wasted larvas; a hatchery won't make another if it has three.
+	BWAPI::Unit bestHatchery = nullptr;
+	size_t maxLarvas = 0;
+	for (BWAPI::Unit hatchery : BWAPI::Broodwar->self()->getUnits())
+	{
+		if (UnitUtil::IsCompletedResourceDepot(hatchery))
+		{
+			auto larvaSet = hatchery->getLarva();
+			if (larvaSet.size() > maxLarvas)
+			{
+				bestHatchery = hatchery;
+				maxLarvas = larvaSet.size();
+				if (maxLarvas >= 3)
+				{
+					break;
+				}
+			}
+		}
+	}
+
+	if (bestHatchery)
+	{
+		return *bestHatchery->getLarva().begin();
+	}
+
+    // 3. There might be a larva not attached to any hatchery.
+    for (BWAPI::Unit larva : BWAPI::Broodwar->self()->getUnits())
+    {
+        if (larva->getType() == BWAPI::UnitTypes::Zerg_Larva)
+        {
+            return larva;
+        }
+    }
+
+	return nullptr;
 }
 
 BWAPI::Unit ProductionManager::getClosestUnitToPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position closestTo) const
 {
-    if (units.size() == 0)
-    {
-        return nullptr;
-    }
+	if (units.empty())
+	{
+		return nullptr;
+	}
 
-    // if we don't care where the unit is return the first one we have
-    if (closestTo == BWAPI::Positions::None)
-    {
-        return *(units.begin());
-    }
+	// if we don't care where the unit is return the first one we have
+	if (closestTo == BWAPI::Positions::None)
+	{
+		return *(units.begin());
+	}
 
-    BWAPI::Unit closestUnit = nullptr;
-    int minDist(1000000);
+	BWAPI::Unit closestUnit = nullptr;
+	int minDist(1000000);
 
-	for (const auto unit : units) 
-    {
-        UAB_ASSERT(unit != nullptr, "Unit was null");
+	for (const auto unit : units)
+	{
+		UAB_ASSERT(unit != nullptr, "Unit was null");
 
 		int distance = unit->getDistance(closestTo);
-		if (distance < minDist) 
-        {
+		if (distance < minDist)
+		{
 			closestUnit = unit;
 			minDist = distance;
 		}
 	}
 
-    return closestUnit;
+	return closestUnit;
 }
 
 BWAPI::Unit ProductionManager::getFarthestUnitFromPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position farthest) const
 {
-	if (units.size() == 0)
+	if (units.empty())
 	{
 		return nullptr;
 	}
@@ -709,6 +801,7 @@ void ProductionManager::executeCommand(MacroCommand command)
 	}
 	else if (cmd == MacroCommandType::StopGas)
 	{
+		//BWAPI::Broodwar->printf("stop gas command");
 		WorkerManager::Instance().setCollectGas(false);
 	}
 	else if (cmd == MacroCommandType::StartGas)

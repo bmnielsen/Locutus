@@ -316,7 +316,7 @@ void MicroMutas::scoreTargets(const BWAPI::Position & center, const BWAPI::Units
 
 	if (bestTargets.size() > 0)
 	{
-		BWAPI::Broodwar->printf("best score %d", bestTargets[0].second);
+		//BWAPI::Broodwar->printf("best score %d", bestTargets[0].second);
 	}
 }
 
@@ -327,11 +327,12 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
     // Special cases for ZvZ.
 	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
 	{
-		if (targetType == BWAPI::UnitTypes::Zerg_Scourge)
-		{
-			return 12;
-		}
-		if (targetType == BWAPI::UnitTypes::Zerg_Mutalisk)
+        if (targetType == BWAPI::UnitTypes::Zerg_Scourge ||
+            targetType == BWAPI::UnitTypes::Zerg_Defiler)
+        {
+            return 12;
+        }
+        if (targetType == BWAPI::UnitTypes::Zerg_Mutalisk)
 		{
 			return 11;
 		}
@@ -339,7 +340,12 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 		{
 			return 10;
 		}
-		if (targetType == BWAPI::UnitTypes::Zerg_Drone)
+        // Nydus canal is the most important building to kill.
+        if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+        {
+            return 10;
+        }
+        if (targetType == BWAPI::UnitTypes::Zerg_Drone)
 		{
 			return 9;
 		}
@@ -359,6 +365,16 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 		{
 			return 5;
 		}
+        // Don't forget the hatcheries.
+        if (targetType.isResourceDepot())
+        {
+            return 4;
+        }
+        if (targetType.gasPrice() > 0)
+        {
+            return 3;
+        }
+        return 1;
 	}
 
 	// A ghost which is nuking is the highest priority by a mile.
@@ -395,11 +411,6 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 			}
 			return 8;
 		}
-	}
-
-	if (targetType == BWAPI::UnitTypes::Zerg_Scourge)
-	{
-		return 12;
 	}
 
 	// Failing, that, give higher priority to air units hitting tanks.
@@ -467,11 +478,6 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 	{
 		return 8;
 	}
-	// Nydus canal is the most important building to kill.
-	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
-	{
-		return 10;
-	}
 	// Spellcasters are as important as key buildings.
 	// Also remember to target other non-threat combat units.
 	if (targetType.isSpellcaster() ||
@@ -485,10 +491,6 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 	{
 		return 7;
 	}
-	if (targetType == BWAPI::UnitTypes::Zerg_Spawning_Pool)
-	{
-		return 7;
-	}
 	// Don't forget the nexus/cc/hatchery.
 	if (targetType.isResourceDepot())
 	{
@@ -499,10 +501,6 @@ int MicroMutas::getAttackPriority(BWAPI::Unit target)
 		return 5;
 	}
 	if (targetType == BWAPI::UnitTypes::Protoss_Pylon)
-	{
-		return 5;
-	}
-	if (targetType == BWAPI::UnitTypes::Zerg_Spire)
 	{
 		return 5;
 	}

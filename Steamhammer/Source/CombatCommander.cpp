@@ -196,9 +196,13 @@ void CombatCommander::chooseScourgeTarget(const Squad & sourgeSquad)
 	{
 		const UnitInfo & ui(kv.second);
 
-		// Skip ground units and units known to have moved away some time ago.
+		// Skip inappropriate units and units known to have moved away some time ago.
+        // Also stay out of range of enemy static air defense.
 		if (!ui.type.isFlyer() ||
-			ui.goneFromLastPosition && BWAPI::Broodwar->getFrameCount() - ui.updateFrame < 5 * 24)
+            ui.type == BWAPI::UnitTypes::Protoss_Interceptor ||
+            ui.type == BWAPI::UnitTypes::Zerg_Overlord ||
+			ui.goneFromLastPosition && BWAPI::Broodwar->getFrameCount() - ui.updateFrame > 5 * 24 ||
+            the.airAttacks.inRange(BWAPI::TilePosition(ui.lastPosition)))
 		{
 			continue;
 		}
@@ -212,7 +216,7 @@ void CombatCommander::chooseScourgeTarget(const Squad & sourgeSquad)
 
 		// Each score increment is worth 2 tiles of distance.
 		const int distance = center.getApproxDistance(ui.lastPosition);
-		score = 2 * score - distance / 32;
+		score -= distance / 16;
 		if (score > bestScore)
 		{
 			bestTarget = ui.lastPosition;
@@ -615,8 +619,8 @@ BWAPI::Position CombatCommander::getReconLocation() const
 // Form the ground squad and the flying squad, the main attack squads.
 // NOTE Arbiters and guardians go into the ground squad.
 //      Devourers are flying squad if it exists, otherwise ground.
-//		Carriers are flying squad if it exists or the carrier count is high enough.
-//      Other air units always go into the flying squad.
+//		Carriers are flying squad if it already exists or if the carrier count is high enough.
+//      Other air units always go into the flying squad (except scourge, they are in their own squad).
 void CombatCommander::updateAttackSquads()
 {
     Squad & groundSquad = _squadData.getSquad("Ground");
@@ -1461,19 +1465,21 @@ void CombatCommander::cancelDyingItems()
 				type == BWAPI::UnitTypes::Zerg_Egg ||
 				type == BWAPI::UnitTypes::Zerg_Lurker_Egg ||
 				type == BWAPI::UnitTypes::Zerg_Cocoon
-			) &&
-			(	unit->getHitPoints() < 30 ||
-				type == BWAPI::UnitTypes::Zerg_Sunken_Colony && unit->getHitPoints() < 130 && unit->getRemainingBuildTime() < 24
 			))
 		{
-			if (unit->canCancelMorph())
-			{
-				unit->cancelMorph();
-			}
-			else if (unit->canCancelConstruction())
-			{
-				the.micro.Cancel(unit);
-			}
+            const int timeSoFar = unit->getType().buildTime() - unit->getRemainingBuildTime();    // time under construction so far
+            if (unit->getHitPoints() < 30 && timeSoFar >= 2 * 24 ||
+                type == BWAPI::UnitTypes::Zerg_Sunken_Colony && unit->getHitPoints() < 130 && unit->getRemainingBuildTime() < 24)
+            {
+                if (unit->canCancelMorph())
+                {
+                    unit->cancelMorph();
+                }
+                else if (unit->canCancelConstruction())
+                {
+                    the.micro.Cancel(unit);
+                }
+            }
 		}
 	}
 }
@@ -1597,7 +1603,7 @@ SquadOrder CombatCommander::getAttackOrder(const Squad * squad)
 	return SquadOrder(SquadOrderTypes::Attack, getAttackLocation(squad), AttackRadius, "Attack enemy");
 }
 
-// Choose a point of attack for the given squad (which may be null).
+// Choose a point of attack for the given squad (which may be null--no squad at all).
 // For a squad with ground units, ignore targets which are not accessible by ground.
 BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 {
@@ -1656,7 +1662,8 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 				}
 
 				std::vector<UnitInfo> enemies;
-				InformationManager::Instance().getNearbyForce(enemies, base->getCenter(), BWAPI::Broodwar->enemy(), 384);
+                int enemyDefenseRange = InformationManager::Instance().enemyHasSiegeMode() ? 12 * 32 : 8 * 32;
+                InformationManager::Instance().getNearbyForce(enemies, base->getCenter(), BWAPI::Broodwar->enemy(), enemyDefenseRange);
 				for (const auto & enemy : enemies)
 				{
 					// Count enemies that are buildings or slow-moving units good for defense.
@@ -1702,6 +1709,7 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 			// 2. We only know that a building is lifted while it is in sight. That can cause oscillatory
 			// behavior--we move away, can't see it, move back because now we can attack it, see it is lifted, ....
 			if (ui.type.isBuilding() &&
+                !ui.type.isAddon() &&
 				ui.lastPosition.isValid() &&
 				!ui.goneFromLastPosition &&
 				(ui.type.isRefinery() || squadPartition == the.partitions.id(ui.lastPosition)))
@@ -1754,7 +1762,26 @@ BWAPI::Position CombatCommander::getAttackLocation(const Squad * squad)
 		}
 	}
 
-	// 4. We can't see anything, so explore the map until we find something.
+    // 4. Attack the remembered locations of unseen enemy units which might still be there.
+    // Choose the one most recently seen.
+    int lastSeenFrame = 0;
+    BWAPI::Position lastSeenPos = BWAPI::Positions::None;
+    for (const auto & kv : InformationManager::Instance().getUnitData(BWAPI::Broodwar->enemy()).getUnits())
+    {
+        const UnitInfo & ui(kv.second);
+
+        if (!ui.goneFromLastPosition && ui.updateFrame > lastSeenFrame)
+        {
+            lastSeenFrame = ui.updateFrame;
+            lastSeenPos = ui.lastPosition;
+        }
+    }
+    if (lastSeenPos.isValid())
+    {
+        return lastSeenPos;
+    }
+
+	// 5. We can't see anything, so explore the map until we find something.
 	return MapGrid::Instance().getLeastExplored(hasGround && !hasAir, squadPartition);
 }
 

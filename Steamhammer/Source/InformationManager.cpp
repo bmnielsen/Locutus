@@ -331,7 +331,7 @@ void InformationManager::drawExtendedInterface()
     }
 
     // draw neutral units and our units
-    for (const auto & unit : BWAPI::Broodwar->getAllUnits())
+    for (BWAPI::Unit unit : BWAPI::Broodwar->getAllUnits())
     {
         if (unit->getPlayer() == _enemy)
         {
@@ -421,11 +421,8 @@ void InformationManager::drawUnitInformation(int x, int y)
         return;
     }
 
-	char color = white;
-
 	BWAPI::Broodwar->drawTextScreen(x, y-10, "\x03 Self Loss:\x04 Minerals: \x1f%d \x04Gas: \x07%d", _unitData[_self].getMineralsLost(), _unitData[_self].getGasLost());
     BWAPI::Broodwar->drawTextScreen(x, y, "\x03 Enemy Loss:\x04 Minerals: \x1f%d \x04Gas: \x07%d", _unitData[_enemy].getMineralsLost(), _unitData[_enemy].getGasLost());
-	BWAPI::Broodwar->drawTextScreen(x, y+10, "\x04 Enemy: %s", _enemy->getName().c_str());
 	BWAPI::Broodwar->drawTextScreen(x, y+20, "\x04 UNIT NAME");
 	BWAPI::Broodwar->drawTextScreen(x+140, y+20, "\x04#");
 	BWAPI::Broodwar->drawTextScreen(x+160, y+20, "\x04X");
@@ -438,18 +435,30 @@ void InformationManager::drawUnitInformation(int x, int y)
 		int numUnits = _unitData[_enemy].getNumUnits(t);
 		int numDeadUnits = _unitData[_enemy].getNumDeadUnits(t);
 
-		if (numUnits > 0) 
+		if (numUnits || numDeadUnits) 
 		{
-			if (t.isDetector())			{ color = purple; }		
+            char color = white;
+
+            if (t.isDetector())			{ color = purple; }
 			else if (t.canAttack())		{ color = red; }		
 			else if (t.isBuilding())	{ color = yellow; }
-			else						{ color = white; }
 
 			BWAPI::Broodwar->drawTextScreen(x, y+40+((yspace)*10), " %c%s", color, t.getName().c_str());
 			BWAPI::Broodwar->drawTextScreen(x+140, y+40+((yspace)*10), "%c%d", color, numUnits);
 			BWAPI::Broodwar->drawTextScreen(x+160, y+40+((yspace++)*10), "%c%d", color, numDeadUnits);
 		}
 	}
+
+    for (const auto & kv : getUnitData(_enemy).getUnits())
+    {
+        const UnitInfo & ui(kv.second);
+
+        if (ui.type.isBuilding())
+        {
+            char color = ui.completed ? cyan : orange;
+            BWAPI::Broodwar->drawTextMap(ui.lastPosition.x, ui.lastPosition.y - 20, "%c%d", color, ui.completeBy);
+        }
+    }
 }
 
 void InformationManager::maybeClearNeutral(BWAPI::Unit unit)
@@ -541,7 +550,22 @@ void InformationManager::getNearbyForce(std::vector<UnitInfo> & unitsOut, BWAPI:
 
 int InformationManager::getNumUnits(BWAPI::UnitType t, BWAPI::Player player) const
 {
-	return getUnitData(player).getNumUnits(t);
+    int count = 0;
+
+    for (const auto & kv : getUnitData(player).getUnits())
+    {
+        const UnitInfo & ui(kv.second);
+
+        if (t == ui.type)
+        {
+            ++count;
+        }
+    }
+
+    return count;
+
+    // Buggy! The original method can be extremely wrong, even giving negative counts.
+	// return getUnitData(player).getNumUnits(t);
 }
 
 // We have complated combat units (excluding workers).
@@ -884,6 +908,25 @@ void InformationManager::enemySeenBurrowing()
 	_enemyCloakedUnitsSeen = true;
 }
 
+// Look up when an enemy building finished, or is predicted to finish.
+// If none, give a time far in the future.
+// This is for checking the timing of enemy tech buildings.
+int InformationManager::getEnemyBuildingTiming(BWAPI::UnitType type) const
+{
+    for (const auto & kv : getUnitData(_enemy).getUnits())
+    {
+        const UnitInfo & ui(kv.second);
+
+        if (ui.type == type)
+        {
+            return ui.completeBy;
+        }
+    }
+
+    // "Infinite" time in the future.
+    return 999999;
+}
+
 // Enemy has spore colonies, photon cannons, turrets, or spider mines.
 // It's the same as enemyHasStaticAntiAir() except for spider mines.
 // Spider mines only catch cloaked ground units, so this routine is not for countering wraiths.
@@ -969,11 +1012,11 @@ bool InformationManager::enemyHasSiegeMode()
 		const UnitInfo & ui(kv.second);
 
 		// If the tank is in the process of sieging, it is still in tank mode.
-		// If it is unsieging, it is still in siege mode.
+		// If it is unsieging, it is still in siege mode. So this condition catches everything.
 		if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode ||
 			ui.unit->isVisible() && ui.unit->getOrder() == BWAPI::Orders::Sieging)
 		{
-			_enemyHasStaticAntiAir = true;
+			_enemyHasSiegeMode = true;
 			return true;
 		}
 	}

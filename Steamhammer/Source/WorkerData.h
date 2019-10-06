@@ -62,7 +62,7 @@ public:
 	bool					depotIsFull(BWAPI::Unit depot);
 	int						getMineralsNearDepot(BWAPI::Unit depot);
 
-	int						getNumAssignedWorkers(BWAPI::Unit unit);
+	int						getNumAssignedWorkers(BWAPI::Unit unit) const;
 
 	WorkerJob				getWorkerJob(BWAPI::Unit unit);
 	BWAPI::Unit				getWorkerResource(BWAPI::Unit unit);

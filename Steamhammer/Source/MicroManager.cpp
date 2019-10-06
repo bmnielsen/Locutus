@@ -8,6 +8,43 @@
 
 using namespace UAlbertaBot;
 
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+CasterState::CasterState()
+	: spell(CasterSpell::None)
+	, lastEnergy(0)
+	, lastCastFrame(0)
+{
+}
+
+CasterState::CasterState(BWAPI::Unit caster)
+    : spell(CasterSpell::None)
+    , lastEnergy(caster->getEnergy())
+    , lastCastFrame(0)
+{
+}
+
+void CasterState::update(BWAPI::Unit caster)
+{
+	if (caster->getEnergy() < lastEnergy)
+	{
+		// We either cast the spell, or we were hit by EMP or feedback.
+		// Whatever the case, we're not going to cast now.
+		spell = CasterSpell::None;
+		lastCastFrame = BWAPI::Broodwar->getFrameCount();
+		// BWAPI::Broodwar->printf("... spell complete");
+	}
+	lastEnergy = caster->getEnergy();
+}
+
+// Not enough time since the last spell.
+bool CasterState::waitToCast() const
+{
+	return BWAPI::Broodwar->getFrameCount() - lastCastFrame < framesBetweenCasts;
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
 MicroManager::MicroManager() 
 	: the(The::Root())
 {
@@ -15,7 +52,7 @@ MicroManager::MicroManager()
 
 void MicroManager::setUnits(const BWAPI::Unitset & u) 
 { 
-	_units = u; 
+	_units = u;
 }
 
 void MicroManager::setOrder(const SquadOrder & inputOrder)
@@ -107,7 +144,7 @@ void MicroManager::destroyNeutralTargets(const BWAPI::Unitset & targets)
 
 	for (const auto unit : _units)
 	{
-		if (visibleTarget)
+        if (visibleTarget)
 		{
 			// We see a target, so we can issue attack orders to units that can attack.
 			if (UnitUtil::CanAttackGround(unit) && unit->canAttack())
@@ -222,17 +259,9 @@ void MicroManager::regroup(const BWAPI::Position & regroupPosition, const UnitCl
 		}
 		else
 		{
-			// We have retreated to a good position.
-			// A ranged unit holds position, a melee unit attack-moves to its own position.
-			BWAPI::WeaponType weapon = UnitUtil::GetGroundWeapon(unit) || UnitUtil::GetAirWeapon(unit);
-			if (weapon && weapon.maxRange() >= 32)
-			{
-				the.micro.HoldPosition(unit);
-			}
-			else
-			{
-				the.micro.AttackMove(unit, unit->getPosition());
-			}
+			// We have retreated to a good position. Stay put.
+			// NOTE Units can attack while on hold position, if an enemy comes in range.
+			the.micro.HoldPosition(unit);
 		}
 	}
 }
@@ -363,7 +392,7 @@ bool MicroManager::dodgeMine(BWAPI::Unit u) const
 
 // Send the protoss unit to the shield battery and recharge its shields.
 // The caller should have already checked all conditions.
-// TODO shielf batteries are not quite working
+// TODO shield batteries are not quite working
 void MicroManager::useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery)
 {
 	if (unit->getDistance(shieldBattery) >= 32)
@@ -378,7 +407,122 @@ void MicroManager::useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery)
 	}
 }
 
-void MicroManager::drawOrderText() 
+// The decision is made. Move closer if necessary, then cast the spell.
+// The target is a map position.
+bool MicroManager::spell(BWAPI::Unit caster, BWAPI::TechType techType, BWAPI::Position target) const
+{
+	UAB_ASSERT(techType.targetsPosition() && target.isValid(), "can't target that");
+
+	// Enough time since the last spell?
+	// Forcing a delay prevents double-casting on the same target.
+	auto it = _casterState.find(caster);
+	if (it == _casterState.end() || (*it).second.waitToCast())
+	{
+		return false;
+	}
+
+	if (caster->getDistance(target) > techType.getWeapon().maxRange())
+	{
+		// We're out of range. Move closer.
+		// BWAPI::Broodwar->printf("%s moving in...", UnitTypeName(caster).c_str());
+		the.micro.Move(caster, target);
+		return true;
+	}
+	else if (caster->canUseTech(techType, target))
+	{
+	    // BWAPI::Broodwar->printf("%s!", techType.getName().c_str());
+		return the.micro.UseTech(caster, techType, target);
+	}
+
+	return false;
+}
+
+// The decision is made. Move closer if necessary, then cast the spell.
+// The target is a unit.
+bool MicroManager::spell(BWAPI::Unit caster, BWAPI::TechType techType, BWAPI::Unit target) const
+{
+	UAB_ASSERT(techType.targetsUnit() && target->exists() && target->getPosition().isValid(), "can't target that");
+
+	// Enough time since the last spell?
+	// Forcing a delay prevents double-casting on the same target.
+	auto it = _casterState.find(caster);
+	if (it == _casterState.end() || (*it).second.waitToCast())
+	{
+		return false;
+	}
+
+	if (caster->getDistance(target) > techType.getWeapon().maxRange())
+	{
+		// We're out of range. Move closer.
+		// BWAPI::Broodwar->printf("%s moving in...", UnitTypeName(caster).c_str());
+		the.micro.Move(caster, target->getPosition());
+		return true;
+	}
+	else if (caster->canUseTech(techType, target))
+	{
+		// BWAPI::Broodwar->printf("%s!", techType.getName().c_str());
+		return the.micro.UseTech(caster, techType, target);
+	}
+
+	return false;
+}
+
+// A spell caster declares that it is ready to cast.
+void MicroManager::setReadyToCast(BWAPI::Unit caster, CasterSpell spell)
+{
+    _casterState.at(caster).setSpell(spell);
+}
+
+// Is it ready to cast? If so, don't interrupt it with another action.
+bool MicroManager::isReadyToCast(BWAPI::Unit caster)
+{
+    return _casterState.at(caster).getSpell() != CasterSpell::None;
+}
+
+// Is it ready to cast a spell other than the given one? If so, don't interrupt it with another action.
+bool MicroManager::isReadyToCastOtherThan(BWAPI::Unit caster, CasterSpell spellToAvoid)
+{
+    CasterSpell spell = _casterState.at(caster).getSpell();
+	return spell != CasterSpell::None && spell != spellToAvoid;
+}
+
+// Update records for spells that have finished casting, and delete obsolete records.
+// Called only by micro managers which control casters.
+void MicroManager::updateCasters(const BWAPI::Unitset & casters)
+{
+    // Update the known casters.
+	for (auto it = _casterState.begin(); it != _casterState.end();)
+	{
+		BWAPI::Unit caster = (*it).first;
+		CasterState & state = (*it).second;
+
+        if (caster->exists())
+        {
+            if (casters.contains(caster))
+            {
+                state.update(caster);
+            }
+            ++it;
+        }
+        else
+        {
+            // Delete records for units which are gone.
+            it = _casterState.erase(it);
+        }
+	}
+
+    // Add any new casters.
+    for (BWAPI::Unit caster : casters)
+    {
+        auto it = _casterState.find(caster);
+        if (it == _casterState.end())
+        {
+            _casterState.insert(std::pair<BWAPI::Unit, CasterState>(caster, CasterState(caster)));
+        }
+    }
+}
+
+void MicroManager::drawOrderText()
 {
 	if (Config::Debug::DrawUnitTargetInfo)
     {
@@ -387,4 +531,28 @@ void MicroManager::drawOrderText()
 			BWAPI::Broodwar->drawTextMap(unit->getPosition().x, unit->getPosition().y, "%s", order.getStatus().c_str());
 		}
 	}
+}
+
+// Is the enemy threatening to shoot at any of our units in the set?
+bool MicroManager::anyUnderThreat(const BWAPI::Unitset & units) const
+{
+    for (const BWAPI::Unit unit : units)
+    {
+        // Is static defense in range?
+        if (unit->isFlying() ? the.airAttacks.inRange(unit) : the.groundAttacks.inRange(unit))
+        {
+            return true;
+        }
+
+        // Are enemy mobile units close and intending to shoot?
+        for (BWAPI::Unit enemy : InformationManager::Instance().getEnemyFireteam(unit))
+        {
+            if (UnitUtil::IsSuicideUnit(enemy) ||
+                unit->getDistance(enemy) < 32 + UnitUtil::GetAttackRange(enemy, unit))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
 }

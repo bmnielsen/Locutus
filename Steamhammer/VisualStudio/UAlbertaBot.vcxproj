@@ -118,6 +118,7 @@
   <ItemGroup>
     <ClCompile Include="..\Source\Base.cpp" />
     <ClCompile Include="..\Source\Bases.cpp" />
+    <ClCompile Include="..\Source\BOSimulator.cpp" />
     <ClCompile Include="..\Source\BOSSManager.cpp" />
     <ClCompile Include="..\source\BuildingManager.cpp" />
     <ClCompile Include="..\source\BuildingPlacer.cpp" />
@@ -157,6 +158,7 @@
     <ClCompile Include="..\Source\MicroMelee.cpp" />
     <ClCompile Include="..\Source\MicroMutas.cpp" />
     <ClCompile Include="..\Source\MicroOverlords.cpp" />
+    <ClCompile Include="..\Source\MicroQueens.cpp" />
     <ClCompile Include="..\Source\MicroRanged.cpp" />
     <ClCompile Include="..\Source\MicroScourge.cpp" />
     <ClCompile Include="..\Source\MicroTanks.cpp" />
@@ -188,6 +190,7 @@
   <ItemGroup>
     <ClInclude Include="..\Source\Base.h" />
     <ClInclude Include="..\Source\Bases.h" />
+    <ClInclude Include="..\Source\BOSimulator.h" />
     <ClInclude Include="..\Source\BOSSManager.h" />
     <ClInclude Include="..\Source\BuildingData.h" />
     <ClInclude Include="..\source\BuildingManager.h" />
@@ -228,6 +231,7 @@
     <ClInclude Include="..\Source\MicroMelee.h" />
     <ClInclude Include="..\Source\MicroMutas.h" />
     <ClInclude Include="..\Source\MicroOverlords.h" />
+    <ClInclude Include="..\Source\MicroQueens.h" />
     <ClInclude Include="..\Source\MicroRanged.h" />
     <ClInclude Include="..\Source\MicroScourge.h" />
     <ClInclude Include="..\Source\MicroTanks.h" />

@@ -14,6 +14,7 @@
 #include "MicroLurkers.h"
 #include "MicroMedics.h"
 #include "MicroMutas.h"
+#include "MicroQueens.h"
 #include "MicroScourge.h"
 #include "MicroOverlords.h"
 #include "MicroTanks.h"
@@ -55,6 +56,7 @@ class Squad
 	MicroLurkers		_microLurkers;
 	MicroMedics			_microMedics;
 	//MicroMutas          _microMutas;
+	MicroQueens			_microQueens;
 	MicroScourge        _microScourge;
 	MicroOverlords      _microOverlords;
 	MicroTanks			_microTanks;
@@ -73,6 +75,7 @@ class Squad
 	void			setAllUnits();
 
 	void			setClusterStatus(UnitCluster & cluster);
+	void			microSpecialUnits(const UnitCluster & cluster);
 	void			clusterCombat(const UnitCluster & cluster);
 	bool			noCombatUnits(const UnitCluster & cluster) const;
 	bool			notNearEnemy(const UnitCluster & cluster);

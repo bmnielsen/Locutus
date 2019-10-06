@@ -159,7 +159,7 @@ void MicroTanks::executeMicro(const BWAPI::Unitset & targets, const UnitCluster 
                     }
                     else
                     {
-    					the.micro.AttackMove(tank, order.getPosition());
+    					the.micro.Move(tank, order.getPosition());
                     }
 				}
 			}

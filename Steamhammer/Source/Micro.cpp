@@ -1,5 +1,6 @@
 #include "Micro.h"
 
+#include "GridDistances.h"
 #include "InformationManager.h"
 #include "MapGrid.h"
 #include "The.h"
@@ -13,11 +14,16 @@ size_t TotalCommands = 0;  // not all commands are counted
 
 // Complain if there is an "obvious" problem.
 // So far, the only problem is issuing two orders during the same frame.
-void MicroState::check()
+void MicroState::check(BWAPI::Unit u, BWAPI::Order o) const
 {
-	// TODO this likely bug occurs often but has no known bad effects
-	//      save it to track down later
-	//UAB_ASSERT(orderFrame < BWAPI::Broodwar->getFrameCount(), ">1 order this frame");
+    return;	// TODO only check when debugging
+
+	if (orderFrame == BWAPI::Broodwar->getFrameCount())
+	{
+		BWAPI::Broodwar->printf(">1 order for %s %d frame %d, %s -> %s",
+			UnitTypeName(u).c_str(), u->getID(), BWAPI::Broodwar->getFrameCount(),
+			order.getName().c_str(), o.getName().c_str());
+	}
 }
 
 // Execute the unit's order.
@@ -25,10 +31,14 @@ void MicroState::execute(BWAPI::Unit u)
 {
 	if (order == BWAPI::Orders::Move)
 	{
-		if (u->getPosition() != targetPosition && u->move(targetPosition))
+        if (u->getPosition() != targetPosition && BWAPI::Broodwar->getFrameCount() >= lastActionFrame + framesBetweenActions)
 		{
-			lastCheckFrame = executeFrame = BWAPI::Broodwar->getFrameCount();
-			needsMonitoring = true;
+            if (u->move(getNextMovePosition(u)))
+            {
+                lastCheckFrame = executeFrame = BWAPI::Broodwar->getFrameCount();
+                needsMonitoring = true;
+            }
+            lastActionFrame = executeFrame;
 		}
 	}
 	else
@@ -37,7 +47,6 @@ void MicroState::execute(BWAPI::Unit u)
 		executeFrame = 0;
 		needsMonitoring = false;
 	}
-	// TODO other commands are not implemented yet
 }
 
 // Monitor the order: Check for and try to correct failure to execute.
@@ -45,14 +54,14 @@ void MicroState::monitor(BWAPI::Unit u)
 {
 	if (order == BWAPI::Orders::Move)
 	{
-		if (u->getPosition() == targetPosition)
+        if (u->isFlying())
+        {
+            // Flying units do not have problems.
+            needsMonitoring = false;
+        }
+        else if (u->getPosition() == targetPosition)
 		{
 			// We're there. All done.
-			needsMonitoring = false;
-		}
-		else if (u->isFlying())
-		{
-			// Flying units do not have problems.
 			needsMonitoring = false;
 		}
 		// Some ways to fail:
@@ -70,7 +79,8 @@ void MicroState::monitor(BWAPI::Unit u)
 			*/
 			u->move(targetPosition);
 			lastCheckFrame = BWAPI::Broodwar->getFrameCount();
-		}
+            lastActionFrame = lastCheckFrame;
+        }
 		// 2. The unit could be "stuck", moving randomly to escape overlapping with other units.
 		else if (u->isStuck())
 		{
@@ -85,42 +95,64 @@ void MicroState::monitor(BWAPI::Unit u)
 			// BWAPI::Broodwar->printf("moving unit %d froze velocity %g,%g", u->getID(), u->getVelocityX(), u->getVelocityY());
 			u->stop();
 			lastCheckFrame = BWAPI::Broodwar->getFrameCount();
-			// On the next retry, the order will not be Move and the order will be reissued.
+            lastActionFrame = lastCheckFrame;
+            // On the next retry, the order will not be Move and the Move order will be reissued.
 		}
 		// 4. The unit could be blocked and unable to make progress. UNIMPLEMENTED
+        // OTHERWISE it may be time to switch to the next waypoint.
+
 	}
 	else
 	{
-		// It's an order we don't support. Set the retry time to infinity to save effort.
+		// It's an order we don't support. Turn off monitoring to save effort.
 		needsMonitoring = false;
 	}
 	// TODO other commands are not implemented yet
+}
+
+// If we're moving the unit a long distance, use pathfinding to avoid blocked paths.
+BWAPI::Position MicroState::getNextMovePosition(BWAPI::Unit u)
+{
+    /*
+    // Flying units don't need ground pathfinding.
+    // Neither do units within one step of the target position.
+    if (u->isFlying() ||
+        u->getDistance(targetPosition) <= 32 * distanceStep)
+    {
+        return targetPosition;
+    }
+    */
+
+    // TODO pathfinding not implemented
+    return targetPosition;
 }
 
 // -- --
 
 // Create a blank MicroState. Values will be filled in later.
 MicroState::MicroState()
-	: orderFrame(-1)
-	, executeFrame(-1)
-	, needsMonitoring(false)
-	, lastCheckFrame(-1)
-	, order(BWAPI::Orders::None)
-	, targetUnit(nullptr)
-	, targetPosition(BWAPI::Positions::None)
-	, startPosition(BWAPI::Positions::None)
+    : order(BWAPI::Orders::None)
+    , targetUnit(nullptr)
+    , targetPosition(BWAPI::Positions::None)
+    , distanceToPosition(nullptr)
+    , orderFrame(-1)
+    , executeFrame(-1)
+    , needsMonitoring(false)
+    , lastCheckFrame(-1)
+    , lastActionFrame(-framesBetweenActions)       // an action at time 0 must execute
+    , startPosition(BWAPI::Positions::None)
 {
 }
 
 // No-argument order.
 void MicroState::setOrder(BWAPI::Unit u, BWAPI::Order o)
 {
-	check();
+	check(u, o);
 
 	if (order != o)
 	{
 		order = o;
-		targetPosition = BWAPI::Positions::None;
+	    targetPosition = BWAPI::Positions::None;
 		targetUnit = nullptr;
 
 		orderFrame = BWAPI::Broodwar->getFrameCount();
@@ -133,36 +165,37 @@ void MicroState::setOrder(BWAPI::Unit u, BWAPI::Order o)
 // Order that targets a unit.
 void MicroState::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Unit t)
 {
-	check();
+	check(u, o);
 
-	if (order != o || targetUnit != t) {
+	if (order != o || targetUnit != t)
+    {
 		order = o;
-		targetPosition = BWAPI::Positions::None;
-		targetUnit = t;
+        targetPosition = BWAPI::Positions::None;
+        targetUnit = t;
 
 		orderFrame = BWAPI::Broodwar->getFrameCount();
 		executeFrame = -1;
 
 		startPosition = u->getPosition();
-	}
+    }
 }
 
 // Order that targets a position.
 void MicroState::setOrder(BWAPI::Unit u, BWAPI::Order o, BWAPI::Position p)
 {
-	check();
+	check(u, o);
 
 	if (order != o || targetPosition != p)
 	{
 		order = o;
-		targetPosition = p;
+        targetPosition = p;
 		targetUnit = nullptr;
 
 		orderFrame = BWAPI::Broodwar->getFrameCount();
 		executeFrame = -1;
 
 		startPosition = u->getPosition();
-	}
+    }
 }
 
 void MicroState::update(BWAPI::Unit u)
@@ -258,6 +291,19 @@ Micro::Micro()
 {
 }
 
+// Was the unit already given a command this frame?
+bool Micro::alreadyCommanded(BWAPI::Unit unit) const
+{
+	auto it = orders.find(unit);
+
+	if (it == orders.end())
+	{
+		return false;
+	}
+
+	return (*it).second.getOrderFrame() >= BWAPI::Broodwar->getFrameCount();
+}
+
 // If our ground unit is next to an undetected dark templar, run it away and return true.
 // Otherwise return false.
 bool Micro::fleeDT(BWAPI::Unit unit)
@@ -278,12 +324,12 @@ bool Micro::fleeDT(BWAPI::Unit unit)
 			64);
 		if (dt)
 		{
-			BWAPI::Position fleePosition = DistanceAndDirection(unit->getPosition(), dt->getPosition(), -96);
+			BWAPI::Position fleePosition = RawDistanceAndDirection(unit->getPosition(), dt->getPosition(), -96);
 			if (fleePosition.isValid())
 			{
 				/*
 				BWAPI::Broodwar->printf("%s flees dt dist=%d, fleedist=%d",
-					UnitTypeName(unit->getType()).c_str(),
+					UnitTypeName(unit).c_str(),
 					unit->getDistance(dt),
 					unit->getDistance(fleePosition));
 				BWAPI::Broodwar->drawLineMap(unit->getPosition(), fleePosition, BWAPI::Colors::Yellow);
@@ -481,7 +527,7 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 	if (!attacker->exists())
 	{
 		UAB_ASSERT(false, "SmartMove: nonexistent");
-		BWAPI::Broodwar->printf("SM: non-exist %s @ %d, %d", attacker->getType().getName().c_str(), targetPosition.x, targetPosition.y);
+		BWAPI::Broodwar->`("SM: non-exist %s @ %d, %d", attacker->getType().getName().c_str(), targetPosition.x, targetPosition.y);
 		return;
 	}
 	if (attacker->getPlayer() != BWAPI::Broodwar->self())
@@ -547,25 +593,27 @@ void Micro::Move(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
 // Suitable for approaching a moving target that is distant, or slow, or needs little accuracy.
 // This reduces unnecessary orders. It's up to the caller to decide that they're unnecessary.
 // With fewer orders, units should be less likely to get stuck.
-void Micro::MoveNear(BWAPI::Unit attacker, const BWAPI::Position & targetPosition)
+void Micro::MoveNear(BWAPI::Unit unit, const BWAPI::Position & targetPosition)
 {
-	auto it = orders.find(attacker);
+    auto it = orders.find(unit);
 	if (it == orders.end())
 	{
 		// The unit doesn't have an existing order.
-		Move(attacker, targetPosition);
+        Move(unit, targetPosition);
 	}
+    else
+    {
+        // The unit has an existing order. Check it.
+        MicroState & state = it->second;
 
-	MicroState & state = it->second;
-
-	if (state.getOrder() != BWAPI::Orders::Move ||
-		state.getOrderFrame() - BWAPI::Broodwar->getFrameCount() >= 12 ||
-		state.getTargetPosition().getApproxDistance(targetPosition) > 2 * 32)
-	{
-		Move(attacker, targetPosition);
-	}
-
-	// Otherwise do nothing. It's close enough.
+        if (state.getOrder() != BWAPI::Orders::Move ||
+            BWAPI::Broodwar->getFrameCount() - state.getOrderFrame() >= 18 ||
+            state.getTargetPosition().getApproxDistance(targetPosition) > 2 * 32)
+        {
+            Move(unit, targetPosition);
+        }
+        // Otherwise do nothing. It's close enough.
+    }
 }
 
 void Micro::RightClick(BWAPI::Unit unit, BWAPI::Unit target)
@@ -1029,7 +1077,7 @@ bool Micro::LarvaTrick(const BWAPI::Unitset & larvas)
 }
 
 // Use a tech on a target unit.
-// So far, we only support defiler tech.
+// NOTE The order is set correctly only for techs that Steamhammer already implements.
 bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, BWAPI::Unit target)
 {
 	if (!unit || !unit->exists() || !unit->getPosition().isValid() || unit->getPlayer() != BWAPI::Broodwar->self() ||
@@ -1039,16 +1087,27 @@ bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, BWAPI::Unit target)
 		return false;
 	}
 
-	UAB_ASSERT(tech == BWAPI::TechTypes::Consume, "unsupported tech");
+	BWAPI::Order o;
+	if (tech == BWAPI::TechTypes::Consume)
+	{
+		o = BWAPI::Orders::CastConsume;
+	}
+	else if (tech == BWAPI::TechTypes::Parasite)
+	{
+		o = BWAPI::Orders::CastParasite;
+	}
+	else
+	{
+		o = BWAPI::Orders::UnusedNothing;
+		UAB_ASSERT(false, "unsupported tech");
+	}
+	orders[unit].setOrder(unit, o);
 
-	// The Orders are Burrowing and Burrowed. Also lurkers can do stuff while burrowed.
-	orders[unit].setOrder(unit, BWAPI::Orders::CastConsume);
-
-	return unit->useTech(BWAPI::TechTypes::Consume, target);
+	return unit->useTech(tech, target);
 }
 
 // Use a tech on a target position.
-// So far, we only support defiler tech.
+// NOTE The order is set correctly only for techs that Steamhammer already implements.
 bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, const BWAPI::Position & target)
 {
 	if (!unit || !unit->exists() || !unit->getPosition().isValid() || unit->getPlayer() != BWAPI::Broodwar->self() ||
@@ -1058,18 +1117,21 @@ bool Micro::UseTech(BWAPI::Unit unit, BWAPI::TechType tech, const BWAPI::Positio
 		return false;
 	}
 
+	BWAPI::Order o;
 	if (tech == BWAPI::TechTypes::Dark_Swarm)
 	{
-		orders[unit].setOrder(unit, BWAPI::Orders::CastDarkSwarm);
+		o = BWAPI::Orders::CastDarkSwarm;
 	}
-	else if (BWAPI::TechTypes::Plague)
+	else if (tech == BWAPI::TechTypes::Plague)
 	{
-		orders[unit].setOrder(unit, BWAPI::Orders::CastPlague);
+		o = BWAPI::Orders::CastPlague;
 	}
 	else
 	{
+		o = BWAPI::Orders::UnusedNothing;
 		UAB_ASSERT(false, "unsupported tech");
 	}
+	orders[unit].setOrder(unit, o);
 
 	return unit->useTech(tech, target);
 }

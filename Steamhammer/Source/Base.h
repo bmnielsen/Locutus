@@ -19,7 +19,7 @@ private:
 	BWAPI::Unitset		geysers;			// the base's associated geysers
 	BWAPI::Unitset		blockers;			// destructible neutral units that may be in the way
 	GridDistances		distances;			// ground distances from tilePosition
-	bool				startingBase;		// one of the map's starting bases
+	bool				startingBase;		// one of the map's starting bases?
 
 	bool				reserved;			// if this is a planned expansion
 	bool				workerDanger;		// for our own bases only; false for others
@@ -65,6 +65,10 @@ public:
 	// The sum of resources available.
 	int getInitialMinerals() const;
 	int getInitialGas() const;
+
+	// Workers assigned to mine minerals or gas.
+	int getMaxWorkers() const;
+	int getNumWorkers() const;
 
 	BWAPI::Position getMineralOffset() const;	// mean offset of minerals from base center
 	BWAPI::Position getFrontPoint() const;		// the "front" of the base, where static defense should go

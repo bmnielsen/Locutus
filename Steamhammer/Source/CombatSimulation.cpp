@@ -60,6 +60,18 @@ CombatSimEnemies CombatSimulation::analyzeForEnemies(const BWAPI::Unitset units)
 	return CombatSimEnemies::AllEnemies;
 }
 
+bool CombatSimulation::allFlying(const BWAPI::Unitset units) const
+{
+    for (BWAPI::Unit unit : units)
+    {
+        if (!unit->isFlying())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void CombatSimulation::drawWhichEnemies(const BWAPI::Position center) const
 {
 	std::string whichEnemies = "All Enemies";
@@ -114,7 +126,7 @@ bool CombatSimulation::includeEnemy(CombatSimEnemies which, BWAPI::UnitType type
 	if (which == CombatSimEnemies::ScourgeEnemies)
 	{
 		// Only ground enemies that can shoot up.
-		// For scourge only. The scourge will take on air enemies no matter what.
+		// For scourge only. The scourge will take on air enemies no matter the odds.
 		return
 			!type.isFlyer() &&
 			UnitUtil::GetAirWeapon(type) != BWAPI::WeaponTypes::None;
@@ -124,10 +136,59 @@ bool CombatSimulation::includeEnemy(CombatSimEnemies which, BWAPI::UnitType type
 	return true;
 }
 
+// Our air units ignore undetected dark templar.
+// This variant of includeEnemy() is called only when the enemy unit is visible.
+bool CombatSimulation::includeEnemy(CombatSimEnemies which, BWAPI::Unit enemy) const
+{
+    if (_allFriendliesFlying &&
+        enemy->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar && !enemy->isDetected())
+    {
+        return false;
+    }
+
+    return includeEnemy(which, enemy->getType());
+}
+
+bool CombatSimulation::undetectedEnemy(BWAPI::Unit enemy) const
+{
+    if (enemy->isVisible())
+    {
+        return !enemy->isDetected();
+    }
+
+    // The enemy is out of sight.
+    // Consider it undetected if it is likely to be cloaked, or if it is an arbiter.
+    // NOTE This will often be wrong!
+    return
+        enemy->getType() != BWAPI::UnitTypes::Terran_Vulture_Spider_Mine &&
+        enemy->getType() != BWAPI::UnitTypes::Protoss_Dark_Templar &&
+        enemy->getType() != BWAPI::UnitTypes::Protoss_Arbiter &&
+        enemy->getType() != BWAPI::UnitTypes::Zerg_Lurker;
+}
+
+bool CombatSimulation::undetectedEnemy(const UnitInfo & enemyUI) const
+{
+    if (enemyUI.unit->isVisible())
+    {
+        return !enemyUI.unit->isDetected();
+    }
+
+    // The enemy is out of sight.
+    // Consider it undetected if it is likely to be cloaked.
+    // NOTE This will often be wrong!
+    return
+        enemyUI.type != BWAPI::UnitTypes::Terran_Vulture_Spider_Mine &&
+        enemyUI.type != BWAPI::UnitTypes::Protoss_Dark_Templar &&
+        enemyUI.type != BWAPI::UnitTypes::Protoss_Arbiter &&
+        enemyUI.type != BWAPI::UnitTypes::Zerg_Lurker;
+}
+
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 CombatSimulation::CombatSimulation()
 	: _whichEnemies(CombatSimEnemies::AllEnemies)
+    , _allEnemiesUndetected(false)
+    , _allFriendliesFlying(false)
 {
 }
 
@@ -167,6 +228,10 @@ void CombatSimulation::setCombatUnits
 	)
 {
 	_whichEnemies = analyzeForEnemies(myUnits);
+    _allFriendliesFlying = allFlying(myUnits);
+
+    // If all enemies are cloaked and undetected, we can run away without needing to do a sim.
+    _allEnemiesUndetected = true;
 
 	fap.clearState();
 
@@ -197,34 +262,39 @@ void CombatSimulation::setCombatUnits
 	// Add enemy units.
 	if (visibleOnly)
 	{
-		// Only units that we can see right now.
+        // Static defense that is out of sight.
+        // NOTE getNearbyForce() includes completed units and uncompleted buildings which are out of vision.
+        std::vector<UnitInfo> enemyStaticDefense;
+        InformationManager::Instance().getNearbyForce(enemyStaticDefense, center, BWAPI::Broodwar->enemy(), radius);
+        for (const UnitInfo & ui : enemyStaticDefense)
+        {
+            if (ui.type.isBuilding() && !ui.unit->isVisible() && includeEnemy(_whichEnemies, ui.type))
+            {
+                _allEnemiesUndetected = false;
+                fap.addIfCombatUnitPlayer2(ui);
+                if (Config::Debug::DrawCombatSimulationInfo)
+                {
+                    BWAPI::Broodwar->drawCircleMap(ui.lastPosition, 3, BWAPI::Colors::Orange, true);
+                }
+            }
+        }
+
+        // Only units that we can see right now.
 		BWAPI::Unitset enemyCombatUnits;
 		MapGrid::Instance().getUnits(enemyCombatUnits, center, radius, false, true);
-		for (const auto unit : enemyCombatUnits)
+		for (BWAPI::Unit unit : enemyCombatUnits)
 		{
 			if (UnitUtil::IsCombatSimUnit(unit) &&
-				includeEnemy(_whichEnemies, unit->getType()))
+				includeEnemy(_whichEnemies, unit))
 			{
+                if (_allEnemiesUndetected && !undetectedEnemy(unit))
+                {
+                    _allEnemiesUndetected = false;
+                }
 				fap.addIfCombatUnitPlayer2(unit);
 				if (Config::Debug::DrawCombatSimulationInfo)
 				{
 					BWAPI::Broodwar->drawCircleMap(unit->getPosition(), 3, BWAPI::Colors::Orange, true);
-				}
-			}
-		}
-
-		// Also static defense that is out of sight.
-		// NOTE getNearbyForce() includes completed units and uncompleted buildings which are out of vision.
-		std::vector<UnitInfo> enemyStaticDefense;
-		InformationManager::Instance().getNearbyForce(enemyStaticDefense, center, BWAPI::Broodwar->enemy(), radius);
-		for (const UnitInfo & ui : enemyStaticDefense)
-		{
-			if (ui.type.isBuilding() && !ui.unit->isVisible() && includeEnemy(_whichEnemies, ui.type))
-			{
-				fap.addIfCombatUnitPlayer2(ui);
-				if (Config::Debug::DrawCombatSimulationInfo)
-				{
-					BWAPI::Broodwar->drawCircleMap(ui.lastPosition, 3, BWAPI::Colors::Orange, true);
 				}
 			}
 		}
@@ -239,9 +309,13 @@ void CombatSimulation::setCombatUnits
 		{
 			// The check is careful about seen units and assumes that unseen units are completed and powered.
 			if ((ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
-				includeEnemy(_whichEnemies, ui.type))
+                ui.unit->isVisible() ? includeEnemy(_whichEnemies, ui.unit) : includeEnemy(_whichEnemies, ui.type))
 			{
-				fap.addIfCombatUnitPlayer2(ui);
+                if (_allEnemiesUndetected && !undetectedEnemy(ui))
+                {
+                    _allEnemiesUndetected = false;
+                }
+                fap.addIfCombatUnitPlayer2(ui);
 
 				if (ui.type == BWAPI::UnitTypes::Terran_Missile_Turret)
 				{
@@ -267,7 +341,8 @@ void CombatSimulation::setCombatUnits
 	// Add our units.
 	// Add them from the input set. Other units have been given other instructions
 	// and may not cooperate in the fight, so skip them.
-	for (const auto unit : myUnits)
+	// NOTE This does not include our static defense unless the caller passed it in!
+    for (BWAPI::Unit unit : myUnits)
 	{
 		if (UnitUtil::IsCombatSimUnit(unit))
 		{
@@ -296,6 +371,13 @@ double CombatSimulation::simulateCombat(bool meatgrinder)
 		// No enemies. We can stop early.
 		return 0.0;
 	}
+
+    // If all enemies are undetected, and can hit us, we should run away.
+    // We approximate "and can hit us" by ignoring undetected enemy DTs if we are all flying units.
+    if (_allEnemiesUndetected)
+    {
+        return -1.0;
+    }
 
 	fap.simulate();
 	std::pair<int, int> endScores = fap.playerScores();

@@ -596,12 +596,14 @@ void WorkerManager::finishedWithWorker(BWAPI::Unit unit)
 }
 
 // Find a worker to be reassigned to gas duty.
+// Transferring across the map is bad. Try not to do that.
 BWAPI::Unit WorkerManager::getGasWorker(BWAPI::Unit refinery)
 {
 	UAB_ASSERT(refinery, "Refinery was null");
 
 	BWAPI::Unit closestWorker = nullptr;
 	int closestDistance = 0;
+    bool workerInBase = false;
 
 	for (const auto unit : workerData.getWorkers())
 	{
@@ -609,14 +611,19 @@ BWAPI::Unit WorkerManager::getGasWorker(BWAPI::Unit refinery)
 
 		if (isFree(unit))
 		{
-			// Don't waste minerals. It's OK (and unlikely) to already be carrying gas.
+            int distance = unit->getDistance(refinery);
+            if (distance <= thisBaseRange)
+            {
+                workerInBase = true;
+            }
+
+            // Don't waste minerals. It's OK (though unlikely) to already be carrying gas.
 			if (unit->isCarryingMinerals() ||                       // doesn't have minerals and
 				unit->getOrder() == BWAPI::Orders::MiningMinerals)  // isn't about to get them
 			{
 				continue;
 			}
 
-			int distance = unit->getDistance(refinery);
 			if (!closestWorker || distance < closestDistance)
 			{
 				closestWorker = unit;
@@ -625,6 +632,20 @@ BWAPI::Unit WorkerManager::getGasWorker(BWAPI::Unit refinery)
 		}
 	}
 
+    if (closestWorker && closestDistance <= thisBaseRange)
+    {
+        // This owrker is in the base and is free.
+        return closestWorker;
+    }
+
+    if (workerInBase)
+    {
+        // There is a free worker in the base, but it has minerals
+        // We'll wait until it returns the minerals.
+        return nullptr;
+    }
+
+    // There are no free workers in the base. We may transfer one from elsewhere.
 	return closestWorker;
 }
 
@@ -689,7 +710,6 @@ BWAPI::Unit WorkerManager::getBuilder(const Building & b)
 		b.finalPosition.isValid() ? b.finalPosition : b.desiredPosition
 	);
 	UAB_ASSERT(pos.isValid(), "bad position");
-	const int thisBaseRange = 10 * 32;
 
 	BWAPI::Unit builder = getUnencumberedWorker(pos, thisBaseRange);
 	if (builder)
@@ -959,6 +979,12 @@ int WorkerManager::getMaxWorkers() const
 		);
 }
 
+// The number of workers assigned to this resource depot to mine minerals, or to this refinery to mine gas.
+int WorkerManager::getNumWorkers(BWAPI::Unit jobUnit) const
+{
+	return workerData.getNumAssignedWorkers(jobUnit);
+}
+
 // Mine out any blocking minerals that the worker runs headlong into.
 bool WorkerManager::maybeMineMineralBlocks(BWAPI::Unit worker)
 {
@@ -966,7 +992,7 @@ bool WorkerManager::maybeMineMineralBlocks(BWAPI::Unit worker)
 
 	if (worker->isGatheringMinerals() &&
 		worker->getTarget() &&
-		worker->getTarget()->getInitialResources() <= 16)
+		worker->getTarget()->getInitialResources() <= 64)
 	{
 		// Still busy mining the block.
 		return true;
@@ -974,7 +1000,7 @@ bool WorkerManager::maybeMineMineralBlocks(BWAPI::Unit worker)
 
 	for (const auto patch : worker->getUnitsInRadius(64, BWAPI::Filter::IsMineralField))
 	{
-		if (patch->getInitialResources() <= 16)    // any patch we can mine out quickly
+		if (patch->getInitialResources() <= 64)    // any patch we can mine out quickly
 		{
 			// Go start mining.
 			worker->gather(patch);

@@ -44,3 +44,23 @@ int Grid::at(const BWAPI::Position & pos) const
 {
 	return at(BWAPI::TilePosition(pos));
 }
+
+
+// Draw a number in each tile.
+// This default method is overridden in some subclasses.
+void Grid::draw() const
+{
+	for (int x = 0; x < width; ++x)
+	{
+		for (int y = 0; y < height; ++y)
+		{
+			int n = grid[x][y];
+			if (n)
+			{
+				BWAPI::Broodwar->drawTextMap(
+					BWAPI::Position(x * 32 + 8, y * 32 + 8),
+					"%c%d", yellow, n);
+			}
+		}
+	}
+}

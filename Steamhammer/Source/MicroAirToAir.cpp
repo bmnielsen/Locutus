@@ -32,7 +32,7 @@ void MicroAirToAir::assignTargets(const BWAPI::Unitset & airUnits, const BWAPI::
 			u->isFlying() &&
 			u->isVisible() &&
 			u->isDetected() &&
-			!u->isStasised();
+			!u->isInvincible();
 	});
 
     for (const auto airUnit : airUnits)

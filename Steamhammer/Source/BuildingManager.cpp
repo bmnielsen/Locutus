@@ -141,8 +141,6 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 		}
 		b.finalPosition = testLocation;
 
-		the.micro.Move(b.builderUnit, b.getCenter());
-
 		++b.buildersSent;    // count workers ever assigned to build it
 
 		//BWAPI::Broodwar->printf("assign builder %d to %s", b.builderUnit->getID(), UnitTypeName(b.type).c_str());
@@ -748,13 +746,17 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	if (b.type.isResourceDepot())
 	{
 		BWAPI::TilePosition front = Bases::Instance().frontPoint();
-		if (b.macroLocation == MacroLocation::Front && front.isValid())
+		if (b.macroLocation == MacroLocation::Front &&
+			front.isValid() &&
+			!the.groundAttacks.inRange(b.type, front))
 		{
             // This means build an additional hatchery at our existing front base, wherever it is.
 			return front;
 		}
 		Base * natural = Bases::Instance().myNaturalBase();
-		if (b.macroLocation == MacroLocation::Natural && natural)
+		if (b.macroLocation == MacroLocation::Natural &&
+			natural &&
+			!the.groundAttacks.inRange(b.type, natural->getTilePosition()))
 		{
 			return natural->getTilePosition();
 		}

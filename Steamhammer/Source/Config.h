@@ -24,6 +24,7 @@ namespace Config
 		extern std::string ErrorLogFilename;
 		extern bool LogAssertToErrorFile;
 
+        extern std::string StaticDir;
 		extern std::string ReadDir;
 		extern std::string WriteDir;
 		extern int MaxGameRecords;

@@ -19,6 +19,6 @@ public:
 	void setSquadSize(int n) { squadSize = n; };
 	void setUnitClosestToEnemy(BWAPI::Unit unit) { unitClosestToEnemy = unit; }
 	void executeMicro(const BWAPI::Unitset & targets, const UnitCluster & cluster);
-	void go();
+    void go(const BWAPI::Unitset & squadUnits);
 };
 }

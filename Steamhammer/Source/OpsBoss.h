@@ -29,9 +29,9 @@ namespace UAlbertaBot
 		bool air;
 		double speed;
 
-		int count;
+		size_t count;
 		int hp;
-		double groundDPF;		// damage per frame
+		double groundDPF;		// DPF = damage per frame
 		double airDPF;
 
 		BWAPI::Unitset units;
@@ -40,6 +40,7 @@ namespace UAlbertaBot
 
 		void clear();
 		void add(const UnitInfo & ui);
+		size_t size() const { return count; };
 		void draw(BWAPI::Color color, const std::string & label = "") const;
 	};
 

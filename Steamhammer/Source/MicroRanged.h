@@ -19,7 +19,7 @@ public:
 	void assignTargets(const BWAPI::Unitset & rangedUnits, const BWAPI::Unitset & targets);
 
 	int getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target);
-	BWAPI::Unit getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset & targets);
+	BWAPI::Unit getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset & targets, bool underThreat);
 
 	bool stayHomeUntilReady(const BWAPI::Unit u) const;
 };

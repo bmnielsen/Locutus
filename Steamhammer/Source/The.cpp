@@ -18,9 +18,19 @@ void The::initialize()
 	vWalkRoom.initialize();			// depends on edgeRange
 	tileRoom.initialize();			// depends on vWalkRoom
 	zone.initialize();				// depends on tileRoom
-	//regions.initialize();			// depends on everything before
 
 	ops.initialize();
+}
+
+void The::update()
+{
+	int now = BWAPI::Broodwar->getFrameCount();
+
+	if (now > 45 * 24 && now % 10 == 0)
+	{
+		groundAttacks.update();
+		airAttacks.update();
+	}
 }
 
 The & The::Root()

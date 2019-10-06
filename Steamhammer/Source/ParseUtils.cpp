@@ -147,7 +147,8 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 		JSONTools::ReadString("ErrorLogFilename", io, Config::IO::ErrorLogFilename);
 		JSONTools::ReadBool("LogAssertToErrorFile", io, Config::IO::LogAssertToErrorFile);
 
-		JSONTools::ReadString("ReadDirectory", io, Config::IO::ReadDir);
+        JSONTools::ReadString("StaticDirectory", io, Config::IO::StaticDir);
+        JSONTools::ReadString("ReadDirectory", io, Config::IO::ReadDir);
 		JSONTools::ReadString("WriteDirectory", io, Config::IO::WriteDir);
 
 		JSONTools::ReadInt("MaxGameRecords", io, Config::IO::MaxGameRecords);
@@ -256,7 +257,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
 			}
 		}
 
-		// 0.5 TEMPORARY SPECIAL CASE FOR AIST S1
+		// 0.5 SPECIAL CASE FOR AIST S1
 		// On the map Sparkle, play a Sparkle opening.
 		if (BWAPI::Broodwar->mapFileName().find("Sparkle") != std::string::npos)
 		{

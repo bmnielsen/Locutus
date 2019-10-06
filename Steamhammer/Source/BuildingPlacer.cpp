@@ -266,7 +266,11 @@ bool BuildingPlacer::canBuildHere(BWAPI::TilePosition position, const Building &
 
 		// A worker can reach the place.
 		// NOTE This simplified check disallows building on islands!
-		Bases::Instance().connectedToStart(position);
+		Bases::Instance().connectedToStart(position) &&
+		
+		// Enemy static defense cannot fire on the building location.
+		// This is part of the response to e.g. cannon rushes.
+		!the.groundAttacks.inRange(b.type, position);
 }
 
 // Can we build this building here with the specified amount of space around it?
@@ -592,7 +596,6 @@ BWAPI::TilePosition BuildingPlacer::getBuildLocationNear(const Building & b, int
 	}
 
 	// Let Bases decide whether the change the main base to another base.
-	// 
 	Bases::Instance().checkBuildingPosition(b.desiredPosition, tile);
 
 	return tile;		// may be None
@@ -653,11 +656,18 @@ BWAPI::TilePosition BuildingPlacer::getRefineryPosition()
 	// have been canceled or destroyed: They become inaccessible. https://github.com/bwapi/bwapi/issues/697
 	for (const auto geyser : BWAPI::Broodwar->getGeysers())
 	{
-        // check to see if it's near one of our depots
-        for (const auto unit : BWAPI::Broodwar->self()->getUnits())
-        {
-            if (unit->getType().isResourceDepot() && unit->getDistance(geyser) < 300)
-            {
+		// Check to see if the geyser is near one of our depots.
+		for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (unit->getType().isResourceDepot() && unit->getDistance(geyser) < 300)
+			{
+				// Don't take a geyser which is in enemy static defense range. It'll just die.
+				// This is rare so we check it only after other checks succeed.
+				if (the.groundAttacks.inRange(geyser->getType(), geyser->getTilePosition()))
+				{
+					break;
+				}
+
 				int homeDistance = geyser->getDistance(homePosition);
 
 				if (homeDistance < minGeyserDistanceFromHome)
@@ -666,9 +676,9 @@ BWAPI::TilePosition BuildingPlacer::getRefineryPosition()
 					closestGeyser = geyser->getTilePosition();      // BWAPI bug workaround by Arrak
 				}
 				break;
-            }
-        }
-    }
+			}
+		}
+	}
     
     return closestGeyser;
 }

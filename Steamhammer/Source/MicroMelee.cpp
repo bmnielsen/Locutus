@@ -27,22 +27,29 @@ void MicroMelee::executeMicro(const BWAPI::Unitset & targets, const UnitCluster 
 void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::Unitset & targets)
 {
 	BWAPI::Unitset meleeUnitTargets;
-	for (const auto target : targets) 
+	for (const BWAPI::Unit target : targets) 
 	{
 		if (target->isVisible() &&
 			target->isDetected() &&
 			!target->isFlying() &&
-			target->getPosition().isValid() &&
-			target->getType() != BWAPI::UnitTypes::Zerg_Larva && 
-			target->getType() != BWAPI::UnitTypes::Zerg_Egg &&
-			!target->isStasised() &&
+            target->getType() != BWAPI::UnitTypes::Zerg_Larva &&
+            target->getType() != BWAPI::UnitTypes::Zerg_Egg &&
+            target->getPosition().isValid() &&
+			!target->isInvincible() &&
 			!target->isUnderDisruptionWeb())             // melee unit can't attack under dweb
 		{
 			meleeUnitTargets.insert(target);
 		}
 	}
 
-	for (const auto meleeUnit : meleeUnits)
+    // Are any enemies in range to shoot at the melee units?
+    bool underThreat = false;
+    if (order.isCombatOrder())
+    {
+        underThreat = anyUnderThreat(meleeUnits);
+    }
+
+    for (const auto meleeUnit : meleeUnits)
 	{
 		if (meleeUnit->isBurrowed())
 		{
@@ -90,7 +97,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
             }
 			else
 			{
-				BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets);
+                BWAPI::Unit target = getTarget(meleeUnit, meleeUnitTargets, underThreat);
 				if (target)
 				{
 					the.micro.CatchAndAttackUnit(meleeUnit, target);
@@ -112,7 +119,8 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & meleeUnits, const BWAPI::U
 }
 
 // Choose a target from the set.
-BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets)
+// underThreat is true if any of the melee units is under immediate threat of attack.
+BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets, bool underThreat)
 {
 	int bestScore = -999999;
 	BWAPI::Unit bestTarget = nullptr;
@@ -159,6 +167,20 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 		{
 			score -= 6 * 32;
 		}
+
+        if (!underThreat)
+        {
+            // We're not under threat. Prefer to attack stuff outside enemy static defense range.
+            if (!the.groundAttacks.inRange(target))
+            {
+                score += 2 * 32;
+            }
+            // Also prefer to attack stuff that can't shoot back.
+            if (!UnitUtil::CanAttackGround(target))
+            {
+                score += 2 * 32;
+            }
+        }
 
 		// A bonus for attacking enemies that are "in front".
 		// It helps reduce distractions from moving toward the goal, the order position.
@@ -221,7 +243,6 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 	return bestTarget;
 }
 
-// get the attack priority of a type
 int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) const
 {
 	BWAPI::UnitType targetType = target->getType();
@@ -241,93 +262,93 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 		{
 			return 10;
 		}
-		if ((targetType == BWAPI::UnitTypes::Terran_Missile_Turret || targetType == BWAPI::UnitTypes::Terran_Comsat_Station) &&
-			(BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) == 0))
-		{
-			return 9;
-		}
-		if (targetType == BWAPI::UnitTypes::Zerg_Spore_Colony)
-		{
-			return 8;
-		}
-		if (targetType.isWorker())
-		{
-			return 8;
-		}
-	}
+if ((targetType == BWAPI::UnitTypes::Terran_Missile_Turret || targetType == BWAPI::UnitTypes::Terran_Comsat_Station) &&
+    (BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) == 0))
+{
+    return 9;
+}
+if (targetType == BWAPI::UnitTypes::Zerg_Spore_Colony)
+{
+    return 8;
+}
+if (targetType.isWorker())
+{
+    return 8;
+}
+    }
 
-	// Short circuit: Enemy unit which is far enough outside its range is lower priority than a worker.
-	int enemyRange = UnitUtil::GetAttackRange(target, attacker);
-	if (enemyRange &&
-		!targetType.isWorker() &&
-		attacker->getDistance(target) > 32 + enemyRange)
-	{
-		return 8;
-	}
-	// Short circuit: Units before bunkers!
-	if (targetType == BWAPI::UnitTypes::Terran_Bunker)
-	{
-		return 10;
-	}
-	// Medics and ordinary combat units. Include workers that are doing stuff.
-	if (targetType == BWAPI::UnitTypes::Terran_Medic ||
-		targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
-		targetType == BWAPI::UnitTypes::Zerg_Defiler ||
-		UnitUtil::CanAttackGround(target) && !targetType.isWorker())  // includes cannons and sunkens
-	{
-		return 12;
-	}
-	if (targetType.isWorker() && (target->isRepairing() || target->isConstructing() || unitNearChokepoint(target)))
-	{
-		return 12;
-	}
-	// next priority is bored workers and turrets
-	if (targetType.isWorker() || targetType == BWAPI::UnitTypes::Terran_Missile_Turret)
-	{
-		return 9;
-	}
+    // Short circuit: Enemy unit which is far enough outside its range is lower priority than a worker.
+    int enemyRange = UnitUtil::GetAttackRange(target, attacker);
+    if (enemyRange &&
+        !targetType.isWorker() &&
+        attacker->getDistance(target) > 32 + enemyRange)
+    {
+        return 8;
+    }
+    // Short circuit: Units before bunkers!
+    if (targetType == BWAPI::UnitTypes::Terran_Bunker)
+    {
+        return 10;
+    }
+    // Medics and ordinary combat units. Include workers that are doing stuff.
+    if (targetType == BWAPI::UnitTypes::Terran_Medic ||
+        targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
+        targetType == BWAPI::UnitTypes::Zerg_Defiler ||
+        UnitUtil::CanAttackGround(target) && !targetType.isWorker())  // includes cannons and sunkens
+    {
+        return 12;
+    }
+    if (targetType.isWorker() && (target->isRepairing() || target->isConstructing() || unitNearChokepoint(target)))
+    {
+        return 12;
+    }
+    // next priority is bored workers and turrets
+    if (targetType.isWorker() || targetType == BWAPI::UnitTypes::Terran_Missile_Turret)
+    {
+        return 9;
+    }
+    // Nydus canal is critical.
+    if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
+    {
+        return 10;
+    }
     // Buildings come under attack during free time, so they can be split into more levels.
-	// Nydus canal is critical.
-	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
-	{
-		return 10;
-	}
-	if (targetType == BWAPI::UnitTypes::Zerg_Spire ||
-		targetType == BWAPI::UnitTypes::Zerg_Greater_Spire)
-	{
-		return 6;
-	}
-	if (targetType == BWAPI::UnitTypes::Protoss_Templar_Archives ||
-		targetType.isSpellcaster())
-	{
-		return 5;
-	}
-	if (targetType == BWAPI::UnitTypes::Protoss_Pylon ||
-		targetType == BWAPI::UnitTypes::Zerg_Spawning_Pool)
-	{
-		return 4;
-	}
-	// Short circuit: Addons other than a completed comsat are worth almost nothing.
-	// TODO should also check that it is attached
-	if (targetType.isAddon() && !(targetType == BWAPI::UnitTypes::Terran_Comsat_Station && target->isCompleted()))
-	{
-		return 1;
-	}
-	// anything with a cost
-	if (targetType.gasPrice() > 0 || targetType.mineralPrice() > 0)
-	{
-		return 3;
-	}
-	
-	// then everything else
-	return 1;
+    if (targetType == BWAPI::UnitTypes::Zerg_Spire ||
+        targetType == BWAPI::UnitTypes::Zerg_Greater_Spire)
+    {
+        return 6;
+    }
+    if (targetType == BWAPI::UnitTypes::Protoss_Templar_Archives ||
+        targetType.isSpellcaster())
+    {
+        return 5;
+    }
+    if (targetType == BWAPI::UnitTypes::Protoss_Pylon ||
+        targetType == BWAPI::UnitTypes::Zerg_Spawning_Pool)
+    {
+        return 4;
+    }
+    // Short circuit: Addons other than a completed comsat are worth almost nothing.
+    // TODO should also check that it is attached
+    if (targetType.isAddon() && !(targetType == BWAPI::UnitTypes::Terran_Comsat_Station && target->isCompleted()))
+    {
+        return 1;
+    }
+    // anything with a cost
+    if (targetType.gasPrice() > 0 || targetType.mineralPrice() > 0)
+    {
+        return 3;
+    }
+
+    // then everything else
+    return 1;
 }
 
 // Retreat hurt units to allow them to regenerate health (zerg) or shields (protoss).
 bool MicroMelee::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets)
 {
     // Terran don't regen so it doesn't make sense to retreat.
-	// NOTE We might want to retreat a firebat if medics are available.
+    // NOTE We might want to retreat a firebat if medics are available.
     if (meleeUnit->getType().getRace() == BWAPI::Races::Terran)
     {
         return false;
@@ -340,8 +361,14 @@ bool MicroMelee::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unit
         return false;
     }
 
+    // An irradiated unit does not gain from retreating.
+    if (meleeUnit->isIrradiated() && meleeUnit->getType().isOrganic())
+    {
+        return false;
+    }
+
     // if there is a ranged enemy unit within attack range of this melee unit then we shouldn't bother retreating since it could fire and kill it anyway
-    for (auto & unit : targets)
+    for (BWAPI::Unit unit : targets)
     {
 		int groundWeaponRange = UnitUtil::GetAttackRange(unit, meleeUnit);
         if (groundWeaponRange >= 64 && unit->getDistance(meleeUnit) < groundWeaponRange)

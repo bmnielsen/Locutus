@@ -11,7 +11,8 @@ class MicroOverlords : public MicroManager
 	std::map<Base *, BWAPI::Unit> baseAssignments;      // base -> overlord, only 1 overlord is assigned
 	BWAPI::Unitset unassignedOverlords;
 
-	BWAPI::Unit nearestSpore(BWAPI::Unit overlord);
+	BWAPI::Unit nearestSpore(BWAPI::Unit overlord) const;
+	void goToSpore(BWAPI::Unit overlord) const;
 	void assignOverlords();
 
 public:

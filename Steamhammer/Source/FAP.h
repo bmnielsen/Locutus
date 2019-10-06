@@ -31,13 +31,13 @@ namespace UAlbertaBot {
 
 			mutable int groundDamage = 0;
 			mutable int groundCooldown = 0;
-			mutable int groundMaxRange = 0;
-			mutable int groundMinRange = 0;
+			mutable int groundMaxRange = 0;                 // square of the true range
+            mutable int groundMinRange = 0;                 // square of the true range
 			mutable BWAPI::DamageType groundDamageType;
 
 			mutable int airDamage = 0;
 			mutable int airCooldown = 0;
-			mutable int airMaxRange = 0;
+            mutable int airMaxRange = 0;                    // square of the true range
 			mutable BWAPI::DamageType airDamageType;
 
 			mutable BWAPI::UnitType unitType;
@@ -82,7 +82,7 @@ namespace UAlbertaBot {
 
 			bool didSomething;
 			void dealDamage(const FastAPproximation::FAPUnit & fu, int damage, BWAPI::DamageType damageType) const;
-			int distButNotReally(const FastAPproximation::FAPUnit & u1, const FastAPproximation::FAPUnit & u2) const;
+			int distSquared(const FastAPproximation::FAPUnit & u1, const FastAPproximation::FAPUnit & u2) const;
 			bool isSuicideUnit(BWAPI::UnitType ut);
 			void unitsim(const FAPUnit & fu, std::vector <FAPUnit> &enemyUnits);
 			void medicsim(const FAPUnit & fu, std::vector <FAPUnit> &friendlyUnits);

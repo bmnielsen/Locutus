@@ -151,7 +151,7 @@ void OpponentPlan::recognize()
 
 	// Recognize slower rushes.
 	// TODO make sure we've seen the bare geyser in the enemy base!
-	// TODO seeing a unit carrying gas also means the enemy has gas
+	// TODO seeing an enemy worker carrying gas also means the enemy has gas
 	if (snap.getCount(BWAPI::UnitTypes::Zerg_Hatchery) >= 2 &&
 		snap.getCount(BWAPI::UnitTypes::Zerg_Spawning_Pool) > 0 &&
 		snap.getCount(BWAPI::UnitTypes::Zerg_Extractor) == 0

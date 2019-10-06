@@ -92,6 +92,7 @@ class StrategyBossZerg
 	int nHydras;
 	int nLurkers;
 	int nMutas;
+	int nQueens;
 	int nGuardians;
 	int nDevourers;
 	int nDefilers;
@@ -128,6 +129,11 @@ class StrategyBossZerg
 	int enemyAntigroundArmySize;
 	int defilerScore;
 
+    bool _wantDefensiveSpire;
+
+	int _lastQueenAliveFrame;	// last frame we had a living queen (now if one is still alive)
+	bool _recommendParasite;
+
 	// For choosing the tech target and the unit mix.
 	std::array<int, int(TechUnit::Size)> techScores;
 
@@ -139,12 +145,15 @@ class StrategyBossZerg
 	bool enoughGroundArmy() const;
 	bool enemySeemsToBeDead(const PlayerSnapshot & snap) const;
 
+    int getOurSpireTiming() const;
+
 	int numInEgg(BWAPI::UnitType) const;
 	bool isBeingBuilt(const BWAPI::UnitType unitType) const;
 
 	int mineralsBackOnCancel(BWAPI::UnitType type) const;
 	void cancelStuff(int mineralsNeeded);
 	void cancelForSpawningPool();
+	void cancelUpgrade(BWAPI::UpgradeType upgrade);
 	bool nextInQueueIsUseless(BuildOrderQueue & queue) const;
 	void leaveBook();
 
@@ -176,6 +185,7 @@ class StrategyBossZerg
 	void resetTechScores();
 	void setAvailableTechUnits(std::array<bool, int(TechUnit::Size)> & available);
 
+	void recommendResearch(const PlayerSnapshot & snap);
 	void vProtossTechScores(const PlayerSnapshot & snap);
 	void vTerranTechScores(const PlayerSnapshot & snap);
 	void vZergTechScores(const PlayerSnapshot & snap);

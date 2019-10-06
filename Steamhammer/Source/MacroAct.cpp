@@ -217,7 +217,7 @@ MacroAct::MacroAct(MacroCommandType t, int amount)
 {
 }
 
-const size_t & MacroAct::type() const
+size_t MacroAct::type() const
 {
     return _type;
 }
@@ -247,7 +247,7 @@ bool MacroAct::isCommand() const
     return _type == MacroActs::Command; 
 }
 
-const BWAPI::Race & MacroAct::getRace() const
+BWAPI::Race MacroAct::getRace() const
 {
     return _race;
 }
@@ -281,36 +281,38 @@ bool MacroAct::isSupply() const
 		|| _unitType == BWAPI::UnitTypes::Zerg_Overlord);
 }
 
-const BWAPI::UnitType & MacroAct::getUnitType() const
+BWAPI::UnitType MacroAct::getUnitType() const
 {
 	UAB_ASSERT(_type == MacroActs::Unit, "getUnitType of non-unit");
     return _unitType;
 }
 
-const BWAPI::TechType & MacroAct::getTechType() const
+BWAPI::TechType MacroAct::getTechType() const
 {
 	UAB_ASSERT(_type == MacroActs::Tech, "getTechType of non-tech");
 	return _techType;
 }
 
-const BWAPI::UpgradeType & MacroAct::getUpgradeType() const
+BWAPI::UpgradeType MacroAct::getUpgradeType() const
 {
 	UAB_ASSERT(_type == MacroActs::Upgrade, "getUpgradeType of non-upgrade");
 	return _upgradeType;
 }
 
-const MacroCommand MacroAct::getCommandType() const
+MacroCommand MacroAct::getCommandType() const
 {
 	UAB_ASSERT(_type == MacroActs::Command, "getCommandType of non-command");
 	return _macroCommandType;
 }
 
-const MacroLocation MacroAct::getMacroLocation() const
+MacroLocation MacroAct::getMacroLocation() const
 {
 	return _macroLocation;
 }
 
 // Supply required if this is produced.
+// It is NOT THE SAME as the supply required to have one of the units; it is the extra supply needed
+// to make one of them.
 int MacroAct::supplyRequired() const
 {
 	if (isUnit())
