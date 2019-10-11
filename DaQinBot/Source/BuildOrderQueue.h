@@ -4,7 +4,7 @@
 
 #include "MacroAct.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 struct BuildOrderItem
 {
@@ -31,10 +31,24 @@ public:
 	void dropStaticDefenses();									// delete any static defense buildings
 
     void queueAsLowestPriority(MacroAct m);						// queue something at the lowest priority
+	void queueAsHighestPriority(BWAPI::UnitType type);
+	void queueAsHighestPriority(BWAPI::UpgradeType type);
+	void queueAsHighestPriority(BWAPI::TechType type);
+
+	bool hasRequiredUnit(BWAPI::UnitType type);
+	bool hasRequiredUnit(BWAPI::UpgradeType type);
+	bool hasRequiredUnit(BWAPI::TechType type);
+
 	void queueAsHighestPriority(MacroAct m, bool isWorkerScoutBuilding = false);		// queues something at the highest priority
     void removeHighestPriorityItem();							// remove the highest priority item
 	void doneWithHighestPriorityItem();							// remove highest priority item without setting `modified`
+	
 	void pullToTop(size_t i);									// move item at index i to the highest priority position
+	void pullToTop(BWAPI::UnitType type);
+	void pullToTop(BWAPI::UpgradeType type);
+	void pullToTop(BWAPI::TechType type);
+
+	void pullToBottom(size_t i = -1);
 
     size_t size() const;										// number of items in the queue
 	bool isEmpty() const;
@@ -42,12 +56,17 @@ public:
     const BuildOrderItem & getHighestPriorityItem() const;		// return the highest priority item
 	BWAPI::UnitType getNextUnit() const;						// skip commands and return item if it's a unit
 	int getNextGasCost(int n) const;							// look n ahead, return next nonzero gas cost
+	int getNextSupplyCost(int n) const;
 	
 	bool anyInQueue(BWAPI::UpgradeType type) const;
 	bool anyInQueue(BWAPI::UnitType type) const;
+	bool anyInQueue(BWAPI::TechType type) const;
+
 	bool anyInNextN(BWAPI::UnitType type, int n) const;
 	size_t numInQueue(BWAPI::UnitType type) const;
 	size_t numInNextN(BWAPI::UnitType type, int n) const;
+	size_t numSupplyInNextN(int n) const;
+	
 	void totalCosts(int & minerals, int & gas) const;
 	bool isWorkerScoutBuildingInQueue() const;
 

@@ -6,7 +6,7 @@
 #include "OpponentModel.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 const std::vector<std::string> GameRecord::SupportedFileFormatVersions = { "1.4", "2018-07-02" };
 

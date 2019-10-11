@@ -1,6 +1,6 @@
 #include "TimerManager.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 TimerManager::TimerManager() 
     : _timers(std::vector<BOSS::Timer>(NumTypes))

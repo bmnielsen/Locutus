@@ -5,7 +5,7 @@
 
 const double pi = 3.14159265358979323846;
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 //龙骑微操
 MicroDragoon::MicroDragoon()
@@ -35,6 +35,7 @@ void MicroDragoon::assignTargets(const BWAPI::Unitset & targets)
 	});
 
 	// Special case for moving units when we are holding the wall and there are no targets
+	//特殊情况下，移动单位时，我们举行的墙壁和没有目标
 	if (order.getType() == SquadOrderTypes::HoldWall && targets.empty())
 	{
 		LocutusWall & wall = BuildingPlacer::Instance().getWall();
@@ -92,13 +93,15 @@ void MicroDragoon::assignTargets(const BWAPI::Unitset & targets)
 		}
 
 		// Issue orders to units in order of their distance to the door
+		//按单位到门口的距离发出命令
 		for (const auto & unit : insideUnitsByDistanceToDoor)
 		{
 			// Is the first free tile closer than this one?
+			//第一块空闲的瓷砖比这一块更近吗?
 			if (availableTilesInside.begin()->second < (unit.second - 16))
 			{
 				// Move to the free tile
-				Micro::Move(unit.first, center(availableTilesInside.begin()->first));
+				Micro::AttackMove(unit.first, center(availableTilesInside.begin()->first));
 
 				// Remove the tile from the available set
 				availableTilesInside.erase(availableTilesInside.begin());
@@ -118,7 +121,7 @@ void MicroDragoon::assignTargets(const BWAPI::Unitset & targets)
 			if (availableTilesOutside.begin()->second < (unit.second - 16))
 			{
 				// Move to the free tile
-				Micro::Move(unit.first, center(availableTilesOutside.begin()->first));
+				Micro::AttackMove(unit.first, center(availableTilesOutside.begin()->first));
 
 				// Remove the tile from the available set
 				availableTilesOutside.erase(availableTilesOutside.begin());
@@ -137,6 +140,24 @@ void MicroDragoon::assignTargets(const BWAPI::Unitset & targets)
 
 	for (const auto rangedUnit : rangedUnits)
 	{
+		BWAPI::Unit nearEnemie = BWAPI::Broodwar->getClosestUnit(rangedUnit->getPosition(), BWAPI::Filter::IsEnemy, 6 * 32);
+
+		if (nearEnemie) {
+			if (nearEnemie->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine) {
+				Micro::AttackUnit(rangedUnit, nearEnemie);
+				//rangedUnit->attack(nearEnemie);
+				continue;
+			}
+			/*
+			else if (nearEnemie->getOrderTarget() == rangedUnit && nearEnemie->getDistance(rangedUnit) < 4 * 32 && nearEnemie->getType() != BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode) {
+				InformationManager::Instance().getLocutusUnit(rangedUnit).fleeFrom(nearEnemie->getPosition());
+				//BWAPI::Position fleePosition = getFleePosition(rangedUnit->getPosition(), nearEnemie->getPosition(), 6 * 32);
+				//Micro::RightClick(rangedUnit, fleePosition);
+				continue;
+			}
+			*/
+		}
+		
 		if (order.isCombatOrder())
 		{
 			if (unstickStuckUnit(rangedUnit))
@@ -144,13 +165,45 @@ void MicroDragoon::assignTargets(const BWAPI::Unitset & targets)
 				continue;
 			}
 
-			BWAPI::Unit closestUnit = rangedUnit->getClosestUnit(BWAPI::Filter::IsEnemy && BWAPI::Filter::CanAttack, rangedUnit->getType().sightRange());
-			if (closestUnit && rangedUnit->getDistance(closestUnit) <= 2 * 32 && closestUnit->getOrderTarget() == rangedUnit) {
-				//kite(rangedUnit, closestUnit);
-				//BWAPI::Position fleePosition = getFleePosition(rangedUnit, closestUnit);
-				//Micro::RightClick(rangedUnit, fleePosition);
-				InformationManager::Instance().getLocutusUnit(rangedUnit).fleeFrom(closestUnit->getPosition());
-				continue;
+			nearEnemie = rangedUnit->getClosestUnit(BWAPI::Filter::IsEnemy && BWAPI::Filter::CanAttack && BWAPI::Filter::GetType != BWAPI::UnitTypes::Terran_Vulture_Spider_Mine, rangedUnit->getType().sightRange());
+			if (nearEnemie) {
+				if (rangedUnit->getDistance(nearEnemie) <= 2 * 32 && nearEnemie->getOrderTarget() == rangedUnit) {
+					//kite(rangedUnit, closestUnit);
+					BWAPI::Position fleePosition = getFleePosition(rangedUnit, nearEnemie);
+					if (fleePosition.isValid() && rangedUnit->hasPath(fleePosition)) {
+						Micro::RightClick(rangedUnit, fleePosition);
+					}
+					else {
+						InformationManager::Instance().getLocutusUnit(rangedUnit).fleeFrom(nearEnemie->getPosition());
+					}
+					continue;
+				}
+				/*
+				if (rangedUnit->isInWeaponRange(nearEnemie) && nearEnemie->isVisible()) {
+					Micro::KiteTarget(rangedUnit, nearEnemie);
+					continue;
+				}
+				*/
+			}
+			
+			if (meleeUnitShouldRetreat(rangedUnit, targets))
+			{
+				BWAPI::Unit shieldBattery = InformationManager::Instance().nearestShieldBattery(rangedUnit->getPosition());
+				if (shieldBattery &&
+					rangedUnit->getDistance(shieldBattery) < 400 &&
+					shieldBattery->getEnergy() >= 10)
+				{
+					useShieldBattery(rangedUnit, shieldBattery);
+					continue;
+				}
+				else
+				{
+					BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+					if (rangedUnit->getDistance(shieldBattery) > 12 * 32) {
+						Micro::Move(rangedUnit, fleeTo);
+						continue;
+					}
+				}
 			}
 
 			// If a target is found,
@@ -181,15 +234,21 @@ void MicroDragoon::assignTargets(const BWAPI::Unitset & targets)
 			}
 			else
 			{
+				if (nearEnemie && nearEnemie->isVisible()) {
+					Micro::KiteTarget(rangedUnit, nearEnemie);
+					continue;
+				}
 				// No target found. If we're not near the order position, go there.
-				if (rangedUnit->getDistance(order.getPosition()) > 4 * 32)
+				//没有发现目标。如果我们不在订单位置附近，就去那里。
+				if (rangedUnit->getDistance(order.getPosition()) > 6 * 32)
 				{
+					InformationManager::Instance().getLocutusUnit(rangedUnit).moveTo(order.getPosition(), order.getType() == SquadOrderTypes::Attack);
+					continue;
 					// If this unit is doing a bunker run-by, get the position it should move towards
 					auto bunkerRunBySquad = squad.getBunkerRunBySquad(rangedUnit);
 					if (bunkerRunBySquad)
 					{
-						InformationManager::Instance().getLocutusUnit(rangedUnit)
-							.moveTo(bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
+						InformationManager::Instance().getLocutusUnit(rangedUnit).moveTo(bunkerRunBySquad->getRunByPosition(rangedUnit, order.getPosition()));
 					}
 					else
 					{
@@ -213,40 +272,55 @@ BWAPI::Unit MicroDragoon::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset
 	{
 		if (!rangedUnit->hasPath(target)) continue;
 
-		int priority = getAttackPriority(rangedUnit, target);     // 0..12
-		int range    = rangedUnit->getDistance(target);           // 0..map size in pixels
+		const int priority = getAttackPriority(rangedUnit, target);     // 0..12
+		const int range = rangedUnit->getDistance(target);           // 0..map size in pixels
 		int toGoal   = target->getDistance(order.getPosition());  // 0..map size in pixels
 		const int closerToGoal =										// positive if target is closer than us to the goal
 			rangedUnit->getDistance(order.getPosition()) - target->getDistance(order.getPosition());
 
 		// Skip targets that are too far away to worry about--outside tank range.
 		//跳过太遥远而不用担心的目标——在坦克射程之外。
-		if (range >= 12 * 32)
+
+		if (range >= 13 * 32)// && target->getDistance(order.getPosition()) >= 13 * 32)
+		{
+			continue;
+		}
+		
+		// Skip targets safe behind a wall
+		if (range > UnitUtil::GetAttackRange(rangedUnit, target) &&
+			InformationManager::Instance().isBehindEnemyWall(rangedUnit, target))
 		{
 			continue;
 		}
 
+		if (toGoal <= 48) toGoal = 3 * 32;
+
 		// Let's say that 1 priority step is worth 160 pixels (5 tiles).
 		// We care about unit-target range and target-order position distance.
-		int score = 20 * 32 * priority - range - toGoal / 2;
+		int score = 4 * 32 * priority - range - toGoal / 2;
 
 		// Adjust for special features.
 		// This could adjust for relative speed and direction, so that we don't chase what we can't catch.
 		//调整特殊功能。
 		//这可以调整相对的速度和方向, 所以我们不追逐什么, 我们不能赶上。
+		if (closerToGoal > 0)
+		{
+			score += 2 * 32;
+		}
 
 		const bool isThreat = UnitUtil::CanAttack(target, rangedUnit);   // may include workers as threats
 		const bool canShootBack = isThreat && target->isInWeaponRange(rangedUnit);
+
+		if (rangedUnit->isInWeaponRange(target))
+		{
+			score += 8 * 32;
+		}
 
 		if (isThreat)
 		{
 			if (canShootBack)
 			{
 				score += 6 * 32;
-			}
-			else if (rangedUnit->isInWeaponRange(target))
-			{
-				score += 4 * 32;
 			}
 			else
 			{
@@ -342,7 +416,7 @@ BWAPI::Unit MicroDragoon::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset
 	}
 
 	if (bestTarget) {
-		setMarkTargetScore(bestTarget, rangedUnit->getType());
+		setMarkTargetScore(rangedUnit, bestTarget);
 	}
 
 	return bestScore > 0 && !shouldIgnoreTarget(rangedUnit, bestTarget) ? bestTarget : nullptr;
@@ -355,19 +429,29 @@ int MicroDragoon::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	const BWAPI::UnitType rangedType = rangedUnit->getType();
 	const BWAPI::UnitType targetType = target->getType();
 
-	if (targetType == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
-		targetType == BWAPI::UnitTypes::Protoss_Dark_Templar ||
-		targetType == BWAPI::UnitTypes::Protoss_Dark_Templar ||
+	if (targetType == BWAPI::UnitTypes::Protoss_Dark_Templar ||
+		targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
 		targetType == BWAPI::UnitTypes::Protoss_Reaver ||
 		targetType == BWAPI::UnitTypes::Protoss_Observer) {
 		return 12;
 	}
 
 	// Exceptions if we're a ground unit.
-	if ((targetType == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine && !target->isBurrowed()) ||
-		targetType == BWAPI::UnitTypes::Zerg_Infested_Terran)
+	if ((targetType == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
+		targetType == BWAPI::UnitTypes::Zerg_Infested_Terran) && (!target->isBurrowed() || target->isVisible()))
 	{
 		return 12;
+	}
+
+	// Next are workers.
+	if (targetType.isWorker())
+	{
+		if (target->isRepairing()|| target->isConstructing())
+		{
+			return 11;
+		}
+
+		return 9;
 	}
 
 	/*
@@ -410,7 +494,7 @@ int MicroDragoon::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 			return 8;
 		}
 	}
-    
+
 	if (rangedType.isFlyer()) {
 		// Exceptions if we're a flyer (other than scourge, which is handled above).
 		if (targetType == BWAPI::UnitTypes::Zerg_Scourge)
@@ -481,11 +565,16 @@ int MicroDragoon::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
 	// Important combat units that we may not have targeted above (esp. if we're a flyer).
 	if (targetType == BWAPI::UnitTypes::Protoss_Carrier ||
-		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
 		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
 	{
-		return 8;
+		return 10;
 	}
+
+	if (targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
+	{
+		return 9;
+	}
+
 	// Nydus canal is the most important building to kill.
 	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
 	{
@@ -690,11 +779,11 @@ void MicroDragoon::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
 				// Move closer if there is a friendly unit near the position
 				moveCloser =
-					InformationManager::Instance().getMyUnitGrid().get(position) > 0 ||
-					InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, -16)) > 0 ||
-					InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, -16)) > 0 ||
-					InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, 16)) > 0 ||
-					InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, 16)) > 0;
+					InformationManager::Instance().getMyUnitGrid().getCollision(position) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(-16, -16)) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(16, -16)) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(16, 16)) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(-16, 16)) > 0;
 				break;
 			}
 		}

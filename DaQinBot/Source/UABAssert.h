@@ -20,7 +20,7 @@
         { \
             if (!(cond)) \
             { \
-                UAlbertaBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
+                DaQinBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
                 UAB_BREAK \
             } \
         } while(0)
@@ -30,14 +30,14 @@
         { \
             if (!(cond)) \
             { \
-                UAlbertaBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
+                DaQinBot::Assert::ReportFailure(#cond, __FILE__, __LINE__, (msg), ##__VA_ARGS__); \
             } \
         } while(0)
 #else
     #define UAB_ASSERT(cond, msg, ...) 
 #endif
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
     namespace Assert
     {

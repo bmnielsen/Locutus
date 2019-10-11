@@ -5,12 +5,12 @@
 #include "Logger.h"
 #include "Random.h"
 
-UAlbertaBot::FastAPproximation fap;
+DaQinBot::FastAPproximation fap;
 
 // NOTE FAP does not use UnitInfo.goneFromLastPosition. The flag is always set false
 // on a UnitInfo value which is passed in (CombatSimulation makes sure of it).
 
-namespace UAlbertaBot {
+namespace DaQinBot {
 
     FastAPproximation::FastAPproximation() {
 #ifdef FAP_DEBUG
@@ -28,7 +28,11 @@ namespace UAlbertaBot {
             return;
         if (fu.groundDamage || fu.airDamage ||
             fu.unitType == BWAPI::UnitTypes::Terran_Medic)
+        {
             addUnitPlayer1(fu);
+            if (!fu.flying && fu.unitType != BWAPI::UnitTypes::Terran_Medic)
+                collision[fu.x / 16][fu.y / 16]++;
+        }
     }
 
     void FastAPproximation::addUnitPlayer2(FAPUnit fu) { player2.push_back(fu); }
@@ -36,7 +40,11 @@ namespace UAlbertaBot {
     void FastAPproximation::addIfCombatUnitPlayer2(FAPUnit fu) {
         if (fu.groundDamage || fu.airDamage ||
             fu.unitType == BWAPI::UnitTypes::Terran_Medic)
+        {
             addUnitPlayer2(fu);
+            if (!fu.flying && fu.unitType != BWAPI::UnitTypes::Terran_Medic)
+                collision[fu.x / 16][fu.y / 16]++;
+        }
     }
 
     void FastAPproximation::simulate(int nFrames) {
@@ -110,6 +118,8 @@ namespace UAlbertaBot {
 
     void FastAPproximation::clearState() {
         player1.clear(), player2.clear(), frame = 0;
+        memset(&collision[0][0], 0, sizeof(unsigned short) * 512 * 512);
+ 
 #ifdef FAP_DEBUG
         debug.flush();
 #endif
@@ -156,6 +166,30 @@ namespace UAlbertaBot {
         return MathUtil::EdgeToEdgeDistance(u1.unitType, BWAPI::Position(u1.x, u1.y), u2.unitType, BWAPI::Position(u2.x, u2.y));
     }
 
+    void inline FastAPproximation::updatePosition(const FAPUnit &fu, int x, int y)
+    {
+        // Respect bounds
+        // In practice, on most maps this means we allow units to move off the
+        // right and bottom, but it doesn't really matter, just want to avoid crashing!
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x > 8191) x = 8191;
+        if (y > 8191) y = 8191;
+        
+        if (fu.flying || (fu.x / 16 == x / 16 && fu.y / 16 == y / 16)) {
+            fu.x = x;
+            fu.y = y;
+            return;
+        }
+
+        if (collision[x / 16][y / 16] > 1) return;
+
+        collision[fu.x / 16][fu.y / 16]--;
+        collision[x / 16][y / 16]++;
+        fu.x = x;
+        fu.y = y;
+    }
+
     bool FastAPproximation::isSuicideUnit(BWAPI::UnitType ut) {
         return (ut == BWAPI::UnitTypes::Zerg_Scourge ||
             ut == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
@@ -195,6 +229,7 @@ namespace UAlbertaBot {
 
         for (auto enemyIt = enemyUnits.begin(); enemyIt != enemyUnits.end();
             ++enemyIt) {
+            if (enemyIt->undetected) continue;
             if (enemyIt->flying) {
                 if (fu.airDamage) {
                     int d = distance(fu, *enemyIt);
@@ -231,9 +266,9 @@ namespace UAlbertaBot {
                 closestDist <= (fu.groundMaxRange + fu.speed))
             {
                 int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
-
-                fu.x -= (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
-                fu.y -= (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy)));
+                updatePosition(fu,
+                    fu.x - (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy))),
+                    fu.y - (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy))));
 
 #ifdef FAP_DEBUG
                 debug << ";kite;" << fu.x << ";" << fu.y;
@@ -246,15 +281,6 @@ namespace UAlbertaBot {
 
             didSomething = true;
             return;
-        }
-
-        if (closestEnemy != enemyUnits.end() && closestDist <= fu.speed &&
-            !(fu.x == closestEnemy->x && fu.y == closestEnemy->y)) {
-            fu.x = closestEnemy->x;
-            fu.y = closestEnemy->y;
-            closestDist = 0;
-
-            didSomething = true;
         }
 
         if (closestEnemy != enemyUnits.end() &&
@@ -287,9 +313,9 @@ namespace UAlbertaBot {
         }
         else if (closestEnemy != enemyUnits.end() && closestDist > fu.speed) {
             int dx = closestEnemy->x - fu.x, dy = closestEnemy->y - fu.y;
-
-            fu.x += (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy)));
-            fu.y += (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy)));
+            updatePosition(fu,
+                fu.x + (int)(dx * (fu.speed / sqrt(dx * dx + dy * dy))),
+                fu.y + (int)(dy * (fu.speed / sqrt(dx * dx + dy * dy))));
 
 #ifdef FAP_DEBUG
             debug << ";move;" << fu.x << ";" << fu.y;
@@ -475,7 +501,7 @@ namespace UAlbertaBot {
 
     void FastAPproximation::convertToUnitType(const FAPUnit &fu,
         BWAPI::UnitType ut) {
-        UAlbertaBot::UnitInfo ui;
+        DaQinBot::UnitInfo ui;
         ui.lastPosition = BWAPI::Position(fu.x, fu.y);
         ui.player = fu.player;
         ui.type = ut;
@@ -502,6 +528,8 @@ namespace UAlbertaBot {
         maxShields(ui.type.maxShields()),
         armor(InformationManager::Instance().getUnitArmor(ui.player, ui.type)),
         flying(ui.type.isFlyer()),
+
+        undetected(ui.undetected),
 
         groundDamage(InformationManager::Instance().getWeaponDamage(ui.player, ui.type.groundWeapon())),
         groundCooldown(ui.type.groundWeapon().damageFactor() && ui.type.maxGroundHits() ? InformationManager::Instance().getUnitCooldown(ui.player, ui.type) / (ui.type.groundWeapon().damageFactor() * ui.type.maxGroundHits()) : 0),
@@ -585,15 +613,40 @@ namespace UAlbertaBot {
         {
             groundDamage = InformationManager::Instance().getWeaponDamage(ui.player, BWAPI::WeaponTypes::Scarab);
         }
-        // Destroy score is not a good value measurement for static ground defense, so set them manually
-        else if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Archon)
         {
+            // Very roughly estimate splash damage by having archons do 2x actual damage
+            groundDamage *= 2;
+        }
+
+        // Override score for units where the destroy score is inappropriate
+		//对于破坏分数不合适的单位重写分数
+        if (ui.type == BWAPI::UnitTypes::Protoss_Photon_Cannon)
             score = 750; // approximate at 1.5 dragoons
-        }
         else if (ui.type == BWAPI::UnitTypes::Zerg_Sunken_Colony)
-        {
             score = 1000; // approximate at 2 dragoons
-        }
+        else if (ui.type == BWAPI::UnitTypes::Zerg_Hydralisk)
+            score = 150; // slightly less than a zealot
+        else if (ui.type == BWAPI::UnitTypes::Terran_Vulture)
+            score = 250; // slightly more than a zealot
+        else if (ui.type == BWAPI::UnitTypes::Terran_Ghost)
+            score = 150; // slightly less than a zealot
+        else if (ui.type == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
+            score = 900; // almost two dragoons
+        else if (ui.type == BWAPI::UnitTypes::Zerg_Mutalisk)
+            score = 400; // slightly less than a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Terran_Wraith)
+            score = 500; // equivalent a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Scout)
+            score = 700; // a bit more than a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Dark_Templar)
+            score = 500; // equivalent to a dragoon
+        else if (ui.type == BWAPI::UnitTypes::Zerg_Ultralisk)
+            score = 1750; // 3-and-a-half goons
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Archon)
+            score = 1750; // 3-and-a-half goons
+        else if (ui.type == BWAPI::UnitTypes::Protoss_Arbiter)
+            score = 1200; // don't really sim this correctly but 2050 is way too much
 
         if (ui.unit && ui.unit->isStimmed()) {
             groundCooldown /= 2;
@@ -632,6 +685,7 @@ namespace UAlbertaBot {
         isOrganic = other.isOrganic;
         didHealThisFrame = other.didHealThisFrame;
         elevation = other.elevation;
+        undetected = other.undetected;
         player = other.player;
 
         return *this;

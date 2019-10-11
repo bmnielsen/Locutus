@@ -2,7 +2,7 @@
 #include "MapTools.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MicroLurkers::MicroLurkers()
 {

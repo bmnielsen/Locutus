@@ -3,7 +3,7 @@
 #include <Common.h>
 #include "MicroManager.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class MicroManager;
 
@@ -20,6 +20,5 @@ public:
 
 	int getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit unit) const;
 	BWAPI::Unit getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets);
-	bool meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets);
 };
 }

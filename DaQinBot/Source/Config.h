@@ -32,7 +32,9 @@ namespace Config
 	namespace Strategy
     {
         extern std::string StrategyName;
-        extern bool ScoutHarassEnemy;
+		extern int maxAttackUnits;
+		extern int minAttackUnits;
+		extern bool ScoutHarassEnemy;
 		extern bool AutoGasSteal;
 		extern double RandomGasStealRate;
 		extern bool UsePlanRecognizer;
@@ -71,6 +73,7 @@ namespace Config
 		extern bool DrawUnitTargetInfo;
 		extern bool DrawUnitOrders;
 		extern bool DrawMapInfo;
+		extern bool DrawBWTAInfo;
 		extern bool DrawMapGrid;
 		extern bool DrawMapDistances;
 		extern bool DrawBaseInfo;

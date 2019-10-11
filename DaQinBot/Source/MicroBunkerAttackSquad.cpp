@@ -10,7 +10,7 @@ const double pi = 3.14159265358979323846;
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MicroBunkerAttackSquad::MicroBunkerAttackSquad() : _initialized(false)
 {
@@ -77,12 +77,14 @@ bool isDragoonWalkable(BWAPI::Position position)
     return true;
 }
 
+//得到保留路径
 std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Position bunkerPosition)
 {
     // Get the BWEM path to the bunker
     auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
         bunkerPosition, 
+		BWAPI::UnitTypes::Protoss_Dragoon,
         PathFinding::PathFindingOptions::UseNearestBWEMArea);
     if (chokes.size() < 2) return std::vector<BWAPI::TilePosition>();
 
@@ -91,9 +93,11 @@ std::vector<BWAPI::TilePosition> getReservedPath(BWAPI::Position bunkerPosition)
     BWAPI::Position secondLastChoke(chokes[chokes.size() - 2]->Center());
 
     // If the last choke is sufficiently far away from the bunker, we don't need to reserve a path
+	//如果最后一个节流阀离掩体足够远，我们就不需要保留一条通路
     if (bunkerPosition.getApproxDistance(lastChoke) > 300) return std::vector<BWAPI::TilePosition>();
 
     // Reserve a path from the second-last choke to the bunker
+	//预留一条从倒数第二的扼流圈到掩体的路径
     BWAPI::TilePosition start = PathFinding::NearbyPathfindingTile(BWAPI::TilePosition(secondLastChoke));
     BWAPI::TilePosition end = PathFinding::NearbyPathfindingTile(BWAPI::TilePosition(bunkerPosition));
 
@@ -119,6 +123,7 @@ bool bunkerBlocksNarrowChoke(BWAPI::Position bunkerPosition)
     auto& chokes = PathFinding::GetChokePointPath(
         InformationManager::Instance().getMyMainBaseLocation()->getPosition(),
         bunkerPosition,
+		BWAPI::UnitTypes::Protoss_Dragoon,
         PathFinding::PathFindingOptions::UseNearestBWEMArea);
     if (chokes.size() < 2) return false;
 
@@ -136,11 +141,14 @@ void MicroBunkerAttackSquad::initialize(BWAPI::Position bunkerPosition)
 
     // Reserve some tile positions for a path to the bunker
     // This will prevent us from blocking a choke with the first couple of goons
+	//为通往地堡的道路预留一些地砖位置
+	//这样我们就不会被头几个暴徒堵住喉咙了
     std::vector<BWAPI::TilePosition> reservedPath = getReservedPath(bunkerPosition);
 
     // Generate the set of valid firing positions
 
     // Start by adding all possible positions
+	//从增加所有可能的职位开始
     addArcToSet(
         bunkerPosition + BWAPI::Position(-BWAPI::UnitTypes::Terran_Bunker.dimensionLeft(), -BWAPI::UnitTypes::Terran_Bunker.dimensionUp()),
         bunkerPosition, pi, 1.5*pi, 7, attackPositions);
@@ -164,6 +172,13 @@ void MicroBunkerAttackSquad::initialize(BWAPI::Position bunkerPosition)
     // - covered by a building
     // - close to our reserved path to the bunker
     // - bunker blocks choke and position is in same area as the bunker
+	//现在过滤掉不需要的位置:
+	// ——无效
+	// -龙骑兵不能步行
+	// -比地堡低
+	// -被建筑物覆盖着
+	// -靠近我们预定的去地堡的路线
+	// -掩体堵塞，位置与掩体在同一区域
     int bunkerElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(bunkerPosition));
     bool blocksNarrowChoke = bunkerBlocksNarrowChoke(bunkerPosition);
     auto bunkerArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(bunkerPosition));
@@ -220,6 +235,7 @@ void MicroBunkerAttackSquad::assignToPosition(BWAPI::Unit unit, std::set<BWAPI::
     }
 
     // Assign this unit
+	//分配这个单元
     assignedPositionToUnit[posBest] = unit;
     unitToAssignedPosition[unit] = posBest;
 }
@@ -230,6 +246,8 @@ void MicroBunkerAttackSquad::update()
 
     // Check for units that have completed their run-by
     // They are moved to the kamikaze squad
+	//检查已经完成运行的单元
+	//他们被调到敢死队
     for (auto it = unitsDoingRunBy.begin(); it != unitsDoingRunBy.end(); it++)
     {
         if (!it->second.isValid()) continue;
@@ -240,23 +258,28 @@ void MicroBunkerAttackSquad::update()
         }
 
         // We are still doing the run-by if we are in firing range of the bunker
+		//如果我们在掩体的射程内，我们还在跑
         int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
         int distanceToBunker = MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, it->first->getType(), it->first->getPosition());
         if (distanceToBunker < (bunkerRange + 32)) continue;
 
         // We are still doing the run-by if we are closer to the bunker than the current run-by position
+		//如果我们离掩体更近，而不是现在的位置，我们还在原地踏步
         if (distanceToBunker < it->first->getDistance(it->second))
             continue;
 
         // We are still doing the run-by if we are further away from the order position than the bunker is,
         // unless we are closer to the order position than the bunker
-        int ourDistToOrderPosition = PathFinding::GetGroundDistance(it->first->getPosition(), it->second, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-        int bunkerDistToOrderPosition = PathFinding::GetGroundDistance(_bunkerPosition, it->second, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-        int ourDistToBunker = PathFinding::GetGroundDistance(_bunkerPosition, it->first->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
+		//如果我们离订单的位置比地堡的距离更远，
+		//除非我们比燃料舱更接近订单位置
+		int ourDistToOrderPosition = PathFinding::GetGroundDistance(it->first->getPosition(), it->second, BWAPI::UnitTypes::Protoss_Dragoon, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+		int bunkerDistToOrderPosition = PathFinding::GetGroundDistance(_bunkerPosition, it->second, BWAPI::UnitTypes::Protoss_Dragoon, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+		int ourDistToBunker = PathFinding::GetGroundDistance(_bunkerPosition, it->first->getPosition(), BWAPI::UnitTypes::Protoss_Dragoon, PathFinding::PathFindingOptions::UseNearestBWEMArea);
         if (ourDistToOrderPosition > bunkerDistToOrderPosition && ourDistToOrderPosition > ourDistToBunker)
             continue;
 
         // The unit is finished with the run-by
+		//这个单元在跑完之后就结束了
         it->second = BWAPI::Positions::Invalid;
         
         SquadData & squadData = CombatCommander::Instance().getSquadData();
@@ -282,9 +305,12 @@ BWAPI::Position computeRunByPosition(BWAPI::Position unitPosition, BWAPI::Positi
 
     // If the bunker is a long way from the order position, or in a different region, just use the order position
     // TODO: Could set a waypoint to minimize the amount of time spent in range of the bunker
+	//如果掩体距离订单位置很远，或者在不同的区域，就使用订单位置
+	//待办事项:可以设置一个路径点，以减少在掩体范围内花费的时间
     if (d > 500 || BWTA::getRegion(p0) != BWTA::getRegion(p1)) return orderPosition;
 
     // Find the points of intersection between a circle around the bunker and a circle around the order position
+	//求出一个围绕沙坑的圆和一个围绕订单位置的圆之间的交点
     // Source: http://paulbourke.net/geometry/circlesphere/tvoght.c
 
     double dx = p1.x - p0.x;
@@ -293,6 +319,9 @@ BWAPI::Position computeRunByPosition(BWAPI::Position unitPosition, BWAPI::Positi
     // We want the position to be 300 from the order position, and at least 350 from the bunker, but more if
     // the bunker is further away from the order position. This ensures the units attack from a different angle
     // than the bunker.
+	//我们希望这个位置在订单位置的基础上是300，在沙坑的基础上至少是350，如果是的话就更多
+	//地堡离订单位置更远。这确保了单位从不同的角度攻击
+	//比地堡还好。
     double r0 = std::min(350.0, d * 1.5);
     double r1 = 300.0;
 
@@ -326,9 +355,11 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     if (_units.empty()) return;
 
     // Don't run-by a bunker that is part of or behind a wall
+	//不要跑过墙后的掩体
     if (InformationManager::Instance().isBehindEnemyWall(BWAPI::TilePosition(_bunkerPosition))) return;
 
     // Never do a run-by if the enemy has tier 2+ units or more than one bunker
+	//如果敌人有2级以上单位或不止一个掩体，千万不要逃跑
     for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
     {
         if (unit.second.type == BWAPI::UnitTypes::Terran_Bunker && unit.second.lastPosition != _bunkerPosition) return;
@@ -339,13 +370,16 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
     }
 
     // Don't do a run-by if the bunker is very close to the order position
+	//如果地堡离订单位置很近，不要跑过去
     int distToOrderPosition = MathUtil::EdgeToPointDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, orderPosition);
     if (distToOrderPosition < 128) return;
 
     // Don't do a run-by if the opponent has more than one bunker
+	//如果对手有不止一个沙坑，不要跑过去
     if (InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Bunker, BWAPI::Broodwar->enemy()) > 1) return;
 
     // Abort if many previous run-by units are dead
+	//如果以前的许多逃跑单位都死了，中止
     int dead = 0;
     for (auto& unit : unitsDoingRunBy)
         if (!unit.first->exists() || unit.first->getHitPoints() <= 0)
@@ -366,6 +400,8 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
 
         // Include all units closer than 400, but weight closer units higher in the health check
         // This is to make sure the units are relatively close to the bunker before we initiate the run-by
+		//在健康检查中包括所有小于400的单位，但重量更接近的单位
+		//这是为了在我们开始运行之前，确保这些单位相对靠近掩体
         int distance = MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, unit->getType(), unit->getPosition());
         if (distance < 400)
         {
@@ -405,6 +441,7 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
         BWAPI::Position centroid(centroidX / runByUnits.size(), centroidY / runByUnits.size());
 
         // Compute the run-by position using the centroid
+		//使用质心计算运行位置
         BWAPI::Position runByPosition = computeRunByPosition(centroid, _bunkerPosition, orderPosition);
         Log().Get() << "Sending " << runByUnits.size() << " units on a run-by to " << BWAPI::TilePosition(runByPosition) << ". Order position: " << BWAPI::TilePosition(orderPosition);
 
@@ -427,6 +464,7 @@ void MicroBunkerAttackSquad::assignUnitsToRunBy(BWAPI::Position orderPosition, b
 void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIsRegrouping)
 {
     // Clean up units that are no longer in the squad
+	//清理小队中已经不存在的单位
     for (auto it = unitToAssignedPosition.begin(); it != unitToAssignedPosition.end(); )
     {
         if (_units.find(it->first) == _units.end())
@@ -441,6 +479,7 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
     assignUnitsToRunBy(orderPosition, squadIsRegrouping);
 
     // Assign a firing position to ranged goons when they're close enough
+	//当远程打手足够近时，给他们指定一个射击位置
     if (BWAPI::Broodwar->self()->getUpgradeLevel(BWAPI::UpgradeTypes::Singularity_Charge))
     {
         for (auto& unit : _units)
@@ -474,6 +513,7 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
         if (it == unitToAssignedPosition.end())
         {
             // Attack if the unit is already very close to the bunker
+			//如果部队已经非常接近地堡，就发动攻击
             int distanceToBunker = MathUtil::EdgeToEdgeDistance(BWAPI::UnitTypes::Terran_Bunker, _bunkerPosition, unit->getType(), unit->getPosition());
             if (distanceToBunker < 32)
             {
@@ -482,6 +522,7 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
             }
 
             // Attack if this unit is close to the bunker and the squad has a large number of units
+			//如果这个小队靠近地堡，并且小队人数众多，就会发动攻击
             if (!squadIsRegrouping && _units.size() > 8)
             {
                 attack(unit);
@@ -489,6 +530,7 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
             }
 
             // Attack if this unit and at least 4 others are close to the bunker
+			//如果这支部队和至少4名其他人员靠近掩体，就发动攻击
             if (!squadIsRegrouping && distanceToBunker < 300)
             {
                 if (unitsCloseToBunker == -1)
@@ -507,6 +549,7 @@ void MicroBunkerAttackSquad::execute(BWAPI::Position orderPosition, bool squadIs
             }
 
             // Otherwise loiter outside of bunker range and wait until we should either do a run-by or attack it
+			//否则在掩体范围外徘徊，等待我们要么逃跑，要么进攻
             int bunkerRange = InformationManager::Instance().enemyHasInfantryRangeUpgrade() ? 6 * 32 : 5 * 32;
             if (distanceToBunker <= (bunkerRange + 48))
             {

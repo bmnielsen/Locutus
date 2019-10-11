@@ -1,7 +1,7 @@
 #include "JSONTools.h"
 
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 namespace JSONTools
 {

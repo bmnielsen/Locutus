@@ -7,7 +7,7 @@
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 // Note: Melee units are ground units only. Scourge is a "ranged" unit.
 
@@ -72,6 +72,17 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 			// For now, it would burrow only if irradiated. Leave it.
 			continue;
 		}
+		BWAPI::Unit nearEnemie = BWAPI::Broodwar->getClosestUnit(meleeUnit->getPosition(), BWAPI::Filter::IsEnemy && BWAPI::Filter::CanAttack, 4 * 32);
+
+		if (meleeUnit->getType() == BWAPI::UnitTypes::Protoss_Zealot) {
+			if (nearEnemie) {
+				if (nearEnemie->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine && nearEnemie->getOrderTarget() == meleeUnit) {
+					Micro::AttackUnit(meleeUnit, nearEnemie);
+					//meleeUnit->attack(nearEnemie);
+					continue;
+				}
+			}
+		}
 
 		// Special case for irradiated zerg units.
 		if (meleeUnit->isIrradiated() && meleeUnit->getType().getRace() == BWAPI::Races::Zerg)
@@ -83,7 +94,17 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 			}
 			// Otherwise ignore it. Ultralisks should probably just keep going.
 		}
-		
+
+		/*
+		if (order.getType() == SquadOrderTypes::Hold || order.getType() == SquadOrderTypes::HoldWall) {
+			if (meleeUnit->getDistance(order.getPosition()) > 6 * 32) {
+				InformationManager::Instance().getLocutusUnit(meleeUnit).moveTo(order.getPosition());
+			}
+
+			continue;
+		}
+		*/
+
 		if (order.isCombatOrder())
         {
 			if (unstickStuckUnit(meleeUnit))
@@ -92,7 +113,7 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 			}
 
 			// run away if we meet the retreat criterion
-            if (meleeUnitShouldRetreat(meleeUnit, targets))
+			if (meleeUnit->isUnderAttack() && meleeUnitShouldRetreat(meleeUnit, targets))
             {
 				BWAPI::Unit shieldBattery = InformationManager::Instance().nearestShieldBattery(meleeUnit->getPosition());
 				if (shieldBattery &&
@@ -100,11 +121,15 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
 					shieldBattery->getEnergy() >= 10)
 				{
 					useShieldBattery(meleeUnit, shieldBattery);
+					continue;
 				}
 				else
 				{
 					BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
-					Micro::Move(meleeUnit, fleeTo);
+					if (meleeUnit->getDistance(shieldBattery) > 12 * 32) {
+						Micro::Move(meleeUnit, fleeTo);
+						continue;
+					}
 				}
             }
 			else
@@ -124,6 +149,12 @@ void MicroMelee::assignTargets(const BWAPI::Unitset & targets)
                 // There are no targets. Move to the order position if not already close.
                 else if (meleeUnit->getDistance(order.getPosition()) > 96)
 				{
+					if (nearEnemie && nearEnemie->isVisible() && BWAPI::Broodwar->getFrameCount() > 6000) {
+						if (meleeUnit->isInWeaponRange(nearEnemie)) {
+							Micro::AttackUnit(meleeUnit, nearEnemie);
+							continue;
+						}
+					}
                     // If this unit is doing a bunker run-by, get the position it should move towards
                     auto bunkerRunBySquad = squad.getBunkerRunBySquad(meleeUnit);
                     if (bunkerRunBySquad)
@@ -165,18 +196,21 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 	{
 		const int priority = getAttackPriority(meleeUnit, target);		// 0..12
 		const int range = meleeUnit->getDistance(target);				// 0..map size in pixels
+		int toGoal = target->getDistance(order.getPosition());  // 0..map size in pixels
 		const int closerToGoal =										// positive if target is closer than us to the goal
 			meleeUnit->getDistance(order.getPosition()) - target->getDistance(order.getPosition());
 
 		// Skip targets that are too far away to worry about.
-		if (range >= 12 * 32)
+		if (range >= 13 * 32)// && target->getDistance(order.getPosition()) >= 13 * 32)
 		{
 			continue;
 		}
 
+		if (toGoal <= 48) toGoal = 3 * 32;
+
 		// Let's say that 1 priority step is worth 64 pixels (2 tiles).
 		// We care about unit-target range and target-order position distance.
-		int score = 2 * 32 * priority - range;
+		int score = 2 * 32 * priority - range - toGoal / 2;
 
         // Kamikaze and rush attacks ignore all tier 2+ combat units
         if ((StrategyManager::Instance().isRushing() || order.getType() == SquadOrderTypes::KamikazeAttack) &&
@@ -214,7 +248,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
         // When rushing, prioritize workers that are building something
         if (StrategyManager::Instance().isRushing() && target->getType().isWorker() && target->isConstructing())
         {
-            score += 4 * 32;
+            score += 6 * 32;
         }
 
 		// Adjust for special features.
@@ -246,7 +280,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 			}
 			else
 			{
-				score += 4 * 32;
+				score += 8 * 32;
 			}
 		}
 		else if (!target->isMoving())
@@ -300,7 +334,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
             score -= 4 * 32;
         }
 
-		score = getMarkTargetScore(target, score);
+		//score = getMarkTargetScore(target, score);
 
 		if (score > bestScore)
 		{
@@ -310,7 +344,7 @@ BWAPI::Unit MicroMelee::getTarget(BWAPI::Unit meleeUnit, const BWAPI::Unitset & 
 	}
 
 	if (bestTarget) {
-		setMarkTargetScore(bestTarget, meleeUnit->getType());
+		setMarkTargetScore(meleeUnit, bestTarget);
 	}
 
 	return shouldIgnoreTarget(meleeUnit, bestTarget) ? nullptr : bestTarget;
@@ -341,6 +375,17 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 		{
 			return 10;
 		}
+	}
+
+	// Next are workers.
+	if (targetType.isWorker())
+	{
+		if (target->isRepairing() || target->isConstructing())
+		{
+			return 11;
+		}
+
+		return 9;
 	}
 
 	// Short circuit: Enemy unit which is far enough outside its range is lower priority than a worker.
@@ -412,55 +457,4 @@ int MicroMelee::getAttackPriority(BWAPI::Unit attacker, BWAPI::Unit target) cons
 	
 	// then everything else
 	return 1;
-}
-
-// Retreat hurt units to allow them to regenerate health (zerg) or shields (protoss).
-bool MicroMelee::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets)
-{
-    // terran don't regen so it doesn't make sense to retreat
-    if (meleeUnit->getType().getRace() == BWAPI::Races::Terran)
-    {
-        return false;
-    }
-
-    // Don't retreat while rushing
-    if (StrategyManager::Instance().isRushing())
-    {
-        return false;
-    }
-
-    // we don't want to retreat the melee unit if its shields or hit points are above the threshold set in the config file
-    // set those values to zero if you never want the unit to retreat from combat individually
-    if (meleeUnit->getShields() > Config::Micro::RetreatMeleeUnitShields || meleeUnit->getHitPoints() > Config::Micro::RetreatMeleeUnitHP)
-    {
-        return false;
-    }
-
-    // if there is a ranged enemy unit within attack range of this melee unit then we shouldn't bother retreating since it could fire and kill it anyway
-    for (auto & unit : targets)
-    {
-        int groundWeaponRange = unit->getType().groundWeapon().maxRange();
-        if (groundWeaponRange >= 64 && unit->getDistance(meleeUnit) < groundWeaponRange)
-        {
-            return false;
-        }
-    }
-
-	// A broodling should not retreat since it is on a timer and regeneration does it no good.
-	if (meleeUnit->getType() == BWAPI::UnitTypes::Zerg_Broodling)
-	{
-		return false;
-	}
-
-	BWAPI::Unit target = meleeUnit->getOrderTarget();
-	if (target && meleeUnit->isUnderAttack() &&
-		meleeUnit->getDistance(target) < 2 * 32 &&
-		target->getType().groundWeapon().maxRange() <= 32 &&
-		meleeUnit->getUnitsInRadius(4 * 32, BWAPI::Filter::IsOwned &&
-		BWAPI::Filter::CanAttack).size() > 1 && !meleeUnit->isAttacking()) {
-
-		return true;
-	}
-
-	return true;
 }

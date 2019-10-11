@@ -2,7 +2,7 @@
 #include "BOSSManager.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 BOSSManager & BOSSManager::Instance() 
 {
@@ -26,6 +26,7 @@ void BOSSManager::reset()
 }
 
 // start a new search for a new goal
+//开始寻找新的目标
 void BOSSManager::startNewSearch(const std::vector<MetaPair> & goalUnits)
 {
     size_t numWorkers   = UnitUtil::GetAllUnitCount(BWAPI::Broodwar->self()->getRace().getWorker());
@@ -46,7 +47,7 @@ void BOSSManager::startNewSearch(const std::vector<MetaPair> & goalUnits)
         return;
     }
 
-    // convert from UAlbertaBot's meta goal type to BOSS ActionType goal
+    // convert from DaQinBot's meta goal type to BOSS ActionType goal
     try
     {
         BOSS::BuildOrderSearchGoal goal = GetGoal(goalUnits);

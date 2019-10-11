@@ -3,7 +3,7 @@
 #include <Common.h>
 #include <BWAPI.h>
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 namespace Micro
 {

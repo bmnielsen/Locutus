@@ -5,7 +5,7 @@
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 UnitData::UnitData() 
 	: mineralsLost(0)
@@ -113,6 +113,7 @@ void UnitData::updateUnit(BWAPI::Unit unit)
     ui.completed    = unit->isCompleted();
 	ui.estimatedCompletionFrame = UnitInfo::ComputeCompletionFrame(unit);
     ui.isFlying     = unit->isFlying();
+	ui.fightScore   = unit->getType().mineralPrice() + unit->getType().gasPrice() + unit->getType().supplyRequired() * 12.5;
 
     if (unit->exists() && unit->isVisible()) 
         ui.groundWeaponCooldownFrame = BWAPI::Broodwar->getFrameCount() + unit->getGroundWeaponCooldown();

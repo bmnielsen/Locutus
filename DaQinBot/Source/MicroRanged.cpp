@@ -5,7 +5,7 @@
 
 const double pi = 3.14159265358979323846;
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 // The unit's ranged ground weapon does splash damage, so it works under dark swarm.
 // Firebats are not here: They are melee units.
@@ -216,7 +216,7 @@ void MicroRanged::assignTargets(const BWAPI::Unitset & targets)
 				}
 				else
 				{
-					Micro::Move(rangedUnit, order.getPosition());
+					Micro::AttackMove(rangedUnit, order.getPosition());
 				}
 				continue;
 			}
@@ -304,7 +304,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 			rangedUnit->getDistance(order.getPosition()) - target->getDistance(order.getPosition());
 		
 		// Skip targets that are too far away to worry about--outside tank range.
-		if (range >= 13 * 32)
+		if (range >= 13 * 32)// && target->getDistance(order.getPosition()) >= 13 * 32)
 		{
 			continue;
 		}
@@ -318,7 +318,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 
 		// Let's say that 1 priority step is worth 160 pixels (5 tiles).
 		// We care about unit-target range and target-order position distance.
-		int score = 5 * 32 * priority - range;
+		int score = 4 * 32 * priority - range;
 
 		// Adjust for special features.
 		// A bonus for attacking enemies that are "in front".
@@ -435,7 +435,7 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
             score += 128;
         }
 
-		score = getMarkTargetScore(target, score);
+		//score = getMarkTargetScore(target, score);
 
 		if (score > bestScore)
 		{
@@ -446,9 +446,11 @@ BWAPI::Unit MicroRanged::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset 
 		}
 	}
 
+	/*
 	if (bestTarget) {
-		setMarkTargetScore(bestTarget, rangedUnit->getType());
+		setMarkTargetScore(rangedUnit, bestTarget);
 	}
+	*/
 
 	return bestScore > 0 && !shouldIgnoreTarget(rangedUnit, bestTarget) ? bestTarget : nullptr;
 }
@@ -839,11 +841,11 @@ void MicroRanged::kite(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 
                 // Move closer if there is a friendly unit near the position
                 moveCloser = 
-                    InformationManager::Instance().getMyUnitGrid().get(position) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, -16)) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, -16)) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(16, 16)) > 0 ||
-                    InformationManager::Instance().getMyUnitGrid().get(position + BWAPI::Position(-16, 16)) > 0;
+					InformationManager::Instance().getMyUnitGrid().getCollision(position) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(-16, -16)) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(16, -16)) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(16, 16)) > 0 ||
+					InformationManager::Instance().getMyUnitGrid().getCollision(position + BWAPI::Position(-16, 16)) > 0;
                 break;
             }
         }

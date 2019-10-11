@@ -4,7 +4,7 @@
 #include "UnitUtil.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 //#define CRASH_DEBUG 1
 

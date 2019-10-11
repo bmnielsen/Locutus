@@ -1,6 +1,6 @@
 #include "BuildOrder.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 BuildOrder::BuildOrder()
     : _race(BWAPI::Races::None)

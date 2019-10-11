@@ -4,7 +4,7 @@
 #include "BuildingManager.h"
 #include "WorkerData.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class Building;
 

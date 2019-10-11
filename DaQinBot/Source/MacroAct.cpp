@@ -3,7 +3,7 @@
 
 #include <regex>
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MacroLocation MacroAct::getMacroLocationFromString(std::string & s)
 {
@@ -529,6 +529,9 @@ void MacroAct::setWallBuildingPosition(std::vector<std::pair<BWAPI::UnitType, BW
 // Record the units which are currently able to carry out this macro act.
 // For example, the idle barracks which can produce a marine.
 // It gives a warning if you call it for a command, which has no producer.
+//记录目前能够执行此宏操作的单位。
+//例如，闲置的兵营可以培养一名海军陆战队员。
+//如果您为命令调用它，它会发出警告，而命令没有生产者。
 void MacroAct::getCandidateProducers(std::vector<BWAPI::Unit> & candidates) const
 {
 	if (isCommand())

@@ -8,7 +8,7 @@
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 BuildingManager::BuildingManager()
     : _reservedMinerals(0)
@@ -33,6 +33,8 @@ void BuildingManager::update()
 
 // The building took too long to start, or we lost too many workers trying to build it.
 // If true, the building gets canceled.
+//这幢大楼开工时间太长，否则我们就会损失太多的工人。
+//如果是真的，这栋楼就被取消了。
 bool BuildingManager::buildingTimedOut(const Building & b) const
 {
     if (b.status == BuildingStatus::UnderConstruction) return false;
@@ -178,6 +180,8 @@ void BuildingManager::validateWorkersAndBuildings()
 
 // STEP 2: ASSIGN WORKERS TO BUILDINGS WITHOUT THEM
 // Also places the building.
+//第二步:把工人分配到没有工人的建筑
+//还可以放置建筑。
 void BuildingManager::assignWorkersToUnassignedBuildings()
 {
     // for each building that doesn't have a builder, assign one
@@ -236,6 +240,7 @@ void BuildingManager::assignWorkersToUnassignedBuildings()
 }
 
 // STEP 3: ISSUE CONSTRUCTION ORDERS TO ASSIGNED BUILDINGS AS NEEDED
+//第三步:根据需要向指定的建筑发出施工指令
 void BuildingManager::constructAssignedBuildings()
 {
     for (auto & b : _buildings)
@@ -271,6 +276,7 @@ void BuildingManager::constructAssignedBuildings()
                 int distance = PathFinding::GetGroundDistance(
                     b.builderUnit->getPosition(), 
                     BWAPI::Position(b.finalPosition), 
+					BWAPI::UnitTypes::Protoss_Probe,
                     PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 moveToPosition = distance > 200 || (distance == -1 && b.builderUnit->getPosition().getApproxDistance(BWAPI::Position(b.finalPosition)) > 200);
             }
@@ -331,6 +337,7 @@ void BuildingManager::constructAssignedBuildings()
 }
 
 // STEP 4: UPDATE DATA STRUCTURES FOR BUILDINGS STARTING CONSTRUCTION
+//第四步:更新建筑开工数据结构
 void BuildingManager::checkForStartedConstruction()
 {
     // for each building unit which is being constructed
@@ -396,6 +403,7 @@ void BuildingManager::checkForStartedConstruction()
 }
 
 // STEP 5: IF THE SCV DIED DURING CONSTRUCTION, ASSIGN A NEW ONE
+//第五步:如果SCV在建造过程中死亡，分配一个新的SCV
 void BuildingManager::checkForDeadTerranBuilders()
 {
 	if (BWAPI::Broodwar->self()->getRace() != BWAPI::Races::Terran)
@@ -427,6 +435,10 @@ void BuildingManager::checkForDeadTerranBuilders()
 // In case of terran gas steal, stop construction a little early,
 // so we can cancel the refinery later and recover resources. 
 // Zerg and protoss can't do that.
+//第六步:检查已竣工的建筑物
+//如果人族气体被偷，提前一点停止建造，
+//这样我们以后就可以取消提炼厂，恢复资源。
+//虫族和神族不能那样做。
 void BuildingManager::checkForCompletedBuildings()
 {
     // for each of our buildings under construction
@@ -483,6 +495,9 @@ void BuildingManager::checkForCompletedBuildings()
 // Error check: A bug in placing hatcheries can cause resources to be reserved and
 // never released.
 // We correct the values as a workaround, since the underlying bug has not been found.
+//错误检查:放置孵化场的错误可能导致资源被保留
+//没有释放。
+//我们将这些值更正为一个变通方法，因为没有找到潜在的错误。
 void BuildingManager::checkReservedResources()
 {
 	// Check for errors.
@@ -507,6 +522,7 @@ void BuildingManager::checkReservedResources()
 }
 
 // Add a new building to be constructed and return it.
+//添加一个要构建的新建筑并返回它。
 Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isWorkerScoutBuilding)
 {
 	UAB_ASSERT(act.isBuilding(), "trying to build a non-building");
@@ -538,6 +554,7 @@ Building & BuildingManager::addTrackedBuildingTask(const MacroAct & act, BWAPI::
 }
 
 // Add a new building to be constructed.
+//新建一座大楼。
 void BuildingManager::addBuildingTask(const MacroAct & act, BWAPI::TilePosition desiredLocation, bool isWorkerScoutBuilding)
 {
 	(void) addTrackedBuildingTask(act, desiredLocation, isWorkerScoutBuilding);
@@ -612,11 +629,11 @@ int BuildingManager::getReservedGas() const
 // In the building queue with any status.
 bool BuildingManager::isBeingBuilt(BWAPI::UnitType type) const
 {
-    return numBeingBuilt(type) > 0;
+    return getNumBeingBuilt(type) > 0;
 }
 
 // In the building queue with any status.
-int BuildingManager::numBeingBuilt(BWAPI::UnitType type) const
+int BuildingManager::getNumBeingBuilt(BWAPI::UnitType type) const
 {
 	int result = 0;
 	for (const auto & b : _buildings)
@@ -828,6 +845,7 @@ void BuildingManager::cancelBuildingType(BWAPI::UnitType t)
 }
 
 // TODO fails in placing a hatchery after all others are destroyed - why?
+//在所有其他的孵卵场都被摧毁后，东渡渡鸟却未能安置孵卵所——为什么?
 BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 {
 	// Short-circuit if the building already has a location
@@ -909,6 +927,7 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 	}
 
 	// Get a position within our region.
+	//在我们地区找个职位。
 	BWAPI::TilePosition tile = BuildingPlacer::Instance().getBuildLocationNear(b, distance);
 
 	if (tile == BWAPI::TilePositions::None)
@@ -927,6 +946,8 @@ BWAPI::TilePosition BuildingManager::getBuildingLocation(const Building & b)
 
 // The building failed or is canceled.
 // Undo any connections with other data structures, then delete.
+//该建筑发生故障或被取消。
+//撤销与其他数据结构的任何连接，然后删除。
 void BuildingManager::undoBuilding(Building& b)
 {
     // Free reserved tiles

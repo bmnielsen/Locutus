@@ -1,7 +1,7 @@
 #include "BuildOrderQueue.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 BuildOrderItem::BuildOrderItem(MacroAct m, bool workerScoutBuilding)
 	: macroAct(m)
@@ -49,6 +49,160 @@ void BuildOrderQueue::queueAsHighestPriority(MacroAct m, bool gasSteal)
 	Log().Debug() << "Queued " << m << " at top of queue";
 }
 
+void BuildOrderQueue::queueAsHighestPriority(BWAPI::UnitType type)
+{
+	if (type == BWAPI::UnitTypes::None) return;
+	if (!hasRequiredUnit(type)) return;
+
+	if (anyInQueue(type)) {
+		if (getNextUnit() != type) {
+			pullToTop(type);
+		}
+	}
+	else {
+		queueAsHighestPriority(MacroAct(type));
+	}
+}
+
+void BuildOrderQueue::queueAsHighestPriority(BWAPI::UpgradeType type)
+{
+	BWAPI::Player self = BWAPI::Broodwar->self();
+	if (!hasRequiredUnit(type)) return;
+
+	if (anyInQueue(type)) {
+		if (getNextUnit() != type) {
+			pullToTop(type);
+		}
+	}
+	else {
+		queueAsHighestPriority(MacroAct(type));
+	}
+}
+
+void BuildOrderQueue::queueAsHighestPriority(BWAPI::TechType type)
+{
+	BWAPI::Player self = BWAPI::Broodwar->self();
+	if (!hasRequiredUnit(type)) return;
+
+	if (anyInQueue(type)) {
+		if (getNextUnit() != type) {
+			pullToTop(type);
+		}
+	}
+	else {
+		queueAsHighestPriority(MacroAct(type));
+	}
+}
+
+//是否有必须的建筑
+bool BuildOrderQueue::hasRequiredUnit(BWAPI::UnitType type){
+	BWAPI::UnitType requiredType;
+	BWAPI::Player _self = BWAPI::Broodwar->self();
+
+	int minerals = _self->minerals();
+	int gas = _self->gas();
+	int supply = _self->supplyTotal() - _self->supplyUsed();
+
+	if (minerals < type.mineralPrice()) {
+		return false;
+	}
+	else {
+		if (type.gasPrice() > 0 && gas < type.gasPrice()) {
+			return false;
+		}
+	}
+
+	if (supply < type.supplyRequired()) {
+		return false;
+	}
+
+	typedef std::pair<BWAPI::UnitType, int> ReqPair;
+	for (const ReqPair & pair : type.requiredUnits())
+	{
+		requiredType = pair.first;
+		if (type.isAddon()) {
+			if (_self->completedUnitCount(requiredType) == _self->allUnitCount(type)) {
+				return false;
+			}
+		}
+
+		if (_self->allUnitCount(requiredType) == 0) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+//是否有必须的建筑
+bool BuildOrderQueue::hasRequiredUnit(BWAPI::UpgradeType type){
+	BWAPI::UnitType requiredType;
+	BWAPI::Player _self = BWAPI::Broodwar->self();
+
+	int minerals = _self->minerals();
+	int gas = _self->gas();
+	int supply = _self->supplyTotal() - _self->supplyUsed();
+
+	if (minerals < type.mineralPrice()) {
+		return false;
+	}
+	else {
+		if (type.gasPrice() > 0 && gas < type.gasPrice()) {
+			return false;
+		}
+	}
+
+	int maxLvl = _self->getMaxUpgradeLevel(type);
+	int currentLvl = _self->getUpgradeLevel(type);
+	currentLvl += 1;
+
+	if (_self->isUpgrading(type) || currentLvl > maxLvl) {
+		return false;
+	}
+
+	//有BUG，Terran Infantry Weapons获取不到对应的单位
+	requiredType = type.whatsRequired(currentLvl);
+	if (requiredType == BWAPI::UnitTypes::None) {
+		requiredType = type.whatUpgrades();
+	}
+	if (_self->allUnitCount(requiredType) == 0) {
+		return false;
+	}
+
+	return true;
+}
+
+//是否有必须的建筑
+bool BuildOrderQueue::hasRequiredUnit(BWAPI::TechType type){
+	BWAPI::UnitType requiredType;
+	BWAPI::Player _self = BWAPI::Broodwar->self();
+
+	int minerals = _self->minerals();
+	int gas = _self->gas();
+	int supply = _self->supplyTotal() - _self->supplyUsed();
+
+	if (minerals < type.mineralPrice()) {
+		return false;
+	}
+	else {
+		if (type.gasPrice() > 0 && gas < type.gasPrice()) {
+			return false;
+		}
+	}
+
+	if (_self->hasResearched(type) || _self->isResearching(type)) {
+		return false;
+	}
+	else {
+		requiredType = type.whatResearches();
+		if (_self->allUnitCount(requiredType) == 0) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void BuildOrderQueue::queueAsLowestPriority(MacroAct m) 
 {
 	queue.push_front(BuildOrderItem(m));
@@ -68,6 +222,18 @@ void BuildOrderQueue::doneWithHighestPriorityItem()
 	queue.pop_back();
 }
 
+void BuildOrderQueue::pullToBottom(size_t i)
+{
+	if (i == -1) {
+		i = queue.size() - 1;
+	}
+
+	BuildOrderItem item = queue[i];								// copy it
+	queue.erase(queue.begin() + i);
+	queueAsLowestPriority(item.macroAct);		// this sets modified = true
+
+}
+
 void BuildOrderQueue::pullToTop(size_t i)
 {
 	UAB_ASSERT(i >= 0 && i < queue.size()-1, "bad index");
@@ -77,6 +243,42 @@ void BuildOrderQueue::pullToTop(size_t i)
 	BuildOrderItem item = queue[i];								// copy it
 	queue.erase(queue.begin() + i);
 	queueAsHighestPriority(item.macroAct, item.isWorkerScoutBuilding);		// this sets modified = true
+}
+
+void BuildOrderQueue::pullToTop(BWAPI::UnitType type) {
+	for (int i = queue.size() - 1; i >= 1; --i)
+	{
+		const MacroAct & act = queue[i].macroAct;
+		if (act.isUnit() && act.getUnitType() == type)
+		{
+			pullToTop(i);
+			return;
+		}
+	}
+}
+
+void BuildOrderQueue::pullToTop(BWAPI::UpgradeType type){
+	for (int i = queue.size() - 1; i >= 1; --i)
+	{
+		const MacroAct & act = queue[i].macroAct;
+		if (act.isUpgrade() && act.getUpgradeType() == type)
+		{
+			pullToTop(i);
+			return;
+		}
+	}
+}
+
+void BuildOrderQueue::pullToTop(BWAPI::TechType type){
+	for (int i = queue.size() - 1; i >= 1; --i)
+	{
+		const MacroAct & act = queue[i].macroAct;
+		if (act.isTech() && act.getTechType() == type)
+		{
+			pullToTop(i);
+			return;
+		}
+	}
 }
 
 size_t BuildOrderQueue::size() const
@@ -132,6 +334,22 @@ int BuildOrderQueue::getNextGasCost(int n) const
 	return 0;
 }
 
+int BuildOrderQueue::getNextSupplyCost(int n) const
+{
+	for (int i = queue.size() - 1; i >= std::max(0, int(queue.size()) - n); --i)
+	{
+		if (queue[i].macroAct.isUnit()) {
+			int supply = queue[i].macroAct.getUnitType().supplyRequired();
+			if (supply > 0)
+			{
+				return supply;
+			}
+		}
+	}
+
+	return 0;
+}
+
 bool BuildOrderQueue::anyInQueue(BWAPI::UpgradeType type) const
 {
 	for (const auto & item : queue)
@@ -149,6 +367,18 @@ bool BuildOrderQueue::anyInQueue(BWAPI::UnitType type) const
 	for (const auto & item : queue)
 	{
 		if (item.macroAct.isUnit() && item.macroAct.getUnitType() == type)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool BuildOrderQueue::anyInQueue(BWAPI::TechType type) const
+{
+	for (const auto & item : queue)
+	{
+		if (item.macroAct.isTech() && item.macroAct.getTechType() == type)
 		{
 			return true;
 		}
@@ -194,6 +424,22 @@ size_t BuildOrderQueue::numInNextN(BWAPI::UnitType type, int n) const
 		if (act.isUnit() && act.getUnitType() == type)
 		{
 			++count;
+		}
+	}
+
+	return count;
+}
+
+size_t BuildOrderQueue::numSupplyInNextN(int n) const
+{
+	size_t count = 0;
+
+	for (int i = queue.size() - 1; i >= std::max(0, int(queue.size()) - 1 - n); --i)
+	{
+		const MacroAct & act = queue[i].macroAct;
+		if (act.isUnit())
+		{
+			count = count + act.getUnitType().supplyRequired();
 		}
 	}
 

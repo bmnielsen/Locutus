@@ -3,7 +3,7 @@
 #include "Common.h"
 #include "MacroAct.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 
 class BuildOrder

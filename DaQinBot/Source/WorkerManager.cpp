@@ -4,7 +4,7 @@
 #include "ProductionManager.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 WorkerManager::WorkerManager() 
 	: previousClosestWorker(nullptr)
@@ -27,7 +27,7 @@ void WorkerManager::update()
 	handleIdleWorkers();
 	handleReturnCargoWorkers();
 	handleMoveWorkers();
-	handleRepairWorkers();
+	//handleRepairWorkers();
 	handleMineralLocking(); // Do this last since the workers might get reassigned elsewhere first
 
 	drawResourceDebugInfo();
@@ -51,6 +51,10 @@ void WorkerManager::updateWorkerStatus()
 		if (!worker->isCompleted())
 		{
 			continue;     // the worker list includes drones in the egg
+		}
+
+		if (defendSelf(worker, workerData.getWorkerResource(worker))) {
+			continue;
 		}
 
 		// TODO temporary debugging - see Micro::Move
@@ -121,6 +125,7 @@ void WorkerManager::updateWorkerStatus()
 		else if (job == WorkerData::Minerals)
 		{
 			// If the worker is busy mining and an enemy comes near, maybe fight it.
+			//如果工人们正在忙着采矿，这时有敌人靠近了，也许可以与之战斗。
 			if (defendSelf(worker, workerData.getWorkerResource(worker)))
 			{
 				// defendSelf() does the work.
@@ -354,6 +359,8 @@ BWAPI::Unit WorkerManager::findEnemyTargetForWorker(BWAPI::Unit worker) const
 
 // The worker is defending itself and wants to mineral walk out of trouble.
 // Find a suitable mineral patch, if any.
+//工人们正在自卫，想摆脱困境。
+//如果有的话，找一块合适的矿藏。
 BWAPI::Unit WorkerManager::findEscapeMinerals(BWAPI::Unit worker) const
 {
 	BWAPI::Unit farthestMinerals = nullptr;
@@ -365,7 +372,7 @@ BWAPI::Unit WorkerManager::findEscapeMinerals(BWAPI::Unit worker) const
 
 		if (unit->getType() == BWAPI::UnitTypes::Resource_Mineral_Field &&
 			unit->isVisible() &&
-			(dist = worker->getDistance(unit)) < 400 &&
+			(dist = worker->getDistance(unit)) < 13 * 32 &&
 			dist > farthestDist)
 		{
 			farthestMinerals = unit;
@@ -379,18 +386,23 @@ BWAPI::Unit WorkerManager::findEscapeMinerals(BWAPI::Unit worker) const
 // If appropriate, order the worker to defend itself.
 // The "resource" is workerData.getWorkerResource(worker), passed in so it needn't be looked up again.
 // Return whether self-defense was undertaken.
+//如果合适的话，命令工人为自己辩护。
+//“资源”是workerData.getWorkerResource(worker)，它被传入，因此不需要再次查找。
+//返回是否进行自卫。
 bool WorkerManager::defendSelf(BWAPI::Unit worker, BWAPI::Unit resource)
 {
 	// We want to defend ourselves if we are near home and we have a close enemy (the target).
 	BWAPI::Unit target = findEnemyTargetForWorker(worker);
 
-	if (resource && worker->getDistance(resource) < 200 && target)
+	//if (resource && worker->getDistance(resource) < 200 && target)
+	if (target)
 	{
 		int enemyWeaponRange = UnitUtil::GetAttackRange(target, worker);
-		bool flee = worker->isUnderAttack() &&
+		bool flee = (target->getOrderTarget() == worker) || (worker->isUnderAttack() &&
 			enemyWeaponRange > 0 &&          // don't flee if the target can't hurt us
 			enemyWeaponRange <= 32 &&        // no use to flee if the target has range
-			worker->getHitPoints() <= 16;    // reasonable value for the most common attackers
+			worker->getHitPoints() <= 16 &&    // reasonable value for the most common attackers
+			worker->getShields() <= 5);
 			// worker->getHitPoints() <= UnitUtil::GetWeaponDamageToWorker(target);
 
 		// TODO It's not helping. Reaction time is too slow.
@@ -403,7 +415,8 @@ bool WorkerManager::defendSelf(BWAPI::Unit worker, BWAPI::Unit resource)
 			if (escapeMinerals)
 			{
 				//BWAPI::Broodwar->printf("%d fleeing to %d", worker->getID(), escapeMinerals->getID());
-				worker->rightClick(escapeMinerals);
+				//worker->rightClick(escapeMinerals);
+				Micro::RightClick(worker, escapeMinerals);
 				workerData.setWorkerJob(worker, WorkerData::Minerals, escapeMinerals);
 				return true;
 			}
@@ -482,6 +495,19 @@ void WorkerManager::handleMoveWorkers()
 
 		if (workerData.getWorkerJob(worker) == WorkerData::Move) 
 		{
+			BWAPI::Unit nearEnemie = worker->getClosestUnit(BWAPI::Filter::IsEnemy && BWAPI::Filter::CanAttack, worker->getType().sightRange());
+			if (nearEnemie && (UnitUtil::CanAttack(nearEnemie, worker) && (nearEnemie->getOrderTarget() == worker && worker->getDistance(nearEnemie) < 180) || nearEnemie->isInWeaponRange(worker))) {
+				int maxRange = worker->getDistance(nearEnemie) + nearEnemie->getType().groundWeapon().maxRange();
+				BWAPI::Position fleePosition = MapTools::Instance().getExtendedPosition(worker->getPosition(), nearEnemie->getPosition(), (maxRange + 2 * 32));
+				if (fleePosition.isValid() && worker->hasPath(fleePosition)) {
+					Micro::RightClick(worker, fleePosition);
+				}
+				else {
+					InformationManager::Instance().getLocutusUnit(worker).fleeFrom(nearEnemie->getPosition());
+				}
+				continue;
+			}
+
 			BWAPI::Unit depot;
 			if ((worker->isCarryingMinerals() || worker->isCarryingGas()) &&
 				(depot = getAnyClosestDepot(worker)) &&
@@ -499,6 +525,7 @@ void WorkerManager::handleMoveWorkers()
                 //Micro::Move(worker, data.position);
 			}
 		}
+	nextUnit:;
 	}
 }
 
@@ -537,6 +564,7 @@ void WorkerManager::setReturnCargoWorker(BWAPI::Unit unit)
 }
 
 // Get the closest resource depot with no other consideration.
+//不需要其他考虑就能得到最近的资源仓库。
 BWAPI::Unit WorkerManager::getAnyClosestDepot(BWAPI::Unit worker)
 {
 	UAB_ASSERT(worker, "Worker was null");
@@ -564,6 +592,7 @@ BWAPI::Unit WorkerManager::getAnyClosestDepot(BWAPI::Unit worker)
 }
 
 // Get the closest resource depot that can accept another mineral worker.
+//获得最近的资源仓库，可以接受另一个矿产工人。
 BWAPI::Unit WorkerManager::getClosestNonFullDepot(BWAPI::Unit worker)
 {
 	UAB_ASSERT(worker, "Worker was null");
@@ -575,8 +604,8 @@ BWAPI::Unit WorkerManager::getClosestNonFullDepot(BWAPI::Unit worker)
 	{
         UAB_ASSERT(unit, "Unit was null");
 
-		if (unit->getType().isResourceDepot() &&
-			(unit->isCompleted() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive) &&
+		if ((unit->getType().isResourceDepot() || unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive) &&
+			(unit->isCompleted() || (unit->getRemainingBuildTime() < 400)) &&
 			!workerData.depotIsFull(unit))
 		{
 			int distance = unit->getDistance(worker);

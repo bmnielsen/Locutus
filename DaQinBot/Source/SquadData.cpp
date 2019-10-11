@@ -1,6 +1,6 @@
 #include "SquadData.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 SquadData::SquadData() 
 {

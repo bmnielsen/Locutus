@@ -7,7 +7,7 @@
 // This class is responsible for early game scouting.
 // It controls any scouting worker and scouting overlord that it is given.
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 ScoutManager::ScoutManager() 
 	: _overlordScout(nullptr)
@@ -40,6 +40,10 @@ ScoutManager & ScoutManager::Instance()
 // After the enemy base is found, we unset the targets and go to or ignore the enemy base as appropriate.
 // If we have both an overlord and a worker, send them to search different places.
 // Guarantee: We only set a target if the scout for the target is set.
+//当我们还在寻找敌人基地时，目标位置已经确定。
+//在找到敌人的基地后，我们解除目标，并在适当的时候进入或忽略敌人的基地。
+//如果我们有一个领主和一个工人，就派他们到不同的地方去寻找。
+//保证:我们只有在侦察目标的时候才会设定目标。
 void ScoutManager::setScoutTargets()
 {
 	BWTA::BaseLocation * enemyBase = InformationManager::Instance().getEnemyMainBaseLocation();
@@ -123,6 +127,7 @@ bool ScoutManager::shouldScout()
 void ScoutManager::update()
 {
     // We may have active harass pylons after the scout is dead, so always update them
+	//侦察兵死后，我们可能会有活跃的骚扰塔，所以要经常更新它们
     updatePylonHarassState();
 
 	// If we're not scouting now, minimum effort.
@@ -389,6 +394,16 @@ void ScoutManager::moveGroundScout(BWAPI::Unit scout)
 		const BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
 
 		UAB_ASSERT(enemyBaseLocation, "no enemy base");
+
+		/*
+		BWAPI::Unitset closestEnemys = scout->getUnitsInRadius(6 * 32, BWAPI::Filter::IsEnemy && BWAPI::Filter::CanAttack);
+		for (const auto closestEnemy : closestEnemys) {
+			if (closestEnemy && UnitUtil::CanAttack(closestEnemy, scout) && closestEnemy->getOrderTarget() == scout) {
+				InformationManager::Instance().getLocutusUnit(scout).fleeFrom(closestEnemy->getPosition());
+				return;
+			}
+		}
+		*/
 
 		int scoutDistanceToEnemy = MapTools::Instance().getGroundTileDistance(scout->getPosition(), enemyBaseLocation->getPosition());
 		bool scoutInRangeOfenemy = scoutDistanceToEnemy <= scoutDistanceThreshold;
@@ -735,6 +750,10 @@ BWAPI::Position ScoutManager::getFleePosition()
 //      are found deep inside the enemy base.
 // TODO Eventually replace with real-time pathing that tries to see as much as possible
 //      while remaining safe.
+//注意，当不可构建块时，这个算法有时会产生奇怪的路径
+//在敌人基地的深处。
+// TODO最终会被实时pathing所取代，它会尽可能多地查看内容
+//同时保持安全。
 void ScoutManager::calculateEnemyRegionVertices()
 {
     BWTA::BaseLocation * enemyBaseLocation = InformationManager::Instance().getEnemyMainBaseLocation();
@@ -918,6 +937,7 @@ void ScoutManager::calculateEnemyRegionVertices()
     }
 }
 
+//更新水晶骚扰状态
 void ScoutManager::updatePylonHarassState()
 {
     for (auto it = _activeHarassPylons.begin(); it != _activeHarassPylons.end(); )
@@ -1001,6 +1021,7 @@ void ScoutManager::updatePylonHarassState()
         }
 
         // If the pylon is almost finished building and has been attacked by multiple workers, cancel it
+		//如果塔快要建好了，又受到几个工人的攻击，就把它拆除
         if (it->unit->isBeingConstructed() && it->attackedBy.size() > 1 &&
             it->unit->getRemainingBuildTime() <= (BWAPI::Broodwar->getRemainingLatencyFrames() + 5))
         {
@@ -1011,6 +1032,7 @@ void ScoutManager::updatePylonHarassState()
     }
 }
 
+//水晶骚扰
 bool ScoutManager::pylonHarass()
 {
     if (_pylonHarassState == PylonHarassStates::Finished)
@@ -1213,6 +1235,7 @@ bool ScoutManager::pylonHarass()
         }
 
         // We're in position. Issue the build when the patch is being mined and nothing is in the way.
+		//我们已经就位。当补丁被挖掘并且没有任何阻碍时，发出构建。
         bool isBeingMined = false;
         bool workerInTheWay = false;
         for (auto const & unit : BWAPI::Broodwar->enemy()->getUnits())

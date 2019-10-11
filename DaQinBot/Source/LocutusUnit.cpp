@@ -12,7 +12,7 @@ const int DRAGOON_ATTACK_FRAMES = 6;
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 void LocutusUnit::update()
 {
@@ -20,129 +20,69 @@ void LocutusUnit::update()
 
 	if (unit->getType() == BWAPI::UnitTypes::Protoss_Dragoon) updateGoon();
 
-    if (unit->getPosition() != lastPosition)
-    {
-		/*
-		if (unit->getDistance(lastPosition) > 4 * 32) {
-			if (!unit->getType().isWorker()) {
-				BWAPI::Unit closestUnit = unit->getClosestUnit(BWAPI::Filter::IsEnemy, unit->getType().sightRange());
-				if (closestUnit) {
-					Micro::AttackUnit(unit, closestUnit);
-				}
-			}
-		}
-		*/
-        if (lastPosition.isValid())
-            InformationManager::Instance().getMyUnitGrid().unitMoved(unit->getType(), lastPosition, unit->getPosition());
-        else
-            InformationManager::Instance().getMyUnitGrid().unitCreated(unit->getType(), unit->getPosition());
-    }
+	lastPosition = unit->getPosition();
 
-    lastPosition = unit->getPosition();
-
-    // If a worker is stuck, order it to move again
-    // This will often happen when a worker can't get out of the mineral line to build something
-	//如果一个工人被困住了，命令他再次移动
-	//当一个工人不能走出矿物生产线去建造什么东西时，这种情况经常会发生
-    if (unit->getType().isWorker() && 
-		(unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Move || unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Attack_Move) &&
-        unit->getLastCommand().getTargetPosition().isValid() &&
-        (unit->getOrder() == BWAPI::Orders::PlayerGuard || !unit->isMoving()))
-    {
+	// If a worker is stuck, order it to move again
+	// This will often happen when a worker can't get out of the mineral line to build something
+	if (unit->getType().isWorker() &&
+		unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Move &&
+		unit->getLastCommand().getTargetPosition().isValid() &&
+		(unit->getOrder() == BWAPI::Orders::PlayerGuard || !unit->isMoving()))
+	{
 		Micro::Move(unit, unit->getLastCommand().getTargetPosition());
-        return;
+		return;
 	}
 
-    updateMoveWaypoints();
+	updateMoveWaypoints();
 }
 
 bool LocutusUnit::moveTo(BWAPI::Position position, bool avoidNarrowChokes)
 {
-    // Fliers just move to the target
-    if (unit->isFlying())
-    {
-        Micro::AttackMove(unit, position);
-        return true;
-    }
+	// Fliers just move to the target
+	if (unit->isFlying())
+	{
+		Micro::Move(unit, position);
+		return true;
+	}
 
-    // If the unit is already moving to this position, don't do anything
-    BWAPI::UnitCommand currentCommand(unit->getLastCommand());
-    if (position == targetPosition ||
-		((currentCommand.getType() == BWAPI::UnitCommandTypes::Move || currentCommand.getType() == BWAPI::UnitCommandTypes::Attack_Move) && currentCommand.getTargetPosition() == position))
-        return true;
+	// If the unit is already moving to this position, don't do anything
+	BWAPI::UnitCommand currentCommand(unit->getLastCommand());
+	if (position == targetPosition ||
+		(currentCommand.getType() == BWAPI::UnitCommandTypes::Move && currentCommand.getTargetPosition() == position))
+		return true;
 
-    // Clear any existing waypoints
-    waypoints.clear();
-    targetPosition = BWAPI::Positions::Invalid;
-    currentlyMovingTowards = BWAPI::Positions::Invalid;
-    mineralWalkingPatch = nullptr;
+	// Clear any existing waypoints
+	waypoints.clear();
+	targetPosition = BWAPI::Positions::Invalid;
+	currentlyMovingTowards = BWAPI::Positions::Invalid;
+	mineralWalkingPatch = nullptr;
+	mineralWalkingTargetArea = nullptr;
+	mineralWalkingStartPosition = BWAPI::Positions::Invalid;
 
-    // If the unit is already in the same area, or the target doesn't have an area, just move it directly
-	//如果单元已经在同一个区域，或者目标没有区域，直接移动它
-    auto targetArea = bwemMap.GetArea(BWAPI::WalkPosition(position));
-    if (!targetArea || targetArea == bwemMap.GetArea(BWAPI::WalkPosition(unit->getPosition())))
-    {
-        Micro::AttackMove(unit, position);
-        return true;
-    }
+	// If the unit is already in the same area, or the target doesn't have an area, just move it directly
+	auto targetArea = bwemMap.GetArea(BWAPI::WalkPosition(position));
+	if (!targetArea || targetArea == bwemMap.GetArea(BWAPI::WalkPosition(unit->getPosition())))
+	{
+		Micro::Move(unit, position);
+		return true;
+	}
 
-    // Get the BWEM path
-    auto& path = PathFinding::GetChokePointPath(unit->getPosition(), position, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-    if (path.empty()) return false;
+	// Get the BWEM path
+	// TODO: Consider narrow chokes
+	auto& path = PathFinding::GetChokePointPath(
+		unit->getPosition(),
+		position,
+		unit->getType(),
+		PathFinding::PathFindingOptions::UseNearestBWEMArea);
+	if (path.empty()) return false;
 
-    // Detect when we can't use the BWEM path:
-    // - One or more chokepoints require mineral walking and our unit is not a worker
-    // - One or more chokepoints are narrower than the unit width
-    // We also track if avoidNarrowChokes is true and there is a narrow choke in the path
-    bool bwemPathValid = true;
-    bool bwemPathNarrow = false;
-    for (const BWEM::ChokePoint * chokepoint : path)
-    {
-        ChokeData & chokeData = *((ChokeData*)chokepoint->Ext());
+	for (const BWEM::ChokePoint * chokepoint : path)
+		waypoints.push_back(chokepoint);
 
-        // Mineral walking data is stored in Ext, choke width is stored in Data (see MapTools)
-        if ((chokeData.requiresMineralWalk && !unit->getType().isWorker()) ||
-            (chokeData.width < unit->getType().width()))
-        {
-            bwemPathValid = false;
-            break;
-        }
-
-        // Check for narrow chokes
-        // TODO: Fix this, our units just get confused
-        //if (avoidNarrowChokes && ((ChokeData*)chokepoint->Ext())->width < 96)
-        //    bwemPathNarrow = true;
-
-        // Push the waypoints on this pass on the assumption that we can use them
-        waypoints.push_back(chokepoint);
-    }
-
-    // Attempt to generate an alternate path if possible
-    if (!bwemPathValid || bwemPathNarrow)
-    {
-        auto alternatePath = PathFinding::GetChokePointPathAvoidingUndesirableChokePoints(
-            unit->getPosition(), 
-            position, 
-            PathFinding::PathFindingOptions::UseNearestBWEMArea, 
-            unit->getType().width());
-        if (!alternatePath.empty())
-        {
-            waypoints.clear();
-
-            for (const BWEM::ChokePoint * chokepoint : alternatePath)
-                waypoints.push_back(chokepoint);
-        }
-        else if (!bwemPathValid)
-        {
-            waypoints.clear();
-            return false;
-        }
-    }
-
-    // Start moving
-    targetPosition = position;
-    moveToNextWaypoint();
-    return true;
+	// Start moving
+	targetPosition = position;
+	moveToNextWaypoint();
+	return true;
 }
 
 void LocutusUnit::updateMoveWaypoints() 
@@ -190,177 +130,249 @@ void LocutusUnit::updateMoveWaypoints()
 
 void LocutusUnit::moveToNextWaypoint()
 {
-    // If there are no more waypoints, move to the target position
-    // State will be reset after latency frames to avoid resetting the order later
-	//如果没有更多的路径点，移动到目标位置
-	//状态将在延迟帧之后重置，以避免稍后重新设置订单
-    if (waypoints.empty())
-    {
-        Micro::Move(unit, targetPosition);
-        lastMoveFrame = BWAPI::Broodwar->getFrameCount();
-        return;
-    }
+	// If there are no more waypoints, move to the target position
+	// State will be reset after latency frames to avoid resetting the order later
+	//如果没有更多的路点，移动到目标位置
+	//状态将在延迟帧后重置，以避免稍后重置订单
+	if (waypoints.empty())
+	{
+		Micro::Move(unit, targetPosition);
+		lastMoveFrame = BWAPI::Broodwar->getFrameCount();
+		return;
+	}
 
-    const BWEM::ChokePoint * nextWaypoint = *waypoints.begin();
+	const BWEM::ChokePoint * nextWaypoint = *waypoints.begin();
 
-    // Check if the next waypoint needs to be mineral walked
-    if (((ChokeData*)nextWaypoint->Ext())->requiresMineralWalk)
-    {
-        BWAPI::Unit firstPatch = ((ChokeData*)nextWaypoint->Ext())->firstMineralPatch;
-        BWAPI::Unit secondPatch = ((ChokeData*)nextWaypoint->Ext())->secondMineralPatch;
+	// Check if the next waypoint needs to be mineral walked
+	if (((ChokeData*)nextWaypoint->Ext())->requiresMineralWalk)
+	{
+		// Determine which of the two areas accessible by the choke we are moving towards.
+		// We do this by looking at the waypoint after the next one and seeing which area they share,
+		// or by looking at the area of the target position if there are no more waypoints.
+		if (waypoints.size() == 1)
+		{
+			mineralWalkingTargetArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(targetPosition));
+		}
+		else
+		{
+			mineralWalkingTargetArea = nextWaypoint->GetAreas().second;
 
-        // Determine which mineral patch to target
-        // If exactly one of them requires traversing the choke point to reach, pick it
-        // Otherwise pick the furthest
+			if (nextWaypoint->GetAreas().first == waypoints[1]->GetAreas().first ||
+				nextWaypoint->GetAreas().first == waypoints[1]->GetAreas().second)
+			{
+				mineralWalkingTargetArea = nextWaypoint->GetAreas().first;
+			}
+		}
 
-        int firstLength = PathFinding::GetGroundDistance(unit->getPosition(), firstPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
-        bool firstTraversesChoke = false;
-        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), firstPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea))
-            if (choke == nextWaypoint)
-                firstTraversesChoke = true;
+		// Pull the mineral patch and start location to use for mineral walking
+		// This may be null - on some maps we need to use a visible mineral patch somewhere else on the map
+		// This is handled in mineralWalk()
+		//拉出矿石贴片，开始定位，用于矿石行走
+		//这可能是空的-在一些地图上，我们需要使用一个可见的矿物补丁在地图上的其他地方
+		//这在mineralWalk()中处理
+		mineralWalkingPatch =
+			mineralWalkingTargetArea == nextWaypoint->GetAreas().first
+			? ((ChokeData*)nextWaypoint->Ext())->firstAreaMineralPatch
+			: ((ChokeData*)nextWaypoint->Ext())->secondAreaMineralPatch;
+		mineralWalkingStartPosition =
+			mineralWalkingTargetArea == nextWaypoint->GetAreas().first
+			? ((ChokeData*)nextWaypoint->Ext())->firstAreaStartPosition
+			: ((ChokeData*)nextWaypoint->Ext())->secondAreaStartPosition;
 
-        int secondLength = PathFinding::GetGroundDistance(unit->getPosition(), secondPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
-        bool secondTraversesChoke = false;
-        for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), secondPatch->getInitialPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea))
-            if (choke == nextWaypoint)
-                secondTraversesChoke = true;
+		lastMoveFrame = 0;
+		mineralWalk();
+		return;
+	}
 
-        mineralWalkingPatch =
-            (firstTraversesChoke && !secondTraversesChoke) ||
-            (firstTraversesChoke == secondTraversesChoke && firstLength > secondLength)
-            ? firstPatch : secondPatch;
+	// Determine the position on the choke to move towards
 
-        lastMoveFrame = 0;
-        mineralWalk();
-        return;
-    }
+	// If it is a narrow ramp, move towards the point with highest elevation
+	// We do this to make sure we explore the higher elevation part of the ramp before bugging out if it is blocked
+	//如果是一个狭窄的斜坡，向海拔最高的地方移动
+	//我们这样做是为了确保在坡道被堵住之前，我们先探索一下坡道较高的部分
+	ChokeData & chokeData = *((ChokeData*)nextWaypoint->Ext());
+	if (chokeData.width < 96 && chokeData.isRamp)
+	{
+		currentlyMovingTowards = BWAPI::Position(chokeData.highElevationTile) + BWAPI::Position(16, 16);
+	}
+	else
+	{
+		// Get the next position after this waypoint
+		BWAPI::Position next = targetPosition;
+		if (waypoints.size() > 1) next = BWAPI::Position(waypoints[1]->Center());
 
-    // Determine the position on the choke to move towards
+		// Move to the part of the choke closest to the next position
+		int bestDist = INT_MAX;
+		for (auto walkPosition : nextWaypoint->Geometry())//
+		{
+			BWAPI::Position pos(walkPosition);
+			int dist = pos.getApproxDistance(next);
+			if (dist < bestDist)
+			{
+				bestDist = dist;
+				currentlyMovingTowards = pos;
+			}
+		}
+	}
 
-    // If it is a narrow ramp, move towards the point with highest elevation
-    // We do this to make sure we explore the higher elevation part of the ramp before bugging out if it is blocked
-    ChokeData & chokeData = *((ChokeData*)nextWaypoint->Ext());
-    if (chokeData.width < 96 && chokeData.isRamp)
-    {
-        currentlyMovingTowards = BWAPI::Position(chokeData.highElevationTile) + BWAPI::Position(16, 16);
-    }
-    else
-    {
-        // Get the next position after this waypoint
-        BWAPI::Position next = targetPosition;
-        if (waypoints.size() > 1) next = BWAPI::Position(waypoints[1]->Center());
+	//if (unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Move)
 
-        // AttackMove to the part of the choke closest to the next position
-        int bestDist = INT_MAX;
-        for (auto walkPosition : nextWaypoint->Geometry())
-        {
-            BWAPI::Position pos(walkPosition);
-            int dist = pos.getApproxDistance(next);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                currentlyMovingTowards = pos;
-            }
-        }
-    }
-
-    Micro::Move(unit, currentlyMovingTowards);
-    lastMoveFrame = BWAPI::Broodwar->getFrameCount();
+	Micro::Move(unit, currentlyMovingTowards);
+	lastMoveFrame = BWAPI::Broodwar->getFrameCount();
 }
 
 void LocutusUnit::mineralWalk()
 {
-    // If we're close to the patch, we're done mineral walking
-    if (unit->getDistance(mineralWalkingPatch) < 32)
-    {
-        mineralWalkingPatch = nullptr;
+	// If we're close to the patch, or if the patch is null and we've moved beyond the choke,
+	// we're done mineral walking
+	//如果我们接近了patch，或者patch是空的，我们已经越过了扼流圈，
+	//我们走完了矿物路
+	if ((mineralWalkingPatch && unit->getDistance(mineralWalkingPatch) < 32) ||
+		(!mineralWalkingPatch &&
+		bwemMap.GetArea(unit->getTilePosition()) == mineralWalkingTargetArea &&
+		unit->getDistance(BWAPI::Position(waypoints[0]->Center())) > 100))
+	{
+		mineralWalkingPatch = nullptr;
+		mineralWalkingTargetArea = nullptr;
+		mineralWalkingStartPosition = BWAPI::Positions::Invalid;
 
-        // AttackMove to the next waypoint
-        waypoints.pop_front();
-        moveToNextWaypoint();
-        return;
-    }
+		// Move to the next waypoint
+		waypoints.pop_front();
+		moveToNextWaypoint();
+		return;
+	}
 
-    // Re-issue orders every second
-    if (BWAPI::Broodwar->getFrameCount() - lastMoveFrame < 24) return;
+	// Re-issue orders every second
+	if (BWAPI::Broodwar->getFrameCount() - lastMoveFrame < 24) return;
 
-    // If the patch is visible, click on it
-    if (mineralWalkingPatch->exists() && mineralWalkingPatch->isVisible())
-    {
-        Micro::RightClick(unit, mineralWalkingPatch);
-        lastMoveFrame = BWAPI::Broodwar->getFrameCount();
-        return;
-    }
+	// If the patch is null, click on any visible patch on the correct side of the choke
+	if (!mineralWalkingPatch)
+	{
+		for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())
+		{
+			if (!staticNeutral->getType().isMineralField()) continue;
+			if (!staticNeutral->exists() || !staticNeutral->isVisible()) continue;
 
-    // Find the closest and furthest walkable position within sight range of the patch
-    BWAPI::Position bestPos = BWAPI::Positions::Invalid;
-    BWAPI::Position worstPos = BWAPI::Positions::Invalid;
-    int bestDist = INT_MAX;
-    int worstDist = 0;
-    int desiredDist = unit->getType().sightRange();
-    int desiredDistTiles = desiredDist / 32;
-    for (int x = -desiredDistTiles; x <= desiredDistTiles; x++)
-        for (int y = -desiredDistTiles; y <= desiredDistTiles; y++)
-        {
-            BWAPI::TilePosition tile = mineralWalkingPatch->getInitialTilePosition() + BWAPI::TilePosition(x, y);
-            if (!tile.isValid()) continue;
-            if (!MapTools::Instance().isWalkable(tile)) continue;
+			// The path to this mineral field should cross the choke we're mineral walking
+			for (auto choke : PathFinding::GetChokePointPath(
+				unit->getPosition(),
+				staticNeutral->getInitialPosition(),
+				unit->getType(),
+				PathFinding::PathFindingOptions::UseNearestBWEMArea))
+			{
+				if (choke == *waypoints.begin())
+				{
+					// The path went through the choke, let's use this field
+					Micro::RightClick(unit, staticNeutral);
+					lastMoveFrame = BWAPI::Broodwar->getFrameCount();
+					return;
+				}
+			}
+		}
 
-            BWAPI::Position tileCenter = BWAPI::Position(tile) + BWAPI::Position(16, 16);
-            if (tileCenter.getApproxDistance(mineralWalkingPatch->getInitialPosition()) > desiredDist)
-                continue;
+		// We couldn't find any suitable visible mineral patch, warn and abort
+		Log().Get() << "Error: Unable to find mineral patch to use for mineral walking";
 
-            // Check that there is a path to the tile
-            int pathLength = PathFinding::GetGroundDistance(unit->getPosition(), tileCenter, PathFinding::PathFindingOptions::UseNearestBWEMArea);
-            if (pathLength == -1) continue;
+		waypoints.clear();
+		targetPosition = BWAPI::Positions::Invalid;
+		currentlyMovingTowards = BWAPI::Positions::Invalid;
+		mineralWalkingPatch = nullptr;
+		mineralWalkingTargetArea = nullptr;
+		mineralWalkingStartPosition = BWAPI::Positions::Invalid;
+		return;
+	}
 
-            // The path should not cross the choke we're mineral walking
-            for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), tileCenter, PathFinding::PathFindingOptions::UseNearestBWEMArea))
-                if (choke == *waypoints.begin())
-                    goto cnt;
+	// If the patch is visible, click on it
+	if (mineralWalkingPatch->exists() && mineralWalkingPatch->isVisible())
+	{
+		Micro::RightClick(unit, mineralWalkingPatch);
+		lastMoveFrame = BWAPI::Broodwar->getFrameCount();
+		return;
+	}
 
-            if (pathLength < bestDist)
-            {
-                bestDist = pathLength;
-                bestPos = tileCenter;
-            }
+	// If we have a start location defined, click on it
+	if (mineralWalkingStartPosition.isValid())
+	{
+		Micro::Move(unit, mineralWalkingStartPosition);
+		return;
+	}
 
-            if (pathLength > worstDist)
-            {
-                worstDist = pathLength;
-                worstPos = tileCenter;
-            }
+	// This code is still used for Plasma
+	// TODO before CIG next year: migrate Plasma to set appropriate start positions for each choke
 
-        cnt:;
-        }
+	// Find the closest and furthest walkable position within sight range of the patch
+	BWAPI::Position bestPos = BWAPI::Positions::Invalid;
+	BWAPI::Position worstPos = BWAPI::Positions::Invalid;
+	int bestDist = INT_MAX;
+	int worstDist = 0;
+	int desiredDist = unit->getType().sightRange();
+	int desiredDistTiles = desiredDist / 32;
+	for (int x = -desiredDistTiles; x <= desiredDistTiles; x++)
+		for (int y = -desiredDistTiles; y <= desiredDistTiles; y++)
+		{
+			BWAPI::TilePosition tile = mineralWalkingPatch->getInitialTilePosition() + BWAPI::TilePosition(x, y);
+			if (!tile.isValid()) continue;
+			if (!MapTools::Instance().isWalkable(tile)) continue;
 
-    // If we couldn't find a tile, abort
-    if (!bestPos.isValid())
-    {
-        Log().Get() << "Error: Unable to find tile to mineral walk from";
+			BWAPI::Position tileCenter = BWAPI::Position(tile) + BWAPI::Position(16, 16);
+			if (tileCenter.getApproxDistance(mineralWalkingPatch->getInitialPosition()) > desiredDist)
+				continue;
 
-        waypoints.clear();
-        targetPosition = BWAPI::Positions::Invalid;
-        currentlyMovingTowards = BWAPI::Positions::Invalid;
-        mineralWalkingPatch = nullptr;
-        return;
-    }
+			// Check that there is a path to the tile
+			int pathLength = PathFinding::GetGroundDistance(unit->getPosition(), tileCenter, unit->getType(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
+			if (pathLength == -1) continue;
 
-    // If we are already very close to the best position, it isn't working: we should have vision of the mineral patch
-    // So use the worst one instead
-    BWAPI::Position tile = bestPos;
-    if (unit->getDistance(tile) < 16) tile = worstPos;
+			// The path should not cross the choke we're mineral walking
+			for (auto choke : PathFinding::GetChokePointPath(unit->getPosition(), tileCenter, unit->getType(), PathFinding::PathFindingOptions::UseNearestBWEMArea))
+				if (choke == *waypoints.begin())
+					goto cnt;
 
-    // AttackMove towards the tile
-    Micro::AttackMove(unit, tile);
-    lastMoveFrame = BWAPI::Broodwar->getFrameCount();
+			if (pathLength < bestDist)
+			{
+				bestDist = pathLength;
+				bestPos = tileCenter;
+			}
+
+			if (pathLength > worstDist)
+			{
+				worstDist = pathLength;
+				worstPos = tileCenter;
+			}
+
+		cnt:;
+		}
+
+	// If we couldn't find a tile, abort
+	if (!bestPos.isValid())
+	{
+		Log().Get() << "Error: Unable to find tile to mineral walk from";
+
+		waypoints.clear();
+		targetPosition = BWAPI::Positions::Invalid;
+		currentlyMovingTowards = BWAPI::Positions::Invalid;
+		mineralWalkingPatch = nullptr;
+		mineralWalkingTargetArea = nullptr;
+		mineralWalkingStartPosition = BWAPI::Positions::Invalid;
+		return;
+	}
+
+	// If we are already very close to the best position, it isn't working: we should have vision of the mineral patch
+	// So use the worst one instead
+	BWAPI::Position tile = bestPos;
+	if (unit->getDistance(tile) < 16) tile = worstPos;
+
+	// Move towards the tile
+	Micro::Move(unit, tile);
+	lastMoveFrame = BWAPI::Broodwar->getFrameCount();
 }
 
 void LocutusUnit::fleeFrom(BWAPI::Position position)
 {
     // TODO: Use a threat matrix, maybe it's actually best to move towards the position sometimes
+	// TODO:使用一个威胁矩阵，也许有时候向这个位置移动是最好的
 
     // Our current angle relative to the target
+	//我们当前相对于目标的角度
     BWAPI::Position delta(position - unit->getPosition());
     double angleToTarget = atan2(delta.y, delta.x);
 
@@ -378,7 +390,7 @@ void LocutusUnit::fleeFrom(BWAPI::Position position)
         if (!BWAPI::Broodwar->isWalkable(walk)) return false;
 
         // Not blocked by one of our own units
-        if (InformationManager::Instance().getMyUnitGrid().get(walk) > 0)
+		if (InformationManager::Instance().getMyUnitGrid().getCollision(walk) > 0)
             return false;
 
         return true;
@@ -386,6 +398,8 @@ void LocutusUnit::fleeFrom(BWAPI::Position position)
 
     // Find a valid position to move to that is two tiles further away from the given position
     // Start by considering fleeing directly away, falling back to other angles if blocked
+	//找到一个有效的位置移动到距离给定位置更远的两个tiles
+	//从考虑直接逃跑开始，如果被阻挡，就退回到其他角度
     BWAPI::Position bestPosition = BWAPI::Positions::Invalid;
     for (int i = 0; i <= 3; i++)
         for (int sign = -1; i == 0 ? sign == -1 : sign <= 1; sign += 2)
@@ -425,13 +439,14 @@ breakOuterLoop:;
 
     if (bestPosition.isValid())
     {
-        Micro::AttackMove(unit, bestPosition);
+        Micro::Move(unit, bestPosition);
     }
 }
 
 int LocutusUnit::distanceToMoveTarget() const
 {
     // If we're currently doing a move with waypoints, sum up the total ground distance
+	//如果我们现在用航路点移动，把总的地面距离加起来
     if (targetPosition.isValid())
     {
         BWAPI::Position current = unit->getPosition();
@@ -503,6 +518,7 @@ bool LocutusUnit::isStuck() const
 void LocutusUnit::updateGoon()
 {
     // If we're not currently in an attack, determine the frame when the next attack will start
+	//如果我们目前没有受到攻击，请确定下一次攻击何时开始
     if (lastAttackStartedAt >= BWAPI::Broodwar->getFrameCount() ||
         BWAPI::Broodwar->getFrameCount() - lastAttackStartedAt > DRAGOON_ATTACK_FRAMES - BWAPI::Broodwar->getRemainingLatencyFrames())
     {
@@ -513,6 +529,7 @@ void LocutusUnit::updateGoon()
             lastAttackStartedAt = BWAPI::Broodwar->getFrameCount();
 
         // Otherwise predict when an attack command might result in the start of an attack
+		//否则，预测攻击命令何时可能导致攻击开始
         else if (unit->getLastCommand().getType() == BWAPI::UnitCommandTypes::Attack_Unit &&
             unit->getLastCommand().getTarget() && unit->getLastCommand().getTarget()->exists() &&
             unit->getLastCommand().getTarget()->isVisible() && unit->getLastCommand().getTarget()->getPosition().isValid())

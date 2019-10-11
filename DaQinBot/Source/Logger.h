@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 namespace Logger 
 {

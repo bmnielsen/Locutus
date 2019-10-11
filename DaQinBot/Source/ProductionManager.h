@@ -11,7 +11,7 @@
 #include "ProductionGoal.h"
 #include "StrategyManager.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 enum class ExtractorTrick { None, Start, ExtractorOrdered, UnitOrdered, MakeUnitBypass };
 
@@ -34,6 +34,9 @@ class ProductionManager
 	BWAPI::UnitType		_extractorTrickUnitType;         // drone or zergling
 	Building *			_extractorTrickBuilding;         // set depending on the extractor trick state
 
+	int					_exchangePredictionUntilFrame = 0; //交换生产单位时间
+	BWAPI::Unit			_proxyPrepareWorker;
+
 	int					_workersLostInOpening; // How many workers we have attempted to replace during the opening
     
 	BWAPI::Unit         getClosestUnitToPosition(const std::vector<BWAPI::Unit> & units, BWAPI::Position closestTo) const;
@@ -49,10 +52,12 @@ class ProductionManager
 	void                manageBuildOrderQueue();
 	void				maybeReorderQueue();
     bool                canMakeNow(BWAPI::Unit producer,MacroAct t);
+	bool				hasRequiredUnit(const MacroAct & act);//是否有必须建筑？
     void                predictWorkerMovement(const Building & b);
 
     int                 getFreeMinerals() const;
     int                 getFreeGas() const;
+	int                 getFreeSupply() const;
 
 	void				doExtractorTrick();
 
@@ -81,6 +86,10 @@ public:
 	bool	isOutOfBook() const { return _outOfBook; };
 
     void    cancelHighestPriorityItem();
+
+	void	cancelBuilding(BWAPI::UnitType unitType);
+
+	bool	canMakeUnit(BWAPI::UnitType type, int minerals, int gas, int supply);
 
     const BuildOrderQueue& getQueue() const { return _queue; };
 };

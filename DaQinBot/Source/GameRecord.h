@@ -11,7 +11,7 @@
 
 class game_record_read_error : public std::exception {};
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 struct GameSnapshot
 {

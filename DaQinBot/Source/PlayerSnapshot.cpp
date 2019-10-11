@@ -5,7 +5,7 @@
 #include "UnitUtil.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 // Is this unit type to be excluded from the game record?
 // We leave out boring units like interceptors. Larvas are interesting.
@@ -107,7 +107,11 @@ void PlayerSnapshot::takeEnemy()
                     }
                 }
 
-                int distanceToMove = PathFinding::GetGroundDistance(ui.lastPosition, enemyBase->getPosition(), PathFinding::PathFindingOptions::UseNearestBWEMArea);
+                int distanceToMove = PathFinding::GetGroundDistance(
+					ui.lastPosition, 
+					enemyBase->getPosition(), 
+					ui.type, 
+					PathFinding::PathFindingOptions::UseNearestBWEMArea);
                 int framesToMove = std::floor(((double)distanceToMove / ui.type.topSpeed()) * 1.1);
 
                 startFrame = BWAPI::Broodwar->getFrameCount() - framesToMove;

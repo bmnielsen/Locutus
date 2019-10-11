@@ -4,7 +4,7 @@
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/document.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 namespace JSONTools
 {

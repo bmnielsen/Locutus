@@ -6,7 +6,7 @@
 #include "UpgradeCompleteProductionGoal.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 ProductionManager::ProductionManager()
 	: _lastProductionFrame				 (0)
@@ -61,7 +61,7 @@ void ProductionManager::update()
 		WorkerManager::Instance().setCollectGas(false);
 	}
 
-	if (!WorkerManager::Instance().isCollectingGas()) {
+	if (!WorkerManager::Instance().isCollectingGas() && BWAPI::Broodwar->getFrameCount() > 12000) {
 		if (_self->minerals() > _self->gas() * 4 && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Assimilator) > 0) {
 			WorkerManager::Instance().setCollectGas(true);
 		}
@@ -202,8 +202,14 @@ void ProductionManager::manageBuildOrderQueue()
 		return;
 	}
 
+	if (BWAPI::Broodwar->getFrameCount() > 3000 && BWAPI::Broodwar->getFrameCount() > _exchangePredictionUntilFrame + 12) {
+		maybeReorderQueue();
+	}
+
 	// If we were planning to build and assigned a worker, but the queue was then
 	// changed behind our back, release the worker and continue.
+	//如果我们计划构建并分配一个worker，但是队列是在那时
+	//在我们背后改变，释放工人，继续。
 	if (_queue.isModified() && _assignedWorkerForThisBuilding)
 	{
 		Log().Debug() << "Releasing worker as queue was modified";
@@ -219,7 +225,7 @@ void ProductionManager::manageBuildOrderQueue()
 	while (!_queue.isEmpty()) 
 	{
 		// We may be able to produce faster if we pull a later item to the front.
-		maybeReorderQueue();
+		//maybeReorderQueue();
 
 		const BuildOrderItem & currentItem = _queue.getHighestPriorityItem();
 
@@ -235,9 +241,11 @@ void ProductionManager::manageBuildOrderQueue()
         }
 
         // BOSS queues too many of some units, so cancel this one if we don't want it
+		//老板排了太多的队，所以如果我们不想要的话，就取消这个
 		if (_outOfBook && currentItem.macroAct.isUnit())
 		{
             int nexuses = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
+			int workers = WorkerManager::Instance().getNumMineralWorkers();
             BWAPI::UnitType type = currentItem.macroAct.getUnitType();
             bool skipThisItem = false;
 
@@ -246,14 +254,22 @@ void ProductionManager::manageBuildOrderQueue()
             // - Limit how many gateways we build in parallel depending on how many we have
             // - Only build at most 3 per nexus
             // - On Plasma, only build at most one non-proxy gateway
+			//网关规则:
+			// -我们必须使用网关
+			// -根据我们有多少网关，限制并行构建的网关数量
+			// -每个nexus最多只能构建3个
+			// -在等离子体上，最多只构建一个非代理网关
             if (type == BWAPI::UnitTypes::Protoss_Gateway)
             {
-                int gatewaysBuilding = BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
-                int gateways = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Gateway);
+                int gatewaysBuilding = BuildingManager::Instance().getNumBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway);
+				int gateways = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Gateway);
+				int numStargates = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Stargate);
                 
                 skipThisItem = gateways > 0 && (
                     StrategyManager::Instance().getProductionSaturation(BWAPI::UnitTypes::Protoss_Gateway) < 0.76 ||
-                    gateways > nexuses * 3 ||
+					gateways > 12 ||
+					gateways + (numStargates * 2) > nexuses * 3 ||
+					gateways > workers * 9 ||
                     gatewaysBuilding >= 4 ||
                     (gateways < 10 && gatewaysBuilding >= 3) ||
                     (gateways < 6 && gatewaysBuilding >= 2));
@@ -261,6 +277,9 @@ void ProductionManager::manageBuildOrderQueue()
                 // Special case for Plasma
                 // Since our combat units can't mineral walk, make sure we only build gateways at the proxy location,
                 // unless we have none
+				//等离子体专用箱
+				//因为我们的战斗单位不能走矿路，所以确保我们只在代理地点建造通道，
+				//除非我们没有
                 if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67" &&
                     (gateways > 0 || gatewaysBuilding > 0) &&
                     currentItem.macroAct.getMacroLocation() != MacroLocation::Proxy)
@@ -273,9 +292,13 @@ void ProductionManager::manageBuildOrderQueue()
             // - Stargates we have must be in use
             // - Only build at most 2 at a time
             // - Only build at most 3 per nexus
+			//星际之门的规则:
+			// -我们必须使用星际之门
+			// -每次最多生成2个
+			// -每个nexus最多只能构建3个
             else if (type == BWAPI::UnitTypes::Protoss_Stargate)
             {
-                int stargatesBuilding = BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Stargate);
+				int stargatesBuilding = BuildingManager::Instance().getNumBeingBuilt(BWAPI::UnitTypes::Protoss_Stargate);
                 int stargates = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Stargate);
 
                 skipThisItem = stargates > 0 && (
@@ -283,32 +306,51 @@ void ProductionManager::manageBuildOrderQueue()
 					(stargates + stargatesBuilding) >= nexuses * 2 ||
                     stargatesBuilding >= 2);
 
-				skipThisItem = stargates > 2;
+				//skipThisItem = stargates > 2;
             }
 
+			else if (type == BWAPI::UnitTypes::Protoss_Citadel_of_Adun) {
+				if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss){
+					if (frame < 8000 && OpponentModel::Instance().getEnemyPlan() == OpeningPlan::FastRush) {
+						skipThisItem = true;
+					}
+				}
+			}
             // Rules for forges:
             // - Only build at most one per 3 nexuses
             else if (type == BWAPI::UnitTypes::Protoss_Forge)
             {
-                int forges = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
+				int forges = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) + BuildingManager::Instance().getNumBeingBuilt(BWAPI::UnitTypes::Protoss_Forge);
 
-                skipThisItem = forges * 2 >= nexuses;
+                skipThisItem = forges * 2 > nexuses;
 
-				skipThisItem = forges > 2;
+				//skipThisItem = forges > 2;
             }
 
             // Rules for robotics facilities:
             // - Only build at most one per 3 nexuses
             else if (type == BWAPI::UnitTypes::Protoss_Robotics_Facility)
             {
-                int robos = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) + BuildingManager::Instance().numBeingBuilt(BWAPI::UnitTypes::Protoss_Robotics_Facility);
+                int robos = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) + BuildingManager::Instance().getNumBeingBuilt(BWAPI::UnitTypes::Protoss_Robotics_Facility);
+				skipThisItem = robos > 1;
 
-                skipThisItem = robos >= nexuses / 2;
+				if (!skipThisItem) {
+					if (BWAPI::Broodwar->getFrameCount() < 10000 && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon) > 0) {
+						skipThisItem = true;
+					}
+				}
+				/*
+                skipThisItem = robos * 2 >= nexuses;
+
+				if (skipThisItem) {
+					//BWAPI::Broodwar->printf("skipThisItem Robotics_Facility %d: %d", robos, nexuses);
+				}
+				*/
             }
 			else if (type == BWAPI::UnitTypes::Protoss_Assimilator) {
-				skipThisItem = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Assimilator) >= UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
+				skipThisItem = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Assimilator) >= UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
 
-				if (BWAPI::Broodwar->self()->minerals() < BWAPI::Broodwar->self()->gas()) {
+				if (!skipThisItem && BWAPI::Broodwar->self()->minerals() < BWAPI::Broodwar->self()->gas()) {
 					skipThisItem = true;
 				}
 			}
@@ -324,6 +366,10 @@ void ProductionManager::manageBuildOrderQueue()
 				}
 			}
 			else if (type == BWAPI::UnitTypes::Protoss_Nexus) {
+				if (!InformationManager::Instance().canAggression() && BWAPI::Broodwar->self()->minerals() < 500) {
+					skipThisItem = true;
+				}
+
 				if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss) {
 					if (nexuses >= 1 && frame < 7 * 60 * 24) {
 						skipThisItem = true;
@@ -350,6 +396,7 @@ void ProductionManager::manageBuildOrderQueue()
 		}
 
 		// If this is a command, execute it and keep going.
+		//如果这是一个命令，执行它并继续执行。
 		if (currentItem.macroAct.isCommand())
 		{
 			executeCommand(currentItem.macroAct.getCommandType());
@@ -369,6 +416,7 @@ void ProductionManager::manageBuildOrderQueue()
         */
 
 		// The unit which can produce the currentItem. May be null.
+		//能够产生货币的单位。可能是null。
         BWAPI::Unit producer = getProducer(currentItem.macroAct);
 
 		// check to see if we can make it right now
@@ -400,13 +448,21 @@ void ProductionManager::manageBuildOrderQueue()
 			BWAPI::Broodwar->getFrameCount() >= _delayBuildingPredictionUntilFrame &&
 			!BuildingManager::Instance().typeIsStalled(currentItem.macroAct.getUnitType()))
 		{
+			BWAPI::TilePosition baseTilePosition = InformationManager::Instance().getMyMainBaseLocation()->getTilePosition();
+
 			// construct a temporary building object
-			Building b(currentItem.macroAct.getUnitType(), InformationManager::Instance().getMyMainBaseLocation()->getTilePosition());
+			Building b(currentItem.macroAct.getUnitType(), baseTilePosition);
 			b.macroAct = currentItem.macroAct;
 			b.macroLocation = currentItem.macroAct.getMacroLocation();
             b.isWorkerScoutBuilding = currentItem.isWorkerScoutBuilding;
 			if (currentItem.macroAct.hasReservedPosition())
 				b.finalPosition = currentItem.macroAct.getReservedPosition();
+
+			if (currentItem.macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Shield_Battery) {
+				if (InformationManager::Instance().getMyNaturalLocation()) {
+					b.finalPosition = InformationManager::Instance().getMyNaturalLocation()->getTilePosition();
+				}
+			}
 
 			// set the producer as the closest worker, but do not set its job yet
 			producer = WorkerManager::Instance().getBuilder(b, false);
@@ -477,6 +533,104 @@ void ProductionManager::manageBuildOrderQueue()
 		break;
 	}
 }
+
+// If we can't immediately produce the top item in the queue but we can produce a
+// later item, we may want to move the later item to the front.
+void ProductionManager::maybeReorderQueue()
+{
+	if (_queue.size() < 2)
+	{
+		return;
+	}
+
+	// We can reorder the queue if:
+	// We are waiting for gas and have excess minerals,
+	// and we can move a later no-dependency no-gas item to the front,
+	// and we have the minerals to cover both.
+	//我们可以重新排序队列, 如果:
+	//我们在等待汽油和过剩的矿物质,
+	//我们可以将以后不依赖的无气体项目移到前面,
+	//我们有矿物质来覆盖这两种物质。
+	MacroAct top = _queue.getHighestPriorityItem().macroAct;
+	int minerals = getFreeMinerals();
+	int gas = getFreeGas();
+	int supplys = getFreeSupply();
+
+	int topMineralPrice = top.mineralPrice() ? top.mineralPrice() : 0;
+	int topGasPrice = top.gasPrice() ? top.gasPrice() : 0;
+	int topSupplyRequired = top.supplyRequired() ? top.supplyRequired() : 0;
+
+	std::vector<int> permute;
+	std::vector<int> command;
+
+	//修改
+	if (top.gasPrice() <= gas && top.mineralPrice() <= minerals && top.supplyRequired() <= supplys)
+	{
+		//for (int i = _queue.size() - 1; i >= std::max(0, int(_queue.size()) - 6); --i)
+		for (int i = _queue.size() - 1; i >= 0; --i)
+		{
+			const MacroAct & act = _queue[i].macroAct;
+
+			if (act.isCommand()) {
+				command.push_back(i);
+				continue;
+			}
+
+			//if (act.isCommand()) return;
+
+			if (top.getName() == act.getName()) continue;
+
+			if (!hasRequiredUnit(act)) continue;//如果没有必须的建筑，则不参于
+			/*
+			if (act.isUnit() &&
+			act.gasPrice() == 0 &&
+			act.mineralPrice() + top.mineralPrice() <= minerals &&
+			independentUnitType(act.getUnitType()))
+			{
+			// BWAPI::Broodwar->printf("permute %d and %d", _queue.size() - 1, i);
+			_queue.pullToTop(i);
+			return;
+			}
+			*/
+			int actMineralPrice = act.mineralPrice() ? act.mineralPrice() : 0;
+			int actGasPrice = act.gasPrice() ? act.gasPrice() : 0;
+			int actSupplyRequired = act.supplyRequired() ? act.supplyRequired() : 0;
+
+			topMineralPrice += actMineralPrice;
+			topGasPrice += actGasPrice;
+			topSupplyRequired += actSupplyRequired;
+
+			if (topMineralPrice <= minerals) {
+				if ((actGasPrice == 0 || topGasPrice <= gas) && (actSupplyRequired == 0 || topSupplyRequired <= supplys)) {
+					//_queue.pullToTop(i);
+					if (!hasRequiredUnit(act)) break;
+					permute.push_back(i);
+					//break;
+				}
+			}
+		}
+	}
+
+	if (permute.size() > 0) {
+		for (int i = permute.size() - 1; i >= 0; --i) {
+			//for (int i = 0; i < permute.size(); ++i) {
+			//permute.push_back(permute[i]);
+
+			for (auto Iter = command.begin(); Iter != command.end(); Iter++){
+				if (*Iter > permute[i]) {
+					_queue.pullToTop(*Iter);
+					command.erase(Iter);
+					break;
+				}
+			}
+
+			_queue.pullToTop(permute[i]);
+		}
+
+		_exchangePredictionUntilFrame = BWAPI::Broodwar->getFrameCount();
+	}
+}
+/*
 
 // If we can't immediately produce the top item in the queue but we can produce a
 // later item, we may want to move the later item to the front.
@@ -585,10 +739,14 @@ void ProductionManager::maybeReorderQueue()
 			}
 		}
 	}
+
 }
+*/
 
 // Return null if no producer is found.
 // NOTE closestTo defaults to BWAPI::Positions::None, meaning we don't care.
+//如果没有找到生产者，返回null。
+//注意closestTo默认为BWAPI:: position::None，这意味着我们不关心。
 BWAPI::Unit ProductionManager::getProducer(MacroAct act, BWAPI::Position closestTo) const
 {
 	std::vector<BWAPI::Unit> candidateProducers;
@@ -803,6 +961,63 @@ bool ProductionManager::canMakeNow(BWAPI::Unit producer, MacroAct t)
 	return canMake;
 }
 
+//是否有必须的建筑
+bool ProductionManager::hasRequiredUnit(const MacroAct & act){
+	BWAPI::UnitType requiredType;
+	BWAPI::Player _self = BWAPI::Broodwar->self();
+	if (act.isUnit()) {
+		typedef std::pair<BWAPI::UnitType, int> ReqPair;
+		for (const ReqPair & pair : act.getUnitType().requiredUnits())
+		{
+			requiredType = pair.first;
+			if (act.getUnitType().isAddon()) {
+				if (_self->completedUnitCount(requiredType) == _self->allUnitCount(act.getUnitType())) {
+					return false;
+				}
+			}
+
+			if (_self->allUnitCount(requiredType) == 0 && !BuildingManager::Instance().isBeingBuilt(requiredType)) {
+				return false;
+			}
+		}
+	}
+
+	if (act.isUpgrade()) {
+		BWAPI::UpgradeType upgType = act.getUpgradeType();
+
+		int maxLvl = _self->getMaxUpgradeLevel(upgType);
+		int currentLvl = _self->getUpgradeLevel(upgType);
+		currentLvl += 1;
+
+		if (_self->isUpgrading(upgType) || currentLvl > maxLvl) {
+			return false;
+		}
+
+		//有BUG，Terran Infantry Weapons获取不到对应的单位
+		requiredType = upgType.whatsRequired(currentLvl);
+		if (requiredType == BWAPI::UnitTypes::None) {
+			requiredType = upgType.whatUpgrades();
+		}
+		if (_self->allUnitCount(requiredType) == 0 && !BuildingManager::Instance().isBeingBuilt(requiredType)) {
+			return false;
+		}
+	}
+
+	if (act.isTech()) {
+		if (_self->hasResearched(act.getTechType()) || _self->isResearching(act.getTechType())) {
+			return false;
+		}
+		else {
+			requiredType = act.getTechType().whatResearches();
+			if (_self->allUnitCount(requiredType) == 0 && !BuildingManager::Instance().isBeingBuilt(requiredType)) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 // When the next item in the _queue is a building, this checks to see if we should move to
 // its location in preparation for construction. If so, it orders the move.
 // This function is here as it needs to access prodction manager's reserved resources info.
@@ -814,6 +1029,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
     }
 
 	// get a possible building location for the building
+	//找一个可能的建筑位置
 	if (!_haveLocationForThisBuilding)
 	{
 		_predictedTilePosition = BuildingManager::Instance().getBuildingLocation(b);
@@ -832,6 +1048,11 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 		return;
 	}
 
+	if (BWAPI::Broodwar->getUnitsOnTile(_predictedTilePosition, BWAPI::Filter::GetType == b.type).size() > 0) {
+		_queue.doneWithHighestPriorityItem();
+		return;
+	}
+
 	int framesUntilDependenciesMet = 0;
 	if (_frameWhenDependendenciesMet > 0)
 	{
@@ -846,10 +1067,12 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 				requirements.insert(req.first);
 
 		// If the tile position is unpowered, add a pylon
+		//如果磁砖位置没有电源，则添加一个电塔
 		if (!BWAPI::Broodwar->hasPower(_predictedTilePosition, b.type))
 			requirements.insert(BWAPI::UnitTypes::Protoss_Pylon);
 
 		// Check if we have any
+		//看看我们有没有
 		for (auto req : requirements)
 		{
 			if (BWAPI::Broodwar->self()->completedUnitCount(req) > 0) continue;
@@ -857,7 +1080,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 			if (!nextCompletedUnit) 
 			{
 				// Prerequisite is queued for build, check again in a bit
-				_delayBuildingPredictionUntilFrame = 20 + BWAPI::Broodwar->getFrameCount();
+				_delayBuildingPredictionUntilFrame = 2 + BWAPI::Broodwar->getFrameCount();
 				return;
 			}
 
@@ -871,7 +1094,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	int y1 = _predictedTilePosition.y * 32;
 
 	// draw a box where the building will be placed
-	if (Config::Debug::DrawWorkerInfo)
+	if (Config::Debug::DrawBuildingInfo)
     {
 		int x2 = x1 + (b.type.tileWidth()) * 32;
 		int y2 = y1 + (b.type.tileHeight()) * 32;
@@ -879,6 +1102,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
     }
 
 	// where we want the worker to walk to
+	//我们想让工人步行去的地方
 	BWAPI::Position walkToPosition		= BWAPI::Position(x1 + (b.type.tileWidth()/2)*32, y1 + (b.type.tileHeight()/2)*32);
 
 	// compute how many resources we need to construct this building
@@ -886,12 +1110,24 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	int gasRequired						= std::max(0, b.type.gasPrice() - getFreeGas());
 
 	// get a candidate worker to move to this location
-	BWAPI::Unit moveWorker				= WorkerManager::Instance().getMoveWorker(walkToPosition);
+	//BWAPI::Unit moveWorker				= WorkerManager::Instance().getMoveWorker(walkToPosition);
+	BWAPI::Unit moveWorker = nullptr;
+
+	if (_proxyPrepareWorker && b.macroLocation == MacroLocation::Proxy)
+	{
+		moveWorker = _proxyPrepareWorker;
+		_proxyPrepareWorker = nullptr;
+	}
+	else
+	{
+		moveWorker = WorkerManager::Instance().getMoveWorker(walkToPosition);
+	}
+
 	if (!moveWorker) return;
 
 	// how many frames it will take us to move to the building location
 	// We add some time since the actual pathfinding of the workers is bad
-	int distanceToMove = PathFinding::GetGroundDistance(moveWorker->getPosition(), walkToPosition, PathFinding::PathFindingOptions::UseNearestBWEMArea);
+	int distanceToMove = PathFinding::GetGroundDistance(moveWorker->getPosition(), walkToPosition, BWAPI::UnitTypes::Protoss_Probe, PathFinding::PathFindingOptions::UseNearestBWEMArea);
 	double framesToMove = (distanceToMove / BWAPI::Broodwar->self()->getRace().getWorker().topSpeed()) * 1.4;
 
 	// Don't move if the dependencies won't be done in time
@@ -899,7 +1135,7 @@ void ProductionManager::predictWorkerMovement(const Building & b)
 	{
 		// We don't need to recompute for a few frames if it's a long way off
 		if (framesUntilDependenciesMet - framesToMove > 20)
-			_delayBuildingPredictionUntilFrame = BWAPI::Broodwar->getFrameCount() + 10;
+			_delayBuildingPredictionUntilFrame = BWAPI::Broodwar->getFrameCount() + 2;
 		return;
 	}
 
@@ -923,6 +1159,11 @@ int ProductionManager::getFreeMinerals() const
 int ProductionManager::getFreeGas() const
 {
 	return BWAPI::Broodwar->self()->gas() - BuildingManager::Instance().getReservedGas();
+}
+
+int ProductionManager::getFreeSupply() const
+{
+	return BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed();
 }
 
 void ProductionManager::executeCommand(MacroCommand command)
@@ -1017,6 +1258,7 @@ void ProductionManager::updateGoals()
 }
 
 // Can we afford it, taking into account reserved resources?
+//考虑到储备资源，我们能负担得起吗?
 bool ProductionManager::meetsReservedResources(MacroAct act)
 {
 	return (act.mineralPrice(false) <= getFreeMinerals()) && (act.gasPrice(false) <= getFreeGas());
@@ -1292,6 +1534,69 @@ void ProductionManager::goOutOfBook()
 	if (!_outOfBook)
 	{
 		goOutOfBookAndClearQueue();
+	}
+}
+
+//是否可以建造指定单位
+bool ProductionManager::canMakeUnit(BWAPI::UnitType type, int minerals, int gas, int supply) {
+	BWAPI::UnitType requiredType;
+	BWAPI::Player _self = BWAPI::Broodwar->self();
+
+	/*
+	int minerals = _self->minerals();
+	int gas = _self->gas();
+	int supply = _self->supplyTotal() - _self->supplyUsed();
+	*/
+
+	if (minerals < type.mineralPrice()) {
+		return false;
+	}
+
+	if (type.gasPrice() > 0 && gas < type.gasPrice()) {
+		return false;
+	}
+
+	if (supply < type.supplyRequired()) {
+		return false;
+	}
+
+	typedef std::pair<BWAPI::UnitType, int> ReqPair;
+	for (const ReqPair & pair : type.requiredUnits())
+	{
+		requiredType = pair.first;
+		if (type.isAddon()) {
+			if (_self->completedUnitCount(requiredType) == _self->allUnitCount(type)) {
+				return false;
+			}
+		}
+
+		if (_self->allUnitCount(requiredType) == 0) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void ProductionManager::cancelBuilding(BWAPI::UnitType unitType) {
+
+	for (auto& building : BuildingManager::Instance().buildingsQueued())
+	{
+		if (building->type == unitType)
+		{
+			BuildingManager::Instance().cancelBuilding(*building);
+		}
+	}
+
+	for (auto unit : BWAPI::Broodwar->self()->getUnits())
+	{
+		if (unit->getType() == unitType)
+		{
+			if (unit->cancelConstruction())
+			{
+				unit->cancelConstruction();
+			}
+		}
 	}
 }
 

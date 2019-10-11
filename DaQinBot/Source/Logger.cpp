@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <sstream>
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 void Logger::LogAppendToFile(const std::string & logFile, const std::string & msg)
 {

@@ -1,7 +1,7 @@
 #include "MicroTanks.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MicroTanks::MicroTanks() 
 { 

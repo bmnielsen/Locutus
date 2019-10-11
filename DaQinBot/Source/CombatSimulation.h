@@ -5,7 +5,7 @@
 
 #include "InformationManager.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class CombatSimulation
 {

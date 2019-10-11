@@ -1,7 +1,7 @@
 #include "TechCompleteProductionGoal.h"
 #include "ProductionManager.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 // Meant to be called once per frame to try to carry out the goal.
 void TechCompleteProductionGoal::update()

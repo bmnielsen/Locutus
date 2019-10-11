@@ -4,7 +4,7 @@
 #include "MacroAct.h"
 #include "ProductionGoal.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
     class UpgradeCompleteProductionGoal : public ProductionGoal
     {

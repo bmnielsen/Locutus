@@ -6,7 +6,7 @@
 #include "BuildOrder.h"
 #include "BuildOrderQueue.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 typedef std::pair<MacroAct, size_t> MetaPair;
 typedef std::vector<MetaPair> MetaPairVector;
@@ -38,6 +38,8 @@ class StrategyManager
 {
 	StrategyManager();
 
+	const int absoluteMaxSupply = 400;
+
 	BWAPI::Player _self = BWAPI::Broodwar->self();;
 	BWAPI::Player _enemy = BWAPI::Broodwar->enemy();
 
@@ -48,6 +50,7 @@ class StrategyManager
     const BuildOrder                _emptyBuildOrder;
 	std::string						_openingGroup;
     bool                            _rushing;
+	bool                            _proxying;
 	bool							_hasDropTech;
 	int								_highWaterBases;				// most bases we've ever had, terran and protoss only
 	bool							_openingStaticDefenseDropped;	// make sure we do this at most once ever
@@ -68,6 +71,7 @@ public:
 	static	StrategyManager &	    Instance();
 
             void                    update();
+			void					updateAggression();//ÊÇ·ñ½ø¹¥
 
             void                    addStrategy(const std::string & name, Strategy & strategy);
 			void					initializeOpening();
@@ -75,7 +79,12 @@ public:
  	const	MetaPairVector		    getBuildOrderGoal();
 	const	BuildOrder &            getOpeningBookBuildOrder() const;
 
-            bool                    isRushing() const { return _rushing; };
+			void                    setRushing() { _rushing = true; Log().Get() << "Enabled rush mode"; };
+			void                    setProxying() { _proxying = true; Log().Get() << "Enabled proxy mode"; };
+	
+			bool                    isRushing() const { return _rushing; };
+			bool                    isProxying() const { return _proxying; };
+			bool                    isRushingOrProxyRushing() const;
 
 			void					handleUrgentProductionIssues(BuildOrderQueue & queue);
 			void					handleMacroProduction(BuildOrderQueue & queue);

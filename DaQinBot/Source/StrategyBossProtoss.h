@@ -9,7 +9,7 @@ namespace DaQinBot
 
 // Unit choices for main unit mix and tech target.
 // This deliberately omits support units like queens and defilers.
-enum class TechUnit : int
+enum class ProtossTechUnit : int
 	{ None
 	, Zerglings
 	, Hydralisks
@@ -21,15 +21,22 @@ enum class TechUnit : int
 	, Size
 };
 
-class StrategyBossZerg
+class StrategyBossProtoss
 {
-	StrategyBossZerg::StrategyBossZerg();
+	StrategyBossProtoss::StrategyBossProtoss();
 
 	const int absoluteMaxSupply = 400;     // 200 game supply max = 400 BWAPI supply
 
-	BWAPI::Player _self;
-	BWAPI::Player _enemy;
+	BWAPI::Player _self = BWAPI::Broodwar->self();;
+	BWAPI::Player _enemy = BWAPI::Broodwar->enemy();
+
+	BWAPI::Race _selfRace;
 	BWAPI::Race _enemyRace;
+
+	std::string						_openingGroup;
+
+	int								_highWaterBases;   // most bases we've ever had, terran and protoss only
+	int								_lastMissileTurretChange;//最后检查防守时间
 
 	bool _nonadaptive;                     // set by some openings
 
@@ -40,7 +47,7 @@ class StrategyBossZerg
 	int _auxUnitCount;
 
 	// The tech target, what tech to aim for next.
-	TechUnit _techTarget;
+	ProtossTechUnit _techTarget;
 
 	// Target proportion of larvas spent on drones versus combat units.
 	double _economyRatio;
@@ -62,12 +69,60 @@ class StrategyBossZerg
 	int _existingSupply;
 	int _pendingSupply;
 	int _supplyUsed;
+	int _supplyTotal;
+	int _lastSupplyFrame;
 
 	int _lastUpdateFrame;
 	int minerals;
 	int gas;
+	int supply;
+
+	int nArchon;			//白球
+	int nDarkArchon; 			//红球
+	int nDarkTemplar;			//隐刀 		K
+	int nDragoon;			//龙骑 		D
+	int nHighTemplar;			//电兵 		T
+	int nProbe;			//农民 		P
+	int nReaver;			//金甲 		V
+	//int nScarab;			//金甲炸弹 	R
+	int nZealot;			//XX兵 		Z
+
+	//空中部队
+	int nArbiter;			//仲裁者	A	
+	int nCarrier;			//航母		C
+	int nCorsair;			//海盗		O
+	int nInterceptor;			//航母的小飞机	I
+	int nObserver;			//探测者	O		
+	int nScout;			//侦察机	S		
+	int nShuttle;			//运输机	S
+
+	//建筑
+	int nArbiterTribunal;		//仲裁者法庭 	va
+	int nAssimilator;			//气矿 		ba
+	int nCitadelofAdun;		//进修所 	vc
+	int nCyberneticsCore;		//控制中心 	by
+	int nFleetBeacon;			//舰队航标 	vf
+	int nForge;			//锻造厂 	bf
+	int nGateway;			//部队之门 	bg	
+	int nNexus;			//主基地 	bn
+	int nObservatory;			//天文台 	vo
+	int nPhotonCannon;		//光子炮 	bc
+	int nPylon;			//建造电塔 	bp
+	int nRoboticsFacility;		//机器人技术设备厂 vr
+	int nRoboticsSupportBay;		//机器人技术支持中心 vb
+	int nShieldBattery;		//盔甲电池 	bb
+	int nStargate;			//星际之门 	vs
+	int nTemplarArchives;		//圣堂武士档案馆 vt
+
+	bool hasLegEnhancements;	//XX移动速度
+	bool hasEBay;
+	bool hasAcademy;
+	bool hasArmory;
+	bool hasScience;
+	bool hasMachineShop;
 
 	// Unit stuff, including uncompleted units.
+	//单位的东西, 包括未完工的单位。
 	int nLairs;
 	int nHives;
 	int nHatches;
@@ -90,6 +145,7 @@ class StrategyBossZerg
 	int nDevourers;
 
 	// Tech stuff. It has to be completed for the tech to be available.
+	//高科技的东西。必须完成这项技术才能获得。
 	int nEvo;
 	bool hasPool;
 	bool hasDen;
@@ -112,7 +168,7 @@ class StrategyBossZerg
 	int maxDrones;        // maximum reasonable number given nMineralPatches and nGas
 
 	// For choosing the tech target and the unit mix.
-	std::array<int, int(TechUnit::Size)> techScores;
+	std::array<int, int(ProtossTechUnit::Size)> techScores;
 
 	// Update the resources, unit counts, and related stuff above.
 	void updateSupply();
@@ -125,14 +181,16 @@ class StrategyBossZerg
 	void cancelStuff(int mineralsNeeded);
 	void cancelForSpawningPool();
 	bool nextInQueueIsUseless(BuildOrderQueue & queue) const;
-	void leaveBook();
 
 	void produce(const MacroAct & act);
+	void produce(const MacroAct & act, int num);
+
 	bool needDroneNext() const;
 	BWAPI::UnitType findUnitType(BWAPI::UnitType type) const;
 
-	bool queueSupplyIsOK(BuildOrderQueue & queue);
 	void makeOverlords(BuildOrderQueue & queue);
+	void makeSupply(BuildOrderQueue & queue);
+	void makeWorker(BuildOrderQueue & queue);
 
 	bool takeUrgentAction(BuildOrderQueue & queue);
 	void makeUrgentReaction(BuildOrderQueue & queue);
@@ -140,18 +198,33 @@ class StrategyBossZerg
 	bool adaptToEnemyOpeningPlan();
 	bool rebuildCriticalLosses();
 
+	bool checkBuildOrderQueue(BuildOrderQueue & queue);
+
 	void checkGroundDefenses(BuildOrderQueue & queue);
 	void analyzeExtraDrones();
 
-	bool lairTechUnit(TechUnit techUnit) const;
-	bool airTechUnit(TechUnit techUnit) const;
-	bool hiveTechUnit(TechUnit techUnit) const;
-	int techTier(TechUnit techUnit) const;
+	bool lairProtossTechUnit(ProtossTechUnit ProtossTechUnit) const;
+	bool airProtossTechUnit(ProtossTechUnit ProtossTechUnit) const;
+	bool hiveProtossTechUnit(ProtossTechUnit ProtossTechUnit) const;
+	int techTier(ProtossTechUnit ProtossTechUnit) const;
 
 	bool lurkerDenTiming() const;
 	
 	void resetTechScores();
-	void setAvailableTechUnits(std::array<bool, int(TechUnit::Size)> & available);
+	void setAvailableProtossTechUnits(std::array<bool, int(ProtossTechUnit::Size)> & available);
+
+	void buildOrderGoal(BuildOrderQueue & queue);
+
+	void getProtossBuildOrderGoal(BuildOrderQueue & queue);
+
+	void vProtossReaction(BuildOrderQueue & queue);
+
+	void vTerranMakeSquad(BuildOrderQueue & queue);
+	void vTerranReaction(BuildOrderQueue & queue);
+
+	void vZergReaction(BuildOrderQueue & queue);
+
+	void vUnknownReaction(BuildOrderQueue & queue);
 
 	void vProtossTechScores(const PlayerSnapshot & snap);
 	void vTerranTechScores(const PlayerSnapshot & snap);
@@ -167,11 +240,19 @@ class StrategyBossZerg
 	void produceUnits(int & mineralsLeft, int & gasLeft);
 	void produceOtherStuff(int & mineralsLeft, int & gasLeft, bool hasEnoughUnits);
 
-	std::string techTargetToString(TechUnit target);
+	double getProductionSaturation(BWAPI::UnitType producer) const;
+
+	std::string techTargetToString(ProtossTechUnit target);
 	void drawStrategyBossInformation();
 
+	const	bool				    shouldExpandNow() const;
+
 public:
-	static StrategyBossZerg & Instance();
+	static StrategyBossProtoss & Instance();
+
+	void setOpeningGroup(std::string openingGroup) { _openingGroup = openingGroup; };
+
+	void setEnemy(BWAPI::Player player) { _enemy = player; };
 
 	void setNonadaptive(bool flag) { _nonadaptive = flag; };
 

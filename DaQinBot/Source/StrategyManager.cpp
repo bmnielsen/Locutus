@@ -4,9 +4,10 @@
 #include "ProductionManager.h"
 #include "ScoutManager.h"
 #include "StrategyBossZerg.h"
+#include "StrategyBossProtoss.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
@@ -82,6 +83,7 @@ const BuildOrder & StrategyManager::getOpeningBookBuildOrder() const
 }
 
 // This is used for terran and protoss.
+//这是用于人类和神族。
 const bool StrategyManager::shouldExpandNow() const
 {
 	// if there is no place to expand to, we can't expand
@@ -89,6 +91,15 @@ const bool StrategyManager::shouldExpandNow() const
 	if (MapTools::Instance().getNextExpansion(false, true, false) == BWAPI::TilePositions::None)
 	{
 		return false;
+	}
+
+	int nexuses = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
+	int frame = BWAPI::Broodwar->getFrameCount();
+
+	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss) {
+		if (nexuses >= 1 && frame < 7 * 60 * 24) {
+			return false;
+		}
 	}
 
 	size_t numDepots = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Terran_Command_Center)
@@ -101,8 +112,29 @@ const bool StrategyManager::shouldExpandNow() const
 
 	// if we have idle workers then we need a new expansion
 	if (WorkerManager::Instance().getNumIdleWorkers() > 10
-		|| (numDepots * 18) < UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe))
+		|| (numDepots * 16) < UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe))
 	{
+		return true;
+	}
+
+	if (BWAPI::Broodwar->self()->minerals() < 400) {
+		return false;
+	}
+	else {
+		if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran) {
+			if (nexuses >= 2 && frame < 7 * 60 * 24) {
+				return false;
+			}
+
+			if (nexuses >= 3 && frame < 11 * 60 * 24 && CombatCommander::Instance().getNumCombatUnits() < 100) {
+				return false;
+			}
+		}
+
+		if (!InformationManager::Instance().canAggression()) {
+			return false;
+		}
+
 		return true;
 	}
 
@@ -124,11 +156,17 @@ void StrategyManager::initializeOpening()
 	if (buildOrderItr != std::end(_strategies))
 	{
 		_openingGroup = (*buildOrderItr).second._openingGroup;
+
+		if (_selfRace == BWAPI::Races::Protoss)
+		{
+			return StrategyBossProtoss::Instance().setOpeningGroup(_openingGroup);
+		}
 	}
 
     // Is the build a rush build?
     _rushing = 
         Config::Strategy::StrategyName == "9-9Gate" ||
+		Config::Strategy::StrategyName == "2ZealotDT" ||
         Config::Strategy::StrategyName == "9-9GateDefensive" ||
         Config::Strategy::StrategyName == "Proxy9-9Gate";
 
@@ -173,9 +211,13 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	int numDragoons = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dragoon);
 	int numDarkTemplar = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar);
 	int numHighTemplar = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_High_Templar);
+	int numArchons = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Archon) + numHighTemplar / 2;
+	int numArbiterr = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Arbiter);
 	int numReavers = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Reaver);
 	int numCorsairs = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Corsair);
 	int numCarriers = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Carrier);
+	int numShuttles = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Shuttle);
+	//int numStargate = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Stargate);
 
 	bool hasStargate = UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0;
 
@@ -231,7 +273,9 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Cybernetics_Core);
 	bool startedStargate = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0 
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Stargate);
-	bool startedFleetBeacon = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0 
+	bool startedArbiterTribunal = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Arbiter_Tribunal) > 0
+		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Arbiter_Tribunal);
+	bool startedFleetBeacon = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Fleet_Beacon);
 	bool startedCitadel = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0 
 		|| BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Citadel_of_Adun);
@@ -247,16 +291,34 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     bool buildGround = true;
     bool buildCarriers = false;
     bool buildCorsairs = false;
+	bool buildArbiter = false;
 	bool getGoonRange = false;
 	bool getZealotSpeed = false;
 	bool upgradeGround = false;
 	bool upgradeAir = false;
+	bool upgradePsionicStorm = false;//升级闪电
     bool getCarrierCapacity = false;
 	bool buildDarkTemplar = false;
+	bool getTemplarArchives = false;
 	bool buildReaver = false;
 	bool buildObserver = InformationManager::Instance().enemyHasMobileCloakTech(); // Really cloaked combat units
 	double zealotRatio = 0.0;
 	double goonRatio = 0.0;
+	double archonRatio = 0.0;
+
+	if (buildObserver) {
+		if (BWAPI::Broodwar->getFrameCount() < 8500) {
+			buildObserver = false;
+		}
+
+		if (_openingGroup == "carriers" && (BWAPI::Broodwar->getFrameCount() < 10000 || numCannon > 1)) {
+			buildObserver = false;
+		}
+
+		if (BWAPI::Broodwar->getFrameCount() < 10000 && numObservers > 0) {
+			buildObserver = false;
+		}
+	}
 
     // On Plasma, transition to carriers on two bases or if our proxy gateways die
     // We will still build ground units as long as we have an active proxy gateway
@@ -270,20 +332,63 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 	if (_openingGroup == "zealots")
 	{
 		zealotRatio = 1.0;
-        if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
-            getZealotSpeed = true;
-
-		if (numZealots >= 8 && numGateways >= 3) {
+		// Against Terran and Protoss we switch to goon opening group after the rush is over
+		if (!isRushingOrProxyRushing() && BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
+		{
 			_openingGroup = "dragoons";
 		}
+
+		// Against Zerg we mix in goons and later archons
+		if (!isRushingOrProxyRushing() && BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+		{
+			getZealotSpeed = true;
+			getGoonRange = true;
+			zealotRatio = 0.7;
+			goonRatio = 0.3;
+
+			if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0)
+			{
+				zealotRatio = 0.6;
+				goonRatio = 0.25;
+				archonRatio = 0.15;
+			}
+			else if (numNexusCompleted >= 2 && InformationManager::Instance().enemyHasAirTech())
+			{
+				getTemplarArchives = true;
+			}
+		}
+
+		if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+            getZealotSpeed = true;
+
+		if (numGateways >= 3) {
+			if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg) {
+				if (numZealots >= 16) {
+					_openingGroup = "dragoons";
+				}
+			}
+			else {
+				if (numZealots >= 10) {
+					_openingGroup = "dragoons";
+				}
+			}
+		}
 	}
-	else if (_openingGroup == "dragoons" || _openingGroup == "drop")
+	else if (_openingGroup == "dragoons")
 	{
 		getGoonRange = true;
 		goonRatio = 1.0;
 
-		if (numDarkTemplar >= 4) {
-			_openingGroup = "dragoons";
+		if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg &&
+			UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) > 0)
+		{
+			goonRatio = 0.85;
+			archonRatio = 0.15;
+		}
+		else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg &&
+			numNexusCompleted >= 2 && InformationManager::Instance().enemyHasAirTech())
+		{
+			getTemplarArchives = true;
 		}
 
 		/*
@@ -292,18 +397,35 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		}
 		*/
 
-		if (numNexusCompleted > 4) {
-			_openingGroup = "carriers";
+		if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss) {
+			if (numDragoons > 12 && BWAPI::Broodwar->getFrameCount() > 10000 && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer, _enemy) == 0) {
+				buildDarkTemplar = true;
+			}
 		}
 
+		if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg) {
+			if (numDragoons > 12 && numNexusCompleted >= 3 && numArbiterr < 2) {
+				buildArbiter = true;
+			}
+
+			if (numNexusCompleted > 4 && numCarriers < 4) {
+				_openingGroup = "carriers";
+			}
+		}
 	}
-    else if (_openingGroup == "dark templar")
+	else if (_openingGroup == "dark templar" || _openingGroup == "drop")
     {
         getGoonRange = true;
         goonRatio = 1.0;
 
         // We use dark templar primarily for harassment, so don't build too many of them
-        if (numDarkTemplar < 5) buildDarkTemplar = true;
+		if (numDarkTemplar < 4) {
+			buildDarkTemplar = true;
+		}
+		else {
+			_openingGroup = "dragoons";
+			buildDarkTemplar = false;
+		}
 
 		if (InformationManager::Instance().enemyHasMobileDetection()) {
 			_openingGroup = "dragoons";
@@ -313,9 +435,10 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     else if (_openingGroup == "carriers")
     {
         buildGround = false;
-        upgradeAir = true;
+		upgradeAir = numCarriers >= 4;
         getCarrierCapacity = true;
         buildCarriers = true;
+
         if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
             buildCorsairs = true;
 
@@ -328,10 +451,14 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             zealotRatio = 1.0; // Will be switched to goons below when the enemy gets air units, which is fine
         }
 
-		if (numCarriers >= 4) {
+		if (numCarriers >= 4 || BWAPI::Broodwar->self()->minerals() > 600) {
+			buildGround = true;
+		}
+
+		if (numCarriers >= 10) {
 			_openingGroup = "dragoons";
 		}
-    }
+	}
 	else
 	{
 		UAB_ASSERT_WARNING(false, "Unknown Opening Group: %s", _openingGroup.c_str());
@@ -371,7 +498,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             }
         }
 
-		if (numNexusCompleted >= 2 && numZealots >= 4 && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0) {
+		if (numNexusCompleted >= 2 && numZealots >= 8 && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0) {
 			getZealotSpeed = true;
 		}
 
@@ -406,7 +533,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         // - we aren't on the defensive
         // - our gateways are busy or we have a large income or we are close to maxed
         upgradeGround = numNexusCompleted >= 2 && (numZealots + numDragoons) >= 10 &&
-            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.75 || WorkerManager::Instance().getNumMineralWorkers() > 50 || BWAPI::Broodwar->self()->supplyUsed() >= 300)
+            ((numGateways - idleGateways) > 3 || gatewaySaturation > 0.75 || WorkerManager::Instance().getNumMineralWorkers() > 50 || BWAPI::Broodwar->self()->supplyUsed() >= 400)
             && !CombatCommander::Instance().onTheDefensive();
     }
 
@@ -421,8 +548,8 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 	// Build reavers when we have 2 or more bases
 	// Disabled until we can micro reavers better
-	if (_enemyRace != BWAPI::Races::Terran) {
-		if (numNexusCompleted >= 2 && numDragoons > 16) buildReaver = true;
+	if (_enemyRace == BWAPI::Races::Protoss) {
+		if (numNexusCompleted >= 3 && numDragoons > 16) buildReaver = true;
 	}
 
 	if (getGoonRange)
@@ -445,10 +572,15 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
     if (getCarrierCapacity)
     {
         if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
-        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
-            && !startedStargate) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+			&& !startedStargate && numStargates < 3 && numStargates * 3 < numNexusCompleted){
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+		}
+
         if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0
             && !startedFleetBeacon) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Fleet_Beacon, 1));
+
         if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0)
             goal.push_back(MetaPair(BWAPI::UpgradeTypes::Carrier_Capacity, 1));
     }
@@ -465,23 +597,14 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
             // This will let us efficiently upgrade both weapons and armor to 3
             if (numNexusCompleted >= 3 && numGateways >= 6)
             {
-                if (numForges < 2)
+                if (numForges < 1)
                 {
-                    goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, 2));
+					goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, numForges + 1));
                 }
 
-                if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Templar_Archives) < 1)
-                {
-                    if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
-
-                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
-                        && !startedCitadel)
-                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Citadel_of_Adun, 1));
-
-                    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) > 0
-                        && !startedTemplarArchives)
-                        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Templar_Archives, 1));
-                }
+				if (_enemyRace != BWAPI::Races::Terran) {
+					getTemplarArchives = true;
+				}
             }
 
             // Weapon to 1, armor to 1, weapon to 3, armor to 3
@@ -557,7 +680,18 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
         }
 	}
 
-	if (buildDarkTemplar)
+	if (buildArbiter) {
+		if (!startedArbiterTribunal) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Arbiter_Tribunal, 1));
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Arbiter_Tribunal) > 0
+			&& idleStargates > 0)
+		{
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Arbiter, numArbiterr + 1));
+			idleStargates--;
+		}
+	}
+
+	if (buildDarkTemplar || getTemplarArchives)
 	{
 		if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
 
@@ -575,11 +709,93 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dark_Templar, numDarkTemplar + 1));
 			idleGateways--;
 		}
+
+		if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran) {
+			if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) >= 3 &&
+				idleRoboFacilities > 0 && numShuttles < 1) {
+				goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Shuttle, numShuttles + 1));
+			}
+		}
+	}
+
+	// Carriers
+	if (buildCarriers && idleStargates > 0)
+	{
+		if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
+
+		/*
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+			&& !startedStargate && numStargates < 3 && numStargates * 3 < numNexusCompleted) {
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+		}
+		*/
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0
+			&& !startedFleetBeacon) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Fleet_Beacon, 1));
+
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Carrier, numCarriers + 1));//idleStargates
 	}
 
 	// Normal gateway units
-	if ((buildGround || buildDarkTemplar || buildCarriers) && idleGateways > 0)
+	if ((buildGround || buildDarkTemplar || getTemplarArchives) && idleGateways > 0)
 	{
+		int zealots = 0;
+		int goons = 0;
+		int highTemplar = 0;
+
+		int total = numZealots + numDragoons + numArchons;
+		if (total == 0)
+		{
+			zealots = (int)std::round(zealotRatio * idleGateways);
+			goons = idleGateways - zealots;
+		}
+		else
+		{
+			while (idleGateways > 0)
+			{
+				double zealotScore = zealotRatio < 0.01 ? 1000.0 : ((double)numZealots / total) / zealotRatio;
+				double goonScore = goonRatio < 0.01 ? 2.0 : ((double)numDragoons / total) / goonRatio;
+				double archonScore = archonRatio < 0.01 ? 1000.0 : ((double)numArchons / total) / archonRatio;
+				if (archonScore <= zealotScore && archonScore <= goonScore)
+				{
+					if (highTemplar % 2 == 1)
+					{
+						idleGateways -= 1;
+						highTemplar += 1;
+					}
+					else
+					{
+						idleGateways -= 2;
+						highTemplar += 2;
+					}
+					numArchons++;
+					total++;
+				}
+				else if (goonScore <= zealotScore && goonScore <= archonScore)
+				{
+					goons++;
+					numDragoons++;
+					total++;
+					idleGateways--;
+				}
+				else
+				{
+					zealots++;
+					numZealots++;
+					total++;
+					idleGateways--;
+				}
+			}
+		}
+
+		if (zealots > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Zealot, numZealots + zealots));
+		if (goons > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + goons));
+		if (highTemplar > 0)
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_High_Templar, numHighTemplar + highTemplar));
+		/*
 		int zealots = std::round(zealotRatio * idleGateways);
 		if (self->gas() < 50 && self->minerals() > 100) {
 			zealots = 1;
@@ -596,33 +812,36 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 
 		if (goons > 0)
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Dragoon, numDragoons + goons));
+		*/
 
 		if (numDragoons > 20 && self->gas() > self->minerals() * 3 && self->gas() > 125 && startedTemplarArchives) {
+			upgradePsionicStorm = true;
+			if (_self->hasResearched(BWAPI::TechTypes::Psionic_Storm) || _self->isResearching(BWAPI::TechTypes::Psionic_Storm)) {
+				upgradePsionicStorm = false;
+			}
+			
 			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_High_Templar, numHighTemplar + 1));
 		}
+	}
+
+	if (upgradePsionicStorm) {
+		goal.push_back(std::pair<MacroAct, int>(BWAPI::TechTypes::Psionic_Storm, 1));
 	}
 
     // Corsairs
     if (buildCorsairs && numCorsairs < 6 && idleStargates > 0)
     {
         if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
-        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
-            && !startedStargate) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+		/*
+		if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
+			&& !startedStargate && numStargates < 3 && numStargates * 3 < numNexusCompleted) {
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
+		}
+		*/
+
         if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0)
             goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
         idleStargates--;
-    }
-
-    // Carriers
-    if (buildCarriers && idleStargates > 0)
-    {
-        if (!startedCyberCore) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Cybernetics_Core, 1));
-        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Cybernetics_Core) > 0
-            && !startedStargate) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, 1));
-        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Stargate) > 0
-            && !startedFleetBeacon) goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Fleet_Beacon, 1));
-        if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Fleet_Beacon) > 0)
-            goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Carrier, numCarriers + idleStargates));
     }
 
 	// Handle units produced by robo bay
@@ -655,25 +874,41 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		// Build reavers from the remaining idle robo facilities
 		if (buildReaver
 			&& idleRoboFacilities > 0
-			&& numReavers < 4
+			&& numReavers < 3
 			&& self->completedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Support_Bay) > 0)
 		{
-			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Reaver, std::max(3, numReavers + idleRoboFacilities)));
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Reaver, std::max(2, numReavers + idleRoboFacilities)));
 		}
 	}
 
     // Queue a gateway if we have no idle gateways and enough minerals for it
     // If we queue too many, the production manager will cancel them
-	if ((buildGround || buildDarkTemplar || buildCarriers) && idleGateways == 0 && self->minerals() >= 150)
-    {
-        goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 1));
-    }
+	//如果我们没有空闲网关和足够的矿物质，就对网关进行排队
+	//如果我们排队太多，生产经理就会取消
+	if ((buildGround || buildDarkTemplar) && idleGateways == 0 && self->minerals() >= 150)
+	{
+		if (numGateways < 12 && numGateways + (numStargates * 2) <= numNexusCompleted * 3) {
+			//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 1));
+			if (self->minerals() >= 1000 && numGateways < 10)
+				goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 3));
+			else if (self->minerals() >= 500)
+				goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 2));
+			else
+				goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Gateway, numGateways + 1));
+		}
+
+		if (numGateways > numNexusCompleted * 4 && numForges < 1) {
+			goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Forge, numForges + 1));
+		}
+	}
 
     // Queue a stargate if we have no idle stargates and enough resources for it
     // If we queue too many, the production manager will cancel them
-    if (buildCarriers && idleStargates == 0 &&
+	//如果我们没有空闲的星门和足够的资源，就给星门排队
+	//如果我们排队太多，生产经理就会取消
+	if ((buildCarriers || buildCorsairs) && idleStargates == 0 &&
         self->minerals() >= BWAPI::UnitTypes::Protoss_Stargate.mineralPrice() &&
-        self->gas() >= BWAPI::UnitTypes::Protoss_Stargate.gasPrice() && numStargates < numNexusCompleted / 2)
+		self->gas() >= BWAPI::UnitTypes::Protoss_Stargate.gasPrice() && numStargates < 3 && numStargates * 3 < numNexusCompleted)
     {
         goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Stargate, numStargates + 1));
     }
@@ -691,7 +926,7 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		numCorsairs < 6 &&
 		self->deadUnitCount(BWAPI::UnitTypes::Protoss_Corsair) == 0)
 	{
-		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
+		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Corsair, numCorsairs + 1));
 	}
 
 	// Maybe get some static defense against air attack.
@@ -702,14 +937,14 @@ const MetaPairVector StrategyManager::getProtossBuildOrderGoal()
 		InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Zerg_Mutalisk, BWAPI::Broodwar->enemy()) / 6;
 	if (enemyAirToGround > 0)
 	{
-		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Photon_Cannon, enemyAirToGround));
+		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Photon_Cannon, enemyAirToGround));
 	}
 
 	// If the map has islands, get drop after we have 3 bases.
 	if (Config::Macro::ExpandToIslands && numNexusCompleted >= 3 && MapTools::Instance().hasIslandBases() 
 		&& UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) > 0)
 	{
-		//goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Shuttle, 1));
+		goal.push_back(MetaPair(BWAPI::UnitTypes::Protoss_Shuttle, 1));
 	}
 
 	// if we want to expand, insert a nexus into the build order
@@ -1022,7 +1257,6 @@ void PullToTopOrQueue(BuildOrderQueue & queue, BWAPI::UnitType unitType)
         }
 }
 
-
 void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue, int recursions = 1)
 {
     if (recursions > 10)
@@ -1044,6 +1278,7 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue, int recursio
     }
 
 	// If any dependencies are missing, queue them first
+	//如果缺少任何依赖项，请首先对它们进行排队
 	for (auto const & req : type.requiredUnits())
 		if (UnitUtil::GetCompletedUnitCount(req.first) < req.second)
 		{
@@ -1066,6 +1301,10 @@ void QueueUrgentItem(BWAPI::UnitType type, BuildOrderQueue & queue, int recursio
 void SetWallCannons(BuildOrderQueue & queue, int numCannons)
 {
     std::vector<BWAPI::TilePosition> cannonPlacements = BuildingPlacer::Instance().getWall().cannons;
+
+	if (numCannons > 4) {
+		numCannons = 4;
+	}
 
     // Count cannons we have already built and remove them from the vector
     int builtCannons = 0;
@@ -1165,118 +1404,242 @@ bool IsInBuildingOrProductionQueue(BWAPI::TilePosition tile, BuildOrderQueue & q
     return false;
 }
 
+int EnsureCannonsAtBase(BWAPI::Position basePosition, int cannons, BuildOrderQueue & queue, bool queueOneAtATime = false)
+{
+	// Get the BWEB Station for the base
+	BWAPI::TilePosition baseTitlePosition(basePosition);
+
+	const BWEB::Station* station = bwebMap.getClosestStation(baseTitlePosition);
+	if (!station) return 0;
+
+	// If we have anything in the building or production queue for the station's defensive locations, we've already handled this base
+	for (auto tile : station->DefenseLocations())
+	{
+		if (IsInBuildingOrProductionQueue(tile, queue)) return 0;
+	}
+
+	// Reduce desired cannons based on what we already have in the base
+	//BWAPI::Position basePosition = base->getPosition();
+	int desiredCannons = cannons;
+	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
+		if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
+			unit->getPosition().getDistance(basePosition) < 320)
+		{
+			desiredCannons--;
+		}
+	if (desiredCannons <= 0) return 0;
+
+	// Ensure we have a forge
+	QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
+	if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return 0;
+
+	// Collect the available defensive locations
+	std::set<BWAPI::TilePosition> poweredAvailableLocations;
+	std::set<BWAPI::TilePosition> unpoweredAvailableLocations;
+	for (auto tile : station->DefenseLocations())
+	{
+		if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Photon_Cannon, tile)) continue;
+
+		if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Photon_Cannon))
+			poweredAvailableLocations.insert(tile);
+		else
+			unpoweredAvailableLocations.insert(tile);
+	}
+
+	// If there are no available locations, we can't do anything
+	if (poweredAvailableLocations.empty() && unpoweredAvailableLocations.empty()) return 0;
+
+	// If there are not enough powered locations, build a pylon at the corner position
+	bool queuedPylon = false;
+	if (poweredAvailableLocations.size() < desiredCannons)
+	{
+		// The corner position is the one that matches every position on either X or Y coordinate
+		BWAPI::TilePosition cornerTile = BWAPI::TilePositions::Invalid;
+		for (auto t1 : station->DefenseLocations())
+		{
+			bool matches = true;
+			for (auto t2 : station->DefenseLocations())
+			{
+				if (t1.x != t2.x && t1.y != t2.y)
+				{
+					matches = false;
+					break;
+				}
+			}
+
+			if (matches)
+			{
+				cornerTile = t1;
+				break;
+			}
+		}
+
+		// Build the pylon if the tile is available
+		if (cornerTile.isValid() && bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, cornerTile))
+		{
+			// Queue the pylon
+			MacroAct pylon(BWAPI::UnitTypes::Protoss_Pylon);
+			pylon.setReservedPosition(cornerTile);
+			queue.queueAsHighestPriority(pylon);
+			queuedPylon = true;
+
+			// Don't use this tile for a cannon
+			poweredAvailableLocations.erase(cornerTile);
+		}
+	}
+
+	// Queue the cannons
+	MacroAct m;
+	int count = 0;
+	for (auto tile : poweredAvailableLocations)
+	{
+		MacroAct cannon(BWAPI::UnitTypes::Protoss_Photon_Cannon);
+		cannon.setReservedPosition(tile);
+		if (count == 0)
+			m = cannon;
+		else
+			m.setThen(cannon);
+
+		// Break when we have enough
+		count++;
+		if (count >= desiredCannons || queueOneAtATime) break;
+	}
+
+	if (count > 0)
+		queue.queueAsHighestPriority(m);
+
+	return count + (queuedPylon ? 1 : 0);
+}
+
 int EnsureCannonsAtBase(BWTA::BaseLocation * base, int cannons, BuildOrderQueue & queue, bool queueOneAtATime = false)
 {
     if (cannons <= 0 || !base) return 0;
 
-    // Get the BWEB Station for the base
-    const BWEB::Station* station = bwebMap.getClosestStation(base->getTilePosition());
-    if (!station) return 0;
+	return EnsureCannonsAtBase(base->getPosition(), cannons, queue, queueOneAtATime);
 
-    // If we have anything in the building or production queue for the station's defensive locations, we've already handled this base
-    for (auto tile : station->DefenseLocations())
-    {
-        if (IsInBuildingOrProductionQueue(tile, queue)) return 0;
-    }
-
-    // Reduce desired cannons based on what we already have in the base
-    BWAPI::Position basePosition = base->getPosition();
-    int desiredCannons = cannons;
-    for (const auto unit : BWAPI::Broodwar->self()->getUnits())
-        if (unit->getType() == BWAPI::UnitTypes::Protoss_Photon_Cannon &&
-            unit->getPosition().getDistance(basePosition) < 320)
-        {
-            desiredCannons--;
-        }
-    if (desiredCannons <= 0) return 0;
-
-    // Ensure we have a forge
-    QueueUrgentItem(BWAPI::UnitTypes::Protoss_Forge, queue);
-    if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1) return 0;
-
-    // Collect the available defensive locations
-    std::set<BWAPI::TilePosition> poweredAvailableLocations;
-    std::set<BWAPI::TilePosition> unpoweredAvailableLocations;
-    for (auto tile : station->DefenseLocations())
-    {
-        if (!bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Photon_Cannon, tile)) continue;
-
-        if (BWAPI::Broodwar->hasPower(tile, BWAPI::UnitTypes::Protoss_Photon_Cannon))
-            poweredAvailableLocations.insert(tile);
-        else
-            unpoweredAvailableLocations.insert(tile);
-    }
-
-    // If there are no available locations, we can't do anything
-    if (poweredAvailableLocations.empty() && unpoweredAvailableLocations.empty()) return 0;
-
-    // If there are not enough powered locations, build a pylon at the corner position
-    bool queuedPylon = false;
-    if (poweredAvailableLocations.size() < desiredCannons)
-    {
-        // The corner position is the one that matches every position on either X or Y coordinate
-        BWAPI::TilePosition cornerTile = BWAPI::TilePositions::Invalid;
-        for (auto t1 : station->DefenseLocations())
-        {
-            bool matches = true;
-            for (auto t2 : station->DefenseLocations())
-            {
-                if (t1.x != t2.x && t1.y != t2.y)
-                {
-                    matches = false;
-                    break;
-                }
-            }
-
-            if (matches)
-            {
-                cornerTile = t1;
-                break;
-            }
-        }
-
-        // Build the pylon if the tile is available
-        if (cornerTile.isValid() && bwebMap.isPlaceable(BWAPI::UnitTypes::Protoss_Pylon, cornerTile))
-        {
-            // Queue the pylon
-            MacroAct pylon(BWAPI::UnitTypes::Protoss_Pylon);
-            pylon.setReservedPosition(cornerTile);
-            queue.queueAsHighestPriority(pylon);
-            queuedPylon = true;
-
-            // Don't use this tile for a cannon
-            poweredAvailableLocations.erase(cornerTile);
-        }
-    }
-
-    // Queue the cannons
-    MacroAct m;
-    int count = 0;
-    for (auto tile : poweredAvailableLocations)
-    {
-        MacroAct cannon(BWAPI::UnitTypes::Protoss_Photon_Cannon);
-        cannon.setReservedPosition(tile);
-        if (count == 0)
-            m = cannon;
-        else
-            m.setThen(cannon);
-
-        // Break when we have enough
-        count++;
-        if (count >= desiredCannons || queueOneAtATime) break;
-    }
-
-    if (count > 0)
-        queue.queueAsHighestPriority(m);
-
-    return count + (queuedPylon ? 1 : 0);
 }
 
+//是否进攻
+void StrategyManager::updateAggression() {
+	/*
+	if (CombatCommander::Instance().getAggression() && InformationManager::Instance().getSelfFightScore() * 1.3 < InformationManager::Instance().getEnemyFightScore()) {
+		CombatCommander::Instance().setAggression(false);
+	}
+	*/
+
+	if (_enemyRace == BWAPI::Races::Protoss) {
+		if (BWAPI::Broodwar->getFrameCount() < 6000 && (OpponentModel::Instance().getEnemyPlan() == OpeningPlan::FastRush || OpponentModel::Instance().getEnemyPlan() == OpeningPlan::Proxy)) {
+			CombatCommander::Instance().setAggression(false);
+			return;
+		}
+
+		if (BWAPI::Broodwar->getFrameCount() < 6500 && InformationManager::Instance().getEnemyMainBaseLocation())
+		{
+			if (InformationManager::Instance().getSelfFightScore() > 300 && InformationManager::Instance().canAggression() && InformationManager::Instance().getEnemyFightScore() > 0) {
+				CombatCommander::Instance().setAggression(true);
+			}
+		}
+
+		//如果前期敌人损失得比我们多，则进攻
+		if (BWAPI::Broodwar->getFrameCount() < 11000)
+		{
+			if (InformationManager::Instance().getPlayerLost(_enemy) > 200 && InformationManager::Instance().getPlayerLost(_enemy) > InformationManager::Instance().getPlayerLost(_self)) {
+				CombatCommander::Instance().setAggression(true);
+			}
+		}
+
+		//如果我方战斗力是敌人的1.25倍，则进攻
+		if (!CombatCommander::Instance().getAggression() && InformationManager::Instance().canAggression() && InformationManager::Instance().getEnemyFightScore() > 0) {
+			CombatCommander::Instance().setAggression(true);
+		}
+	}
+}
+
+//处理紧急事情
 void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 {
 	// This is the enemy plan that we have seen in action.
 	OpeningPlan enemyPlan = OpponentModel::Instance().getEnemyPlan();
 
+	if (enemyPlan == OpeningPlan::FastRush || enemyPlan == OpeningPlan::Proxy)
+	{
+		if (BuildingPlacer::Instance().getWall().exists()) {
+			SetWallCannons(queue, 2);
+		}
+
+		if (!queue.isEmpty()
+			&& ((queue.getHighestPriorityItem().macroAct.isBuilding() && queue.getHighestPriorityItem().macroAct.getUnitType() == BWAPI::UnitTypes::Protoss_Citadel_of_Adun)
+			|| (queue.getHighestPriorityItem().macroAct.isUpgrade() && queue.getHighestPriorityItem().macroAct.getUpgradeType() == BWAPI::UpgradeTypes::Singularity_Charge)))
+		{
+			ProductionManager::Instance().cancelHighestPriorityItem();
+		}
+
+		if (BWAPI::Broodwar->getFrameCount() < 6000 && BWAPI::Broodwar->getFrameCount() > 4200) {
+			for (const auto unit : BWAPI::Broodwar->self()->getUnits()) {
+				if (unit->getType().isBuilding() && unit->getType() == BWAPI::UnitTypes::Protoss_Cybernetics_Core) {
+					if (unit->isCompleted() && unit->canCancelUpgrade()) {
+						unit->cancelUpgrade();
+					}
+				}
+			}
+
+			if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Gateway) < 2 && 
+				!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Gateway)){
+
+				queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Gateway);
+				//queue.queueAsHighestPriority(BWAPI::UnitTypes::Protoss_Dragoon);
+
+				//queue.queueAsLowestPriority(BWAPI::UnitTypes::Protoss_Gateway);
+				//queue.queueAsLowestPriority(BWAPI::UnitTypes::Protoss_Dragoon);
+			}
+
+			CombatCommander::Instance().setAggression(false);
+
+			if (BWAPI::Broodwar->self()->gas() > 2 * BWAPI::Broodwar->self()->minerals() && BWAPI::Broodwar->self()->gas() > 100) {
+				WorkerManager::Instance().setCollectGas(false);
+			}
+		}
+
+		if (_openingGroup != "dragoons") {
+			_openingGroup = "dragoons";
+		}
+	}
+
+	if (enemyPlan == OpeningPlan::DKRush) {
+		if (BWAPI::Broodwar->getFrameCount() < 7000 && (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 ||
+			BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge)) &&
+			!BuildingPlacer::Instance().getWall().exists()) {
+
+			if (BWAPI::Broodwar->getFrameCount() < 6000) {
+				BWAPI::TilePosition pylonPlacements = BuildingPlacer::Instance().getWall().pylon;
+				if (!IsInBuildingOrProductionQueue(pylonPlacements, queue)){
+					MacroAct wallPylon(BWAPI::UnitTypes::Protoss_Pylon);
+					wallPylon.setReservedPosition(pylonPlacements);
+					queue.queueAsLowestPriority(wallPylon);
+				}
+			}
+
+			EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), 1, queue);
+		}
+
+		if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) < 1 && BWAPI::Broodwar->getFrameCount() > 5600 &&
+			!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Forge) &&
+			!BuildingManager::Instance().isBeingBuilt(BWAPI::UnitTypes::Protoss_Forge))
+		{
+			queue.queueAsHighestPriority(MacroAct(BWAPI::UnitTypes::Protoss_Forge));
+		}
+	}
+
+	if (enemyPlan == OpeningPlan::NakedExpand)
+	{
+		//CombatCommander::Instance().setAggression(true);
+		if (InformationManager::Instance().getSelfFightScore() >= 100 && InformationManager::Instance().getSelfFightScore() >= InformationManager::Instance().getEnemyFightScore()) {
+			CombatCommander::Instance().setAggression(true);
+		}
+	}
+
+	updateAggression();
+	
 	// For all races, if we've just discovered that the enemy is going with a heavy macro opening,
 	// drop any static defense that our opening build order told us to make.
 	//对于所有的种族，如果我们刚刚发现敌人正在以一个沉重的宏打开，
@@ -1308,6 +1671,12 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 	{
 		StrategyBossZerg::Instance().handleUrgentProductionIssues(queue);
 	}
+	/*
+	else if (_selfRace == BWAPI::Races::Protoss)
+	{
+		StrategyBossProtoss::Instance().handleUrgentProductionIssues(queue);
+	}
+	*/
 	else
 	{
 		// Count resource depots.
@@ -1325,33 +1694,58 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
         const MacroAct * nextInQueuePtr = queue.isEmpty() ? nullptr : &(queue.getHighestPriorityItem().macroAct);
 
+		if (nextInQueuePtr) {
+			//如果是造房子
+			if (nextInQueuePtr->isUnit() && nextInQueuePtr->getUnitType() == BWAPI::UnitTypes::Protoss_Pylon) {
+				int supplyExcess = _self->supplyTotal() - _self->supplyUsed() - queue.numSupplyInNextN(2);
+
+				if (_self->supplyTotal() >= absoluteMaxSupply) {
+					queue.doneWithHighestPriorityItem();
+				}
+				//else if (supplyExcess > _self->supplyUsed() / 6 && _self->supplyUsed() > 36)
+				else if (supplyExcess > 8)
+				{
+					queue.pullToBottom();
+				}
+			}
+		}
+
         // If we need gas, make sure it is turned on.
-        int gas = BWAPI::Broodwar->self()->gas();
-        if (nextInQueuePtr)
-        {
-            if (nextInQueuePtr->gasPrice() > gas)
-            {
-                WorkerManager::Instance().setCollectGas(true);
-            }
-        }
+		int gas = BWAPI::Broodwar->self()->gas();
+		if (!WorkerManager::Instance().isCollectingGas()) {
+			if (nextInQueuePtr)
+			{
+				if (nextInQueuePtr->gasPrice() > gas || WorkerManager::Instance().getNumIdleWorkers() > 1)
+				{
+					WorkerManager::Instance().setCollectGas(true);
+				}
+			}
+		}
 
         // If we have collected too much gas, turn it off.
-        if (ProductionManager::Instance().isOutOfBook() &&
-            gas > 400 &&
-            gas > 4 * BWAPI::Broodwar->self()->minerals())
+        if (ProductionManager::Instance().isOutOfBook())
         {
-            int queueMinerals, queueGas;
-            queue.totalCosts(queueMinerals, queueGas);
-            if (gas >= queueGas)
-            {
-                WorkerManager::Instance().setCollectGas(false);
-            }
+			if (gas > 300 && WorkerManager::Instance().getNumIdleWorkers() < 1 &&
+				gas > 3 * BWAPI::Broodwar->self()->minerals()) {
+				int queueMinerals, queueGas;
+				queue.totalCosts(queueMinerals, queueGas);
+				if (gas >= queueGas)
+				{
+					WorkerManager::Instance().setCollectGas(false);
+				}
+			}
+
+			if (BuildingPlacer::Instance().getWall().exists() && UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
+			{
+				SetWallCannons(queue, 1);
+			}
         }
 
         // Everything below this requires workers, so break now if we have none
         if (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Probe) < 1) return;
 
 		// detect if there's a supply block once per second
+		//每秒检测一次是否有电源阻塞
 		if ((BWAPI::Broodwar->getFrameCount() % 24 == 1) && detectSupplyBlock(queue))
 		{
 			if (Config::Debug::DrawBuildOrderSearchInfo)
@@ -1365,6 +1759,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
 		// If we're protoss and building is stalled for lack of space,
 		// schedule a pylon to make more space where buildings can be placed.
+		//如果我们是神族，建筑因为空间不足而停滞不前，
+		//计划建造一座塔，为建筑物腾出更多的空间。
 		if (BuildingManager::Instance().getStalledForLackOfSpace())
 		{
 			if (_selfRace == BWAPI::Races::Protoss && 
@@ -1382,16 +1778,23 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
         // - If our opponent model tells us they might soon get cloaked combat units, get
         //   them unless the opponent is terran or we are currently scouting the enemy base
         //   and have seen no sign of cloak tech
+		//如果他们隐蔽了战斗单位，那就侦察一下。
+		//逻辑是:
+		// -如果我们看到一个隐形的战斗单位，我们肯定需要侦察
+		// -如果我们的对手模型告诉我们他们可能很快就会得到隐形的战斗单位，那就去吧
+		//除非对手是人族或者我们正在侦察敌人的基地
+		//没有看到隐形衣技术的迹象
 		if (InformationManager::Instance().enemyHasCloakedCombatUnits() ||
             (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran && OpponentModel::Instance().expectCloakedCombatUnitsSoon() && (
                 !ScoutManager::Instance().eyesOnEnemyBase() || InformationManager::Instance().enemyHasMobileCloakTech())))
 		{
-			if (_selfRace == BWAPI::Races::Protoss)
+			if (_selfRace == BWAPI::Races::Protoss && BWAPI::Broodwar->getFrameCount() > 5600)
 			{
+				//不用急着造防隐形单位
 				if (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0) {
 					// Get mobile detection once we are out of our opening book or deep into it
 					// Earlier it messes up the build order too much, as it requires so much gas
-					if ((ProductionManager::Instance().isOutOfBook() || BWAPI::Broodwar->getFrameCount() > 6000)
+					if (ProductionManager::Instance().isOutOfBook() && BWAPI::Broodwar->getFrameCount() > 8500
 						&& UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Observer) == 0)
 					{
 						QueueUrgentItem(BWAPI::UnitTypes::Protoss_Observer, queue);
@@ -1405,6 +1808,7 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 					else
 					{
 						// Otherwise, put cannons at our most forward base
+						//否则，把大炮放在我们最前方的基地
 						BWTA::BaseLocation * natural = InformationManager::Instance().getMyNaturalLocation();
 						if (natural && BWAPI::Broodwar->self() == InformationManager::Instance().getBaseOwner(natural))
 						{
@@ -1472,12 +1876,75 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                     desiredCannons--;
 			}
 
-            EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), desiredCannons, queue);
+            //EnsureCannonsAtBase(InformationManager::Instance().getMyMainBaseLocation(), desiredCannons, queue);
+		}
+
+		if (_selfRace == BWAPI::Races::Protoss)
+		{
+			if (_enemyRace == BWAPI::Races::Protoss) {
+				if (BWAPI::Broodwar->getFrameCount() < 7000 && (UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon, _enemy) > 0 || OpponentModel::Instance().getEnemyPlan() == OpeningPlan::FastRush || OpponentModel::Instance().getEnemyPlan() == OpeningPlan::FastRush)) {
+					if (_openingGroup == "dark templar") {
+						_openingGroup = "drop";
+					}
+
+					if (nextInQueuePtr && nextInQueuePtr->isUnit() && nextInQueuePtr->getUnitType() == BWAPI::UnitTypes::Protoss_Citadel_of_Adun) {
+						queue.removeHighestPriorityItem();
+					}
+
+					ProductionManager::Instance().cancelBuilding(BWAPI::UnitTypes::Protoss_Citadel_of_Adun);
+				}
+
+				if (BWAPI::Broodwar->getFrameCount() < 10000 && (UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Photon_Cannon, _enemy) > 0)) {
+					if (nextInQueuePtr && nextInQueuePtr->isUnit() && nextInQueuePtr->getUnitType() == BWAPI::UnitTypes::Protoss_Dark_Templar) {
+						queue.removeHighestPriorityItem();
+					}
+				}
+			}
+
+			if (BuildingPlacer::Instance().getWall().exists()) {
+				if (BWAPI::Broodwar->getFrameCount() < 11000 && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0)
+				{
+					int cannons = 0;
+
+					//如果是雷车rush
+					if (_enemyRace == BWAPI::Races::Terran) {
+						int numVulture = InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Terran_Vulture, _enemy);
+						if (numVulture > 2) {
+							cannons = ceil(numVulture / 2);
+							SetWallCannons(queue, cannons);
+						}
+					}
+					//如果是zealot rush
+					else if (_enemyRace == BWAPI::Races::Protoss && !CombatCommander::Instance().getAggression()) {
+						int numZealot = InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Protoss_Zealot, _enemy);
+						if (numZealot > 2) {
+							cannons = ceil(numZealot / 2);
+							SetWallCannons(queue, cannons);
+						}
+					}
+					else if (_enemyRace == BWAPI::Races::Zerg && !CombatCommander::Instance().getAggression()) {
+						int numLurker = InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Zerg_Lurker, _enemy);
+						int numHydralisk = InformationManager::Instance().getNumUnits(BWAPI::UnitTypes::Zerg_Hydralisk, _enemy);
+
+						if (numHydralisk * 2 > numLurker) {
+							numLurker = numHydralisk / 2;
+						}
+
+						if (numLurker > 2) {
+							cannons = numLurker;
+							SetWallCannons(queue, cannons);
+						}
+					}
+				}
+			}
 		}
 
 		// This is the enemy plan that we have seen, or if none yet, the expected enemy plan.
 		// Some checks can use the expected plan, some are better with the observed plan.
+		//这是我们已经看到的敌人的计划，如果还没有，那就是我们所期望的敌人的计划。
+		//有些检查可以使用预期的计划，有些检查可以使用观察到的计划。
 		OpeningPlan likelyEnemyPlan = OpponentModel::Instance().getBestGuessEnemyPlan();
+		int frame = BWAPI::Broodwar->getFrameCount();
 
         // Set wall cannon count depending on the enemy plan
         if (!CombatCommander::Instance().getAggression() &&
@@ -1485,7 +1952,6 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
             (BWAPI::Broodwar->getFrameCount() > 4000 || UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0))
         {
             int cannons = 0;
-            int frame = BWAPI::Broodwar->getFrameCount();
 
             // If we don't know the enemy plan, use the likely plan if:
             // - it is FastRush, since we won't have time to react to that later
@@ -1581,13 +2047,14 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
                 }
             }
 
-            SetWallCannons(queue, cannons);
+            //SetWallCannons(queue, cannons);
         }
 
 		if (numDepots > _highWaterBases)
 		{
 			_highWaterBases = numDepots;
 		}
+
 		bool makeResourceDepot = false;
 
 		// If there is no resource depot, order one if we can afford it.
@@ -1595,6 +2062,10 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 		if (numDepots == 0 && BWAPI::Broodwar->self()->minerals() >= 400)
 		{
 			makeResourceDepot = true;
+		}
+
+		if (frame < 5000 && enemyPlan == OpeningPlan::Proxy) {
+
 		}
 
 		// If the opponent fast expanded and we haven't taken the natural yet, do that immediately.
@@ -1624,6 +2095,8 @@ void StrategyManager::handleUrgentProductionIssues(BuildOrderQueue & queue)
 
 // This handles queueing expansions and probes
 // This logic was formerly in shouldExpandNow and handleUrgentProductionIssues, but fits better together here
+// 处理排队扩张和探针
+//这个逻辑以前出现在shouldExpandNow和handleUrgentProductionIssues中，但在这里更合适
 void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 {
     // Don't do anything if we are in the opening book
@@ -1652,14 +2125,18 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // Count the number of mineral patches needed to satisfy our current probe count
     // We subtract probes mining gas, but assume our existing nexuses will build a couple
     // of probes each before our next expansion is up
+	// 计算矿物补丁的数量需要满足我们目前的探测器计数
+	//我们减去探头开采的天然气，但假设我们现有的nexuses将建立一对夫妇
+	//每个探测器在我们下一次展开之前
     int predictedProbes = std::min(
         WorkerManager::Instance().getMaxWorkers(),
         probes + (2 * UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus)));
+
     int desiredMineralPatches = (predictedProbes - WorkerManager::Instance().getNumGasWorkers()) / 2;
 
     // Are we gas blocked?
     bool gasBlocked = WorkerManager::Instance().isCollectingGas() &&
-        BWAPI::Broodwar->self()->gas() < 50 && BWAPI::Broodwar->self()->minerals() > 700;
+        BWAPI::Broodwar->self()->gas() < 50 && BWAPI::Broodwar->self()->minerals() > 600;
 
     // Queue an expansion if:
     // - it is safe to do so
@@ -1675,20 +2152,12 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 		bool skipThisItem = false;
 		int nexuses = UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus);
 
-		if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss) {
-			if (nexuses >= 1 && frame < 7 * 60 * 24) {
-				skipThisItem = true;
-			}
+		if (!shouldExpandNow()) {
+			skipThisItem = true;
 		}
 
-		if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran) {
-			if (nexuses >= 2 && frame < 9 * 60 * 24 && BWAPI::Broodwar->self()->minerals() < 800) {
-				skipThisItem = true;
-			}
-
-			if (nexuses >= 3 && frame < 13 * 60 * 24 && BWAPI::Broodwar->self()->minerals() < 600 && CombatCommander::Instance().getNumCombatUnit() < 100) {
-				skipThisItem = true;
-			}
+		if (!InformationManager::Instance().canAggression() && BWAPI::Broodwar->self()->minerals() < 400 && WorkerManager::Instance().getNumIdleWorkers() < 8) {
+			skipThisItem = true;
 		}
 
         // Double-check that there is actually a place to expand to
@@ -1708,8 +2177,8 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // - we are rushing and already have two workers on each patch, plus one extra to build stuff
     if (!queue.anyInQueue(BWAPI::UnitTypes::Protoss_Probe)
         && probes < WorkerManager::Instance().getMaxWorkers()
-        && WorkerManager::Instance().getNumIdleWorkers() < 5
-        && (BWAPI::Broodwar->self()->supplyUsed() < 350 || BWAPI::Broodwar->self()->minerals() < 1500)
+        && WorkerManager::Instance().getNumIdleWorkers() < 3
+        && (BWAPI::Broodwar->self()->supplyUsed() < 350 || BWAPI::Broodwar->self()->minerals() < 1000)
         && (!isRushing() || probes < ((mineralPatches * 2) + 1)))
     {
         bool idleNexus = false;
@@ -1723,6 +2192,8 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
     // If we are mining gas, make sure we've taken the geysers at our mining bases
     // They usually get ordered automatically, so don't do this too often unless we are gas blocked
+	//如果我们开采天然气，请确保我们在开采基地有间歇泉
+	//它们通常是自动订购的，所以不要经常这样做，除非我们被煤气堵住了
     if ((gasBlocked || BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0) &&
         WorkerManager::Instance().isCollectingGas() &&
         UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Nexus) > 1 &&
@@ -1738,7 +2209,19 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
         for (auto base : InformationManager::Instance().getMyBases())
         {
-            // Don't bother if the base doesn't have gas or the geyser is already mined out
+			if (base == InformationManager::Instance().getMyNaturalLocation() &&
+				!BuildingPlacer::Instance().getWall().exists()) {
+				//MacroAct m("pylon @ wall");
+				
+				BWAPI::TilePosition pylonPlacements = BuildingPlacer::Instance().getWall().pylon;
+				if (!IsInBuildingOrProductionQueue(pylonPlacements, queue)){
+					MacroAct wallPylon(BWAPI::UnitTypes::Protoss_Pylon);
+					wallPylon.setReservedPosition(pylonPlacements);
+					queue.queueAsLowestPriority(wallPylon);
+				}
+			}
+
+			// Don't bother if the base doesn't have gas or the geyser is already mined out
             if (base->gas() < 100) continue;
 
             // Find the nexus
@@ -1774,6 +2257,11 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
     // - our gateways or stargates are busy
     // - we are close to maxed
     // - we have a large mineral bank
+	//如果我们很安全，有铁匠铺，一定要加固我们的基地
+	//不过，这不应优先于培训单位，所以要确保:
+	// -我们的大门或星际之门都很忙
+	// -我们已经接近极限了
+	// -我们有一个很大的矿库
     if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
         safeToMacro &&
         UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
@@ -1786,6 +2274,7 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 
         for (auto base : InformationManager::Instance().getMyBases())
         {
+			int cannons = 2;
             // We assume the main (and natural, if it has a wall) are well-enough defended
             // unless the enemy has air combat units
             if (!InformationManager::Instance().enemyHasAirCombatUnits() &&
@@ -1793,19 +2282,56 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
                     (base == InformationManager::Instance().getMyNaturalLocation() &&
                         BuildingPlacer::Instance().getWall().exists()))) continue;
 
-            totalQueued += EnsureCannonsAtBase(base, 2, queue, true);
-            if (totalQueued > 2) break;
+			if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg) {
+				if (base == InformationManager::Instance().getMyMainBaseLocation() &&
+					base == InformationManager::Instance().getMyNaturalLocation()) {
+
+					if (BWAPI::Broodwar->self()->minerals() > 600) {
+						cannons = 3;
+					}
+				}
+			}
+
+			totalQueued += EnsureCannonsAtBase(base, cannons, queue, true);
+			if (totalQueued > cannons) break;
         }
     }
 
-	//除敌人占领区个，都去造一个bc防守
+	if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
+		safeToMacro && UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) > 0
+		&& BWAPI::Broodwar->self()->minerals() > 100 &&
+		!BuildingPlacer::Instance().getWall().exists()) {
+
+		BWAPI::TilePosition pylonPlacements = BuildingPlacer::Instance().getWall().pylon;
+		if (!IsInBuildingOrProductionQueue(pylonPlacements, queue)){
+			MacroAct wallPylon(BWAPI::UnitTypes::Protoss_Pylon);
+			wallPylon.setReservedPosition(pylonPlacements);
+			queue.queueAsLowestPriority(wallPylon);
+		}
+	}
+
+	//除敌人占领区，每个基地都去造一个bc防守
 	if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
 		safeToMacro &&
+		BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg &&
 		UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Forge) > 0 &&
-		(UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus) >= 4 ||
-		BWAPI::Broodwar->self()->supplyUsed() > 300) && BWAPI::Broodwar->self()->minerals() > 400) {
+		(UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus) >= 3 ||
+		BWAPI::Broodwar->self()->supplyUsed() > 300) && BWAPI::Broodwar->self()->minerals() > 300) {
 
 		int totalQueued = 0;
+		/*
+		BWAPI::Position position = CombatCommander::Instance().getReconLocation();
+		if (position) {
+			totalQueued += EnsureCannonsAtBase(position, 1, queue, true);
+		}
+		*/
+		/*
+		const BWTA::BaseLocation * bestBase = InformationManager::Instance().getEnemyNextLocation();
+
+		if (bestBase) {
+			totalQueued += EnsureCannonsAtBase(bestBase->getPosition(), 1, queue, true);
+		}
+		*/
 
 		for (BWTA::BaseLocation * base : BWTA::getBaseLocations())
 		{
@@ -1819,17 +2345,44 @@ void StrategyManager::handleMacroProduction(BuildOrderQueue & queue)
 			if (totalQueued > 1) break;
 		}
 	}
+
+	if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
+		safeToMacro &&
+		_openingGroup == "dragoons" &&
+		UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Robotics_Facility) > 0 &&
+		(UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus) >= 2 ||
+		BWAPI::Broodwar->self()->supplyUsed() > 300) && BWAPI::Broodwar->self()->minerals() > 300) 
+	{
+		_openingGroup = "drop";
+	}
+
+	//造盔甲电池
+	/*
+	if (BWAPI::Broodwar->getFrameCount() % (10 * 24) == 0 &&
+		safeToMacro &&
+		UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Shield_Battery) < 1 &&
+		UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Carrier) >= 3 &&
+		UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Shield_Battery) * 3 < UnitUtil::GetAllUnitCount(BWAPI::UnitTypes::Protoss_Carrier) &&
+		(UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Nexus) >= 2 ||
+		BWAPI::Broodwar->self()->supplyUsed() > 300) && BWAPI::Broodwar->self()->minerals() > 300) {
+
+		MacroAct m(BWAPI::UnitTypes::Protoss_Shield_Battery, MacroLocation::Natural);
+		queue.queueAsLowestPriority(m);
+	}
+	*/
 }
 
 // Return true if we're supply blocked and should build supply.
 // NOTE This understands zerg supply but is not used when we are zerg.
+//如果我们的供应被阻塞，应该建立供应，返回true。
+//注意，这理解虫族供应，但不使用时，我们是虫族。
 bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 {
 	// Assume all is good if we're still in book
 	if (!ProductionManager::Instance().isOutOfBook()) return false;
 
 	// Count supply being built
-	int supplyBeingBuilt = BuildingManager::Instance().numBeingBuilt(BWAPI::Broodwar->self()->getRace().getSupplyProvider()) * 16;
+	int supplyBeingBuilt = BuildingManager::Instance().getNumBeingBuilt(BWAPI::Broodwar->self()->getRace().getSupplyProvider()) * 16;
 
     // If supply is maxed, there is no block.
     if (BWAPI::Broodwar->self()->supplyTotal() + supplyBeingBuilt >= 400)
@@ -1879,11 +2432,39 @@ bool StrategyManager::detectSupplyBlock(BuildOrderQueue & queue) const
 
 // This tries to cope with 1 kind of severe emergency: We have desperately few workers.
 // The caller promises that we have a resource depot, so we may be able to make more.
+//这是为了应对一种严重的紧急情况:我们的工人少得可怜。
+//打电话的人保证我们有一个资源库，所以我们也许能赚更多的钱。
 bool StrategyManager::handleExtremeEmergency(BuildOrderQueue & queue)
 {
 	const int minWorkers = 3;
 	const BWAPI::UnitType workerType = _selfRace.getWorker();
 	const int nWorkers = UnitUtil::GetAllUnitCount(workerType);
+
+	if (nWorkers < 1 && BWAPI::Broodwar->self()->minerals() < 50) {
+		for (const auto unit : BWAPI::Broodwar->self()->getUnits()) {
+			if (unit->getType().isBuilding()) {
+				if (unit->isCompleted()) {
+					if (unit->canCancelTrain()) { 
+						unit->cancelTrain(); 
+						break;
+					}
+
+					if (unit->canCancelUpgrade()) {
+						unit->cancelUpgrade();
+						break;
+					}
+					if (unit->canCancelResearch()) {
+						unit->cancelResearch();
+						break;
+					}
+				}
+				else {
+					unit->cancelConstruction();
+					break;
+				}
+			}
+		}
+	}
 
 	// NOTE This doesn't check whether the map has resources remaining!
 	//      If not, we should produce workers only if needed for another purpose.
@@ -1916,12 +2497,19 @@ bool StrategyManager::handleExtremeEmergency(BuildOrderQueue & queue)
 }
 
 // Called to refill the production queue when it is empty.
+//当生产队列为空时，调用它来填充生产队列。
 void StrategyManager::freshProductionPlan()
 {
 	if (_selfRace == BWAPI::Races::Zerg)
 	{
 		ProductionManager::Instance().setBuildOrder(StrategyBossZerg::Instance().freshProductionPlan());
 	}
+	/*
+	else if (_selfRace == BWAPI::Races::Protoss)
+	{
+		ProductionManager::Instance().setBuildOrder(StrategyBossProtoss::Instance().freshProductionPlan());
+	}
+	*/
 	else
 	{
 		performBuildOrderSearch();
@@ -1953,6 +2541,8 @@ void StrategyManager::performBuildOrderSearch()
 
 // this will return true if any unit is on the first frame of its training time remaining
 // this can cause issues for the build order search system so don't plan a search on these frames
+//如果任何单位在其剩余训练时间的第一个框架内，则返回true
+//这可能会给构建订单搜索系统带来问题，所以不要计划在这些框架上进行搜索
 bool StrategyManager::canPlanBuildOrderNow() const
 {
 	for (const auto unit : BWAPI::Broodwar->self()->getUnits())
@@ -1974,6 +2564,7 @@ bool StrategyManager::canPlanBuildOrderNow() const
 }
 
 // Do we expect or plan to drop at some point during the game?
+//我们是否期望或计划在比赛期间的某个时间点有所下降?
 bool StrategyManager::dropIsPlanned() const
 {
 	// Don't drop in ZvZ.
@@ -1981,6 +2572,8 @@ bool StrategyManager::dropIsPlanned() const
 	{
 		return false;
 	}
+
+	return true;
 
 	// Otherwise plan drop if the opening says so, or if the map has islands to take.
 	return getOpeningGroup() == "drop" ||
@@ -2008,7 +2601,28 @@ bool StrategyManager::hasDropTech()
 	return false;
 }
 
+bool StrategyManager::isRushingOrProxyRushing() const
+{
+	if (_rushing) return true;
+	if (!_proxying) return false;
+
+	// While proxying, we consider ourselves in "rush mode" while we're building up our forces and
+	// for a short time period after
+	if (!CombatCommander::Instance().getAggression()) return true;
+
+	int enemyDragoons = 0;
+	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
+		for (auto & unit : InformationManager::Instance().getUnitInfo(BWAPI::Broodwar->enemy()))
+			if (unit.second.type == BWAPI::UnitTypes::Protoss_Dragoon)
+				enemyDragoons++;
+
+	return enemyDragoons < 4 &&
+		(CombatCommander::Instance().getAggressionAt() > -1 &&
+		BWAPI::Broodwar->getFrameCount() < std::min(CombatCommander::Instance().getAggressionAt() + 2000, 10000));
+}
+
 // Returns the percentage of our completed production facilities that are currently training something
+//返回我们目前正在培训的已完工生产设施的百分比
 double StrategyManager::getProductionSaturation(BWAPI::UnitType producer) const
 {
     // Look up overall count and idle count

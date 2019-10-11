@@ -1,6 +1,6 @@
 #include "Base.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 // For setting base.id on initialization.
 // The first base gets base id 1.
@@ -70,6 +70,8 @@ void Base::findGeysers()
 
 // The depot may be null. (That's why player is a separate argument, not depot->getPlayer().)
 // A null depot for an owned base means that the base is inferred and hasn't been seen.
+//仓库可能是空的。(这就是为什么player是一个单独的参数，而不是depot->getPlayer()。)
+//一个拥有的基地的空仓库意味着该基地是推断出来的，没有被看到。
 void Base::setOwner(BWAPI::Unit depot, BWAPI::Player player)
 {
 	resourceDepot = depot;

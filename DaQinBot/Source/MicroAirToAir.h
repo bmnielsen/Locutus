@@ -3,7 +3,7 @@
 #include <Common.h>
 #include "MicroManager.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class MicroAirToAir : public MicroManager
 {

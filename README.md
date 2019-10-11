@@ -1,4 +1,4 @@
-This branch contains the source for DaQin, a Locutus fork, taken from the AIIDE 2018 sources.
+This branch contains the source for DaQin, a Locutus fork, taken from the AIIDE 2019 sources.
 
 # DaQin
 AI for StarCraft: Brood War

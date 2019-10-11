@@ -4,7 +4,7 @@
 #include "Common.h"
 #include "../../BOSS/source/Timer.hpp"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 
 class TimerManager

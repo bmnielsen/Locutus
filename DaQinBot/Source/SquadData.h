@@ -2,7 +2,7 @@
 
 #include "Squad.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class SquadData
 {

@@ -3,21 +3,21 @@
 #include "Common.h"
 #include "MacroCommand.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 
 enum class MacroLocation
 	{ Anywhere     // default location
-	, Macro        // macro hatchery
-	, Expo         // gas expansion hatchery
-	, MinOnly      // any expansion hatchery (mineral-only or gas, whatever's next)
-	, Hidden       // gas expansion hatchery far from both main bases
-	, Main         // current main base
-	, Natural      // "natural" first expansion base
-	, Wall         // wall at choke of "natural" first expansion base
-	, Center       // middle of the map
-	, Proxy        // somewhere out on the map close to where the enemy base might be
-	, HiddenTech   // somewhere out of the way where it hopefully will not be scouted
+	, Macro        // macro hatchery 宏孵化器
+	, Expo         // gas expansion hatchery 气体膨胀孵化器
+	, MinOnly      // any expansion hatchery (mineral-only or gas, whatever's next) 任何扩张孵化场(仅限矿物或气体，无论下一步如何)
+	, Hidden       // gas expansion hatchery far from both main bases 气体膨胀孵化场远离两个主要基地
+	, Main         // current main base 电流主基
+	, Natural      // "natural" first expansion base “天然”第一扩张基地
+	, Wall         // wall at choke of "natural" first expansion base 墙在“自然”第一扩张基地扼流圈
+	, Center       // middle of the map 地图中间
+	, Proxy        // somewhere out on the map close to where the enemy base might be 在地图上靠近敌人基地的地方
+	, HiddenTech   // somewhere out of the way where it hopefully will not be scouted 希望不会被发现的地方
 	};
 
 namespace MacroActs

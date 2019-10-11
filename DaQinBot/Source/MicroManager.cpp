@@ -6,7 +6,7 @@
 #include "MathUtil.h"
 #include "PathFinding.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MicroManager::MicroManager() 
 {
@@ -98,6 +98,7 @@ void MicroManager::getTargets(BWAPI::Unitset & targets) const
 }
 
 // Determine if we should ignore the given target and look for something better closer to our order position
+//决定是否忽略给定的目标，寻找更接近我们订单位置的产品
 bool MicroManager::shouldIgnoreTarget(BWAPI::Unit combatUnit, BWAPI::Unit target)
 {
     if (!combatUnit || !target) return true;
@@ -224,7 +225,7 @@ void MicroManager::regroup(
 		if (buildScarabOrInterceptor(unit))
 		{
 			// We're done for this frame.
-            continue;
+            //continue;
 		}
 		else if (unit->getType() == BWAPI::UnitTypes::Zerg_Broodling ||
 			unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar && BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Protoss_Dark_Templar) == 0 ||
@@ -241,6 +242,8 @@ void MicroManager::regroup(
         
         // If we are rushing, maybe add this unit to a bunker attack squad
         // It will handle keeping our distance until we want to attack or run-by
+		//如果我们赶时间，也许可以把这支部队加到沙坑攻击小队
+		//它可以让我们保持一定的距离，直到我们想要攻击或逃跑
         if (StrategyManager::Instance().isRushing() &&
             CombatCommander::Instance().getSquadData().getSquad(this).addUnitToBunkerAttackSquadIfClose(unit))
         {
@@ -249,12 +252,14 @@ void MicroManager::regroup(
 
         // Determine position to move towards
         // If we are a long way away from the vanguard unit and not near an enemy, move towards it
+		//确定前进的方向
+		//如果我们离先锋队很远，而不是在敌人附近，就向它靠近
         BWAPI::Position regroupTo = 
-            (vanguard && !nearEnemy[unit] && (StrategyManager::Instance().isRushing() || vanguard->getDistance(unit) > 500 || !nearEnemy[vanguard]))
+            (vanguard && !nearEnemy[unit] && (StrategyManager::Instance().isRushing() || vanguard->getDistance(unit) > 14 * 32 || !nearEnemy[vanguard]))
             ? vanguard->getPosition()
             : regroupPosition;
 
-		if (unit->getDistance(regroupTo) > 96)   // air distance, which can be unhelpful sometimes
+		if (unit->getDistance(regroupTo) > 4 * 32)   // air distance, which can be unhelpful sometimes
 		{
 			if (!mobilizeUnit(unit))
 			{
@@ -271,7 +276,7 @@ void MicroManager::regroup(
 		else
 		{
 			// We have retreated to a good position.
-			Micro::AttackMove(unit, unit->getPosition());
+			Micro::Move(unit, unit->getPosition());
 		}
 	}
 }
@@ -305,7 +310,7 @@ bool MicroManager::unitNearEnemy(BWAPI::Unit unit)
 
 	BWAPI::Unitset enemyNear;
 
-	MapGrid::Instance().getUnits(enemyNear, unit->getPosition(), 800, false, true);
+	MapGrid::Instance().getUnits(enemyNear, unit->getPosition(), 14 * 32, false, true);
 
 	return enemyNear.size() > 0;
 }
@@ -404,9 +409,18 @@ bool MicroManager::unstickStuckUnit(BWAPI::Unit unit) const
 	}
 
     // Unstick units that have had the isMoving flag set for a while without actually moving
-    if (unit->isMoving() && InformationManager::Instance().getLocutusUnit(unit).isStuck())
+	//解除已经设置isMoving标志一段时间而没有实际移动的单位
+	if (unit->isMoving() && !unit->getType().isFlyer() && InformationManager::Instance().getLocutusUnit(unit).isStuck())
     {
+		//BWAPI::UnitCommand currentCommand(unit->getLastCommand());
         Micro::Stop(unit);
+		unit->move(MapTools::Instance().getDistancePosition(unit->getPosition(), InformationManager::Instance().getMyMainBaseLocation()->getPosition(), 4 * 32), true);
+		/*
+		if (currentCommand.getType() == BWAPI::UnitCommandTypes::Move) {
+			BWAPI::Position targetPosition = currentCommand.getTargetPosition();
+			unit->move(MapTools::Instance().getDistancePosition(unit->getPosition(), targetPosition, 3 * 32), true);
+		}
+		*/
         return true;
     }
 
@@ -415,9 +429,11 @@ bool MicroManager::unstickStuckUnit(BWAPI::Unit unit) const
 
 // Send the protoss unit to the shield battery and recharge its shields.
 // The caller should have already checked all conditions.
+//把神族单位送到护盾电池，给它的护盾充电。
+//打电话的人应该已经检查了所有的条件。
 void MicroManager::useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery)
 {
-	if (unit->getDistance(shieldBattery) >= 32)
+	if (unit->getDistance(shieldBattery) >= 6 * 12)
 	{
 		// BWAPI::Broodwar->printf("move to battery %d at %d", unit->getID(), shieldBattery->getID());
 		Micro::Move(unit, shieldBattery->getPosition());
@@ -426,6 +442,7 @@ void MicroManager::useShieldBattery(BWAPI::Unit unit, BWAPI::Unit shieldBattery)
 	{
 		// BWAPI::Broodwar->printf("recharge shields %d at %d", unit->getID(), shieldBattery->getID());
 		Micro::RightClick(unit, shieldBattery);
+		//unit->rightClick(shieldBattery);
 	}
 }
 
@@ -476,6 +493,7 @@ BWAPI::Position MicroManager::cutFleeFrom(BWAPI::Unit unit, BWAPI::Position posi
 
 //获取标记分数
 int	MicroManager::getMarkTargetScore(BWAPI::Unit target, int score){
+
 	/*
 	int num = 2;
 	if (target->getType().size() == BWAPI::UnitSizeTypes::Small)
@@ -498,26 +516,32 @@ int	MicroManager::getMarkTargetScore(BWAPI::Unit target, int score){
 		score += 1 * 32;
 	}
 	else {
-		score = 2 * 32;
+		score += 2 * 32;
 	}
 
 	if (InformationManager::Instance().getAttackDamages(target) > (target->getHitPoints() + target->getShields())) {
 		score = 32;
 	}
 	else 
+
+	if (InformationManager::Instance().getAttackDamages(target) > (target->getHitPoints() + target->getShields()) * 0.2) {
+		score += 2 * 32;
+	}
 	*/
 
-	if (InformationManager::Instance().getAttackDamages(target) > (target->getHitPoints() + target->getShields()) * 0.3) {
-		score += 2 * 32;
+	if (target->isVisible() && InformationManager::Instance().getAttackDamages(target) > (target->getHitPoints() + target->getShields())) {
+		score -= 10 * 32;
 	}
 
 	return score;
 }
 
 //标记攻击单位数和伤害
-void MicroManager::setMarkTargetScore(BWAPI::Unit target, BWAPI::UnitType unitType) {
-	InformationManager::Instance().setAttackDamages(target, BWAPI::Broodwar->getDamageFrom(unitType, target->getType()));
-	InformationManager::Instance().setAttackNumbers(target, 1);
+void MicroManager::setMarkTargetScore(BWAPI::Unit unit, BWAPI::Unit target) {
+	if (unit && target && target->isVisible() && unit->isInWeaponRange(target)) {
+		InformationManager::Instance().setAttackDamages(target, BWAPI::Broodwar->getDamageFrom(unit->getType(), target->getType(), BWAPI::Broodwar->self(), BWAPI::Broodwar->enemy()));
+		InformationManager::Instance().setAttackNumbers(target, 1);
+	}
 }
 
 void MicroManager::drawOrderText() 
@@ -529,4 +553,70 @@ void MicroManager::drawOrderText()
 			BWAPI::Broodwar->drawTextMap(unit->getPosition().x, unit->getPosition().y, "%s", order.getStatus().c_str());
 		}
 	}
+}
+
+// Retreat hurt units to allow them to regenerate health (zerg) or shields (protoss).
+bool MicroManager::meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets)
+{
+	// terran don't regen so it doesn't make sense to retreat
+	if (meleeUnit->getType().getRace() == BWAPI::Races::Terran)
+	{
+		return false;
+	}
+
+	// Don't retreat while rushing
+	if (StrategyManager::Instance().isRushing())
+	{
+		return false;
+	}
+
+	if (meleeUnit->getType().isWorker()) {
+		if (meleeUnit->getShields() > 6 || meleeUnit->getHitPoints() > 10)
+		{
+			return false;
+		}
+	}
+	else {
+
+		// we don't want to retreat the melee unit if its shields or hit points are above the threshold set in the config file
+		// set those values to zero if you never want the unit to retreat from combat individually
+		if (meleeUnit->getShields() > Config::Micro::RetreatMeleeUnitShields || meleeUnit->getHitPoints() > Config::Micro::RetreatMeleeUnitHP)
+		{
+			return false;
+		}
+	}
+
+	// if there is a ranged enemy unit within attack range of this melee unit then we shouldn't bother retreating since it could fire and kill it anyway
+	for (auto & unit : targets)
+	{
+		if (unit->getTarget() != meleeUnit) continue;
+
+		int groundWeaponRange = unit->getType().groundWeapon().maxRange();
+		if (meleeUnit->getType().groundWeapon().maxRange() == groundWeaponRange && meleeUnit->getGroundWeaponCooldown() > 10) {
+			return true;
+		}
+
+		if (groundWeaponRange >= 64 && unit->getDistance(meleeUnit) < groundWeaponRange)
+		{
+			return false;
+		}
+	}
+
+	// A broodling should not retreat since it is on a timer and regeneration does it no good.
+	if (meleeUnit->getType() == BWAPI::UnitTypes::Zerg_Broodling)
+	{
+		return false;
+	}
+
+	BWAPI::Unit target = meleeUnit->getOrderTarget();
+	if (target && target->getType() != BWAPI::UnitTypes::Terran_Vulture_Spider_Mine  && meleeUnit->isUnderAttack() &&
+		meleeUnit->getDistance(target) < 2 * 32 &&
+		target->getType().groundWeapon().maxRange() <= 32 &&
+		meleeUnit->getUnitsInRadius(4 * 32, BWAPI::Filter::IsOwned &&
+		BWAPI::Filter::CanAttack).size() > 1 && !meleeUnit->isAttacking()) {
+
+		return true;
+	}
+
+	return true;
 }

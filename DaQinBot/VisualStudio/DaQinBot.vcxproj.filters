@@ -10,9 +10,6 @@
     <Filter Include="game\combat">
       <UniqueIdentifier>{8e8c1957-bc1d-4bc8-90b0-95beab19d8a9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="game\combat\micro">
-      <UniqueIdentifier>{e5971e4e-7c6b-4f4e-9fbe-4a5247b3cf51}</UniqueIdentifier>
-    </Filter>
     <Filter Include="game\util">
       <UniqueIdentifier>{222db7e1-f821-4383-986a-83267e040564}</UniqueIdentifier>
     </Filter>
@@ -43,15 +40,15 @@
     <Filter Include="game\macro\productiongoals">
       <UniqueIdentifier>{2002b070-c326-4078-a3a4-281bf11e8fc6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="game\micro">
+      <UniqueIdentifier>{e5971e4e-7c6b-4f4e-9fbe-4a5247b3cf51}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Source\CombatCommander.cpp">
       <Filter>game\combat</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\Dll.cpp">
-      <Filter>module</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Source\UAlbertaBotModule.cpp">
       <Filter>module</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MapGrid.cpp">
@@ -94,10 +91,7 @@
       <Filter>game\macro</Filter>
     </ClCompile>
     <ClCompile Include="..\source\MicroManager.cpp">
-      <Filter>game\combat\micro</Filter>
-    </ClCompile>
-    <ClCompile Include="..\source\ScoutManager.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\source\BuildOrderQueue.cpp">
       <Filter>game\macro\buildorders</Filter>
@@ -127,7 +121,7 @@
       <Filter>util</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\Micro.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\UnitUtil.cpp">
       <Filter>util</Filter>
@@ -222,57 +216,63 @@
     <ClCompile Include="..\Source\MathUtil.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\Source\PathFinding.cpp">
-      <Filter>game\util</Filter>
-    </ClCompile>
     <ClCompile Include="..\Source\MicroAirToAir.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroBunkerAttackSquad.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroCarriers.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroDarkTemplar.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroDetectors.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroHighTemplar.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroLurkers.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroMedics.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroMelee.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroRanged.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroTanks.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroTransports.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\MicroDragoon.cpp">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\StrategyManager.cpp" />
-    <ClCompile Include="..\Source\DaQinMapGrid.cpp" />
+    <ClCompile Include="..\Source\StrategyBossProtoss.cpp" />
+    <ClCompile Include="..\Source\LocutusMapGrid.cpp">
+      <Filter>game\util\map</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\DaQinBotModule.cpp">
+      <Filter>module</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\PathFinding.cpp">
+      <Filter>game\util\map</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\ScoutManager.cpp">
+      <Filter>game\macro</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Source\CombatCommander.h">
       <Filter>game\combat</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Source\UAlbertaBotModule.h">
-      <Filter>module</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MapTools.h">
       <Filter>game\util\map</Filter>
@@ -317,10 +317,7 @@
       <Filter>game\macro</Filter>
     </ClInclude>
     <ClInclude Include="..\source\MicroManager.h">
-      <Filter>game\combat\micro</Filter>
-    </ClInclude>
-    <ClInclude Include="..\source\ScoutManager.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\source\BuildOrderQueue.h">
       <Filter>game\macro\buildorders</Filter>
@@ -350,7 +347,7 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\Micro.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\UnitUtil.h">
       <Filter>util</Filter>
@@ -449,48 +446,55 @@
     <ClInclude Include="..\Source\MathUtil.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\Source\PathFinding.h">
-      <Filter>game\util</Filter>
-    </ClInclude>
     <ClInclude Include="..\Source\MicroAirToAir.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroBunkerAttackSquad.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroCarriers.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroDarkTemplar.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroDetectors.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroHighTemplar.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroLurkers.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroMedics.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroMelee.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroRanged.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroTanks.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroTransports.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\MicroDragoon.h">
-      <Filter>game\combat\micro</Filter>
+      <Filter>game\micro</Filter>
     </ClInclude>
     <ClInclude Include="..\Source\StrategyManager.h" />
+    <ClInclude Include="..\Source\StrategyBossProtoss.h" />
+    <ClInclude Include="..\Source\DaQinBotModule.h">
+      <Filter>module</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Source\PathFinding.h">
+      <Filter>game\util\map</Filter>
+    </ClInclude>
+    <ClInclude Include="..\source\ScoutManager.h">
+      <Filter>game\macro</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -2,7 +2,7 @@
 #include "OpponentModel.h"
 #include "Random.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 OpeningPlan OpponentModel::predictEnemyPlan() const
 {
@@ -991,6 +991,7 @@ void OpponentModel::setPylonHarassObservation(PylonHarassBehaviour observation)
     }
 }
 
+//预计隐形战斗部队很快就会出现
 bool OpponentModel::expectCloakedCombatUnitsSoon()
 {
 	return _worstCaseExpectedCloakTech < (

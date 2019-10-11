@@ -4,7 +4,7 @@
 // Simple random number utility class.
 // It keeps the state and makes random numbers on demand.
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 Random::Random()
 {

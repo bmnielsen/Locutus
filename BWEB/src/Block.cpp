@@ -7,9 +7,9 @@ namespace BWEB
 	TilePosition getStartBlockPylon(TilePosition startBlockTile, bool mirrorHorizontal, bool mirrorVertical)
 	{
 		if (mirrorHorizontal && mirrorVertical) return startBlockTile + TilePosition(6, 3);
-		if (mirrorHorizontal) return startBlockTile + TilePosition(6, 0);
+		if (mirrorHorizontal) return startBlockTile + TilePosition(6, 2);
 		if (mirrorVertical) return startBlockTile + TilePosition(0, 3);
-		return startBlockTile + TilePosition(0, 0);
+		return startBlockTile + TilePosition(0, 2);
 	}
 
 	bool powersCannon(BWAPI::TilePosition pylon, BWAPI::TilePosition cannon)
@@ -49,17 +49,17 @@ namespace BWEB
 		int poweredDefensesBest = 0;
 		auto distBest = DBL_MAX;
 		for (auto x = mainTile.x - 9; x <= mainTile.x + 6; x++) {
-			for (auto y = mainTile.y - 6; y <= mainTile.y + 5; y++) {
+			for (auto y = mainTile.y - 8; y <= mainTile.y + 5; y++) {
 
 				// Overlaps nexus
-				if (x + 8 >= mainTile.x && x < mainTile.x + 4 && y + 5 >= mainTile.y && y < mainTile.y + 3) continue;
+				if (x + 8 >= mainTile.x && x < mainTile.x + 4 && y + 7 >= mainTile.y && y < mainTile.y + 3) continue;
 
 				TilePosition tile(x, y);
 
 				if (!tile.isValid())
 					continue;
 
-				if ((race == Races::Protoss && !canAddBlock(tile, 8, 5)) || (race == Races::Terran && !canAddBlock(tile, 6, 5)))
+				if ((race == Races::Protoss && !canAddBlock(tile, 8, 7)) || (race == Races::Terran && !canAddBlock(tile, 6, 5)))
 					continue;
 
 				auto blockCenter = Position(tile) + Position(128, 80);
@@ -446,21 +446,27 @@ namespace BWEB
 			{
 				if (mirrorVertical)
 				{
-					Block newBlock(8, 5, here);
-					addOverlap(here, 8, 5);
+					Block newBlock(8, 7, here);
+					addOverlap(here, 8, 7);
 					newBlock.insertLarge(here);
 					newBlock.insertLarge(here + TilePosition(4, 0));
 					newBlock.insertSmall(here + TilePosition(6, 3));
 					newBlock.insertMedium(here + TilePosition(0, 3));
 					newBlock.insertMedium(here + TilePosition(3, 3));
+					newBlock.insertSmall(here + TilePosition(6, 5));
+					newBlock.insertMedium(here + TilePosition(0, 5));
+					newBlock.insertMedium(here + TilePosition(3, 5));
 					blocks.push_back(newBlock);
 				}
 				else
 				{
-					Block newBlock(8, 5, here);
-					addOverlap(here, 8, 5);
-					newBlock.insertLarge(here + TilePosition(0, 2));
-					newBlock.insertLarge(here + TilePosition(4, 2));
+                    Block newBlock(8, 7, here);
+                    addOverlap(here, 8, 7);
+                    newBlock.insertLarge(here + TilePosition(0, 4));
+					newBlock.insertLarge(here + TilePosition(4, 4));
+					newBlock.insertSmall(here + TilePosition(6, 2));
+					newBlock.insertMedium(here + TilePosition(0, 2));
+					newBlock.insertMedium(here + TilePosition(3, 2));
 					newBlock.insertSmall(here + TilePosition(6, 0));
 					newBlock.insertMedium(here + TilePosition(0, 0));
 					newBlock.insertMedium(here + TilePosition(3, 0));
@@ -471,21 +477,27 @@ namespace BWEB
 			{
 				if (mirrorVertical)
 				{
-					Block newBlock(8, 5, here);
-					addOverlap(here, 8, 5);
-					newBlock.insertLarge(here);
+                    Block newBlock(8, 7, here);
+                    addOverlap(here, 8, 7);
+                    newBlock.insertLarge(here);
 					newBlock.insertLarge(here + TilePosition(4, 0));
 					newBlock.insertSmall(here + TilePosition(0, 3));
 					newBlock.insertMedium(here + TilePosition(2, 3));
 					newBlock.insertMedium(here + TilePosition(5, 3));
+					newBlock.insertSmall(here + TilePosition(0, 5));
+					newBlock.insertMedium(here + TilePosition(2, 5));
+					newBlock.insertMedium(here + TilePosition(5, 5));
 					blocks.push_back(newBlock);
 				}
 				else
 				{
-					Block newBlock(8, 5, here);
-					addOverlap(here, 8, 5);
-					newBlock.insertLarge(here + TilePosition(0, 2));
-					newBlock.insertLarge(here + TilePosition(4, 2));
+                    Block newBlock(8, 7, here);
+                    addOverlap(here, 8, 7);
+                    newBlock.insertLarge(here + TilePosition(0, 4));
+					newBlock.insertLarge(here + TilePosition(4, 4));
+					newBlock.insertSmall(here + TilePosition(0, 2));
+					newBlock.insertMedium(here + TilePosition(2, 2));
+					newBlock.insertMedium(here + TilePosition(5, 2));
 					newBlock.insertSmall(here + TilePosition(0, 0));
 					newBlock.insertMedium(here + TilePosition(2, 0));
 					newBlock.insertMedium(here + TilePosition(5, 0));

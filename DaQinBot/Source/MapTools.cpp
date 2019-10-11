@@ -2,13 +2,14 @@
 
 #include "BuildingPlacer.h"
 #include "InformationManager.h"
+#include "MathUtil.h"
 
 const double pi = 3.14159265358979323846;
 
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MapTools & MapTools::Instance()
 {
@@ -31,110 +32,265 @@ MapTools::MapTools()
 		}
 	}
 
-    // Get all of the BWEM chokepoints
-    std::set<const BWEM::ChokePoint*> chokes;
-    for (const auto & area : bwemMap.Areas())
-        for (const BWEM::ChokePoint * choke : area.ChokePoints())
-            chokes.insert(choke);
+	// Get all of the BWEM chokepoints
+	for (const auto & area : bwemMap.Areas())
+		for (const BWEM::ChokePoint * choke : area.ChokePoints())
+			_allChokepoints.insert(choke);
 
-    // Store a ChokeData object for each choke
-    for (const BWEM::ChokePoint * choke : chokes)
-    {
-        choke->SetExt(new ChokeData(choke));
-        ChokeData & chokeData = *((ChokeData*)choke->Ext());
+	_minChokeWidth = INT_MAX;
 
-        // Compute the choke width
-        // Because the ends are themselves walkable tiles, we need to add a bit of padding to estimate the actual walkable width of the choke
-        int width = BWAPI::Position(choke->Pos(choke->end1)).getApproxDistance(BWAPI::Position(choke->Pos(choke->end2))) + 15;
-        chokeData.width = width;
+	// Store a ChokeData object for each choke
+	for (const BWEM::ChokePoint * choke : _allChokepoints)
+	{
+		choke->SetExt(new ChokeData(choke));
+		ChokeData & chokeData = *((ChokeData*)choke->Ext());
 
-        // Determine if the choke is a ramp
-        int firstAreaElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(choke->GetAreas().first->Top()));
-        int secondAreaElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(choke->GetAreas().second->Top()));
-        if (firstAreaElevation != secondAreaElevation)
-        {
-            chokeData.isRamp = true;
+		// Compute the choke width
+		// Because the ends are themselves walkable tiles, we need to add a bit of padding to estimate the actual walkable width of the choke
+		int width = BWAPI::Position(choke->Pos(choke->end1)).getDistance(BWAPI::Position(choke->Pos(choke->end2))) + 15;
 
-            // For narrow ramps with a difference in elevation, compute a tile at high elevation close to the choke
-            // We will use this for pathfinding
-            if (chokeData.width < 96)
-            {
-                // Start by computing the angle of the choke
-                BWAPI::Position chokeDelta(choke->Pos(choke->end1) - choke->Pos(choke->end2));
-                double chokeAngle = atan2(chokeDelta.y, chokeDelta.x);
+		// BWEM tends to not set the endpoints of blocked chokes properly
+		// So bump up the width in these cases
+		// If there is a map with a narrow blocked choke it will break
+		if (choke->Blocked() && width == 15) width = 32;
 
-                // Now find a tile a bit away from the middle of the choke that is at high elevation
-                int highestElevation = std::max(firstAreaElevation, secondAreaElevation);
-                BWAPI::Position center(choke->Center());
-                BWAPI::TilePosition closestToCenter = BWAPI::TilePositions::Invalid;
-                for (int step = 0; step <= 6; step++)
-                    for (int direction = -1; direction <= 1; direction += 2)
-                    {
-                        BWAPI::TilePosition tile(BWAPI::Position(
-                            center.x - (int)std::round(16 * step * std::cos(chokeAngle + direction * (pi / 2.0))),
-                            center.y - (int)std::round(16 * step * std::sin(chokeAngle + direction * (pi / 2.0)))));
+		chokeData.width = width;
+		if (width < _minChokeWidth) _minChokeWidth = width;
 
-                        if (!tile.isValid()) continue;
-                        if (!bwebMap.isWalkable(tile)) continue;
+		// Determine if the choke is a ramp
+		int firstAreaElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(choke->GetAreas().first->Top()));
+		int secondAreaElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(choke->GetAreas().second->Top()));
+		if (firstAreaElevation != secondAreaElevation)
+		{
+			chokeData.isRamp = true;
 
-                        if (BWAPI::Broodwar->getGroundHeight(tile) == highestElevation)
-                        {
-                            chokeData.highElevationTile = tile;
-                        }
-                    }
-            }
-        }
-    }
+			// For narrow ramps, compute the tile nearest the center where the elevation
+			// changes from low to high ground
+			if (chokeData.width < 128)
+			{
+				BWAPI::Position chokeCenter = BWAPI::Position(choke->Center()) + BWAPI::Position(4, 4);
+				int lowGroundElevation = std::min(firstAreaElevation, secondAreaElevation);
+				int highGroundElevation = std::max(firstAreaElevation, secondAreaElevation);
 
-    // On Plasma, we enrich the BWEM chokepoints with data about mineral walking
-    if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67")
-    {
-        // Process each choke
-        for (const BWEM::ChokePoint * choke : chokes)
-        {
-            ChokeData & chokeData = *((ChokeData*)choke->Ext());
-            BWAPI::Position chokeCenter(choke->Center());
+				// Generate a set of low-ground tiles near the choke, ignoring "holes"
+				std::set<BWAPI::TilePosition> lowGroundTiles;
+				for (int x = -5; x <= 5; x++)
+					for (int y = -5; y <= 5; y++)
+					{
+						BWAPI::TilePosition tile = BWAPI::TilePosition(choke->Center()) + BWAPI::TilePosition(x, y);
+						if (!tile.isValid()) continue;
+						if (BWAPI::Broodwar->getGroundHeight(tile) != lowGroundElevation) continue;
+						if (BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(1, 0)) == lowGroundElevation ||
+							BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(0, 1)) == lowGroundElevation ||
+							BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(-1, 0)) == lowGroundElevation ||
+							BWAPI::Broodwar->getGroundHeight(tile + BWAPI::TilePosition(0, -1)) == lowGroundElevation)
+						{
+							lowGroundTiles.insert(tile);
+						}
+					}
 
-            // Determine if the choke is blocked by eggs, and grab the close mineral patches
-            bool blockedByEggs = false;
-            BWAPI::Unit closestMineralPatch = nullptr;
-            BWAPI::Unit secondClosestMineralPatch = nullptr;
-            int closestMineralPatchDist = INT_MAX;
-            int secondClosestMineralPatchDist = INT_MAX;
-            for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())
-            {
-                if (!blockedByEggs && staticNeutral->getType() == BWAPI::UnitTypes::Zerg_Egg &&
-                    staticNeutral->getDistance(chokeCenter) < 100)
-                {
-                    blockedByEggs = true;
-                }
+				const auto inChokeCenter = [this](BWAPI::Position pos) {
+					BWAPI::Position end1 = findClosestUnwalkablePosition(pos, pos, 64);
+					if (!end1.isValid()) return false;
 
-                if (staticNeutral->getType() == BWAPI::UnitTypes::Resource_Mineral_Field &&
-                    staticNeutral->getResources() == 32)
-                {
-                    int dist = staticNeutral->getDistance(chokeCenter);
-                    if (dist <= closestMineralPatchDist)
-                    {
-                        secondClosestMineralPatchDist = closestMineralPatchDist;
-                        closestMineralPatchDist = dist;
-                        secondClosestMineralPatch = closestMineralPatch;
-                        closestMineralPatch = staticNeutral;
-                    }
-                    else if (dist < secondClosestMineralPatchDist)
-                    {
-                        secondClosestMineralPatchDist = dist;
-                        secondClosestMineralPatch = staticNeutral;
-                    }
-                }
-            }
+					BWAPI::Position end2 = findClosestUnwalkablePosition(BWAPI::Position(pos.x + pos.x - end1.x, pos.y + pos.y - end1.y), pos, 32);
+					if (!end2.isValid()) return false;
 
-            if (!blockedByEggs) continue;
+					if (end1.getDistance(end2) < end1.getDistance(pos)) return false;
 
-            chokeData.requiresMineralWalk = true;
-            chokeData.firstMineralPatch = closestMineralPatch;
-            chokeData.secondMineralPatch = secondClosestMineralPatch;
-        }
-    }
+					return std::abs(end1.getDistance(pos) - end2.getDistance(pos)) <= 2.0;
+				};
+
+				// Find the nearest position to the choke center that is on the high-ground border
+				// This means that it is on the high ground and adjacent to one of the low-ground tiles found above
+				BWAPI::Position bestPos = BWAPI::Positions::Invalid;
+				int bestDist = INT_MAX;
+				for (int x = -64; x <= 64; x++)
+					for (int y = -64; y <= 64; y++)
+					{
+						BWAPI::Position pos = chokeCenter + BWAPI::Position(x, y);
+						if (!pos.isValid()) continue;
+						if (pos.x % 32 > 0 && pos.x % 32 < 31 && pos.y % 32 > 0 && pos.y % 32 < 31) continue;
+						if (!BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(pos))) continue;
+						if (BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(pos)) != highGroundElevation) continue;
+						if (lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(1, 0))) == lowGroundTiles.end() &&
+							lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(-1, 0))) == lowGroundTiles.end() &&
+							lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(0, 1))) == lowGroundTiles.end() &&
+							lowGroundTiles.find(BWAPI::TilePosition(pos + BWAPI::Position(0, -1))) == lowGroundTiles.end())
+							continue;
+						if (!inChokeCenter(pos)) continue;
+
+						int dist = pos.getDistance(chokeCenter);
+						if (dist < bestDist)
+						{
+							chokeData.highElevationTile = BWAPI::TilePosition(pos);
+							bestDist = dist;
+							bestPos = pos;
+						}
+					}
+
+				computeScoutBlockingPositions(bestPos, BWAPI::UnitTypes::Protoss_Probe, chokeData.probeBlockScoutPositions);
+				computeScoutBlockingPositions(bestPos, BWAPI::UnitTypes::Protoss_Zealot, chokeData.zealotBlockScoutPositions);
+			}
+		}
+
+		// If the choke is narrow, generate positions where we can block the enemy worker scout
+		if (chokeData.width < 128)
+		{
+			// Initial center position using the BWEM data
+			BWAPI::Position centerPoint = BWAPI::Position(choke->Center()) + BWAPI::Position(4, 4);
+			BWAPI::Position end1 = findClosestUnwalkablePosition(centerPoint, centerPoint, 64);
+			BWAPI::Position end2 = findClosestUnwalkablePosition(BWAPI::Position(centerPoint.x + centerPoint.x - end1.x, centerPoint.y + centerPoint.y - end1.y), centerPoint, 32);
+			if (!end1.isValid() || !end2.isValid())
+			{
+				end1 = BWAPI::Position(choke->Pos(choke->end1)) + BWAPI::Position(4, 4);
+				end2 = BWAPI::Position(choke->Pos(choke->end2)) + BWAPI::Position(4, 4);
+			}
+
+			// If the center is not really in the center, move it
+			double end1Dist = end1.getDistance(centerPoint);
+			double end2Dist = end2.getDistance(centerPoint);
+			if (std::abs(end1Dist - end2Dist) > 2.0)
+			{
+				centerPoint = BWAPI::Position((end1.x + end2.x) / 2, (end1.y + end2.y) / 2);
+				end1Dist = end1.getDistance(centerPoint);
+				end2Dist = end2.getDistance(centerPoint);
+			}
+
+			computeScoutBlockingPositions(centerPoint, BWAPI::UnitTypes::Protoss_Probe, chokeData.probeBlockScoutPositions);
+			computeScoutBlockingPositions(centerPoint, BWAPI::UnitTypes::Protoss_Zealot, chokeData.zealotBlockScoutPositions);
+		}
+	}
+
+	_hasMineralWalkChokes = false;
+
+	// Add mineral walking data for Plasma
+	if (BWAPI::Broodwar->mapHash() == "6f5295624a7e3887470f3f2e14727b1411321a67")
+	{
+		_hasMineralWalkChokes = true;
+
+		// Process each choke
+		for (const BWEM::ChokePoint * choke : _allChokepoints)
+		{
+			ChokeData & chokeData = *((ChokeData*)choke->Ext());
+			BWAPI::Position chokeCenter(choke->Center());
+
+			// Determine if the choke is blocked by eggs, and grab the close mineral patches
+			bool blockedByEggs = false;
+			BWAPI::Unit closestMineralPatch = nullptr;
+			BWAPI::Unit secondClosestMineralPatch = nullptr;
+			int closestMineralPatchDist = INT_MAX;
+			int secondClosestMineralPatchDist = INT_MAX;
+			for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())
+			{
+				if (!blockedByEggs && staticNeutral->getType() == BWAPI::UnitTypes::Zerg_Egg &&
+					staticNeutral->getDistance(chokeCenter) < 100)
+				{
+					blockedByEggs = true;
+				}
+
+				if (staticNeutral->getType() == BWAPI::UnitTypes::Resource_Mineral_Field &&
+					staticNeutral->getResources() == 32)
+				{
+					int dist = staticNeutral->getDistance(chokeCenter);
+					if (dist <= closestMineralPatchDist)
+					{
+						secondClosestMineralPatchDist = closestMineralPatchDist;
+						closestMineralPatchDist = dist;
+						secondClosestMineralPatch = closestMineralPatch;
+						closestMineralPatch = staticNeutral;
+					}
+					else if (dist < secondClosestMineralPatchDist)
+					{
+						secondClosestMineralPatchDist = dist;
+						secondClosestMineralPatch = staticNeutral;
+					}
+				}
+			}
+
+			if (!blockedByEggs) continue;
+
+			chokeData.requiresMineralWalk = true;
+
+			auto closestArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(closestMineralPatch->getTilePosition()) + BWAPI::WalkPosition(4, 2));
+			auto secondClosestArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(secondClosestMineralPatch->getTilePosition()) + BWAPI::WalkPosition(4, 2));
+			if (closestArea == choke->GetAreas().second &&
+				secondClosestArea == choke->GetAreas().first)
+			{
+				chokeData.secondAreaMineralPatch = closestMineralPatch;
+				chokeData.firstAreaMineralPatch = secondClosestMineralPatch;
+			}
+			else
+			{
+				// Note: Two of the chokes don't have the mineral patches show up in expected areas because of
+				// suboptimal BWEM choke placement, but luckily they both follow this pattern
+				chokeData.firstAreaMineralPatch = closestMineralPatch;
+				chokeData.secondAreaMineralPatch = secondClosestMineralPatch;
+			}
+		}
+	}
+
+	// Add mineral walking data for Fortress
+	if (BWAPI::Broodwar->mapHash() == "83320e505f35c65324e93510ce2eafbaa71c9aa1")
+	{
+		_hasMineralWalkChokes = true;
+
+		// Process each choke
+		for (const BWEM::ChokePoint * choke : _allChokepoints)
+		{
+			// On Fortress the mineral walking chokes are all considered blocked by BWEM
+			if (!choke->Blocked()) continue;
+
+			ChokeData & chokeData = *((ChokeData*)choke->Ext());
+			chokeData.requiresMineralWalk = true;
+
+			// Find the two closest mineral patches to the choke
+			BWAPI::Position chokeCenter(choke->Center());
+			BWAPI::Unit closestMineralPatch = nullptr;
+			BWAPI::Unit secondClosestMineralPatch = nullptr;
+			int closestMineralPatchDist = INT_MAX;
+			int secondClosestMineralPatchDist = INT_MAX;
+			for (const auto staticNeutral : BWAPI::Broodwar->getStaticNeutralUnits())
+			{
+				if (staticNeutral->getType().isMineralField())
+				{
+					int dist = staticNeutral->getDistance(chokeCenter);
+					if (dist <= closestMineralPatchDist)
+					{
+						secondClosestMineralPatchDist = closestMineralPatchDist;
+						closestMineralPatchDist = dist;
+						secondClosestMineralPatch = closestMineralPatch;
+						closestMineralPatch = staticNeutral;
+					}
+					else if (dist < secondClosestMineralPatchDist)
+					{
+						secondClosestMineralPatchDist = dist;
+						secondClosestMineralPatch = staticNeutral;
+					}
+				}
+			}
+
+			// Each entrance to a mineral walking base has two doors with a mineral patch behind each
+			// So the choke closest to the base will have a mineral patch on both sides we can use
+			// The other choke has a mineral patch on the way in, but not on the way out, so one will be null
+			// We will use a random visible mineral patch on the map to handle getting out
+			auto closestArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(closestMineralPatch->getTilePosition()) + BWAPI::WalkPosition(4, 2));
+			auto secondClosestArea = bwemMap.GetNearestArea(BWAPI::WalkPosition(secondClosestMineralPatch->getTilePosition()) + BWAPI::WalkPosition(4, 2));
+
+			if (closestArea == choke->GetAreas().first)
+				chokeData.firstAreaMineralPatch = closestMineralPatch;
+			if (closestArea == choke->GetAreas().second)
+				chokeData.secondAreaMineralPatch = closestMineralPatch;
+			if (secondClosestArea == choke->GetAreas().first)
+				chokeData.firstAreaMineralPatch = secondClosestMineralPatch;
+			if (secondClosestArea == choke->GetAreas().second)
+				chokeData.secondAreaMineralPatch = secondClosestMineralPatch;
+
+			// We use the door as the starting point regardless of which side is which
+			chokeData.firstAreaStartPosition = choke->BlockingNeutral()->Unit()->getInitialPosition();
+			chokeData.secondAreaStartPosition = choke->BlockingNeutral()->Unit()->getInitialPosition();
+		}
+	}
 
 	// TODO testing
 	//BWAPI::TilePosition homePosition = BWAPI::Broodwar->self()->getStartLocation();
@@ -517,7 +673,7 @@ BWAPI::TilePosition MapTools::getNextExpansion(bool hidden, bool wantMinerals, b
 	return BWAPI::TilePositions::None;
 }
 /*
-获取距离起点坐标指定长度的坐标
+获取距离起点坐标指定长度的坐标,靠近用
 */
 BWAPI::Position MapTools::getDistancePosition(BWAPI::Position start, BWAPI::Position end, double dist) {
 	double distance = sqrt(pow(start.x - end.x, 2) + pow(start.y - end.y, 2));// 两点的坐标距离
@@ -561,7 +717,7 @@ BWAPI::Position MapTools::getDistancePosition(BWAPI::Position start, BWAPI::Posi
 }
 
 /*
-获取距离起点延长指定长度的坐标
+获取距离起点延长指定长度的坐标,后退用
 */
 BWAPI::Position MapTools::getExtendedPosition(BWAPI::Position start, BWAPI::Position end, double dist) {
 	double xab, yab;
@@ -623,3 +779,435 @@ void MapTools::getCutPoint(BWAPI::Position center, double radius, BWAPI::Positio
 	rp2.x = center.x - x2;
 	rp2.y = center.y - y2;
 }
+
+
+std::vector<BWAPI::Position> MapTools::calculateEnemyRegionVertices(BWTA::BaseLocation * enemyBaseLocation) {
+	std::vector<BWAPI::Position> _regionVertices;
+
+	if (!enemyBaseLocation)
+	{
+		return _regionVertices;
+	}
+
+	BWTA::Region * enemyRegion = enemyBaseLocation->getRegion();
+
+	if (!enemyRegion)
+	{
+		return _regionVertices;
+	}
+
+	const BWAPI::Position basePosition = BWAPI::Position(BWAPI::Broodwar->self()->getStartLocation());
+	const std::vector<BWAPI::TilePosition> & closestTobase = getClosestTilesTo(basePosition);
+
+	std::set<BWAPI::Position> unsortedVertices;
+
+	// check each tile position
+	for (size_t i(0); i < closestTobase.size(); ++i)
+	{
+		const BWAPI::TilePosition & tp = closestTobase[i];
+
+		if (BWTA::getRegion(tp) != enemyRegion)
+		{
+			continue;
+		}
+
+		// a tile is 'on an edge' unless
+		// 1) in all 4 directions there's a tile position in the current region
+		// 2) in all 4 directions there's a buildable tile
+		//瓷砖是 ' 在边缘 ', 除非
+		//1) 在所有4个方向在当前区域有一个瓷砖位置
+		//2) 在所有4个方向有一个可生成瓷砖
+		bool edge =
+			BWTA::getRegion(BWAPI::TilePosition(tp.x + 1, tp.y)) != enemyRegion || !BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(tp.x + 1, tp.y))
+			|| BWTA::getRegion(BWAPI::TilePosition(tp.x, tp.y + 1)) != enemyRegion || !BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(tp.x, tp.y + 1))
+			|| BWTA::getRegion(BWAPI::TilePosition(tp.x - 1, tp.y)) != enemyRegion || !BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(tp.x - 1, tp.y))
+			|| BWTA::getRegion(BWAPI::TilePosition(tp.x, tp.y - 1)) != enemyRegion || !BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(tp.x, tp.y - 1));
+
+		// push the tiles that aren't surrounded
+		//推开没有被包围的瓷砖
+		if (edge && BWAPI::Broodwar->isBuildable(tp))
+		{
+			if (Config::Debug::DrawScoutInfo)
+			{
+				int x1 = tp.x * 32 + 2;
+				int y1 = tp.y * 32 + 2;
+				int x2 = (tp.x + 1) * 32 - 2;
+				int y2 = (tp.y + 1) * 32 - 2;
+
+				BWAPI::Broodwar->drawTextMap(x1 + 3, y1 + 2, "%d", getGroundTileDistance(BWAPI::Position(tp), basePosition));
+				BWAPI::Broodwar->drawBoxMap(x1, y1, x2, y2, BWAPI::Colors::Green, false);
+			}
+
+			unsortedVertices.insert(BWAPI::Position(tp) + BWAPI::Position(16, 16));
+		}
+	}
+
+	std::vector<BWAPI::Position> sortedVertices;
+	BWAPI::Position current = *unsortedVertices.begin();
+
+	_regionVertices.push_back(current);
+	unsortedVertices.erase(current);
+
+	// while we still have unsorted vertices left, find the closest one remaining to current
+	//虽然我们仍然有未排序的顶点左, 找到最接近的一个剩余的当前
+	while (!unsortedVertices.empty())
+	{
+		double bestDist = 1000000;
+		BWAPI::Position bestPos;
+
+		for (const BWAPI::Position & pos : unsortedVertices)
+		{
+			double dist = pos.getDistance(current);
+
+			if (dist < bestDist)
+			{
+				bestDist = dist;
+				bestPos = pos;
+			}
+		}
+
+		current = bestPos;
+		sortedVertices.push_back(bestPos);
+		unsortedVertices.erase(bestPos);
+	}
+
+	// let's close loops on a threshold, eliminating death grooves
+	//让我们关闭循环的门槛, 消除死亡凹槽
+	int distanceThreshold = 100;
+
+	while (true)
+	{
+		// find the largest index difference whose distance is less than the threshold
+		//查找距离小于阈值的最大索引差异
+		int maxFarthest = 0;
+		int maxFarthestStart = 0;
+		int maxFarthestEnd = 0;
+
+		// for each starting vertex
+		for (int i(0); i < (int)sortedVertices.size(); ++i)
+		{
+			int farthest = 0;
+			int farthestIndex = 0;
+
+			// only test half way around because we'll find the other one on the way back
+			for (size_t j(1); j < sortedVertices.size() / 2; ++j)
+			{
+				int jindex = (i + j) % sortedVertices.size();
+
+				if (sortedVertices[i].getDistance(sortedVertices[jindex]) < distanceThreshold)
+				{
+					farthest = j;
+					farthestIndex = jindex;
+				}
+			}
+
+			if (farthest > maxFarthest)
+			{
+				maxFarthest = farthest;
+				maxFarthestStart = i;
+				maxFarthestEnd = farthestIndex;
+			}
+		}
+
+		// stop when we have no long chains within the threshold
+		if (maxFarthest < 4)
+		{
+			break;
+		}
+
+		std::vector<BWAPI::Position> temp;
+
+		for (size_t s(maxFarthestEnd); s != maxFarthestStart; s = (s + 1) % sortedVertices.size())
+		{
+			temp.push_back(sortedVertices[s]);
+		}
+
+		sortedVertices = temp;
+	}
+
+	return sortedVertices;
+}
+
+// Finds all walkable positions on the direct path between the start and end positions
+void MapTools::findPath(BWAPI::Position start, BWAPI::Position end, std::vector<BWAPI::Position> & result)
+{
+	std::set<BWAPI::Position> added;
+	int distTotal = std::round(start.getDistance(end));
+	int xdiff = end.x - start.x;
+	int ydiff = end.y - start.y;
+	for (int distStop = 0; distStop <= distTotal; distStop++)
+	{
+		BWAPI::Position pos(
+			start.x + std::round(((double)distStop / distTotal) * xdiff),
+			start.y + std::round(((double)distStop / distTotal) * ydiff));
+
+		if (!pos.isValid()) continue;
+		if (!BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(pos))) continue;
+		if (added.find(pos) != added.end()) continue;
+
+		result.push_back(pos);
+		added.insert(pos);
+	}
+}
+
+bool MapTools::blocksChokeFromScoutingWorker(BWAPI::Position pos, BWAPI::UnitType type)
+{
+	BWAPI::Position end1 = findClosestUnwalkablePosition(pos, pos, 64);
+	if (!end1.isValid()) return false;
+
+	BWAPI::Position end2 = findClosestUnwalkablePosition(BWAPI::Position(pos.x + pos.x - end1.x, pos.y + pos.y - end1.y), pos, 32);
+	if (!end2.isValid()) return false;
+
+	if (end1.getDistance(end2) < (end1.getDistance(pos) * 1.2)) return false;
+
+	auto passable = [](BWAPI::UnitType ourUnit, BWAPI::UnitType enemyUnit, BWAPI::Position pos, BWAPI::Position wall)
+	{
+		BWAPI::Position topLeft = pos + BWAPI::Position(-ourUnit.dimensionLeft() - 1, -ourUnit.dimensionUp() - 1);
+		BWAPI::Position bottomRight = pos + BWAPI::Position(ourUnit.dimensionRight() + 1, ourUnit.dimensionDown() + 1);
+
+		std::vector<BWAPI::Position> positionsToCheck;
+
+		if (wall.x < topLeft.x)
+		{
+			if (wall.y < topLeft.y)
+			{
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), topLeft.y - enemyUnit.dimensionDown()));
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), pos.y));
+				positionsToCheck.push_back(BWAPI::Position(pos.x, topLeft.y - enemyUnit.dimensionDown()));
+			}
+			else if (wall.y > bottomRight.y)
+			{
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), bottomRight.y + enemyUnit.dimensionUp()));
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), pos.y));
+				positionsToCheck.push_back(BWAPI::Position(pos.x, bottomRight.y + enemyUnit.dimensionUp()));
+			}
+			else
+			{
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), topLeft.y - enemyUnit.dimensionDown()));
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), pos.y));
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), bottomRight.y + enemyUnit.dimensionUp()));
+			}
+		}
+		else if (wall.x > bottomRight.x)
+		{
+			if (wall.y < topLeft.y)
+			{
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), topLeft.y - enemyUnit.dimensionDown()));
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), pos.y));
+				positionsToCheck.push_back(BWAPI::Position(pos.x, topLeft.y - enemyUnit.dimensionDown()));
+			}
+			else if (wall.y > bottomRight.y)
+			{
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), bottomRight.y + enemyUnit.dimensionUp()));
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), pos.y));
+				positionsToCheck.push_back(BWAPI::Position(pos.x, bottomRight.y + enemyUnit.dimensionUp()));
+			}
+			else
+			{
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), topLeft.y - enemyUnit.dimensionDown()));
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), pos.y));
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), bottomRight.y + enemyUnit.dimensionUp()));
+			}
+		}
+		else
+		{
+			if (wall.y < topLeft.y)
+			{
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), topLeft.y - enemyUnit.dimensionDown()));
+				positionsToCheck.push_back(BWAPI::Position(pos.x, topLeft.y - enemyUnit.dimensionDown()));
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), topLeft.y - enemyUnit.dimensionDown()));
+			}
+			else if (wall.y > bottomRight.y)
+			{
+				positionsToCheck.push_back(BWAPI::Position(pos.x, bottomRight.y + enemyUnit.dimensionUp()));
+				positionsToCheck.push_back(BWAPI::Position(bottomRight.x + enemyUnit.dimensionLeft(), bottomRight.y + enemyUnit.dimensionUp()));
+				positionsToCheck.push_back(BWAPI::Position(topLeft.x - enemyUnit.dimensionRight(), bottomRight.y + enemyUnit.dimensionUp()));
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		for (auto current : positionsToCheck)
+			if (!MathUtil::Walkable(enemyUnit, current))
+				return false;
+
+		return true;
+	};
+
+	return
+		!passable(type, BWAPI::UnitTypes::Protoss_Probe, pos, end1) &&
+		!passable(type, BWAPI::UnitTypes::Protoss_Probe, pos, end2);
+}
+
+//计算侦察阻塞位置
+void MapTools::computeScoutBlockingPositions(BWAPI::Position center, BWAPI::UnitType type, std::set<BWAPI::Position> & result)
+{
+	if (!center.isValid()) return;
+	if (result.size() == 1) return;
+
+	int targetElevation = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(center));
+
+	// Search for a position in the immediate vicinity of the center that blocks the choke with one unit
+	// Prefer at same elevation but return a lower elevation if that's all we have
+	BWAPI::Position bestLowGround = BWAPI::Positions::Invalid;
+	for (int x = 0; x <= 5; x++)
+		for (int y = 0; y <= 5; y++)
+			for (int xs = -1; xs <= (x == 0 ? 0 : 1); xs += 2)
+				for (int ys = -1; ys <= (y == 0 ? 0 : 1); ys += 2)
+				{
+					BWAPI::Position current = center + BWAPI::Position(x * xs, y * ys);
+					if (!blocksChokeFromScoutingWorker(current, type)) continue;
+
+					// If this position is on the high-ground, return it
+					if (BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(current)) >= targetElevation)
+					{
+						if (!result.empty()) result.clear();
+						result.insert(current);
+						return;
+					}
+
+					// Otherwise set it as the best low-ground option if applicable
+					if (!bestLowGround.isValid())
+						bestLowGround = current;
+				}
+
+	if (bestLowGround.isValid())
+	{
+		if (!result.empty()) result.clear();
+		result.insert(bestLowGround);
+		return;
+	}
+
+	if (!result.empty()) return;
+
+	// Try with two units instead
+
+	// First grab the ends of the choke at the given center point
+	BWAPI::Position end1 = findClosestUnwalkablePosition(center, center, 64);
+	if (!end1.isValid()) return;
+
+	BWAPI::Position end2 = findClosestUnwalkablePosition(BWAPI::Position(center.x + center.x - end1.x, center.y + center.y - end1.y), center, 32);
+	if (!end2.isValid()) return;
+
+	if (end1.getDistance(end2) < (end1.getDistance(center) * 1.2)) return;
+
+	// Now find the positions between the ends
+	std::vector<BWAPI::Position> toBlock;
+	findPath(end1, end2, toBlock);
+	if (toBlock.empty()) return;
+
+	// Now we find two positions that block all of the positions in the vector
+
+	// Step 1: remove positions on both ends that the enemy worker cannot stand on because of unwalkable terrain
+	for (int i = 0; i < 2; i++)
+	{
+		BWAPI::Position start = *toBlock.begin();
+		for (auto it = toBlock.begin(); it != toBlock.end(); it = toBlock.erase(it))
+			if (MathUtil::Walkable(BWAPI::UnitTypes::Protoss_Probe, *it))
+				break;
+
+		std::reverse(toBlock.begin(), toBlock.end());
+	}
+
+	// Step 2: gather potential positions to place the unit that block the enemy unit locations at both ends
+	std::vector<std::vector<BWAPI::Position>> candidatePositions = { std::vector<BWAPI::Position>(), std::vector<BWAPI::Position>() };
+	for (int i = 0; i < 2; i++)
+	{
+		BWAPI::Position enemyPosition = *toBlock.begin();
+		for (auto pos : toBlock)
+		{
+			// Is this a valid position for a probe?
+			// We use a probe here because we sometimes mix probes and zealots and probes are larger
+			if (!pos.isValid()) continue;
+			if (!MathUtil::Walkable(BWAPI::UnitTypes::Protoss_Probe, pos)) continue;
+
+			// Does it block the enemy position?
+			if (!MathUtil::Overlaps(BWAPI::UnitTypes::Protoss_Probe, enemyPosition, type, pos))
+				break;
+
+			candidatePositions[i].push_back(pos);
+		}
+
+		std::reverse(toBlock.begin(), toBlock.end());
+	}
+
+	// Step 3: try to find a combination that blocks all positions
+	// Prefer a combination that puts both units on the high ground
+	// Prefer a combination that spaces out the units relatively evenly
+	std::pair<BWAPI::Position, BWAPI::Position> bestPair = std::make_pair(BWAPI::Positions::Invalid, BWAPI::Positions::Invalid);
+	std::pair<BWAPI::Position, BWAPI::Position> bestLowGroundPair = std::make_pair(BWAPI::Positions::Invalid, BWAPI::Positions::Invalid);
+	int bestScore = INT_MAX;
+	int bestLowGroundScore = INT_MAX;
+	for (auto first : candidatePositions[0])
+		for (auto second : candidatePositions[1])
+		{
+			// Skip if the two units overlap
+			// We use probes here because we sometimes mix probes and zealots and probes are larger
+			if (MathUtil::Overlaps(BWAPI::UnitTypes::Protoss_Probe, first, BWAPI::UnitTypes::Protoss_Probe, second))
+				continue;
+
+			// Skip if any positions are not blocked by one of the units
+			for (auto pos : toBlock)
+				if (!MathUtil::Overlaps(type, first, BWAPI::UnitTypes::Protoss_Probe, pos) &&
+					!MathUtil::Overlaps(type, second, BWAPI::UnitTypes::Protoss_Probe, pos))
+				{
+					goto nextCombination;
+				}
+
+			int score = std::max({
+				MathUtil::EdgeToPointDistance(type, first, end1),
+				MathUtil::EdgeToPointDistance(type, second, end2),
+				MathUtil::EdgeToEdgeDistance(type, first, type, second) });
+
+			if (score < bestScore &&
+				BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(first)) >= targetElevation &&
+				BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(first)) >= targetElevation)
+			{
+				bestScore = score;
+				bestPair = std::make_pair(first, second);
+			}
+			else if (score < bestLowGroundScore)
+			{
+				bestLowGroundScore = score;
+				bestLowGroundPair = std::make_pair(first, second);
+			}
+
+		nextCombination:;
+		}
+
+	if (bestPair.first.isValid())
+	{
+		result.insert(bestPair.first);
+		result.insert(bestPair.second);
+	}
+	else if (bestLowGroundPair.first.isValid())
+	{
+		result.insert(bestLowGroundPair.first);
+		result.insert(bestLowGroundPair.second);
+	}
+}
+
+//找到最近的不能行走的位置
+BWAPI::Position MapTools::findClosestUnwalkablePosition(BWAPI::Position start, BWAPI::Position closeTo, int searchRadius)
+{
+	BWAPI::Position bestPos = BWAPI::Positions::Invalid;
+	int bestDist = INT_MAX;
+	for (int x = start.x - searchRadius; x <= start.x + searchRadius; x++)
+		for (int y = start.y - searchRadius; y <= start.y + searchRadius; y++)
+		{
+			BWAPI::Position current(x, y);
+			if (!current.isValid()) continue;
+			if (BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(current))) continue;
+			int dist = current.getDistance(closeTo);
+			if (dist < bestDist)
+			{
+				bestPos = current;
+				bestDist = dist;
+			}
+		}
+
+	return bestPos;
+}
+

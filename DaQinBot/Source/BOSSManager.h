@@ -6,7 +6,7 @@
 #include "StrategyManager.h"
 #include <memory>
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
     
 typedef std::shared_ptr<BOSS::DFBB_BuildOrderSmartSearch> SearchPtr;

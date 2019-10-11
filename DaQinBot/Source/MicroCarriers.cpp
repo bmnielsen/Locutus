@@ -1,7 +1,8 @@
 #include "MicroCarriers.h"
 #include "UnitUtil.h"
+#include "Squad.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MicroCarriers::MicroCarriers()
 { 
@@ -25,19 +26,36 @@ void MicroCarriers::executeMicro(const BWAPI::Unitset & targets)
 
     for (const auto carrier : carriers)
 	{
+		bool isBreak = false;
+
+		BWAPI::Unitset closestEnemys = carrier->getUnitsInRadius(12 * 32, BWAPI::Filter::IsEnemy && BWAPI::Filter::CanAttack);
+		for (const auto closestEnemy : closestEnemys) {
+			if (closestEnemy && UnitUtil::CanAttack(closestEnemy, carrier) && (closestEnemy->getOrderTarget() == carrier && carrier->getDistance(closestEnemy) < 180) || closestEnemy->isInWeaponRange(carrier)) {
+				int maxRange = carrier->getDistance(closestEnemy) + closestEnemy->getType().airWeapon().maxRange();
+				BWAPI::Position fleePosition = getFleePosition(carrier->getPosition(), closestEnemy->getPosition(), (maxRange + 2 * 32));
+				Micro::RightClick(carrier, fleePosition);
+
+				/*
+				if (fleePosition.isValid()) {
+					Micro::RightClick(carrier, fleePosition);
+				}
+				else {
+					InformationManager::Instance().getLocutusUnit(carrier).fleeFrom(closestEnemy->getPosition());
+				}
+				*/
+				isBreak = true;
+				break;
+			}
+		}
+
 		if (buildScarabOrInterceptor(carrier))
 		{
 			// If we started one, no further action this frame.
-			continue;
+			//continue;
 		}
 
-		BWAPI::Unitset closestEnemys = carrier->getUnitsInRadius(8 * 32, BWAPI::Filter::IsEnemy && BWAPI::Filter::CanAttack);
-		for (const auto closestEnemy : closestEnemys) {
-			if (closestEnemy && UnitUtil::CanAttack(closestEnemy, carrier) && closestEnemy->getOrderTarget() == carrier) {
-				BWAPI::Position fleeTo = getFleePosition(carrier->getPosition(), closestEnemy->getPosition(), 2 * 32);
-				Micro::RightClick(carrier, fleeTo);
-				break;
-			}
+		if (isBreak) {
+			continue;
 		}
 
 		// Carriers stay at home until they have enough interceptors to be useful,
@@ -45,29 +63,51 @@ void MicroCarriers::executeMicro(const BWAPI::Unitset & targets)
 		// On attack-move so that they're not helpless, but that can cause problems too....
 		// Potentially useful for other units.
 		// NOTE Regrouping can cause the carriers to move away from home.
+		//航空母舰待在家里，直到有足够的拦截器可用为止，
+		//或者如果能量不足，就撤退回家重建。
+		//攻击-移动，这样他们就不是无助的，但也会导致问题…
+		//对其他单位可能有用。
+		//注意:重组可能会导致携带者离开家。
 		if (stayHomeUntilReady(carrier))
 		{
-			BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
-			Micro::Move(carrier, fleeTo);
-			continue;
+			BWAPI::Unit shieldBattery = InformationManager::Instance().nearestShieldBattery(carrier->getPosition());
+			if (shieldBattery &&
+				carrier->getShields() < 60 &&
+				shieldBattery->getEnergy() >= 10)
+			{
+				useShieldBattery(carrier, shieldBattery);
+				//continue;
+			}
+			else {
+				BWAPI::Position fleeTo(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
+				//InformationManager::Instance().getLocutusUnit(carrier).moveTo(fleeTo);
+				if (carrier->getDistance(fleeTo) > 8 * 32) {
+					//Micro::RightClick(carrier, fleeTo);
+					Micro::Move(carrier, fleeTo);
+					//continue;
+				}
+			}
+		}
+
+		// If the carrier has recently picked a target that is still valid, don't do anything
+		// If we change targets too quickly, our interceptors don't have time to react and we don't attack anything
+		//如果航空公司最近选择了一个仍然有效的目标，不要做任何事情
+		//如果我们改变目标太快，我们的拦截机就没有时间做出反应，我们也不会攻击任何东西
+		if (carrier->getLastCommand().getType() == BWAPI::UnitCommandTypes::Attack_Unit &&
+			(BWAPI::Broodwar->getFrameCount() - carrier->getLastCommandFrame()) < 4 * 12)
+		{
+			//continue;
+			BWAPI::Unit currentTarget = carrier->getLastCommand().getTarget();
+			if (currentTarget && currentTarget->exists() &&
+				currentTarget->isVisible() && currentTarget->getHitPoints() > 0 &&
+				carrier->getDistance(currentTarget) <= (8 * 32))
+			{
+				continue;
+			}
 		}
 
 		if (order.isCombatOrder())
         {
-            // If the carrier has recently picked a target that is still valid, don't do anything
-            // If we change targets too quickly, our interceptors don't have time to react and we don't attack anything
-            if (carrier->getLastCommand().getType() == BWAPI::UnitCommandTypes::Attack_Unit &&
-                (BWAPI::Broodwar->getFrameCount() - carrier->getLastCommandFrame()) < 48)
-            {
-                BWAPI::Unit currentTarget = carrier->getLastCommand().getTarget();
-                if (currentTarget && currentTarget->exists() &&
-                    currentTarget->isVisible() && currentTarget->getHitPoints() > 0 &&
-                    carrier->getDistance(currentTarget) <= (8 * 32))
-                {
-                    continue;
-                }
-            }
-
 			// If a target is found,
 			BWAPI::Unit target = getTarget(carrier, carrierTargets);
 			if (target)
@@ -78,14 +118,23 @@ void MicroCarriers::executeMicro(const BWAPI::Unitset & targets)
 				}
 
 				// attack it.
-                Micro::AttackUnit(carrier, target);
+				if (Config::Micro::KiteWithRangedUnits)
+				{
+					//kite(rangedUnit, target);
+					Micro::KiteTarget(carrier, target);
+				}
+				else
+				{
+					Micro::AttackUnit(carrier, target);
+				}
 			}
 			else
 			{
                 // No target found. If we're not near the order position, go there.
-				if (carrier->getDistance(order.getPosition()) > 100)
+				if (carrier->getDistance(order.getPosition()) > 15 * 32 && carrier->getInterceptorCount() > 3)
 				{
-                    InformationManager::Instance().getLocutusUnit(carrier).moveTo(order.getPosition());
+                    //InformationManager::Instance().getLocutusUnit(carrier).moveTo(order.getPosition());
+					Micro::AttackMove(carrier, order.getPosition());
 				}
 			}
 		}
@@ -104,7 +153,7 @@ BWAPI::Unit MicroCarriers::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitse
 		int range = rangedUnit->getDistance(target);           // 0..map size in pixels
 		int toGoal = target->getDistance(order.getPosition());  // 0..map size in pixels
 
-		if (range >= 12 * 32)
+		if (range >= 15 * 32)// && target->getDistance(order.getPosition()) >= 15 * 32)//
 		{
 			continue;
 		}
@@ -124,7 +173,7 @@ BWAPI::Unit MicroCarriers::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitse
 
 		if (rangedUnit->isInWeaponRange(target))
 		{
-			score += 4 * 32;
+			score += 8 * 32;
 		}
 		else if (!target->isMoving())
 		{
@@ -203,7 +252,7 @@ BWAPI::Unit MicroCarriers::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitse
 			}
 		}
 
-		score = getMarkTargetScore(target, score);
+		//score = getMarkTargetScore(target, score);
 
 		if (score > bestScore)
 		{
@@ -215,11 +264,10 @@ BWAPI::Unit MicroCarriers::getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitse
 	}
 
 	if (bestTarget) {
-		InformationManager::Instance().setAttackDamages(bestTarget, BWAPI::Broodwar->getDamageFrom(BWAPI::UnitTypes::Protoss_Interceptor, bestTarget->getType()) * rangedUnit->getInterceptorCount());
-		InformationManager::Instance().setAttackNumbers(bestTarget, 1);
+		setMarkTargetScore(rangedUnit, bestTarget);
 	}
 
-	return bestTarget;
+	return bestScore > 0 ? bestTarget : nullptr;
 }
 
 // get the attack priority of a target unit
@@ -229,7 +277,7 @@ int MicroCarriers::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	const BWAPI::UnitType rangedType = rangedUnit->getType();
 	const BWAPI::UnitType targetType = target->getType();
 
-	if (targetType == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
+	if (
 		targetType == BWAPI::UnitTypes::Zerg_Infested_Terran ||
 		targetType == BWAPI::UnitTypes::Zerg_Scourge ||
 		targetType == BWAPI::UnitTypes::Protoss_High_Templar ||
@@ -240,12 +288,38 @@ int MicroCarriers::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 12;
 	}
 
-	if (targetType.isBuilding() && targetType.isRefinery()) {
+	// Next are workers.
+	if (targetType.isWorker())
+	{
+		if (target->isRepairing()) {
+			return 11;
+		}
+
+		// SCVs constructing are also important.
+		if (target->isConstructing())
+		{
+			return 11;
+		}
+
+		if (target->isGatheringGas()) {
+			return 10;
+		}
+
+		if (target->isGatheringMinerals()) {
+			return 9;
+		}
+
+		return 8;
+	}
+	/*
+	if (targetType.isBuilding() && (targetType.isRefinery() || targetType == BWAPI::UnitTypes::Terran_Missile_Turret)) {
 		return 11;
 	}
+	*/
 
 	// Also as bad are other dangerous things.
 	if (targetType == BWAPI::UnitTypes::Terran_Science_Vessel ||
+		targetType == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine ||
 		targetType == BWAPI::UnitTypes::Protoss_Observer)
 	{
 		return 11;
@@ -264,13 +338,32 @@ int MicroCarriers::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 		return 1;
 	}
 
+	if (target->getType().isBuilding())
+	{
+		// This includes proxy buildings, which deserve high priority.
+		// But when bases are close together, it can include innocent buildings.
+		// We also don't want to disrupt priorities in case of proxy buildings
+		// supported by units; we may want to target the units first.
+		if (UnitUtil::CanAttackGround(target) || UnitUtil::CanAttackAir(target))
+		{
+			return 10;
+		}
+
+		if (target->isFlying()) {
+			return 9;
+		}
+
+		return 4;
+	}
+
 	// if the target is building something near our base something is fishy
 	BWAPI::Position ourBasePosition = BWAPI::Position(InformationManager::Instance().getMyMainBaseLocation()->getPosition());
-	if (target->getDistance(ourBasePosition) < 15 * 32) {
+	if (target->getDistance(ourBasePosition) < 8 * 32) {
 		if (target->getType().isWorker() && (target->isConstructing() || target->isRepairing()))
 		{
 			return 12;
 		}
+
 		if (target->getType().isBuilding())
 		{
 			// This includes proxy buildings, which deserve high priority.
@@ -279,8 +372,9 @@ int MicroCarriers::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 			// supported by units; we may want to target the units first.
 			if (UnitUtil::CanAttackGround(target) || UnitUtil::CanAttackAir(target))
 			{
-				return 10;
+				return 11;
 			}
+
 			return 8;
 		}
 	}
@@ -302,35 +396,20 @@ int MicroCarriers::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 	if (UnitUtil::CanAttack(targetType, rangedType) && !targetType.isWorker())
 	{
 		// Enemy unit which is far enough outside its range is lower priority than a worker.
-		if (rangedUnit->getDistance(target) > 48 + UnitUtil::GetAttackRange(target, rangedUnit))
+		if (rangedUnit->getDistance(target) > 5 * 12 + UnitUtil::GetAttackRange(target, rangedUnit))
 		{
 			return 8;
 		}
+
 		return 10;
 	}
 
-	// Next are workers.
-	if (targetType.isWorker())
-	{
-		if (rangedUnit->getType() == BWAPI::UnitTypes::Terran_Vulture)
-		{
-			return 11;
-		}
-
-		// SCVs constructing are also important.
-		if (target->isConstructing())
-		{
-			return 10;
-		}
-
-		return 9;
-	}
 	// Important combat units that we may not have targeted above (esp. if we're a flyer).
 	if (targetType == BWAPI::UnitTypes::Protoss_Carrier ||
 		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode ||
 		targetType == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
 	{
-		return 11;
+		return 10;
 	}
 	// Nydus canal is the most important building to kill.
 	if (targetType == BWAPI::UnitTypes::Zerg_Nydus_Canal)
@@ -393,5 +472,6 @@ int MicroCarriers::getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target)
 bool MicroCarriers::stayHomeUntilReady(const BWAPI::Unit u) const
 {
 	return
-		u->getType() == BWAPI::UnitTypes::Protoss_Carrier && u->getInterceptorCount() < 4;
+		u->getType() == BWAPI::UnitTypes::Protoss_Carrier && (u->getInterceptorCount() < 4 ||
+		(u->getHitPoints() < 20 && u->getShields() < 40) || u->getShields() < 10);
 }

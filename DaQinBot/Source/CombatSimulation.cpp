@@ -6,7 +6,7 @@
 
 //#define COMBATSIM_DEBUG 1
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 CombatSimulation::CombatSimulation()
     : myVanguard(BWAPI::Positions::Invalid)
@@ -83,6 +83,8 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
 	{
 		// All known enemy units, according to their most recently seen position.
 		// Skip if goneFromLastPosition, which means the last position was seen and the unit wasn't there.
+		//所有已知的敌人单位，根据他们最近看到的位置。
+		// if goneFromLastPosition，意思是最后一个位置被看到了，单位不在那里。
 		std::vector<UnitInfo> enemyCombatUnits;
 		InformationManager::Instance().getNearbyForce(enemyCombatUnits, enemyVanguard, BWAPI::Broodwar->enemy(), radius);
 		for (const UnitInfo & ui : enemyCombatUnits)
@@ -91,6 +93,7 @@ void CombatSimulation::setCombatUnits(BWAPI::Position _myVanguard, BWAPI::Positi
             if (rushing && ui.type.isFlyer()) continue;
 
             // The check is careful about seen units and assumes that unseen units are powered.
+			//检查是对可见单元的仔细检查，并假定不可见单元是有动力的。
 			if (ui.lastHealth > 0 &&
 				(ui.unit->exists() || ui.lastPosition.isValid() && !ui.goneFromLastPosition) &&
                 (ui.completed || ui.estimatedCompletionFrame < BWAPI::Broodwar->getFrameCount()) &&
@@ -225,6 +228,8 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
 
     // Analyze the ground geography if we know where the armies are located
     // Doesn't apply to rushes: zealots don't have as many problems with chokes, and FAP will simulate elevation
+	//如果我们知道军队的位置，就分析地面地理
+	//不适用于灯芯草:狂热者在窒息方面没有那么多问题，FAP将模拟海拔
     bool narrowChoke = false;
     int elevationDifference = 0;
     if (myUnitsCentroid.isValid() && enemyVanguard.isValid() && !airBattle && !rushing)
@@ -242,6 +247,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         }
 
         // Is there an elevation difference?
+		//有海拔差异吗?
         elevationDifference = BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(enemyVanguard))
             - BWAPI::Broodwar->getGroundHeight(BWAPI::TilePosition(myUnitsCentroid));
 #ifdef COMBATSIM_DEBUG
@@ -278,6 +284,10 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         // - our army is bigger
         // - our losses are insignificant
         // - the gain is more significant than our loss
+		//如果我们在3秒或3秒以上后投射增益，我们会短路:
+		// -我们的军队更大
+		// -我们的损失微不足道
+		// -得到比失去更重要
         if (step >= 3 && result.second > result.first && 
             (fap.playerScores().first >= fap.playerScores().second || 
                 fap.playerScores().first >= (initial.first - 50) ||
@@ -291,6 +301,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
         }
 
         // While rushing, we are more aggressive
+		//在匆忙中，我们更有侵略性
         if (step >= 3 && rushing && 
             (fap.playerScores().first >= 300 || (!currentlyRetreating && fap.playerScores().first >= 100)) &&
             (double)(fap.playerScores().second - initial.second) / (double)(fap.playerScores().first - initial.first) > 0.5)
@@ -329,6 +340,9 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     // Attack if we're doing better than the enemy as a percentage of army size
     // If we have the bigger army, we lost a bit more value than the enemy, but their army will be gone soon
     // If we have the smaller army, we're fighting much more cost-effectively
+	//如果我们在军队规模上比敌人做得好，那就发动攻击
+	//如果我们有更大的军队，我们损失的比敌人多一点，但他们的军队很快就会消失
+	//如果我们的军队规模小一些，我们的作战成本就会高得多
     double ourPercentageChange = (double)result.first / (double)initial.first;
     double theirPercentageChange = (double)result.second / (double)initial.second;
 #ifdef COMBATSIM_DEBUG
@@ -343,6 +357,7 @@ int CombatSimulation::simulateCombat(bool currentlyRetreating)
     }
 
     // Otherwise, we found no result to indicate an attack being worthwhile
+	//否则，我们没有发现任何结果表明攻击是值得的
 #ifdef COMBATSIM_DEBUG
     Log().Debug() << debug.str();
 #endif

@@ -4,7 +4,7 @@
 #include "GameRecord.h"
 #include "OpponentPlan.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
     enum class PylonHarassBehaviour
     {

@@ -2,7 +2,7 @@
 
 #include "MapTools.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 // Empty constructor. Initialization happens in initialize() below.
 Bases::Bases()

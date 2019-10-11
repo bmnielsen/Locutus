@@ -5,7 +5,7 @@
 #include "MicroManager.h"
 #include "InformationManager.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 enum class PylonHarassStates
 {

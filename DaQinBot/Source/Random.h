@@ -2,7 +2,7 @@
 
 #include <random>
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 
 class Random

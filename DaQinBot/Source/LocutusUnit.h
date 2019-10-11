@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class LocutusUnit
 {
@@ -13,7 +13,9 @@ class LocutusUnit
     BWAPI::Position                     currentlyMovingTowards;
     std::deque<const BWEM::ChokePoint*> waypoints;
     BWAPI::Unit                         mineralWalkingPatch;
-    int                                 lastMoveFrame;
+	const BWEM::Area*                   mineralWalkingTargetArea;
+	BWAPI::Position                     mineralWalkingStartPosition;
+	int                                 lastMoveFrame;
 
     // Used for various things, like detecting stuck goons and updating our collision matrix
     BWAPI::Position lastPosition;

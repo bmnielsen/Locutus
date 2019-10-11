@@ -3,7 +3,7 @@
 #include "MapTools.h"
 #include "UABAssert.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 const size_t LegalActions = 4;
 const int actionX[LegalActions] = {1, -1, 0, 0};

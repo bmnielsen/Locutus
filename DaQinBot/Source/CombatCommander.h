@@ -7,15 +7,21 @@
 #include "StrategyManager.h"
 #include "UnitUtil.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class CombatCommander
 {
+	BWAPI::Player	_self = BWAPI::Broodwar->self();
+
 	SquadData       _squadData;
     BWAPI::Unitset  _combatUnits;
+	int				_mainAttackUnits;
     bool            _initialized;
 
 	bool			_goAggressive;
+	int             _goAggressiveAt;
+
+	bool			_noSneak;
 
 	BWAPI::Position	_reconTarget;
 	int				_lastReconTargetChange;         // frame number
@@ -30,7 +36,10 @@ class CombatCommander
     void            updateDropSquads();
 	void            updateIdleSquad();
     void            updateKamikazeSquad();
+	void            updateHarassSquad();
     void            updateDefuseSquads();
+	void			updateObserver();
+	void			updateSneakSquads();
 
 	void			loadOrUnloadBunkers();
 	void			doComsatScan();
@@ -54,7 +63,6 @@ class CombatCommander
 
 	BWAPI::Position getDefendLocation();
 	void			chooseReconTarget();
-	BWAPI::Position getReconLocation() const;
 	BWAPI::Position getAttackLocation(const Squad * squad);
 	BWAPI::Position getFlyAttackLocation(const Squad * squad);
 	BWAPI::Position getDropLocation(const Squad & squad);
@@ -78,6 +86,7 @@ public:
 	CombatCommander();
 
 	void update(const BWAPI::Unitset & combatUnits);
+	BWAPI::Position getReconLocation() const;
 
 	void setAggression(bool aggressive) 
 	{ 
@@ -93,16 +102,26 @@ public:
 			}
 
 			Log().Get() << "Went aggressive with " << count << " combat units and " << UnitUtil::GetCompletedUnitCount(BWAPI::UnitTypes::Protoss_Probe) << " workers";
+			_goAggressiveAt = BWAPI::Broodwar->getFrameCount();
 		}
 
-		_goAggressive = aggressive;  
+		if (!aggressive) _goAggressiveAt = -1;
+
+
+		_goAggressive = aggressive;
 	}
 	bool getAggression() const { return _goAggressive; };
-	
+
+	void setAggressionAt(int frame) { _goAggressiveAt = frame; };
+	int getAggressionAt() const { return _goAggressiveAt; };
+
 	void pullWorkers(int n);
 	void releaseWorkers();
 
     void finishedRushing();
+
+	void			attackNow();
+	void			defenseNow();
 
     bool onTheDefensive();
 	
@@ -110,7 +129,8 @@ public:
 
     SquadData& getSquadData() { return _squadData; };
 
-	int getNumCombatUnit() { return _combatUnits.size(); };
+	int				getNumCombatUnits() { return _combatUnits.size(); };
+	int				getNumMainAttackUnits(){ return _mainAttackUnits; };
 
 	static CombatCommander & Instance();
 };

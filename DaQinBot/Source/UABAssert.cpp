@@ -1,9 +1,9 @@
 #include "UABAssert.h"
 #include "Config.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 namespace Assert
 {

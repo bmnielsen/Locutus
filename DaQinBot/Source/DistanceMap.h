@@ -3,7 +3,7 @@
 #include <vector>
 #include "BWAPI.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
     
 class DistanceMap

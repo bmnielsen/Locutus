@@ -2,7 +2,7 @@
 #include "Micro.h"
 #include "InformationManager.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 WorkerData::WorkerData() 
 {
@@ -562,8 +562,8 @@ void WorkerData::drawDepotDebugInfo()
 
             if (workersOnMineralPatch.find(mineral) != workersOnMineralPatch.end())
             {
-                 //if (Config::Debug::DRAW_UALBERTABOT_DEBUG) BWAPI::Broodwar->drawBoxMap(x-2, y-1, x+75, y+14, BWAPI::Colors::Black, true);
-                 //if (Config::Debug::DRAW_UALBERTABOT_DEBUG) BWAPI::Broodwar->drawTextMap(x, y, "\x04 Workers: %d", workersOnMineralPatch[mineral]);
+                 //if (Config::Debug::DRAW_DaQinBot_DEBUG) BWAPI::Broodwar->drawBoxMap(x-2, y-1, x+75, y+14, BWAPI::Colors::Black, true);
+                 //if (Config::Debug::DRAW_DaQinBot_DEBUG) BWAPI::Broodwar->drawTextMap(x, y, "\x04 Workers: %d", workersOnMineralPatch[mineral]);
             }
         }
 	}

@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 class WorkerMoveData
 {

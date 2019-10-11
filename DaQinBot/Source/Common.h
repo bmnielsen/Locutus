@@ -82,3 +82,5 @@ const char purple  = '\x10';   // dim
 const char orange  = '\x11';
 const char gray    = '\x1E';   // dim
 const char cyan    = '\x1F';
+
+extern bool gameEnded;

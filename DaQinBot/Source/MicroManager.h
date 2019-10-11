@@ -6,7 +6,7 @@
 #include "InformationManager.h"
 #include "Micro.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 
 class MicroManager
@@ -39,7 +39,7 @@ protected:
 	void                drawOrderText();
 
 	int					getMarkTargetScore(BWAPI::Unit target, int score);
-	void				setMarkTargetScore(BWAPI::Unit target, BWAPI::UnitType unitType);
+	void				setMarkTargetScore(BWAPI::Unit unit, BWAPI::Unit target);
 
 	struct CompareTiles {
 		bool operator() (const std::pair<BWAPI::TilePosition, double>& lhs, const std::pair<BWAPI::TilePosition, double>& rhs) const {
@@ -71,6 +71,6 @@ public:
 	void				setOrder(const SquadOrder & inputOrder);
 	void				execute();
 	void				regroup(const BWAPI::Position & regroupPosition, const BWAPI::Unit vanguard, std::map<BWAPI::Unit, bool> & nearEnemy) const;
-
+	bool				meleeUnitShouldRetreat(BWAPI::Unit meleeUnit, const BWAPI::Unitset & targets);
 };
 }

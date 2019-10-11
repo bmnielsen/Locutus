@@ -1,6 +1,6 @@
 #include "BuildingData.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 BuildingData::BuildingData()
 {

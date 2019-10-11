@@ -12,7 +12,7 @@
 // Parse manual commands.
 // Provide a few simple parsing routines for wider use.
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 // Parse the JSON configuration file into Config:: variables.
 void ParseUtils::ParseConfigFile(const std::string & filename)
@@ -121,6 +121,7 @@ void ParseUtils::ParseConfigFile(const std::string & filename)
         JSONTools::ReadBool("DrawMouseCursorInfo", debug, Config::Debug::DrawMouseCursorInfo);
         JSONTools::ReadBool("DrawEnemyUnitInfo", debug, Config::Debug::DrawEnemyUnitInfo);
         JSONTools::ReadBool("DrawMapInfo", debug, Config::Debug::DrawMapInfo);
+		JSONTools::ReadBool("DrawBWTAInfo", debug, Config::Debug::DrawBWTAInfo);
         JSONTools::ReadBool("DrawMapGrid", debug, Config::Debug::DrawMapGrid);
 		JSONTools::ReadBool("DrawMapDistances", debug, Config::Debug::DrawMapDistances);
 		JSONTools::ReadBool("DrawBaseInfo", debug, Config::Debug::DrawBaseInfo);
@@ -452,7 +453,8 @@ void ParseUtils::ParseTextCommand(const std::string & commandString)
         else if (variableName == "drawunittargetinfo") { Config::Debug::DrawUnitTargetInfo = GetBoolFromString(val); }
 		else if (variableName == "drawunitorders") { Config::Debug::DrawUnitOrders = GetBoolFromString(val); }
 		else if (variableName == "drawmapinfo") { Config::Debug::DrawMapInfo = GetBoolFromString(val); }
-        else if (variableName == "drawmapgrid") { Config::Debug::DrawMapGrid = GetBoolFromString(val); }
+		else if (variableName == "drawbwtainfo") { Config::Debug::DrawBWTAInfo = GetBoolFromString(val); }
+		else if (variableName == "drawmapgrid") { Config::Debug::DrawMapGrid = GetBoolFromString(val); }
 		else if (variableName == "drawmapdistances") { Config::Debug::DrawMapDistances = GetBoolFromString(val); }
 		else if (variableName == "drawbaseinfo") { Config::Debug::DrawBaseInfo = GetBoolFromString(val); }
 		else if (variableName == "drawstrategybossinfo") { Config::Debug::DrawStrategyBossInfo = GetBoolFromString(val); }

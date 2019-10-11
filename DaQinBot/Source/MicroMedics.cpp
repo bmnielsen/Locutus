@@ -1,7 +1,7 @@
 #include "MicroMedics.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MicroMedics::MicroMedics() 
 { 

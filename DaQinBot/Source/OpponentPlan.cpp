@@ -4,7 +4,7 @@
 #include "ScoutManager.h"
 #include "PlayerSnapshot.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 // Attempt to recognize what the opponent is doing, so we can cope with it.
 // For now, only try to recognize a small number of opening situations that require
@@ -44,6 +44,7 @@ bool OpponentPlan::recognizeWorkerRush()
 }
 
 // Factory, possibly with starport, and no sign of many marines intended.
+//工厂，可能有starport，没有很多海军陆战队的迹象。
 bool OpponentPlan::recognizeFactoryTech()
 {
 	if (BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Terran)
@@ -154,6 +155,9 @@ void OpponentPlan::recognize()
 	// Recognize slower rushes.
 	// TODO make sure we've seen the bare geyser in the enemy base!
 	// TODO seeing a unit carrying gas also means the enemy has gas
+	//识别较慢的快攻。
+	//一定要让我们看到敌人基地里光秃秃的间歇泉!
+	//看到一个携带天然气的单位也意味着敌人有天然气
 	if (frame < 5500 &&
         snap.getCount(BWAPI::UnitTypes::Zerg_Zergling) > 10
         ||
@@ -192,9 +196,41 @@ void OpponentPlan::recognize()
         return;
     }
 
+	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss) {
+		if (frame < 4500 && snap.getCount(BWAPI::UnitTypes::Protoss_Gateway) >= 2) {
+			_openingPlan = OpeningPlan::FastRush;
+			return;
+		}
+
+		if (frame < 5600 && snap.getCount(BWAPI::UnitTypes::Protoss_Zealot) >= 3) {
+			_openingPlan = OpeningPlan::FastRush;
+			return;
+		}
+
+		if (frame < 6000 && snap.getCount(BWAPI::UnitTypes::Protoss_Nexus) >= 2)
+		{
+			_openingPlan = OpeningPlan::NakedExpand;
+			return;
+		}
+
+		if (frame < 7500 && frame > 6200 && 
+			snap.getCount(BWAPI::UnitTypes::Protoss_Gateway) < 3 &&
+			(snap.getCount(BWAPI::UnitTypes::Protoss_Zealot) + snap.getCount(BWAPI::UnitTypes::Protoss_Dragoon) < 4)) {
+			_openingPlan = OpeningPlan::DKRush;
+			return;
+		}
+
+		if ((frame > 7500 && !InformationManager::Instance().enemyHasInfantryRangeUpgrade()) || snap.getFrame(BWAPI::UnitTypes::Protoss_Citadel_of_Adun) < 7000) {
+			_openingPlan = OpeningPlan::DKRush;
+			return;
+		}
+	}
+
     // Disabling the rest, as we do no specific counters or reactions to them
     // Better to leave it as NotFastRush so we don't confuse our opening selection
-    return;
+	//禁用其余部分，因为我们没有对它们进行特定的计数器或响应
+	//最好不要把它弄乱，这样我们就不会混淆开头的选择了
+    //return;
 
 	// Recognize terran factory tech openings.
 	if (recognizeFactoryTech())
@@ -206,6 +242,9 @@ void OpponentPlan::recognize()
 	// Recognize expansions with pre-placed static defense.
 	// Zerg can't do this.
 	// NOTE Incomplete test! We don't check the location of the static defense
+	//识别带有预先设置的静态防御的扩展。
+	//虫族不能这么做。
+	//注意:测试不完整!我们不检查静态防御的位置
 	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->enemy()) >= 2)
 	{
 		if (snap.getCount(BWAPI::UnitTypes::Terran_Bunker) > 0 ||
@@ -218,7 +257,9 @@ void OpponentPlan::recognize()
 
 	// Recognize a naked expansion.
 	// This has to run after the SafeExpand check, since it doesn't check for what's missing.
-	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->enemy()) >= 2)
+	//认识到赤裸裸的扩张。
+	//这必须在SafeExpand检查之后运行，因为它不检查缺少什么。
+	if (InformationManager::Instance().getNumBases(BWAPI::Broodwar->enemy()) >= 2 && BWAPI::Broodwar->enemy()->getRace() != BWAPI::Races::Zerg)
 	{
 		_openingPlan = OpeningPlan::NakedExpand;
 		return;

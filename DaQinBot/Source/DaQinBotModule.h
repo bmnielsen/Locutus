@@ -10,13 +10,11 @@
 
 #include "rapidjson\document.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 
-class UAlbertaBotModule : public BWAPI::AIModule
+class DaQinBotModule : public BWAPI::AIModule
 {
-private:
-    bool    gameEnded;
 
 public:
 

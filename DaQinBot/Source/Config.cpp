@@ -31,7 +31,9 @@ namespace Config
         std::string TerranStrategyName      = "11Rax";					// default
         std::string ZergStrategyName        = "9PoolSpeed";				// default
         std::string StrategyName            = "9PoolSpeed";
-        bool ScoutHarassEnemy               = true;
+		int maxAttackUnits = 160;//大于此单位开始进攻
+		int minAttackUnits = 1;//小于此单位则防守
+		bool ScoutHarassEnemy = true;
 		bool AutoGasSteal                   = true;
 		double RandomGasStealRate           = 0.0;
 		bool UsePlanRecognizer				= true;
@@ -79,6 +81,7 @@ namespace Config
         bool DrawMouseCursorInfo            = false;
         bool DrawEnemyUnitInfo              = false;
 		bool DrawMapInfo					= false;
+		bool DrawBWTAInfo					= false;
         bool DrawMapGrid                    = false;
 		bool DrawMapDistances				= false;
 		bool DrawBaseInfo					= false;

@@ -9,7 +9,7 @@ const double pi = 3.14159265358979323846;
 namespace { auto & bwebMap = BWEB::Map::Instance(); }
 namespace { auto & bwemMap = BWEM::Map::Instance(); }
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 	void swap(BWAPI::TilePosition& first, BWAPI::TilePosition& second)
 	{
@@ -1262,6 +1262,7 @@ namespace UAlbertaBot
             && bwebMap.getNatural().x < BWAPI::TilePosition(bwemMap.Center()).x) return luna10Oclock();
 
         // Ensure we have the ability to make a wall
+		//确保我们有能力建造一堵墙
         bwebMap.area = bwebMap.getNaturalArea();
         bwebMap.choke = bwebMap.getNaturalChoke();
         if (!bwebMap.area || !bwebMap.choke)

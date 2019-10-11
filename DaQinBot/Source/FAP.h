@@ -4,7 +4,7 @@
 
 //#define FAP_DEBUG 1
 
-namespace UAlbertaBot {
+namespace DaQinBot {
 
     struct FastAPproximation {
         struct FAPUnit {
@@ -27,6 +27,8 @@ namespace UAlbertaBot {
             mutable double speed = 0;
             mutable bool flying = 0;
             mutable int elevation = -1;
+
+            mutable bool undetected = false;
 
             mutable BWAPI::UnitSizeType unitSize;
 
@@ -75,12 +77,18 @@ namespace UAlbertaBot {
 
         std::vector<FAPUnit> player1, player2;
 
+        // Current approach to collisions: allow two units to share the same grid cell, using half-tile resolution
+        // This seems to strike a reasonable balance between improving how large melee armies are simmed and avoiding
+        // expensive collision-based pathing calculations
+        unsigned short collision[512][512] = {};
+
         int frame;
         bool didSomething;
         void dealDamage(const FastAPproximation::FAPUnit &fu, int damage,
             BWAPI::DamageType damageType) const;
         int distance(const FastAPproximation::FAPUnit &u1,
             const FastAPproximation::FAPUnit &u2) const;
+        void updatePosition(const FAPUnit &fu, int x, int y);
         bool isSuicideUnit(BWAPI::UnitType ut);
         void unitsim(const FAPUnit &fu, std::vector<FAPUnit> &enemyUnits);
         void medicsim(const FAPUnit &fu, std::vector<FAPUnit> &friendlyUnits);
@@ -92,4 +100,4 @@ namespace UAlbertaBot {
 
 }
 
-extern UAlbertaBot::FastAPproximation fap;
+extern DaQinBot::FastAPproximation fap;

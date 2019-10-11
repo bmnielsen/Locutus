@@ -3,7 +3,7 @@
 #include <Common.h>
 #include <BWAPI.h>
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 namespace UnitUtil
 {      
@@ -40,8 +40,14 @@ namespace UnitUtil
 	bool GoodUnderDarkSwarm(BWAPI::Unit attacker);
 	bool GoodUnderDarkSwarm(BWAPI::UnitType attacker);
 
+	bool IsUndetected(BWAPI::Unit unit);
+
 	int GetAllUnitCount(BWAPI::UnitType type);
+	int GetAllUnitCount(BWAPI::UnitType type, BWAPI::Player player);
+
 	int GetCompletedUnitCount(BWAPI::UnitType type);
+	int GetCompletedUnitCount(BWAPI::UnitType type, BWAPI::Player player);
+
 	int GetUncompletedUnitCount(BWAPI::UnitType type);
 
 	BWAPI::Unit GetNextCompletedBuildingOfType(BWAPI::UnitType type);

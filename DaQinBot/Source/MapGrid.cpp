@@ -1,7 +1,7 @@
 #include "Common.h"
 #include "MapGrid.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 MapGrid & MapGrid::Instance() 
 {
@@ -72,6 +72,38 @@ BWAPI::Position MapGrid::getLeastExplored(bool byGround)
 	}
 
 	return getCellCenter(leastRow, leastCol);
+}
+
+BWAPI::Position MapGrid::getLeastExploredInRegion(BWAPI::Position target, int* lastExplored)
+{
+	auto region = BWTA::getRegion(target);
+
+	int minSeen = INT_MAX;
+	int minSeenDist = 0;
+	BWAPI::Position minPos = BWAPI::Positions::Invalid;
+
+	for (int r = 0; r<rows; ++r)
+	{
+		for (int c = 0; c<cols; ++c)
+		{
+			// get the center of this cell
+			BWAPI::Position cellCenter = getCellCenter(r, c);
+			if (BWTA::getRegion(cellCenter) != region) continue;
+
+			int dist = target.getApproxDistance(getCellByIndex(r, c).center);
+			int lastVisited = getCellByIndex(r, c).timeLastVisited;
+			if (lastVisited < minSeen || ((lastVisited == minSeen) && (dist > minSeenDist)))
+			{
+				minPos = cellCenter;
+				minSeen = lastVisited;
+				minSeenDist = dist;
+			}
+		}
+	}
+
+	if (lastExplored) *lastExplored = minSeen;
+
+	return minPos;
 }
 
 void MapGrid::calculateCellCenters()

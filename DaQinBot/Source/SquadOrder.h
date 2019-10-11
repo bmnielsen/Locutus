@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-namespace UAlbertaBot
+namespace DaQinBot
 {
 
 namespace SquadOrderTypes
@@ -18,6 +18,7 @@ namespace SquadOrderTypes
 		Drop,      // go drop on the enemy (Drop squad)
 		Harass,    // harass the enemy
 		KamikazeAttack,    // attacks the enemy with much higher aggression, ignoring air units
+		Sneak
 	};
 }
 
@@ -97,7 +98,8 @@ public:
 			_type == SquadOrderTypes::HoldWall ||
 			_type == SquadOrderTypes::Harass ||
 			_type == SquadOrderTypes::KamikazeAttack ||
-			_type == SquadOrderTypes::Drop;
+			_type == SquadOrderTypes::Drop ||
+			_type == SquadOrderTypes::Sneak;
 	}
 
 	// These orders use the regrouping mechanism to retreat when facing superior enemies.

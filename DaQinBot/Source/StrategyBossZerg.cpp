@@ -9,7 +9,7 @@
 #include "ScoutManager.h"
 #include "UnitUtil.h"
 
-using namespace UAlbertaBot;
+using namespace DaQinBot;
 
 // Never have more than this many devourers.
 const int maxDevourers = 9;
